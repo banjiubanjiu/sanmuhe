@@ -4,27 +4,131 @@
     <view class="page-title">我的</view>
     <view class="nav-placeholder"></view>
   </view>
-  <view class="profile-head">
-    <view>
-      <view class="eyebrow">MEMBER</view>
-      <view class="h1">我的三木合</view>
+
+  <view class="user-card">
+    <view class="avatar-wrap">
+      <image class="avatar" src="{{user.avatar}}" mode="aspectFill"></image>
+      <view class="avatar-badge">
+        <image src="/assets/icons/profile-active.png" mode="aspectFit"></image>
+      </view>
     </view>
-    <view class="head-actions">
-      <button class="line-button small-btn" bindtap="goCloudStatus">云状态</button>
-      <button class="line-button small-btn" bindtap="goHome">首页</button>
+    <view class="user-copy">
+      <view class="user-name">{{user.name}}</view>
+      <view class="user-title">{{user.title}}</view>
+      <view class="tier-pill">{{member.tier}}</view>
+    </view>
+    <view class="chevron" bindtap="goCloudStatus">›</view>
+  </view>
+
+  <view class="member-hero">
+    <image class="member-bg" src="/assets/images/design-hero-tea.jpg" mode="aspectFill"></image>
+    <view class="member-shade"></view>
+    <view class="member-content">
+      <view>
+        <view class="member-title">雅客会员</view>
+        <view class="member-subtitle">会员专享多重权益</view>
+      </view>
+      <view class="member-bottom">
+        <view class="member-stat">
+          <text>会员积分</text>
+          <view class="member-stat-number">{{member.points}}</view>
+        </view>
+        <view class="member-divider"></view>
+        <view class="member-stat">
+          <text>优惠券</text>
+          <view class="member-stat-number">{{member.coupons}} <text>张</text></view>
+        </view>
+        <view class="benefit-btn" bindtap="showMemberBenefits">查看权益</view>
+      </view>
     </view>
   </view>
 
-  <view class="section member-card">
-    <view>
-      <view class="member-kicker">三木合会员</view>
-      <view class="member-title">云端记录已连接</view>
-      <view class="member-copy">订单、预约和活动报名会在这里归档。</view>
+  <view class="order-panel">
+    <view
+      wx:for="{{orderShortcuts}}"
+      wx:key="key"
+      class="order-shortcut"
+      data-key="{{item.key}}"
+      bindtap="handleOrderShortcut"
+    >
+      <view class="order-icon-wrap">
+        <image class="order-icon" src="{{item.icon}}" mode="aspectFit"></image>
+        <text wx:if="{{item.count > 0}}" class="count-dot">{{item.count}}</text>
+      </view>
+      <text>{{item.label}}</text>
     </view>
-    <button class="ink-button member-action" bindtap="goCloudStatus">检查</button>
   </view>
 
-  <view class="section">
+  <view class="service-panel">
+    <view class="panel-title">我的服务</view>
+    <view class="service-grid">
+      <view
+        wx:for="{{services}}"
+        wx:key="label"
+        class="service-item"
+        data-action="{{item.action}}"
+        bindtap="handleService"
+      >
+        <view class="service-icon-wrap {{item.filled ? 'filled' : ''}}">
+          <image class="service-icon" src="{{item.icon}}" mode="aspectFit"></image>
+        </view>
+        <text>{{item.label}}</text>
+      </view>
+    </view>
+    <view wx:if="{{shippingAddress}}" class="address-line">{{shippingAddress}}</view>
+  </view>
+
+  <view class="recent-panel">
+    <view class="panel-head">
+      <view class="panel-title">最近预约</view>
+      <view class="panel-link" bindtap="goReservation">全部预约 ›</view>
+    </view>
+    <view class="recent-card" bindtap="goReservation">
+      <image class="recent-image" src="{{recentReservation.image}}" mode="aspectFill"></image>
+      <view class="recent-copy">
+        <view class="recent-title">{{recentReservation.room}}</view>
+        <view class="recent-line">
+          <image src="/assets/icons/clock-line.png" mode="aspectFit"></image>
+          <text>{{recentReservation.dateText}}</text>
+        </view>
+        <view class="recent-line">
+          <image src="/assets/icons/users-line.png" mode="aspectFit"></image>
+          <text>人数：{{recentReservation.people}}人</text>
+        </view>
+      </view>
+      <view class="recent-status">
+        <text>{{recentReservation.status}}</text>
+        <view>查看详情</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="recent-panel">
+    <view class="panel-head">
+      <view class="panel-title">最近活动</view>
+      <view class="panel-link" bindtap="goEvents">全部活动 ›</view>
+    </view>
+    <view class="recent-card" bindtap="goEvents">
+      <image class="recent-image" src="{{recentSignup.image}}" mode="aspectFill"></image>
+      <view class="recent-copy">
+        <view class="recent-title">{{recentSignup.title}}</view>
+        <view class="recent-line">
+          <image src="/assets/icons/clock-line.png" mode="aspectFit"></image>
+          <text>{{recentSignup.dateText}}</text>
+        </view>
+        <view class="recent-line">
+          <image src="/assets/icons/map-pin-line.png" mode="aspectFit"></image>
+          <text>{{recentSignup.place}}</text>
+        </view>
+      </view>
+      <view class="recent-status">
+        <text>{{recentSignup.status}}</text>
+        <view>查看详情</view>
+      </view>
+    </view>
+  </view>
+
+  <view id="favorites-section" class="section">
     <view class="h2">收藏茶品</view>
     <view wx:if="{{favorites.length === 0}}" class="empty compact">暂无收藏</view>
     <scroll-view wx:if="{{favorites.length > 0}}" scroll-x class="favorite-strip" enhanced show-scrollbar="{{false}}">
@@ -36,38 +140,13 @@
     </scroll-view>
   </view>
 
-  <view class="section">
-    <view class="h2">订单</view>
-    <view wx:if="{{orders.length === 0}}" class="empty compact">暂无订单</view>
+  <view class="section record-section">
+    <view class="h2">云端记录</view>
+    <view wx:if="{{!hasCloudRecords}}" class="empty compact">暂无云端记录</view>
     <view wx:if="{{orders.length > 0}}" class="record-list">
       <view wx:for="{{orders}}" wx:key="id" class="record">
         <view class="record-title">{{item.id}}</view>
         <view class="muted">¥{{item.total}} · {{item.status}}</view>
-        <view class="record-items">
-          <text wx:for="{{item.items}}" wx:key="key">{{item.name}} x{{item.quantity}}</text>
-        </view>
-      </view>
-    </view>
-  </view>
-
-  <view class="section">
-    <view class="h2">茶室预约</view>
-    <view wx:if="{{reservations.length === 0}}" class="empty compact">暂无预约</view>
-    <view wx:if="{{reservations.length > 0}}" class="record-list">
-      <view wx:for="{{reservations}}" wx:key="id" class="record">
-        <view class="record-title">{{item.room}} · {{item.day}} {{item.time}}</view>
-        <view class="muted">{{item.people}} 人 · {{item.status}}</view>
-      </view>
-    </view>
-  </view>
-
-  <view class="section">
-    <view class="h2">活动报名</view>
-    <view wx:if="{{signups.length === 0}}" class="empty compact">暂无报名</view>
-    <view wx:if="{{signups.length > 0}}" class="record-list">
-      <view wx:for="{{signups}}" wx:key="id" class="record">
-        <view class="record-title">{{item.title}}</view>
-        <view class="muted">{{item.status}}</view>
       </view>
     </view>
   </view>

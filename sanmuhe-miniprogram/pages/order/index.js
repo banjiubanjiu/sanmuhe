@@ -153,6 +153,13 @@ Page({
     wx.switchTab({ url: "/pages/cart/index" });
   },
 
+  switchOrderTab(event) {
+    const url = event.currentTarget.dataset.url;
+    if (url) {
+      wx.switchTab({ url });
+    }
+  },
+
   goBack() {
     const pages = getCurrentPages();
     if (pages.length > 1) {

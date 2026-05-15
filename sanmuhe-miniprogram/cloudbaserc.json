@@ -53,6 +53,11 @@
       "name": "listMyRecords",
       "runtime": "Nodejs16.13",
       "handler": "index.main"
+    },
+    {
+      "name": "cleanupSmokeData",
+      "runtime": "Nodejs16.13",
+      "handler": "index.main"
     }
   ]
 }

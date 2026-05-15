@@ -29,6 +29,7 @@ exports.main = async (event) => {
   const name = cleanText(event.name, 40);
   const phone = cleanText(event.phone, 30);
   const note = cleanText(event.note, 200);
+  const source = cleanText(event.source, 40);
 
   if (!roomId || !room || !day || !time || !name || !phone) {
     return { ok: false, message: "请补全预约信息" };
@@ -58,6 +59,7 @@ exports.main = async (event) => {
       name,
       phone,
       note,
+      source,
       status: "待确认",
       createdAt: db.serverDate(),
       updatedAt: db.serverDate()

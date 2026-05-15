@@ -29,16 +29,18 @@ exports.main = async (event) => {
   const price = Math.max(0, Number(event.price) || 0);
   const summary = cleanText(event.summary, 300);
   const image = cleanText(event.image, 160) || "/assets/images/design-event-spring.jpg";
+  const source = cleanText(event.source, 40);
 
   if (!title || !date || !time || !summary) {
     return { ok: false, message: "请补全活动信息" };
   }
 
   await ensureCollection("events");
+  const eventId = `event-cloud-${Date.now()}`;
   const addResult = await db.collection("events").add({
     data: {
       _openid: OPENID,
-      id: `event-cloud-${Date.now()}`,
+      id: eventId,
       title,
       category,
       date,
@@ -49,6 +51,7 @@ exports.main = async (event) => {
       price,
       image,
       summary,
+      source,
       status: "新发布",
       deleted: false,
       visible: true,
@@ -59,6 +62,7 @@ exports.main = async (event) => {
 
   return {
     ok: true,
-    id: addResult._id
+    id: eventId,
+    docId: addResult._id
   };
 };

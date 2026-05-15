@@ -143,7 +143,7 @@ Page({
       wx.setStorageSync("sanmuhe_reservations", reservations);
       wx.showModal({
         title: "预约已提交",
-        content: "当前使用本地演示记录；配置云环境后将写入云数据库。",
+        content: "预约已临时保存在本机，云端恢复后请重新提交确认。",
         showCancel: false,
         success: () => {
           this.setData({ bookingOpen: false });

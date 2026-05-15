@@ -1,4 +1,4 @@
-<view class="page order-page with-safe-bar">
+<view class="page order-page">
   <view class="page-nav">
     <view class="back-mark" bindtap="goBack">‹</view>
     <view class="page-title">茶饮点单</view>
@@ -35,22 +35,32 @@
     </scroll-view>
   </view>
 
-  <view class="safe-bar tab-safe-bar">
+  <view wx:if="{{cartCount > 0}}" class="order-cart-pill" bindtap="goCart">
     <view class="cart-icon-large">
       <image src="/assets/icons/cart-white.png" mode="aspectFit"></image>
       <text>{{cartCount}}</text>
     </view>
-    <view class="safe-bar-main">
-      <view class="bar-title">购物车（{{cartCount}}）</view>
-    </view>
+    <view class="bar-title">购物车</view>
     <view class="bar-total">¥{{cartTotal}}</view>
-    <button class="safe-bar-action" bindtap="goCart">去结算</button>
+    <view class="checkout-chip">去结算</view>
   </view>
 
   <view class="order-tabbar">
-    <view class="order-tab active">首页</view>
-    <view class="order-tab">分类</view>
-    <view class="order-tab">购物车</view>
-    <view class="order-tab">我的</view>
+    <view class="order-tab active" data-url="/pages/index/index" bindtap="switchOrderTab">
+      <image class="order-tab-icon" src="/assets/icons/home-active.png" mode="aspectFit"></image>
+      <text>首页</text>
+    </view>
+    <view class="order-tab" data-url="/pages/shop/index" bindtap="switchOrderTab">
+      <image class="order-tab-icon" src="/assets/icons/category-line.png" mode="aspectFit"></image>
+      <text>分类</text>
+    </view>
+    <view class="order-tab" data-url="/pages/cart/index" bindtap="switchOrderTab">
+      <image class="order-tab-icon" src="/assets/icons/cart-line.png" mode="aspectFit"></image>
+      <text>购物车</text>
+    </view>
+    <view class="order-tab" data-url="/pages/profile/index" bindtap="switchOrderTab">
+      <image class="order-tab-icon" src="/assets/icons/profile-line.png" mode="aspectFit"></image>
+      <text>我的</text>
+    </view>
   </view>
 </view>

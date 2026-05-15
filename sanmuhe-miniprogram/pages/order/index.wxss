@@ -1,5 +1,5 @@
 .order-page {
-  padding: 88rpx 0 calc(180rpx + env(safe-area-inset-bottom));
+  padding: 88rpx 0 calc(116rpx + env(safe-area-inset-bottom));
   background: #fff;
 }
 
@@ -27,7 +27,7 @@
   position: fixed;
   top: 250rpx;
   right: 0;
-  bottom: calc(310rpx + env(safe-area-inset-bottom));
+  bottom: calc(112rpx + env(safe-area-inset-bottom));
   left: 0;
   display: grid;
   grid-template-columns: 186rpx 1fr;
@@ -72,7 +72,7 @@
 
 .drink-list {
   height: 100%;
-  padding: 24rpx 30rpx 32rpx;
+  padding: 24rpx 30rpx 150rpx;
 }
 
 .list-heading {
@@ -147,7 +147,9 @@
   bottom: 78rpx;
   width: 36rpx;
   height: 36rpx;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   border-radius: 999rpx;
   background: #4f7d43;
@@ -158,30 +160,35 @@
   width: 22rpx;
   height: 22rpx;
   display: block;
-  margin: 7rpx auto 0;
 }
 
-.order-page .safe-bar.tab-safe-bar {
-  right: 30rpx;
-  bottom: calc(120rpx + env(safe-area-inset-bottom));
-  left: 30rpx;
-  gap: 22rpx;
-  padding: 22rpx 28rpx;
+.order-cart-pill {
+  position: fixed;
+  right: 74rpx;
+  bottom: calc(126rpx + env(safe-area-inset-bottom));
+  left: 74rpx;
+  z-index: 20;
+  min-height: 84rpx;
+  display: grid;
+  grid-template-columns: 58rpx 1fr auto auto;
+  gap: 18rpx;
+  align-items: center;
+  padding: 12rpx 16rpx 12rpx 24rpx;
   color: #fff;
-  border-radius: 18rpx;
+  border-radius: 24rpx;
   background: #223529;
-  box-shadow: 0 18rpx 36rpx rgba(23, 44, 30, 0.22);
+  box-shadow: 0 16rpx 34rpx rgba(23, 44, 30, 0.2);
 }
 
 .cart-icon-large {
   position: relative;
-  width: 58rpx;
-  height: 50rpx;
+  width: 54rpx;
+  height: 54rpx;
 }
 
 .cart-icon-large image {
-  width: 52rpx;
-  height: 52rpx;
+  width: 50rpx;
+  height: 50rpx;
   display: block;
 }
 
@@ -189,8 +196,9 @@
   position: absolute;
   top: -20rpx;
   right: -18rpx;
-  width: 28rpx;
+  min-width: 28rpx;
   height: 28rpx;
+  padding: 0 6rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -202,6 +210,7 @@
 }
 
 .bar-title {
+  min-width: 0;
   color: #fff;
   font-size: 28rpx;
 }
@@ -212,9 +221,12 @@
   font-weight: 800;
 }
 
-.safe-bar-action {
-  width: 150rpx;
-  min-height: 62rpx;
+.checkout-chip {
+  min-width: 136rpx;
+  min-height: 58rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
   border-radius: 999rpx;
   background: #6f9c55;
@@ -238,8 +250,10 @@
 .order-tab {
   min-height: 78rpx;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 8rpx;
   color: #777;
   font-size: 24rpx;
 }
@@ -247,6 +261,12 @@
 .order-tab.active {
   color: #4f7d43;
   font-weight: 800;
+}
+
+.order-tab-icon {
+  width: 42rpx;
+  height: 42rpx;
+  display: block;
 }
 
 .empty-list {

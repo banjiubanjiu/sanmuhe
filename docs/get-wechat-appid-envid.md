@@ -40,13 +40,7 @@ cloud1-xxxxxx
 F:\sanmuhe\configure-cloud.bat
 ```
 
-或者走完整流程：
-
-```text
-F:\sanmuhe\sanmuhe-cloud-preview.bat
-```
-
-完整流程会写入配置、打开微信开发者工具、部署云函数并生成预览二维码。
+配置完成后，直接用微信开发者工具打开 `F:\sanmuhe\sanmuhe-miniprogram`，点击编译或热部署查看效果。
 
 ## 配置后检查
 
@@ -61,6 +55,6 @@ F:\sanmuhe\verify-cloud-migration.bat
 ```json
 {
   "codeReady": true,
-  "readyForCloudPreview": true
+  "readyForWechatDevtools": true
 }
 ```

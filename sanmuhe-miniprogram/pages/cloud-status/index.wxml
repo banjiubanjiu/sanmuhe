@@ -25,6 +25,7 @@
   <button class="ink-button section" loading="{{checking}}" bindtap="checkCloud">检查 getOpenId 云函数</button>
   <button class="light-button seed-button" loading="{{seeding}}" bindtap="seedDemoData">写入默认商品和活动</button>
   <button class="light-button seed-button" loading="{{smoking}}" bindtap="runSmokeTest">运行云端写入检查</button>
+  <button class="line-button seed-button" loading="{{cleaning}}" bindtap="cleanupSmokeData">清理自动检查记录</button>
   <button class="light-button seed-button" loading="{{cataloging}}" bindtap="checkCatalogCrud">检查商品/活动管理</button>
 
   <view wx:if="{{result}}" class="section result-card">
@@ -41,6 +42,11 @@
   <view wx:if="{{smokeResult}}" class="section result-card">
     <view class="result-title">云端写入检查结果</view>
     <view class="muted">{{smokeResult}}</view>
+  </view>
+
+  <view wx:if="{{cleanupResult}}" class="section result-card">
+    <view class="result-title">自动检查记录清理</view>
+    <view class="muted">{{cleanupResult}}</view>
   </view>
 
   <view wx:if="{{catalogResult}}" class="section result-card">

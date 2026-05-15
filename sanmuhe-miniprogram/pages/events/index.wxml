@@ -34,7 +34,7 @@
             <image src="/assets/icons/users-line.png" mode="aspectFit"></image>
             <text>已报名 {{item.signed}}/{{item.quota}}</text>
           </view>
-          <button class="join-pill" data-id="{{item.id}}" bindtap="joinEvent">报名中</button>
+          <button class="join-pill {{item.canJoin ? '' : 'disabled'}}" disabled="{{!item.canJoin}}" data-id="{{item.id}}" bindtap="joinEvent">{{item.joinText}}</button>
         </view>
       </view>
     </view>

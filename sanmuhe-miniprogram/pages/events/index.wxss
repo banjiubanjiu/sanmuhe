@@ -156,3 +156,8 @@
   font-size: 25rpx;
   font-weight: 800;
 }
+
+.join-pill.disabled {
+  color: #777;
+  background: #eeeeea;
+}

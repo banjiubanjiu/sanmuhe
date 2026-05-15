@@ -71,16 +71,38 @@ function getTrustedPrice(type, basePrice, options) {
   return Math.round(basePrice * (specMultipliers[options.unit] || 1));
 }
 
-function sanitizeItems(items) {
+async function findTrustedItem(type, id) {
+  const collection = type === "tea" ? "tea_products" : "drinks";
+  await ensureCollection(collection);
+
+  try {
+    const result = await db.collection(collection).where({ id }).limit(1).get();
+    const item = result.data && result.data[0];
+    if (item && item.visible !== false) {
+      return {
+        name: cleanText(item.name, 80),
+        price: Math.max(0, Number(item.price) || 0)
+      };
+    }
+  } catch (error) {
+    // Fall through to the built-in catalog map.
+  }
+
+  return priceMap[`${type}:${id}`] || null;
+}
+
+async function sanitizeItems(items) {
   if (!Array.isArray(items) || !items.length) {
     throw new Error("订单商品不能为空");
   }
 
   let total = 0;
-  const cleanItems = items.slice(0, 30).map((item) => {
+  const cleanItems = [];
+
+  for (const item of items.slice(0, 30)) {
     const type = item.type === "tea" ? "tea" : "drink";
     const id = cleanText(item.id, 40);
-    const trusted = priceMap[`${type}:${id}`];
+    const trusted = await findTrustedItem(type, id);
     if (!trusted) {
       throw new Error("商品不存在或已下架");
     }
@@ -90,15 +112,15 @@ function sanitizeItems(items) {
     const price = getTrustedPrice(type, trusted.price, options);
     total += price * quantity;
 
-    return {
+    cleanItems.push({
       id,
       type,
       name: trusted.name,
       price,
       quantity,
       options
-    };
-  });
+    });
+  }
 
   return {
     cleanItems,
@@ -110,7 +132,7 @@ exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();
 
   try {
-    const { cleanItems, total } = sanitizeItems(event.items);
+    const { cleanItems, total } = await sanitizeItems(event.items);
     const hasTea = cleanItems.some((item) => item.type === "tea");
     const consignee = cleanText(event.consignee, 40);
     const phone = cleanText(event.phone, 30);
@@ -132,7 +154,8 @@ exports.main = async (event) => {
         phone,
         address,
         remark: cleanText(event.remark, 200),
-        status: "待接入微信支付",
+        source: cleanText(event.source, 40),
+        status: "待支付",
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
       }

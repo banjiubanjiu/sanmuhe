@@ -112,6 +112,28 @@
   padding: 26rpx;
 }
 
+.form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.address-action {
+  flex: 0 0 auto;
+  min-width: 132rpx;
+  height: 52rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f7d43;
+  border: 1rpx solid rgba(79, 125, 67, 0.28);
+  border-radius: 999rpx;
+  background: #edf4ea;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
 .bar-title {
   color: #233b31;
   font-weight: 800;

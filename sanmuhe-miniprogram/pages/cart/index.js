@@ -41,6 +41,21 @@ Page({
     wx.navigateTo({ url: "/pages/order/index" });
   },
 
+  chooseAddress() {
+    wx.chooseAddress({
+      success: (res) => {
+        this.setData({
+          consignee: res.userName || "",
+          phone: res.telNumber || "",
+          address: `${res.provinceName || ""}${res.cityName || ""}${res.countyName || ""}${res.detailInfo || ""}`
+        });
+      },
+      fail: () => {
+        wx.showToast({ title: "未选择地址", icon: "none" });
+      }
+    });
+  },
+
   submitOrder() {
     const { cart, total, consignee, phone, address, remark } = this.data;
     if (!cart.length) {
@@ -72,7 +87,7 @@ Page({
       this.refresh();
       wx.showModal({
         title: "订单已生成",
-        content: "订单已写入云数据库；微信支付接入后可替换为真实支付。",
+        content: "订单已写入云数据库，请到店支付或联系客服确认配送。",
         showCancel: false,
         success: () => wx.switchTab({ url: "/pages/profile/index" })
       });
@@ -87,14 +102,14 @@ Page({
         phone,
         address,
         remark,
-        status: "本地演示订单"
+        status: "待支付"
       });
       wx.setStorageSync("sanmuhe_orders", orders);
       clearCart();
       this.refresh();
       wx.showModal({
         title: "订单已生成",
-        content: "当前使用本地演示记录；配置云环境后将写入云数据库。",
+        content: "订单已临时保存在本机，云端恢复后请重新提交确认。",
         showCancel: false,
         success: () => wx.switchTab({ url: "/pages/profile/index" })
       });

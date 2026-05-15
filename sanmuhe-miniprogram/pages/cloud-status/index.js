@@ -17,7 +17,9 @@ Page({
     smoking: false,
     smokeResult: "",
     cataloging: false,
-    catalogResult: ""
+    catalogResult: "",
+    cleaning: false,
+    cleanupResult: ""
   },
 
   onLoad() {
@@ -140,6 +142,7 @@ Page({
     const app = getApp();
     const stamp = String(Date.now()).slice(-8);
     const eventTitle = `云开发检查 ${stamp}`;
+    const smokeSource = "cloud-status-smoke";
     const steps = [];
 
     this.setData({
@@ -170,7 +173,8 @@ Page({
             }
           }
         ],
-        remark: "云开发状态页自动检查"
+        remark: "云开发状态页自动检查",
+        source: smokeSource
       }
     }).then((res) => {
       const data = res.result || {};
@@ -189,7 +193,8 @@ Page({
           people: 2,
           name: "云开发检查",
           phone: "13800000000",
-          note: "云开发状态页自动检查"
+          note: "云开发状态页自动检查",
+          source: smokeSource
         }
       });
     }).then((res) => {
@@ -208,7 +213,8 @@ Page({
           place: "三木合茶事空间",
           quota: 8,
           price: 0,
-          summary: "云开发状态页自动检查活动"
+          summary: "云开发状态页自动检查活动",
+          source: smokeSource
         }
       });
     }).then((res) => {
@@ -217,12 +223,14 @@ Page({
         throw new Error(`活动写入失败：${data.message || "未知错误"}`);
       }
 
-      steps.push(`活动 ${data.id}`);
+      const eventId = data.id || `smoke-${stamp}`;
+      steps.push(`活动 ${eventId}`);
       return wx.cloud.callFunction({
         name: "joinEvent",
         data: {
-          eventId: data.id || `smoke-${stamp}`,
-          title: eventTitle
+          eventId,
+          title: eventTitle,
+          source: smokeSource
         }
       });
     }).then((res) => {
@@ -264,6 +272,47 @@ Page({
       this.setData({
         smoking: false,
         smokeResult: "云端写入检查失败",
+        error: error.errMsg || error.message || JSON.stringify(error)
+      });
+    });
+  },
+
+  cleanupSmokeData() {
+    const app = getApp();
+
+    this.setData({
+      cleaning: true,
+      cleanupResult: "",
+      error: ""
+    });
+
+    if (!wx.cloud || !cloudConfig.envId || !(app.globalData && app.globalData.cloudReady)) {
+      this.setData({
+        cleaning: false,
+        cleanupResult: "请先完成云环境配置并确认初始化成功"
+      });
+      return;
+    }
+
+    wx.cloud.callFunction({
+      name: "cleanupSmokeData",
+      data: {}
+    }).then((res) => {
+      const data = res.result || {};
+      if (!data.ok) {
+        throw new Error(data.message || "清理函数返回异常");
+      }
+      const details = (data.details || [])
+        .map((item) => `${item.collection} ${item.removed}`)
+        .join("；");
+      this.setData({
+        cleaning: false,
+        cleanupResult: details ? `已清理 ${details}` : "没有需要清理的自动检查记录"
+      });
+    }).catch((error) => {
+      this.setData({
+        cleaning: false,
+        cleanupResult: "清理失败",
         error: error.errMsg || error.message || JSON.stringify(error)
       });
     });

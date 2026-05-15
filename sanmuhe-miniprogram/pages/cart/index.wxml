@@ -36,7 +36,10 @@
     </view>
 
     <view class="section form-block surface">
-      <view class="h2">收货信息</view>
+      <view class="form-head">
+        <view class="h2">收货信息</view>
+        <view class="address-action" bindtap="chooseAddress">微信地址</view>
+      </view>
       <input class="field" placeholder="姓名" data-field="consignee" value="{{consignee}}" bindinput="onInput" />
       <input class="field" placeholder="手机号" type="number" data-field="phone" value="{{phone}}" bindinput="onInput" />
       <input class="field" placeholder="收货地址，茶饮自取可不填" data-field="address" value="{{address}}" bindinput="onInput" />
@@ -46,7 +49,7 @@
     <view class="safe-bar">
       <view class="safe-bar-main">
         <view class="bar-title">合计 ¥{{total}}</view>
-        <view class="bar-meta">待接入微信支付</view>
+        <view class="bar-meta">到店支付 / 客服确认配送</view>
       </view>
       <button class="ink-button safe-bar-action" bindtap="submitOrder">提交订单</button>
     </view>

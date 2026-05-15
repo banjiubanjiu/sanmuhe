@@ -1,6 +1,6 @@
 # 三木合云开发接入说明
 
-当前项目已经完成代码层云开发迁移：小程序端会优先调用云函数；如果没有配置云环境，则自动使用本地演示数据，方便继续预览页面。
+当前项目已经完成代码层云开发迁移：小程序端会优先调用云函数；如果没有配置云环境，则自动使用本地演示数据，方便继续查看页面。
 
 ## 必填配置
 
@@ -40,6 +40,7 @@ module.exports = {
 - `createEvent`：发布活动。
 - `joinEvent`：活动报名，防止同一用户重复报名。
 - `listMyRecords`：读取当前用户订单、预约和活动报名。
+- `cleanupSmokeData`：清理「云开发状态」页自动检查产生的测试订单、预约、活动和报名记录。
 
 项目还包含 `cloudbaserc.json`，用于让维护者快速了解当前云开发资源清单。实际部署仍建议优先使用微信开发者工具 CLI 或开发者工具右键部署。
 
@@ -62,7 +63,7 @@ deploy-cloudfunctions.bat 你的云环境ID
 
 部署后可以进入「云开发状态」页面，先检查 `getOpenId`，再点击「写入默认商品和活动」。该按钮会调用 `seedDemoData`，把示例数据写入 `drinks`、`tea_products`、`rooms`、`events` 集合。
 
-「运行云端写入检查」会依次调用 `createOrder`、`createReservation`、`createEvent`、`joinEvent`、`listMyRecords`、`manageCatalog`，用于确认订单、预约、活动发布、活动报名、我的记录和商品/活动管理链路都能写入并读回云数据库。
+「运行云端写入检查」会依次调用 `createOrder`、`createReservation`、`createEvent`、`joinEvent`、`listMyRecords`、`manageCatalog`，用于确认订单、预约、活动发布、活动报名、我的记录和商品/活动管理链路都能写入并读回云数据库。检查记录会带 `source: cloud-status-smoke` 标记，跑完后可点「清理自动检查记录」，调用 `cleanupSmokeData` 删除当前用户的自动检查数据。
 
 ## 数据集合
 
@@ -81,28 +82,21 @@ deploy-cloudfunctions.bat 你的云环境ID
 - `drinks`、`tea_products`、`rooms`、`events`：公开读，写入走云函数或后台。
 - `orders`、`reservations`、`event_signups`：仅用户读自己的数据，写入走云函数。
 
-## 预览
+## 开发者工具流程
 
 Windows 里双击项目上级目录的：
 
-- `sanmuhe-cloud-preview.bat`：完整向导，读取当前已保存的 AppID/envId；如果配置有效会直接使用，缺失时才提示输入，然后写入配置、打开工具、部署云函数、生成预览二维码，并自动打开二维码图片。
-- `start-sanmuhe.bat`：总入口菜单，可选择浏览器预览、配置、预检、登录 CLI、完整云预览或打开开发者工具。
-- `read-cloud-config.ps1`：读取当前已保存的 AppID/envId，供部署和预览脚本复用。
+- `start-sanmuhe.bat`：总入口菜单，可选择配置、预检、部署云函数或打开开发者工具。
+- `read-cloud-config.ps1`：读取当前已保存的 AppID/envId，供部署脚本复用。
 - `check-cloud-ready.bat`：预检 AppID、envId、云函数目录和微信开发者工具登录状态。
-- `check-preview-output.bat`：完整预览脚本执行后，检查二维码、预览信息、部署日志和云函数列表日志。
-- `wechat-devtools-login.bat`：用微信开发者工具 CLI 输出登录二维码，适合第一次登录或登录态失效时使用。
 - `open-sanmuhe-devtools.bat`：打开项目。
-- `preview-sanmuhe.bat`：生成预览二维码到 `downloads/sanmuhe-preview.png`。
-- `open-preview.bat`：打开浏览器即时预览，不依赖微信开发者工具。
+- `deploy-cloudfunctions.bat`：部署 11 个云函数。
 
-如果 CLI 提示未登录或服务端口不可用，请在微信开发者工具里扫码登录，并到「设置 -> 安全设置」打开服务端口。
+打开项目后，直接在微信开发者工具里点击编译或热部署查看效果。
 
-完整预览脚本会把关键输出写入 `downloads`：
+云函数部署脚本会把输出写入 `downloads`：
 
 - `sanmuhe-cloudfunctions-deploy.log`：云函数部署输出。
-- `sanmuhe-cloudfunctions-list.txt`：部署后的云函数列表检查输出。
-- `sanmuhe-preview-cli.log`：预览二维码生成输出。
-- `sanmuhe-preview-info.json`：微信开发者工具返回的预览包信息。
 
 ## 云开发状态检查
 
@@ -112,4 +106,5 @@ Windows 里双击项目上级目录的：
 - 如果提示未配置 envId，先运行 `configure-cloud.bat`。
 - 如果提示云函数调用失败，先部署 `getOpenId`，再检查云函数日志。
 - 如果默认商品没有出现在云数据库，确认 `seedDemoData` 已部署，再点击「写入默认商品和活动」。
-- 如果云端写入检查失败，确认 10 个云函数都已部署，再查看 `downloads\sanmuhe-cloudfunctions-deploy.log` 和微信开发者工具云函数日志。
+- 如果云端写入检查失败，确认 11 个云函数都已部署，再查看 `downloads\sanmuhe-cloudfunctions-deploy.log` 和微信开发者工具云函数日志。
+- 如果多次运行写入检查，跑完后点「清理自动检查记录」，避免测试数据混入真实订单、预约和活动。

@@ -20,7 +20,8 @@ $RequiredFunctions = @(
   "listEvents",
   "createEvent",
   "joinEvent",
-  "listMyRecords"
+  "listMyRecords",
+  "cleanupSmokeData"
 )
 
 function Write-Check($Name, $Ok, $Detail) {
@@ -79,8 +80,7 @@ if ($Cli -and -not $SkipLoginCheck) {
 
 Write-Host ""
 if ($Cli -and $AppIdOk -and $EnvOk -and $CloudRootOk -and $MissingFunctions.Count -eq 0) {
-  Write-Host "Preflight passed. You can run:" -ForegroundColor Green
-  Write-Host "  sanmuhe-cloud-preview.bat"
+  Write-Host "Preflight passed. Open WeChat DevTools and use compile / hot deploy." -ForegroundColor Green
 } else {
-  Write-Host "Preflight has blocking items. Fix FAIL lines before cloud preview." -ForegroundColor Yellow
+  Write-Host "Preflight has blocking items. Fix FAIL lines before compiling in WeChat DevTools." -ForegroundColor Yellow
 }
