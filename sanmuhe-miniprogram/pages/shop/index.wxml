@@ -1,0 +1,37 @@
+<view class="page shop-page">
+  <view class="page-nav">
+    <view class="back-mark" bindtap="goBack">‹</view>
+    <view class="page-title">分类</view>
+    <view class="nav-placeholder"></view>
+  </view>
+
+  <view class="category-shell">
+    <scroll-view scroll-y class="side-cats">
+      <view
+        wx:for="{{categories}}"
+        wx:key="*this"
+        class="side-cat {{activeCategory === item ? 'active' : ''}}"
+        data-category="{{item}}"
+        bindtap="changeCategory"
+      >{{item}}</view>
+    </scroll-view>
+
+    <scroll-view scroll-y class="goods-list">
+      <view class="list-heading">{{activeCategory}}</view>
+      <view wx:for="{{filteredProducts}}" wx:key="id" class="goods-item">
+        <view class="goods-main" data-id="{{item.id}}" bindtap="viewProduct">
+          <image class="goods-thumb" src="{{item.thumb}}" mode="aspectFill"></image>
+          <view class="goods-copy">
+            <view class="goods-name">{{item.name}}</view>
+            <view class="goods-note">{{item.taste}}</view>
+            <view class="goods-price">¥{{item.price}} <text>/ {{item.unit}}</text></view>
+          </view>
+        </view>
+        <view class="round-add" data-id="{{item.id}}" bindtap="addProduct">
+          <image class="plus-icon" src="/assets/icons/plus-white.png" mode="aspectFit"></image>
+        </view>
+      </view>
+      <view wx:if="{{filteredProducts.length === 0}}" class="empty-list">暂无商品</view>
+    </scroll-view>
+  </view>
+</view>

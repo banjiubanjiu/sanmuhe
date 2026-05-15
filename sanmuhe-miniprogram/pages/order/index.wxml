@@ -1,0 +1,56 @@
+<view class="page order-page with-safe-bar">
+  <view class="page-nav">
+    <view class="back-mark" bindtap="goBack">‹</view>
+    <view class="page-title">茶饮点单</view>
+    <view class="nav-placeholder"></view>
+  </view>
+
+  <view class="order-shell">
+    <scroll-view scroll-y class="side-cats">
+      <view
+        wx:for="{{categories}}"
+        wx:key="*this"
+        class="side-cat {{activeCategory === item ? 'active' : ''}}"
+        data-category="{{item}}"
+        bindtap="changeCategory"
+      >{{item}}</view>
+    </scroll-view>
+
+    <scroll-view scroll-y class="drink-list">
+      <view class="list-heading">{{activeCategory}}</view>
+      <view wx:for="{{filteredDrinks}}" wx:key="id" class="drink-item {{activeDrink.id === item.id ? 'active' : ''}}">
+        <view class="drink-main" data-id="{{item.id}}" bindtap="chooseDrink">
+          <image class="drink-thumb" src="{{item.image}}" mode="aspectFill"></image>
+          <view class="drink-copy">
+            <view class="drink-name">{{item.name}}</view>
+            <view class="drink-note">{{item.notes}}</view>
+            <view class="drink-price">¥{{item.price}}</view>
+          </view>
+        </view>
+        <view class="round-add" data-id="{{item.id}}" bindtap="quickAddDrink">
+          <image class="plus-icon" src="/assets/icons/plus-white.png" mode="aspectFit"></image>
+        </view>
+      </view>
+      <view wx:if="{{filteredDrinks.length === 0}}" class="empty-list">暂无商品</view>
+    </scroll-view>
+  </view>
+
+  <view class="safe-bar tab-safe-bar">
+    <view class="cart-icon-large">
+      <image src="/assets/icons/cart-white.png" mode="aspectFit"></image>
+      <text>{{cartCount}}</text>
+    </view>
+    <view class="safe-bar-main">
+      <view class="bar-title">购物车（{{cartCount}}）</view>
+    </view>
+    <view class="bar-total">¥{{cartTotal}}</view>
+    <button class="safe-bar-action" bindtap="goCart">去结算</button>
+  </view>
+
+  <view class="order-tabbar">
+    <view class="order-tab active">首页</view>
+    <view class="order-tab">分类</view>
+    <view class="order-tab">购物车</view>
+    <view class="order-tab">我的</view>
+  </view>
+</view>

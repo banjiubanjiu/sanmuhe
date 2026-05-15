@@ -1,0 +1,54 @@
+<view class="page cart-page">
+  <view class="page-nav">
+    <view class="nav-placeholder"></view>
+    <view class="page-title">购物车</view>
+    <view class="nav-placeholder"></view>
+  </view>
+
+  <view wx:if="{{cart.length === 0}}" class="section empty cart-empty">
+    <view class="empty-title">茶篮还是空的</view>
+    <view class="empty-copy">先选一杯茶饮，或挑一款茶叶，再回来统一结算。</view>
+    <button class="ink-button empty-action" bindtap="goOrder">去点单</button>
+  </view>
+
+  <block wx:if="{{cart.length > 0}}">
+    <view class="section cart-list">
+      <view wx:for="{{cart}}" wx:key="key" class="cart-item">
+        <image wx:if="{{item.image}}" class="cart-image" src="{{item.image}}" mode="aspectFill"></image>
+        <view wx:if="{{!item.image}}" class="cart-swatch" style="background: {{item.color}};"></view>
+        <view class="cart-copy">
+          <view class="cart-name">{{item.name}}</view>
+          <view class="muted">
+            <text wx:if="{{item.type === 'drink'}}">{{item.options.temp}} · {{item.options.sugar}}</text>
+            <text wx:if="{{item.options.table}}"> · {{item.options.table}}</text>
+            <text wx:if="{{item.type === 'tea'}}">{{item.options.unit}}</text>
+          </view>
+          <view class="cart-bottom">
+            <text class="price">¥{{item.price}}</text>
+            <view class="stepper">
+              <button class="step-btn" data-key="{{item.key}}" data-quantity="{{item.quantity}}" bindtap="decrease">−</button>
+              <text class="qty">{{item.quantity}}</text>
+              <button class="step-btn" data-key="{{item.key}}" data-quantity="{{item.quantity}}" bindtap="increase">+</button>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="section form-block surface">
+      <view class="h2">收货信息</view>
+      <input class="field" placeholder="姓名" data-field="consignee" value="{{consignee}}" bindinput="onInput" />
+      <input class="field" placeholder="手机号" type="number" data-field="phone" value="{{phone}}" bindinput="onInput" />
+      <input class="field" placeholder="收货地址，茶饮自取可不填" data-field="address" value="{{address}}" bindinput="onInput" />
+      <textarea class="textarea-field" placeholder="备注，如少冰、礼盒包装、发票需求" data-field="remark" value="{{remark}}" bindinput="onInput"></textarea>
+    </view>
+
+    <view class="safe-bar">
+      <view class="safe-bar-main">
+        <view class="bar-title">合计 ¥{{total}}</view>
+        <view class="bar-meta">待接入微信支付</view>
+      </view>
+      <button class="ink-button safe-bar-action" bindtap="submitOrder">提交订单</button>
+    </view>
+  </block>
+</view>

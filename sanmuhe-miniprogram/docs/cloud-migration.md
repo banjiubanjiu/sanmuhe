@@ -1,0 +1,115 @@
+# 三木合云开发接入说明
+
+当前项目已经完成代码层云开发迁移：小程序端会优先调用云函数；如果没有配置云环境，则自动使用本地演示数据，方便继续预览页面。
+
+## 必填配置
+
+1. 在微信公众平台拿到真实小程序 AppID。
+2. 在 `project.config.json` 中把 `appid` 从 `touristappid` 改成真实 AppID。
+3. 用微信开发者工具打开项目，进入「云开发」并创建环境。
+4. 复制云环境 ID，填入 `config/cloud.js`：
+
+```js
+module.exports = {
+  envId: "你的云环境ID",
+  useCloud: true
+};
+```
+
+没有真实 AppID 或环境 ID 时，微信不允许真正使用云开发。
+
+也可以在 Windows 双击项目上级目录的 `configure-cloud.bat`，按提示输入 AppID 和 envId，脚本会自动写入 `project.config.json` 和 `config/cloud.js`。
+
+## 云函数
+
+项目已增加 `cloudfunctionRoot`：
+
+```json
+"cloudfunctionRoot": "cloudfunctions/"
+```
+
+云函数目录：
+
+- `getOpenId`：验证云函数和微信登录态。
+- `getCatalog`：读取茶饮、茶叶、茶室数据；云数据库为空时返回内置示例数据。
+- `seedDemoData`：把默认茶饮、茶叶、茶室和活动写入云数据库。
+- `manageCatalog`：后台商品、茶室和活动的列表、详情、新增、更新、下架/删除和恢复。
+- `createOrder`：创建茶饮/茶叶订单。
+- `createReservation`：创建茶室预约，并检查同一茶室时段冲突。
+- `listEvents`：读取活动列表。
+- `createEvent`：发布活动。
+- `joinEvent`：活动报名，防止同一用户重复报名。
+- `listMyRecords`：读取当前用户订单、预约和活动报名。
+
+项目还包含 `cloudbaserc.json`，用于让维护者快速了解当前云开发资源清单。实际部署仍建议优先使用微信开发者工具 CLI 或开发者工具右键部署。
+
+## 部署步骤
+
+在微信开发者工具里：
+
+1. 打开项目后，确认左侧能看到 `cloudfunctions`。
+2. 逐个右键云函数目录，选择「上传并部署：云端安装依赖」。
+3. 先部署 `getOpenId`，测试通过后再部署其他函数。
+4. 如果函数首次调用失败，等待云环境初始化完成后重试。
+
+也可以在 Windows 命令行运行项目上级目录的批处理脚本：
+
+```bat
+deploy-cloudfunctions.bat 你的云环境ID
+```
+
+该脚本会调用微信开发者工具 CLI 一次性部署全部云函数，并启用云端安装依赖。
+
+部署后可以进入「云开发状态」页面，先检查 `getOpenId`，再点击「写入默认商品和活动」。该按钮会调用 `seedDemoData`，把示例数据写入 `drinks`、`tea_products`、`rooms`、`events` 集合。
+
+「运行云端写入检查」会依次调用 `createOrder`、`createReservation`、`createEvent`、`joinEvent`、`listMyRecords`、`manageCatalog`，用于确认订单、预约、活动发布、活动报名、我的记录和商品/活动管理链路都能写入并读回云数据库。
+
+## 数据集合
+
+云函数会尝试自动创建以下集合；如果控制台未自动出现，可以手动创建：
+
+- `drinks`
+- `tea_products`
+- `rooms`
+- `orders`
+- `reservations`
+- `events`
+- `event_signups`
+
+建议权限：
+
+- `drinks`、`tea_products`、`rooms`、`events`：公开读，写入走云函数或后台。
+- `orders`、`reservations`、`event_signups`：仅用户读自己的数据，写入走云函数。
+
+## 预览
+
+Windows 里双击项目上级目录的：
+
+- `sanmuhe-cloud-preview.bat`：完整向导，读取当前已保存的 AppID/envId；如果配置有效会直接使用，缺失时才提示输入，然后写入配置、打开工具、部署云函数、生成预览二维码，并自动打开二维码图片。
+- `start-sanmuhe.bat`：总入口菜单，可选择浏览器预览、配置、预检、登录 CLI、完整云预览或打开开发者工具。
+- `read-cloud-config.ps1`：读取当前已保存的 AppID/envId，供部署和预览脚本复用。
+- `check-cloud-ready.bat`：预检 AppID、envId、云函数目录和微信开发者工具登录状态。
+- `check-preview-output.bat`：完整预览脚本执行后，检查二维码、预览信息、部署日志和云函数列表日志。
+- `wechat-devtools-login.bat`：用微信开发者工具 CLI 输出登录二维码，适合第一次登录或登录态失效时使用。
+- `open-sanmuhe-devtools.bat`：打开项目。
+- `preview-sanmuhe.bat`：生成预览二维码到 `downloads/sanmuhe-preview.png`。
+- `open-preview.bat`：打开浏览器即时预览，不依赖微信开发者工具。
+
+如果 CLI 提示未登录或服务端口不可用，请在微信开发者工具里扫码登录，并到「设置 -> 安全设置」打开服务端口。
+
+完整预览脚本会把关键输出写入 `downloads`：
+
+- `sanmuhe-cloudfunctions-deploy.log`：云函数部署输出。
+- `sanmuhe-cloudfunctions-list.txt`：部署后的云函数列表检查输出。
+- `sanmuhe-preview-cli.log`：预览二维码生成输出。
+- `sanmuhe-preview-info.json`：微信开发者工具返回的预览包信息。
+
+## 云开发状态检查
+
+项目里已添加 `pages/cloud-status/index`。打开小程序后进入「我的三木合」，点击「云状态」，再点击「检查 getOpenId 云函数」。
+
+- 如果成功，会显示当前用户 `openid` 和 AppID。
+- 如果提示未配置 envId，先运行 `configure-cloud.bat`。
+- 如果提示云函数调用失败，先部署 `getOpenId`，再检查云函数日志。
+- 如果默认商品没有出现在云数据库，确认 `seedDemoData` 已部署，再点击「写入默认商品和活动」。
+- 如果云端写入检查失败，确认 10 个云函数都已部署，再查看 `downloads\sanmuhe-cloudfunctions-deploy.log` 和微信开发者工具云函数日志。

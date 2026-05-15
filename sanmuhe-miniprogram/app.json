@@ -1,0 +1,53 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/order/index",
+    "pages/shop/index",
+    "pages/product/index",
+    "pages/cart/index",
+    "pages/reservation/index",
+    "pages/events/index",
+    "pages/event-edit/index",
+    "pages/cloud-status/index",
+    "pages/profile/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "三木合",
+    "navigationBarBackgroundColor": "#f7f1e6",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f1e6",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#716656",
+    "selectedColor": "#233b31",
+    "backgroundColor": "#f9f4eb",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/shop/index",
+        "text": "分类"
+      },
+      {
+        "pagePath": "pages/cart/index",
+        "text": "购物车"
+      },
+      {
+        "pagePath": "pages/events/index",
+        "text": "活动"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}

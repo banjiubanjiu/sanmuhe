@@ -1,0 +1,96 @@
+<view class="page reservation-page">
+  <view class="page-nav">
+    <view class="back-mark" bindtap="goBack">‹</view>
+    <view class="page-title">茶室预定</view>
+    <view class="nav-placeholder"></view>
+  </view>
+
+  <view class="filter-row">
+    <view class="filter-pill" bindtap="openBooking">全部门店⌄</view>
+    <view class="filter-pill" bindtap="openBooking">{{selectedDayText}}⌄</view>
+    <view class="filter-pill" bindtap="openBooking">人数 {{people}}人⌄</view>
+  </view>
+
+  <view class="section room-list">
+    <view
+      wx:for="{{rooms}}"
+      wx:key="id"
+      class="room-card {{selectedRoom.id === item.id ? 'active' : ''}}"
+      data-id="{{item.id}}"
+      bindtap="chooseRoom"
+    >
+      <image class="room-image" src="{{item.image}}" mode="aspectFill"></image>
+      <view class="room-main">
+        <view class="room-title">{{item.name}}</view>
+        <view class="muted">{{item.floor}}</view>
+        <view class="room-foot">
+          <text class="room-price">¥{{item.price}} <text>/小时</text></text>
+          <text class="bookable {{item.status === '已订满' ? 'full' : ''}}">{{item.status}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="reserve-bar">
+    <view>
+      <view class="reserve-title">{{selectedRoom.name}}</view>
+      <view class="reserve-meta">¥{{selectedRoom.price}}/小时 · {{people}}人</view>
+    </view>
+    <button class="reserve-btn" bindtap="openBooking">立即预约</button>
+  </view>
+
+  <view wx:if="{{bookingOpen}}" class="booking-mask" bindtap="closeBooking">
+    <view class="booking-sheet" catchtap="noop">
+      <view class="sheet-head">
+        <view>
+          <view class="sheet-title">{{selectedRoom.name}}</view>
+          <view class="muted">{{selectedRoom.floor}}</view>
+        </view>
+        <view class="sheet-close" bindtap="closeBooking">×</view>
+      </view>
+
+      <view class="sheet-section">
+        <view class="sheet-label">日期</view>
+        <scroll-view scroll-x class="option-scroll">
+          <view
+            wx:for="{{days}}"
+            wx:key="value"
+            class="option-pill {{selectedDay === item.value ? 'active' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="chooseDay"
+          >{{item.display}} {{item.label}}</view>
+        </scroll-view>
+      </view>
+
+      <view class="sheet-section">
+        <view class="sheet-label">时间</view>
+        <view class="time-grid">
+          <view
+            wx:for="{{timeSlots}}"
+            wx:key="*this"
+            class="option-pill {{selectedTime === item ? 'active' : ''}}"
+            data-value="{{item}}"
+            bindtap="chooseTime"
+          >{{item}}</view>
+        </view>
+      </view>
+
+      <view class="sheet-section people-line">
+        <view class="sheet-label">人数</view>
+        <view class="people-stepper">
+          <view data-step="-1" bindtap="setPeople">−</view>
+          <text>{{people}}</text>
+          <view data-step="1" bindtap="setPeople">+</view>
+        </view>
+      </view>
+
+      <view class="sheet-section form-fields">
+        <input class="field" placeholder="联系人" data-field="name" value="{{name}}" bindinput="onInput" />
+        <input class="field" placeholder="手机号" type="number" data-field="phone" value="{{phone}}" bindinput="onInput" />
+        <textarea class="textarea-field" placeholder="备注，如茶具需求、到店时间说明" data-field="note" value="{{note}}" bindinput="onInput"></textarea>
+      </view>
+
+      <button class="submit-reserve" bindtap="submitReservation">提交预约</button>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,64 @@
+<view class="page home">
+  <view class="mini-nav">
+    <view class="mini-title">三木合</view>
+    <view class="mini-capsule">
+      <text>•••</text>
+      <text class="capsule-dot">◎</text>
+    </view>
+  </view>
+
+  <view class="search-row">
+    <view class="search-box">
+      <image class="search-icon" src="/assets/icons/search-line.png" mode="aspectFit"></image>
+      <text>搜索茶叶、茶饮、茶室、活动</text>
+    </view>
+    <view class="scan-square" bindtap="goCloudStatus">
+      <image src="/assets/icons/scan-ink.png" mode="aspectFit"></image>
+    </view>
+  </view>
+
+  <view class="hero-photo">
+    <image src="/assets/images/design-hero-tea.jpg" mode="aspectFill"></image>
+  </view>
+
+  <view class="action-grid">
+    <view class="action-item" bindtap="goShop">
+      <view class="action-icon leaf-icon"><image src="/assets/icons/leaf-white.png" mode="aspectFit"></image></view>
+      <text>茶叶购买</text>
+    </view>
+    <view class="action-item" bindtap="goOrder">
+      <view class="action-icon cup-icon"><image src="/assets/icons/cup-white.png" mode="aspectFit"></image></view>
+      <text>茶饮点单</text>
+    </view>
+    <view class="action-item" bindtap="goReservation">
+      <view class="action-icon room-icon"><image src="/assets/icons/room-white.png" mode="aspectFit"></image></view>
+      <text>茶室预定</text>
+    </view>
+    <view class="action-item" bindtap="goEvents">
+      <view class="action-icon calendar-icon"><image src="/assets/icons/calendar-white.png" mode="aspectFit"></image></view>
+      <text>活动发布</text>
+    </view>
+  </view>
+
+  <view class="section-head section">
+    <view class="h2">精选推荐</view>
+    <view class="text-link" bindtap="goShop">更多 ></view>
+  </view>
+
+  <view class="recommend-grid">
+    <view wx:for="{{recommendTeas}}" wx:key="id" class="recommend-card" data-id="{{item.id}}" bindtap="goShop">
+      <image src="{{item.thumb}}" mode="aspectFill"></image>
+      <view class="recommend-name">{{item.name}}</view>
+      <view class="recommend-price">¥{{item.price}} <text>/{{item.unit}}</text></view>
+      <view class="recommend-tag">{{item.category}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{cartCount > 0}}" class="floating-cart" bindtap="goCart">
+    <view>
+      <view class="cart-title">购物车 {{cartCount}} 件</view>
+      <view class="cart-meta">合计 ¥{{cartTotal}}</view>
+    </view>
+    <view class="cart-arrow">去结算</view>
+  </view>
+</view>

@@ -1,0 +1,27 @@
+<view class="page edit-page">
+  <view class="eyebrow">PUBLISH</view>
+  <view class="h1">发布活动</view>
+
+  <view class="section edit-form">
+    <view class="category-row">
+      <view
+        wx:for="{{categories}}"
+        wx:key="*this"
+        class="category-pill {{category === item ? 'active' : ''}}"
+        data-category="{{item}}"
+        bindtap="chooseCategory"
+      >{{item}}</view>
+    </view>
+    <input class="field" placeholder="活动标题" data-field="title" value="{{title}}" bindinput="onInput" />
+    <input class="field" placeholder="日期，如 6 月 2 日" data-field="date" value="{{date}}" bindinput="onInput" />
+    <input class="field" placeholder="时间，如 19:30" data-field="time" value="{{time}}" bindinput="onInput" />
+    <input class="field" placeholder="地点" data-field="place" value="{{place}}" bindinput="onInput" />
+    <view class="two-cols">
+      <input class="field" placeholder="名额" type="number" data-field="quota" value="{{quota}}" bindinput="onInput" />
+      <input class="field" placeholder="价格" type="number" data-field="price" value="{{price}}" bindinput="onInput" />
+    </view>
+    <textarea class="textarea-field" placeholder="活动简介" data-field="summary" value="{{summary}}" bindinput="onInput"></textarea>
+  </view>
+
+  <button class="ink-button submit-btn" bindtap="publish">发布活动</button>
+</view>

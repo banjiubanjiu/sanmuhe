@@ -1,0 +1,55 @@
+.subline {
+  margin-top: 18rpx;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.status-card,
+.result-card,
+.help-card {
+  padding: 24rpx;
+  border-radius: 16rpx;
+  background: rgba(255, 252, 246, 0.9);
+  border: 1rpx solid rgba(35, 59, 49, 0.08);
+}
+
+.status-label {
+  color: #83725b;
+  font-size: 23rpx;
+  font-weight: 700;
+}
+
+.status-value {
+  margin-top: 12rpx;
+  color: #233b31;
+  font-size: 30rpx;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.status-value.small {
+  font-size: 22rpx;
+  word-break: break-all;
+}
+
+.result-title {
+  color: #233b31;
+  font-size: 32rpx;
+  font-weight: 800;
+  margin-bottom: 14rpx;
+}
+
+.seed-button {
+  margin-top: 18rpx;
+}
+
+.error-text {
+  color: #a4563e;
+  font-size: 24rpx;
+  line-height: 1.5;
+  word-break: break-all;
+}

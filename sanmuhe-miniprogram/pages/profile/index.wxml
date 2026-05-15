@@ -1,0 +1,62 @@
+<view class="page profile-page">
+  <view class="page-nav">
+    <view class="nav-placeholder"></view>
+    <view class="page-title">我的</view>
+    <view class="nav-placeholder"></view>
+  </view>
+  <view class="profile-head">
+    <view>
+      <view class="eyebrow">MEMBER</view>
+      <view class="h1">我的三木合</view>
+    </view>
+    <view class="head-actions">
+      <button class="line-button small-btn" bindtap="goCloudStatus">云状态</button>
+      <button class="line-button small-btn" bindtap="goHome">首页</button>
+    </view>
+  </view>
+
+  <view class="section member-card">
+    <view>
+      <view class="member-kicker">三木合会员</view>
+      <view class="member-title">云端记录已连接</view>
+      <view class="member-copy">订单、预约和活动报名会在这里归档。</view>
+    </view>
+    <button class="ink-button member-action" bindtap="goCloudStatus">检查</button>
+  </view>
+
+  <view class="section">
+    <view class="h2">订单</view>
+    <view wx:if="{{orders.length === 0}}" class="empty compact">暂无订单</view>
+    <view wx:if="{{orders.length > 0}}" class="record-list">
+      <view wx:for="{{orders}}" wx:key="id" class="record">
+        <view class="record-title">{{item.id}}</view>
+        <view class="muted">¥{{item.total}} · {{item.status}}</view>
+        <view class="record-items">
+          <text wx:for="{{item.items}}" wx:key="key">{{item.name}} x{{item.quantity}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="h2">茶室预约</view>
+    <view wx:if="{{reservations.length === 0}}" class="empty compact">暂无预约</view>
+    <view wx:if="{{reservations.length > 0}}" class="record-list">
+      <view wx:for="{{reservations}}" wx:key="id" class="record">
+        <view class="record-title">{{item.room}} · {{item.day}} {{item.time}}</view>
+        <view class="muted">{{item.people}} 人 · {{item.status}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="h2">活动报名</view>
+    <view wx:if="{{signups.length === 0}}" class="empty compact">暂无报名</view>
+    <view wx:if="{{signups.length > 0}}" class="record-list">
+      <view wx:for="{{signups}}" wx:key="id" class="record">
+        <view class="record-title">{{item.title}}</view>
+        <view class="muted">{{item.status}}</view>
+      </view>
+    </view>
+  </view>
+</view>

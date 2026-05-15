@@ -1,0 +1,61 @@
+<view class="page product-page" wx:if="{{product}}">
+  <view class="page-nav">
+    <view class="back-mark" bindtap="goBack">‹</view>
+    <view class="page-title">商品详情</view>
+    <view class="mini-capsule">••• ◎</view>
+  </view>
+
+  <view class="detail-hero">
+    <image src="{{product.image}}" mode="aspectFill"></image>
+    <view class="photo-count">1/5</view>
+  </view>
+
+  <view class="section detail-copy">
+    <view class="title-row">
+      <view class="detail-title">{{product.name}}</view>
+      <view class="green-tag">{{product.category}}</view>
+    </view>
+    <view class="muted detail-meta">产地：{{product.origin}} ｜ 等级：特级</view>
+    <view class="muted paragraph">{{product.taste}}</view>
+    <view class="detail-price">
+      <text class="price">¥{{displayPrice}}</text>
+      <text class="muted">/{{selectedSpec}}</text>
+      <text class="sold">已售 {{product.sold}}</text>
+    </view>
+
+    <view class="section">
+      <view class="h2">选择规格</view>
+      <view class="spec-row">
+        <view
+          wx:for="{{specOptions}}"
+          wx:key="*this"
+          class="spec {{selectedSpec === item ? 'active' : ''}}"
+          data-spec="{{item}}"
+          bindtap="chooseSpec"
+        >{{item}}</view>
+      </view>
+    </view>
+
+    <view class="section qty-section">
+      <view class="h2">数量</view>
+      <view class="qty-stepper">
+        <view class="qty-btn" data-step="-1" bindtap="changeQuantity">−</view>
+        <text>{{quantity}}</text>
+        <view class="qty-btn" data-step="1" bindtap="changeQuantity">+</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="safe-bar">
+    <view class="mini-action service-action">
+      <image class="mini-action-icon" src="/assets/icons/headset-ink.png" mode="aspectFit"></image>
+      <text>客服</text>
+    </view>
+    <view class="mini-action fav-action">
+      <image class="mini-action-icon" src="/assets/icons/heart-ink.png" mode="aspectFit"></image>
+      <text>收藏</text>
+    </view>
+    <button class="cart-action" bindtap="addProduct">加入购物车</button>
+    <button class="buy-action" bindtap="buyNow">立即购买</button>
+  </view>
+</view>

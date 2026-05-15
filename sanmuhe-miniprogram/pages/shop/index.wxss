@@ -1,0 +1,167 @@
+.shop-page {
+  padding: 88rpx 0 calc(116rpx + env(safe-area-inset-bottom));
+  background: #fff;
+}
+
+.page-nav {
+  height: 72rpx;
+  display: grid;
+  grid-template-columns: 72rpx 1fr 72rpx;
+  align-items: center;
+}
+
+.back-mark {
+  color: #111;
+  font-size: 46rpx;
+  line-height: 1;
+}
+
+.page-title {
+  text-align: center;
+  color: #111;
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.category-shell {
+  position: fixed;
+  top: 250rpx;
+  right: 0;
+  bottom: calc(112rpx + env(safe-area-inset-bottom));
+  left: 0;
+  display: grid;
+  grid-template-columns: 176rpx 1fr;
+  background: #fff;
+  border-top: 1rpx solid #eeeeee;
+}
+
+.side-cats {
+  height: 100%;
+  background: #f8f7f5;
+}
+
+.side-cat {
+  position: relative;
+  width: 100%;
+  min-height: 94rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 34rpx;
+  color: #333;
+  background: transparent;
+  font-size: 27rpx;
+}
+
+.side-cat.active {
+  color: #244f2a;
+  background: #fff;
+  font-weight: 800;
+}
+
+.side-cat.active::before {
+  position: absolute;
+  top: 26rpx;
+  bottom: 26rpx;
+  left: 0;
+  width: 6rpx;
+  content: "";
+  border-radius: 999rpx;
+  background: #4f7d43;
+}
+
+.goods-list {
+  height: 100%;
+  padding: 24rpx 28rpx 32rpx;
+}
+
+.list-heading {
+  margin-bottom: 16rpx;
+  color: #111;
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.goods-item {
+  position: relative;
+  min-height: 188rpx;
+  padding: 26rpx 0;
+  border-bottom: 1rpx solid #eeeeee;
+}
+
+.goods-main {
+  display: flex;
+  gap: 34rpx;
+  text-align: left;
+}
+
+.goods-thumb {
+  flex: 0 0 136rpx;
+  width: 136rpx;
+  height: 136rpx;
+  border-radius: 50%;
+  background: #f0eee7;
+}
+
+.goods-copy {
+  flex: 1;
+  min-width: 0;
+  padding-right: 58rpx;
+}
+
+.goods-name {
+  color: #111;
+  font-size: 31rpx;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.goods-note {
+  margin-top: 10rpx;
+  overflow: hidden;
+  color: #777;
+  font-size: 25rpx;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goods-price {
+  margin-top: 18rpx;
+  color: #111;
+  font-size: 28rpx;
+  font-weight: 800;
+}
+
+.goods-price text {
+  color: #777;
+  font-size: 22rpx;
+  font-weight: 500;
+}
+
+.round-add {
+  position: absolute;
+  right: 4rpx;
+  bottom: 48rpx;
+  width: 36rpx;
+  height: 36rpx;
+  display: block;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: #4f7d43;
+  box-shadow: 0 4rpx 10rpx rgba(79, 125, 67, 0.24);
+}
+
+.plus-icon {
+  width: 22rpx;
+  height: 22rpx;
+  display: block;
+  margin: 7rpx auto 0;
+}
+
+.empty-list {
+  padding: 80rpx 0;
+  color: #888;
+  text-align: center;
+  font-size: 26rpx;
+}
