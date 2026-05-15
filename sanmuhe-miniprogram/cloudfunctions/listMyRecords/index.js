@@ -39,7 +39,7 @@ exports.main = async () => {
   return {
     ok: true,
     orders: orders.map((item) => Object.assign({ id: item.orderNo || item._id }, item)),
-    reservations,
-    signups
+    reservations: reservations.map((item) => Object.assign({ id: item._id }, item)),
+    signups: signups.map((item) => Object.assign({ id: item._id }, item))
   };
 };

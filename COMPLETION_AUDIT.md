@@ -17,6 +17,8 @@
 | 去除异常长条点击面 | `pages/shop/index.wxml`、`pages/order/index.wxml`、`pages/index/index.wxml` | 分类侧栏、点单侧栏、首页推荐卡等非提交操作已从原生 `button` 改为 `view` 点击面，避免微信原生按钮样式造成大长条 | 已完成 |
 | 控制包体积 | `sanmuhe-miniprogram/assets`、`scripts/verify-cloud-migration.js` | 本地图片和图标素材约 886KB，验证器限制本地素材包小于 2MB；当前无需上传云存储分流 | 已完成 |
 | 商品真实可买 | `pages/product/index.*`、`utils/cart.js` | 商品规格和数量可选择，加入购物车会带入规格、数量和对应价格；不同规格不会被错误合并 | 已完成 |
+| 商品详情服务/收藏真实可用 | `pages/product/index.*`、`pages/profile/index.*`、`utils/favorites.js` | 商品详情客服会调用门店电话，收藏会写入本地收藏夹，并在“我的”页展示收藏茶品 | 已完成 |
+| 我的页记录稳定展示 | `pages/profile/index.js`、`cloudfunctions/listMyRecords/index.js` | 云端订单、预约、报名和本地演示记录都会规范出 `id`，避免“我的”页列表 key 不稳定 | 已完成 |
 | 订单云端金额一致 | `cloudfunctions/createOrder/index.js` | 云端 `createOrder` 已按 `50g/100g/250g/500g` 规格重新计算茶叶单价，避免前端金额与云端订单总额不一致 | 已完成 |
 | 茶室真实可约 | `pages/reservation/index.*`、`createReservation` | 茶室列表保留设计稿样式，新增预约底栏和弹层，可选日期、时间、人数、联系人并提交云函数 | 已完成 |
 | 活动真实可筛选/发布 | `pages/events/index.*`、`pages/event-edit/index.*`、`createEvent` | 活动分类 tabs 可筛选，发布入口可见，发布表单支持活动类别；云函数已支持 category/image/signed | 已完成 |
@@ -49,6 +51,8 @@ icon package budget: 47KB
 local asset package budget: 886KB
 non-command native button cleanup: true
 product spec and quantity flow: true
+product service and favorite flow: true
+profile record stable ids: true
 order backend spec pricing: true
 reservation booking flow: true
 events filter and publish flow: true

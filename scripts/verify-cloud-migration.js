@@ -373,6 +373,25 @@ const productFlowOk = productJs.includes("chooseSpec") &&
   productWxml.includes("bindtap=\"changeQuantity\"");
 results.push(status("product spec and quantity flow", productFlowOk, productFlowOk ? "spec/quantity controls update cart payload" : "product detail still has static controls"));
 
+const profileJs = readText("sanmuhe-miniprogram/pages/profile/index.js");
+const profileWxml = readText("sanmuhe-miniprogram/pages/profile/index.wxml");
+const favoriteServiceOk = exists("sanmuhe-miniprogram/utils/favorites.js") &&
+  productJs.includes("contactService") &&
+  productJs.includes("toggleFavorite") &&
+  productJs.includes("wx.makePhoneCall") &&
+  productWxml.includes("bindtap=\"contactService\"") &&
+  productWxml.includes("bindtap=\"toggleFavorite\"") &&
+  profileJs.includes("getFavorites") &&
+  profileWxml.includes("收藏茶品");
+results.push(status("product service and favorite flow", favoriteServiceOk, favoriteServiceOk ? "service phone and local favorites are wired into profile" : "product service/favorite actions are static or missing"));
+
+const listMyRecordsJs = readText("sanmuhe-miniprogram/cloudfunctions/listMyRecords/index.js");
+const profileRecordKeysOk = profileJs.includes("normalizeRecords") &&
+  listMyRecordsJs.includes("reservations.map") &&
+  listMyRecordsJs.includes("signups.map") &&
+  profileWxml.includes("wx:key=\"id\"");
+results.push(status("profile record stable ids", profileRecordKeysOk, profileRecordKeysOk ? "cloud and local records normalize id keys" : "profile records may lack stable ids"));
+
 const reservationJs = readText("sanmuhe-miniprogram/pages/reservation/index.js");
 const reservationWxml = readText("sanmuhe-miniprogram/pages/reservation/index.wxml");
 const reservationFlowOk = reservationJs.includes("bookingOpen") &&

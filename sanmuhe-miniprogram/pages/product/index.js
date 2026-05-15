@@ -1,6 +1,7 @@
 const { teaProducts } = require("../../data/catalog");
 const { addToCart } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
+const { isFavorite, toggleFavorite } = require("../../utils/favorites");
 
 const specOptions = ["50g", "100g", "250g", "500g"];
 const specMultipliers = {
@@ -22,12 +23,17 @@ Page({
     specOptions,
     selectedSpec: "50g",
     quantity: 1,
-    displayPrice: 0
+    displayPrice: 0,
+    favored: false
   },
 
   onLoad(options) {
     const product = normalizeProduct(teaProducts.find((item) => item.id === options.id) || teaProducts[0]);
-    this.setData({ product, displayPrice: product.price });
+    this.setData({
+      product,
+      displayPrice: product.price,
+      favored: isFavorite(product.id)
+    });
     getCatalog().then((catalog) => {
       const products = catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts;
       const nextProduct = products.find((item) => item.id === options.id);
@@ -35,7 +41,8 @@ Page({
         const normalized = normalizeProduct(nextProduct);
         this.setData({
           product: normalized,
-          displayPrice: this.getPrice(normalized.price, this.data.selectedSpec)
+          displayPrice: this.getPrice(normalized.price, this.data.selectedSpec),
+          favored: isFavorite(normalized.id)
         });
       }
     });
@@ -78,6 +85,27 @@ Page({
   buyNow() {
     this.addProduct();
     wx.switchTab({ url: "/pages/cart/index" });
+  },
+
+  contactService() {
+    const app = getApp({ allowDefault: true });
+    const phoneNumber = app.globalData && app.globalData.servicePhone ? app.globalData.servicePhone : "021-0000-3333";
+    wx.makePhoneCall({
+      phoneNumber,
+      fail: () => {
+        wx.showModal({
+          title: "联系客服",
+          content: phoneNumber,
+          showCancel: false
+        });
+      }
+    });
+  },
+
+  toggleFavorite() {
+    const result = toggleFavorite(this.data.product);
+    this.setData({ favored: result.favored });
+    wx.showToast({ title: result.favored ? "已收藏" : "已取消" });
   },
 
   goBack() {

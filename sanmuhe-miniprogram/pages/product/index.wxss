@@ -190,6 +190,11 @@
   font-size: 22rpx;
 }
 
+.mini-action.active {
+  color: #4f7d43;
+  font-weight: 800;
+}
+
 .mini-action-icon {
   width: 38rpx;
   height: 38rpx;

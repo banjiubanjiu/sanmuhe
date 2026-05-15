@@ -25,6 +25,18 @@
   </view>
 
   <view class="section">
+    <view class="h2">收藏茶品</view>
+    <view wx:if="{{favorites.length === 0}}" class="empty compact">暂无收藏</view>
+    <scroll-view wx:if="{{favorites.length > 0}}" scroll-x class="favorite-strip" enhanced show-scrollbar="{{false}}">
+      <view wx:for="{{favorites}}" wx:key="id" class="favorite-card" data-id="{{item.id}}" bindtap="goProduct">
+        <image class="favorite-image" src="{{item.image}}" mode="aspectFill"></image>
+        <view class="favorite-name">{{item.name}}</view>
+        <view class="favorite-price">¥{{item.price}} <text>/{{item.unit}}</text></view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view class="section">
     <view class="h2">订单</view>
     <view wx:if="{{orders.length === 0}}" class="empty compact">暂无订单</view>
     <view wx:if="{{orders.length > 0}}" class="record-list">

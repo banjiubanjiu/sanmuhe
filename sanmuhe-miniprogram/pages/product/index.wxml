@@ -47,13 +47,13 @@
   </view>
 
   <view class="safe-bar">
-    <view class="mini-action service-action">
+    <view class="mini-action service-action" bindtap="contactService">
       <image class="mini-action-icon" src="/assets/icons/headset-ink.png" mode="aspectFit"></image>
       <text>客服</text>
     </view>
-    <view class="mini-action fav-action">
+    <view class="mini-action fav-action {{favored ? 'active' : ''}}" bindtap="toggleFavorite">
       <image class="mini-action-icon" src="/assets/icons/heart-ink.png" mode="aspectFit"></image>
-      <text>收藏</text>
+      <text>{{favored ? '已收藏' : '收藏'}}</text>
     </view>
     <button class="cart-action" bindtap="addProduct">加入购物车</button>
     <button class="buy-action" bindtap="buyNow">立即购买</button>
