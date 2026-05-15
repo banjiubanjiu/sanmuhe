@@ -2,42 +2,83 @@ const { rooms } = require("../../data/catalog");
 const { createReservation, getCatalog } = require("../../utils/cloudApi");
 const { getBookingDays } = require("../../utils/date");
 
-const timeSlots = ["10:00", "12:30", "15:00", "17:30", "19:30"];
+const timeOptions = [
+  { value: "10:00", seats: 2 },
+  { value: "12:30", seats: 1 },
+  { value: "15:00", seats: 3 },
+  { value: "17:30", seats: 2 },
+  { value: "20:00", seats: 1 }
+];
+const timeSlots = timeOptions.map((item) => item.value);
+const CONTACT_KEY = "sanmuhe_contact";
+
+const roomCities = ["佛山", "杭州", "苏州", "广州", "上海"];
+const roomAddresses = [
+  "广东省佛山市",
+  "浙江省杭州市西湖区",
+  "江苏省苏州市姑苏区",
+  "广东省广州市越秀区",
+  "上海市徐汇区"
+];
 
 function getDayText(days, value) {
   const day = days.find((item) => item.value === value);
   return day ? `${day.display} ${day.label}` : value;
 }
 
+function decorateDays(days) {
+  return days.map((item) => Object.assign({}, item, {
+    slashDisplay: item.display.replace(".", "/")
+  }));
+}
+
+function decorateRooms(roomList) {
+  return (roomList || []).map((room, index) => Object.assign({}, room, {
+    displayName: "三木合茶室",
+    city: roomCities[index % roomCities.length],
+    address: roomAddresses[index % roomAddresses.length],
+    heroImage: room.image || "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-guanshan.jpg"
+  }));
+}
+
+const defaultRooms = decorateRooms(rooms);
+
 Page({
   data: {
-    rooms,
+    rooms: defaultRooms,
     days: [],
+    visibleDays: [],
     timeSlots,
-    selectedRoom: rooms[0],
+    timeOptions,
+    selectedRoom: defaultRooms[0],
     selectedDay: "",
     selectedDayText: "",
-    selectedTime: timeSlots[1],
+    selectedTime: "15:00",
     people: 2,
     name: "",
     phone: "",
     note: "",
-    bookingOpen: false
+    bookingOpen: false,
+    roomSelectorOpen: false
   },
 
   onLoad() {
-    const days = getBookingDays();
+    const days = decorateDays(getBookingDays());
+    const contact = wx.getStorageSync(CONTACT_KEY) || {};
     this.setData({
       days,
+      visibleDays: days.slice(0, 5),
       selectedDay: days[0].value,
-      selectedDayText: getDayText(days, days[0].value)
+      selectedDayText: getDayText(days, days[0].value),
+      name: contact.consignee || contact.name || "",
+      phone: contact.phone || ""
     });
     this.loadCatalog();
   },
 
   loadCatalog() {
     getCatalog().then((catalog) => {
-      const nextRooms = catalog.rooms && catalog.rooms.length ? catalog.rooms : rooms;
+      const nextRooms = decorateRooms(catalog.rooms && catalog.rooms.length ? catalog.rooms : rooms);
       const selectedRoom = nextRooms.find((item) => item.id === this.data.selectedRoom.id) || nextRooms[0];
       this.setData({
         rooms: nextRooms,
@@ -48,7 +89,18 @@ Page({
 
   chooseRoom(event) {
     const room = this.data.rooms.find((item) => item.id === event.currentTarget.dataset.id);
-    this.setData({ selectedRoom: room });
+    this.setData({
+      selectedRoom: room,
+      roomSelectorOpen: false
+    });
+  },
+
+  openRoomPicker() {
+    this.setData({ roomSelectorOpen: true });
+  },
+
+  closeRoomPicker() {
+    this.setData({ roomSelectorOpen: false });
   },
 
   openBooking() {
@@ -82,6 +134,10 @@ Page({
     });
   },
 
+  showMoreDates() {
+    this.setData({ visibleDays: this.data.days });
+  },
+
   chooseTime(event) {
     this.setData({ selectedTime: event.currentTarget.dataset.value });
   },
@@ -92,13 +148,26 @@ Page({
   },
 
   onInput(event) {
-    this.setData({ [event.currentTarget.dataset.field]: event.detail.value });
+    const field = event.currentTarget.dataset.field;
+    this.setData({ [field]: event.detail.value }, () => {
+      if (field === "name" || field === "phone") {
+        wx.setStorageSync(CONTACT_KEY, {
+          consignee: this.data.name,
+          phone: this.data.phone,
+          address: (wx.getStorageSync(CONTACT_KEY) || {}).address || ""
+        });
+      }
+    });
   },
 
   submitReservation() {
     const { selectedRoom, selectedDay, selectedTime, people, name, phone, note } = this.data;
     if (!name || !phone) {
       wx.showToast({ title: "请填写联系人", icon: "none" });
+      return;
+    }
+    if (!/^1\d{10}$/.test(String(phone).trim())) {
+      wx.showToast({ title: "请填写 11 位手机号", icon: "none" });
       return;
     }
 

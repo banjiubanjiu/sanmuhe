@@ -74,10 +74,6 @@ Page({
     });
   },
 
-  setDemoTable() {
-    this.setData({ tableLabel: "A03 临窗席" });
-  },
-
   changeCategory(event) {
     const activeCategory = event.currentTarget.dataset.category;
     const filteredDrinks = this.data.drinks.filter((item) => item.category === activeCategory);
@@ -151,13 +147,6 @@ Page({
 
   goCart() {
     wx.switchTab({ url: "/pages/cart/index" });
-  },
-
-  switchOrderTab(event) {
-    const url = event.currentTarget.dataset.url;
-    if (url) {
-      wx.switchTab({ url });
-    }
   },
 
   goBack() {

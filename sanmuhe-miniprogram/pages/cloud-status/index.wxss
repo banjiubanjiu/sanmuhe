@@ -20,14 +20,14 @@
 .status-label {
   color: #83725b;
   font-size: 23rpx;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .status-value {
   margin-top: 12rpx;
   color: #233b31;
   font-size: 30rpx;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1.25;
 }
 
@@ -39,7 +39,7 @@
 .result-title {
   color: #233b31;
   font-size: 32rpx;
-  font-weight: 800;
+  font-weight: 500;
   margin-bottom: 14rpx;
 }
 

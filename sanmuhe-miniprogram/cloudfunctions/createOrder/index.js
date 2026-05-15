@@ -5,6 +5,11 @@ cloud.init({
 });
 
 const db = cloud.database();
+const _ = db.command;
+
+const LOCK_MINUTES = Math.max(1, Number(process.env.ORDER_LOCK_MINUTES || 15));
+const FREE_SHIPPING_AMOUNT = Math.max(0, Number(process.env.FREE_SHIPPING_AMOUNT || 0));
+const SHIPPING_FEE = Math.max(0, Number(process.env.SHIPPING_FEE || 0));
 
 const specMultipliers = {
   "50g": 1,
@@ -20,13 +25,23 @@ const priceMap = {
   "drink:drink-004": { name: "经典龙井茶", price: 22 },
   "drink:drink-005": { name: "白桃乌龙", price: 30 },
   "drink:drink-006": { name: "红豆抹茶", price: 26 },
-  "tea:tea-001": { name: "明前龙井", price: 268 },
-  "tea:tea-002": { name: "大红袍", price: 198 },
-  "tea:tea-003": { name: "白毫银针", price: 358 },
-  "tea:tea-004": { name: "碧螺春", price: 198 },
-  "tea:tea-005": { name: "黄山毛峰", price: 158 },
-  "tea:tea-006": { name: "六安瓜片", price: 128 },
-  "tea:tea-007": { name: "信阳毛尖", price: 138 }
+  "tea:tea-001": { name: "明前龙井", price: 268, unit: "50g" },
+  "tea:tea-002": { name: "大红袍", price: 198, unit: "50g" },
+  "tea:tea-003": { name: "白毫银针", price: 358, unit: "50g" },
+  "tea:tea-004": { name: "碧螺春", price: 198, unit: "50g" },
+  "tea:tea-005": { name: "黄山毛峰", price: 158, unit: "50g" },
+  "tea:tea-006": { name: "六安瓜片", price: 128, unit: "50g" },
+  "tea:tea-007": { name: "信阳毛尖", price: 138, unit: "50g" },
+  "tea:tea-008": { name: "滇红金芽", price: 168, unit: "50g" },
+  "tea:tea-009": { name: "正山小种", price: 158, unit: "50g" },
+  "tea:tea-010": { name: "君山银针", price: 228, unit: "50g" },
+  "tea:tea-011": { name: "普洱熟茶", price: 128, unit: "50g" },
+  "tea:tea-012": { name: "安化黑茶", price: 118, unit: "50g" },
+  "tea:tea-013": { name: "茉莉龙珠", price: 98, unit: "50g" },
+  "tea:tea-014": { name: "玻璃煮茶壶", price: 168, unit: "件" },
+  "tea:tea-015": { name: "手工盖碗", price: 138, unit: "件" },
+  "tea:tea-016": { name: "桂花糕", price: 28, unit: "份" },
+  "tea:tea-017": { name: "花样酥点", price: 36, unit: "盒" }
 };
 
 async function ensureCollection(name) {
@@ -41,13 +56,16 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
-function sanitizeOptions(type, options) {
+function sanitizeOptions(type, options, trusted) {
   const source = options || {};
   const clean = {};
 
   if (type === "tea") {
     const unit = cleanText(source.unit, 12);
-    clean.unit = specMultipliers[unit] ? unit : "50g";
+    const trustedUnit = cleanText(trusted && trusted.unit, 12);
+    clean.unit = trustedUnit && !specMultipliers[trustedUnit]
+      ? trustedUnit
+      : (specMultipliers[unit] ? unit : (trustedUnit || "50g"));
     return clean;
   }
 
@@ -71,6 +89,29 @@ function getTrustedPrice(type, basePrice, options) {
   return Math.round(basePrice * (specMultipliers[options.unit] || 1));
 }
 
+function hasStockControl(item) {
+  return item && item.stock !== undefined && item.stock !== null && item.stock !== "";
+}
+
+function getRequiredStockUnits(type, quantity, options) {
+  if (type === "tea") {
+    return quantity * (specMultipliers[options.unit] || 1);
+  }
+  return quantity;
+}
+
+function getInventorySnapshot(item) {
+  const stock = Math.max(0, Number(item.stock) || 0);
+  const lockedStock = Math.max(0, Number(item.lockedStock) || 0);
+  const soldStock = Math.max(0, Number(item.soldStock) || 0);
+  return {
+    stock,
+    lockedStock,
+    soldStock,
+    availableStock: Math.max(0, stock - lockedStock - soldStock)
+  };
+}
+
 async function findTrustedItem(type, id) {
   const collection = type === "tea" ? "tea_products" : "drinks";
   await ensureCollection(collection);
@@ -80,15 +121,32 @@ async function findTrustedItem(type, id) {
     const item = result.data && result.data[0];
     if (item && item.visible !== false) {
       return {
+        collection,
+        docId: item._id,
+        id: item.id,
         name: cleanText(item.name, 80),
-        price: Math.max(0, Number(item.price) || 0)
+        price: Math.max(0, Number(item.price) || 0),
+        unit: cleanText(item.unit, 12),
+        image: cleanText(item.thumb || item.image, 240),
+        stock: item.stock,
+        lockedStock: item.lockedStock,
+        soldStock: item.soldStock
       };
     }
   } catch (error) {
     // Fall through to the built-in catalog map.
   }
 
-  return priceMap[`${type}:${id}`] || null;
+  const fallback = priceMap[`${type}:${id}`];
+  return fallback ? {
+    collection,
+    docId: "",
+    id,
+    name: fallback.name,
+    price: fallback.price,
+    unit: fallback.unit,
+    image: ""
+  } : null;
 }
 
 async function sanitizeItems(items) {
@@ -96,8 +154,9 @@ async function sanitizeItems(items) {
     throw new Error("订单商品不能为空");
   }
 
-  let total = 0;
+  let subtotal = 0;
   const cleanItems = [];
+  const inventoryLocks = [];
 
   for (const item of items.slice(0, 30)) {
     const type = item.type === "tea" ? "tea" : "drink";
@@ -108,54 +167,155 @@ async function sanitizeItems(items) {
     }
 
     const quantity = Math.max(1, Math.min(99, Number(item.quantity) || 1));
-    const options = sanitizeOptions(type, item.options);
+    const options = sanitizeOptions(type, item.options, trusted);
     const price = getTrustedPrice(type, trusted.price, options);
-    total += price * quantity;
+    const lineTotal = price * quantity;
+    subtotal += lineTotal;
 
-    cleanItems.push({
+    const cleanItem = {
       id,
       type,
       name: trusted.name,
       price,
       quantity,
+      lineTotal,
       options
-    });
+    };
+    if (trusted.image) {
+      cleanItem.image = trusted.image;
+    }
+
+    if (hasStockControl(trusted)) {
+      const requiredStock = getRequiredStockUnits(type, quantity, options);
+      const inventory = getInventorySnapshot(trusted);
+      if (inventory.availableStock < requiredStock) {
+        throw new Error(`${trusted.name} 库存不足`);
+      }
+      cleanItem.stockUnits = requiredStock;
+      inventoryLocks.push({
+        collection: trusted.collection,
+        docId: trusted.docId,
+        id,
+        name: trusted.name,
+        quantity: requiredStock
+      });
+    }
+
+    cleanItems.push(cleanItem);
   }
 
   return {
     cleanItems,
-    total
+    inventoryLocks,
+    subtotal
   };
 }
 
-exports.main = async (event) => {
+async function lockInventory(locks) {
+  const applied = [];
+
+  for (const lock of locks) {
+    if (!lock.docId || lock.quantity <= 0) {
+      continue;
+    }
+
+    const latest = await db.collection(lock.collection).doc(lock.docId).get();
+    const item = latest.data;
+    const inventory = getInventorySnapshot(item);
+    if (inventory.availableStock < lock.quantity) {
+      throw new Error(`${lock.name} 库存不足`);
+    }
+
+    await db.collection(lock.collection).doc(lock.docId).update({
+      data: {
+        lockedStock: _.inc(lock.quantity),
+        updatedAt: db.serverDate()
+      }
+    });
+    applied.push(lock);
+  }
+
+  return applied;
+}
+
+async function releaseInventory(locks) {
+  for (const lock of locks || []) {
+    if (!lock.docId || lock.quantity <= 0) {
+      continue;
+    }
+    try {
+      await db.collection(lock.collection).doc(lock.docId).update({
+        data: {
+          lockedStock: _.inc(-lock.quantity),
+          updatedAt: db.serverDate()
+        }
+      });
+    } catch (error) {
+      // Continue releasing the remaining locks.
+    }
+  }
+}
+
+function normalizeDeliveryMethod(value) {
+  return value === "shipping" ? "shipping" : "pickup";
+}
+
+function calculateShippingFee(deliveryMethod, subtotal) {
+  if (deliveryMethod !== "shipping") {
+    return 0;
+  }
+  if (FREE_SHIPPING_AMOUNT > 0 && subtotal >= FREE_SHIPPING_AMOUNT) {
+    return 0;
+  }
+  return SHIPPING_FEE;
+}
+
+exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
+  let appliedLocks = [];
 
   try {
-    const { cleanItems, total } = await sanitizeItems(event.items);
-    const hasTea = cleanItems.some((item) => item.type === "tea");
-    const consignee = cleanText(event.consignee, 40);
-    const phone = cleanText(event.phone, 30);
-    const address = cleanText(event.address, 160);
+    const { cleanItems, inventoryLocks, subtotal } = await sanitizeItems(event.items);
+    const deliveryMethod = normalizeDeliveryMethod(event.deliveryMethod);
+    const consignee = cleanText(event.consignee || event.pickupName, 40);
+    const phone = cleanText(event.phone || event.pickupPhone, 30);
+    const address = cleanText(event.address, 180);
+    const pickupNote = cleanText(event.pickupNote, 120);
 
-    if (hasTea && (!consignee || !phone || !address)) {
-      return { ok: false, message: "请填写收货信息" };
+    if (!consignee || !phone) {
+      return { ok: false, message: "请填写联系人和手机号" };
+    }
+    if (deliveryMethod === "shipping" && !address) {
+      return { ok: false, message: "请选择或填写收货地址" };
     }
 
     await ensureCollection("orders");
-    const orderNo = `SMH${Date.now()}`;
+    appliedLocks = await lockInventory(inventoryLocks);
+
+    const orderNo = `SMH${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
+    const shippingFee = calculateShippingFee(deliveryMethod, subtotal);
+    const total = subtotal + shippingFee;
+    const lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
     const addResult = await db.collection("orders").add({
       data: {
         _openid: OPENID,
         orderNo,
         items: cleanItems,
+        inventoryLocks: appliedLocks,
+        subtotal,
+        shippingFee,
         total,
+        deliveryMethod,
         consignee,
         phone,
-        address,
+        address: deliveryMethod === "shipping" ? address : "",
+        pickupNote: deliveryMethod === "pickup" ? pickupNote : "",
         remark: cleanText(event.remark, 200),
         source: cleanText(event.source, 40),
         status: "待支付",
+        payStatus: "pending",
+        lockedUntil,
+        lockReleased: false,
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
       }
@@ -165,9 +325,17 @@ exports.main = async (event) => {
       ok: true,
       id: addResult._id,
       orderNo,
-      total
+      subtotal,
+      shippingFee,
+      total,
+      deliveryMethod,
+      payStatus: "pending",
+      lockedUntil: lockedUntil.toISOString()
     };
   } catch (error) {
+    if (appliedLocks.length) {
+      await releaseInventory(appliedLocks);
+    }
     return {
       ok: false,
       message: error.message || "订单提交失败"

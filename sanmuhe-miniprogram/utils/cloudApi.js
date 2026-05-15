@@ -15,7 +15,13 @@ function mergeById(remoteItems, localItems) {
     return map;
   }, {});
 
-  return (remoteItems || []).map((item) => Object.assign({}, localMap[item.id] || {}, item));
+  const remoteIds = {};
+  const mergedRemote = (remoteItems || []).map((item) => {
+    remoteIds[item.id] = true;
+    return Object.assign({}, localMap[item.id] || {}, item);
+  });
+  const localOnly = localItems.filter((item) => !remoteIds[item.id]);
+  return mergedRemote.concat(localOnly);
 }
 
 function enrichCatalog(catalog) {
@@ -63,6 +69,40 @@ function createOrder(payload) {
   return callCloud("createOrder", payload);
 }
 
+function createPayment(payload) {
+  return callCloud("createPayment", payload);
+}
+
+function requestPayment(payment) {
+  return new Promise((resolve, reject) => {
+    if (!wx.requestPayment) {
+      reject(new Error("当前微信版本不支持支付"));
+      return;
+    }
+    wx.requestPayment(Object.assign({}, payment, {
+      success: resolve,
+      fail: reject
+    }));
+  });
+}
+
+function payOrder(order) {
+  const payload = {
+    orderId: order && (order._id || order.orderId || order.id),
+    orderNo: order && order.orderNo
+  };
+
+  return createPayment(payload).then((result) => {
+    if (!result || result.ok === false) {
+      throw new Error(result && result.message ? result.message : "发起支付失败");
+    }
+    return requestPayment(result.payment).then((paymentResult) => ({
+      paymentResult,
+      order: result
+    }));
+  });
+}
+
 function createReservation(payload) {
   return callCloud("createReservation", payload);
 }
@@ -86,10 +126,12 @@ function listMyRecords() {
 module.exports = {
   createEvent,
   createOrder,
+  createPayment,
   createReservation,
   getCatalog,
   isCloudReady,
   joinEvent,
   listEvents,
-  listMyRecords
+  listMyRecords,
+  payOrder
 };

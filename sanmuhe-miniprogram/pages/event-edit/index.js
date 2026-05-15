@@ -39,7 +39,7 @@ Page({
       quota: Number(quota) || 0,
       price: Number(price) || 0,
       summary,
-      image: "/assets/images/design-event-spring.jpg",
+      image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-spring.jpg",
       signed: 0
     };
 

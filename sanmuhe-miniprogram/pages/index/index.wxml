@@ -1,56 +1,95 @@
 <view class="page home">
-  <view class="mini-nav">
-    <view class="mini-title">三木合</view>
-    <view class="mini-capsule">
-      <text>•••</text>
-      <text class="capsule-dot">◎</text>
+  <view class="home-nav">
+    <view class="brand-title">三木合</view>
+    <view class="location-pill">
+      <image src="/assets/icons/home-location.png" mode="aspectFit"></image>
+      <text>杭州 · 西湖店</text>
+      <view class="caret"></view>
+    </view>
+    <view class="nav-capsule" bindtap="scanTable">
+      <text></text>
+      <text></text>
+      <text></text>
+      <view></view>
     </view>
   </view>
 
-  <view class="search-row">
-    <view class="search-box">
-      <image class="search-icon" src="/assets/icons/search-line.png" mode="aspectFit"></image>
-      <text>搜索茶叶、茶饮、茶室、活动</text>
-    </view>
-    <view class="scan-square" bindtap="goCloudStatus">
-      <image src="/assets/icons/scan-ink.png" mode="aspectFit"></image>
+  <swiper
+    class="hero-swiper"
+    autoplay="{{true}}"
+    circular="{{true}}"
+    interval="3600"
+    duration="520"
+    bindchange="onHeroChange"
+  >
+    <swiper-item wx:for="{{heroSlides}}" wx:key="id">
+      <view class="hero-slide">
+        <image class="hero-image" src="{{item.image}}" mode="aspectFill"></image>
+      </view>
+    </swiper-item>
+  </swiper>
+  <view class="hero-dots">
+    <view
+      wx:for="{{heroSlides}}"
+      wx:key="id"
+      class="hero-dot {{index === heroCurrent ? 'active' : ''}}"
+    ></view>
+  </view>
+
+  <view class="quick-grid">
+    <view
+      wx:for="{{quickActions}}"
+      wx:key="key"
+      class="quick-item"
+      data-key="{{item.key}}"
+      bindtap="tapQuickAction"
+    >
+      <image class="quick-icon" src="{{item.icon}}" mode="aspectFit"></image>
+      <view class="quick-title">{{item.title}}</view>
+      <view class="quick-desc">{{item.desc}}</view>
     </view>
   </view>
 
-  <view class="hero-photo">
-    <image src="/assets/images/design-hero-tea.jpg" mode="aspectFill"></image>
+  <view class="member-strip" bindtap="goMember">
+    <view class="member-mark">
+      <image src="/assets/icons/leaf-white.png" mode="aspectFit"></image>
+    </view>
+    <view class="member-copy">
+      <view>
+        <text class="member-name">三木合会员</text>
+        <text class="growth-pill">成长值 1280</text>
+      </view>
+      <view class="member-meta">再积 720 成长值可升级为 臻享会员</view>
+    </view>
+    <view class="member-link">查看权益 ›</view>
   </view>
 
-  <view class="action-grid">
-    <view class="action-item" bindtap="goShop">
-      <view class="action-icon leaf-icon"><image src="/assets/icons/leaf-white.png" mode="aspectFit"></image></view>
-      <text>茶叶购买</text>
-    </view>
-    <view class="action-item" bindtap="goOrder">
-      <view class="action-icon cup-icon"><image src="/assets/icons/cup-white.png" mode="aspectFit"></image></view>
-      <text>茶饮点单</text>
-    </view>
-    <view class="action-item" bindtap="goReservation">
-      <view class="action-icon room-icon"><image src="/assets/icons/room-white.png" mode="aspectFit"></image></view>
-      <text>茶室预定</text>
-    </view>
-    <view class="action-item" bindtap="goEvents">
-      <view class="action-icon calendar-icon"><image src="/assets/icons/calendar-white.png" mode="aspectFit"></image></view>
-      <text>活动发布</text>
-    </view>
-  </view>
-
-  <view class="section-head section">
-    <view class="h2">精选推荐</view>
-    <view class="text-link" bindtap="goShop">更多 ></view>
+  <view class="section-head">
+    <view class="section-title">本季推荐</view>
+    <view class="section-link" bindtap="goShop">查看更多 ›</view>
   </view>
 
   <view class="recommend-grid">
-    <view wx:for="{{recommendTeas}}" wx:key="id" class="recommend-card" data-id="{{item.id}}" bindtap="goShop">
-      <image src="{{item.thumb}}" mode="aspectFill"></image>
-      <view class="recommend-name">{{item.name}}</view>
-      <view class="recommend-price">¥{{item.price}} <text>/{{item.unit}}</text></view>
-      <view class="recommend-tag">{{item.category}}</view>
+    <view wx:for="{{recommendTeas}}" wx:key="id" class="recommend-card" data-id="{{item.id}}" bindtap="goProduct">
+      <image class="recommend-image" src="{{item.displayImage}}" mode="aspectFill"></image>
+      <view class="recommend-body">
+        <view class="recommend-tag">{{item.seasonTag}}</view>
+        <view class="recommend-name">{{item.name}}</view>
+        <view class="recommend-note">{{item.shortNote}}</view>
+        <view class="recommend-bottom">
+          <view class="recommend-price">¥{{item.price}}<text>/{{item.unit}}</text></view>
+          <view class="recommend-add" data-id="{{item.id}}" catchtap="addRecommended">+</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="scene-grid">
+    <view class="scene-card room" bindtap="goReservation">
+      <image src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-room-card.jpg" mode="aspectFill"></image>
+    </view>
+    <view class="scene-card event" bindtap="goEvents">
+      <image src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-event-card.jpg" mode="aspectFill"></image>
     </view>
   </view>
 

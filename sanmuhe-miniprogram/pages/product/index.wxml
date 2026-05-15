@@ -2,12 +2,12 @@
   <view class="page-nav">
     <view class="back-mark" bindtap="goBack">‹</view>
     <view class="page-title">商品详情</view>
-    <view class="mini-capsule">••• ◎</view>
+    <view class="nav-placeholder"></view>
   </view>
 
   <view class="detail-hero">
     <image src="{{product.image}}" mode="aspectFill"></image>
-    <view class="photo-count">1/5</view>
+    <view class="photo-count">实拍图</view>
   </view>
 
   <view class="section detail-copy">
@@ -17,13 +17,21 @@
     </view>
     <view class="muted detail-meta">产地：{{product.origin}} ｜ 等级：特级</view>
     <view class="muted paragraph">{{product.taste}}</view>
+    <view wx:if="{{product.detail}}" class="detail-story">{{product.detail}}</view>
     <view class="detail-price">
       <text class="price">¥{{displayPrice}}</text>
       <text class="muted">/{{selectedSpec}}</text>
       <text class="sold">已售 {{product.sold}}</text>
+      <text wx:if="{{product.availableStock !== undefined}}" class="sold">可售 {{product.availableStock}}</text>
     </view>
 
-    <view class="section">
+    <view class="assurance-row">
+      <view>后端核价</view>
+      <view>库存锁定</view>
+      <view>自提/快递</view>
+    </view>
+
+    <view wx:if="{{product.hasWeightSpecs}}" class="section">
       <view class="h2">选择规格</view>
       <view class="spec-row">
         <view
@@ -34,6 +42,11 @@
           bindtap="chooseSpec"
         >{{item}}</view>
       </view>
+    </view>
+
+    <view wx:if="{{!product.hasWeightSpecs}}" class="section single-spec">
+      <view class="h2">规格</view>
+      <view class="single-spec-pill">{{product.unit}}</view>
     </view>
 
     <view class="section qty-section">

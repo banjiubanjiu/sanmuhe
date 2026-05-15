@@ -41,7 +41,7 @@ exports.main = async (event) => {
     roomId,
     day,
     time,
-    status: _.neq("cancelled")
+    status: _.nin(["已取消", "cancelled"])
   }).count();
 
   if (conflict.total > 0) {

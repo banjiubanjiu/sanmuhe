@@ -60,5 +60,6 @@ module.exports = {
   clearCart,
   getCart,
   getTotal,
+  setCart,
   updateQuantity
 };

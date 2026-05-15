@@ -23,7 +23,11 @@ const requiredFunctions = [
   "getCatalog",
   "seedDemoData",
   "manageCatalog",
+  "manageOperations",
   "createOrder",
+  "createPayment",
+  "wechatPayNotify",
+  "releaseOrderLocks",
   "createReservation",
   "listEvents",
   "createEvent",
@@ -447,9 +451,12 @@ results.push(status("cart completion tab navigation", cartProfileNavOk, cartProf
 
 const cartCheckoutPolishOk = cartJs.includes("wx.chooseAddress") &&
   cartWxmlFull.includes("bindtap=\"chooseAddress\"") &&
-  cartWxmlFull.includes("到店支付 / 客服确认配送") &&
+  cartWxmlFull.includes("提交并支付") &&
+  cartWxmlFull.includes("微信支付 ·") &&
+  cartJs.includes("payOrder") &&
   !cartJs.includes("本地演示订单") &&
   !cartJs.includes("当前使用本地记录") &&
+  !cartJs.includes("订单已临时保存在本机") &&
   !cartWxmlFull.includes("待接入微信支付");
 results.push(status("cart checkout production copy", cartCheckoutPolishOk, cartCheckoutPolishOk ? "cart uses WeChat address picker and production-facing pay/confirmation copy" : "cart still contains rough payment/demo copy"));
 

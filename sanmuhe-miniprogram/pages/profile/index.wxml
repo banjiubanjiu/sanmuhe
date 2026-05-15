@@ -5,7 +5,7 @@
     <view class="nav-placeholder"></view>
   </view>
 
-  <view class="user-card">
+  <view class="profile-head">
     <view class="avatar-wrap">
       <image class="avatar" src="{{user.avatar}}" mode="aspectFill"></image>
       <view class="avatar-badge">
@@ -15,16 +15,16 @@
     <view class="user-copy">
       <view class="user-name">{{user.name}}</view>
       <view class="user-title">{{user.title}}</view>
-      <view class="tier-pill">{{member.tier}}</view>
+      <view class="tier-pill"><text class="tier-crown">♛</text>{{member.tier}}</view>
     </view>
     <view class="chevron" bindtap="goCloudStatus">›</view>
   </view>
 
-  <view class="member-hero">
-    <image class="member-bg" src="/assets/images/design-hero-tea.jpg" mode="aspectFill"></image>
+  <view class="member-card" bindtap="showMemberBenefits">
+    <image class="member-bg" src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg" mode="aspectFill"></image>
     <view class="member-shade"></view>
     <view class="member-content">
-      <view>
+      <view class="member-copy">
         <view class="member-title">雅客会员</view>
         <view class="member-subtitle">会员专享多重权益</view>
       </view>
@@ -36,9 +36,9 @@
         <view class="member-divider"></view>
         <view class="member-stat">
           <text>优惠券</text>
-          <view class="member-stat-number">{{member.coupons}} <text>张</text></view>
+          <view class="member-stat-number">{{member.coupons}}<text>张</text></view>
         </view>
-        <view class="benefit-btn" bindtap="showMemberBenefits">查看权益</view>
+        <view class="benefit-btn" catchtap="showMemberBenefits">查看权益</view>
       </view>
     </view>
   </view>
@@ -69,7 +69,7 @@
         data-action="{{item.action}}"
         bindtap="handleService"
       >
-        <view class="service-icon-wrap {{item.filled ? 'filled' : ''}}">
+        <view class="service-icon-wrap">
           <image class="service-icon" src="{{item.icon}}" mode="aspectFit"></image>
         </view>
         <text>{{item.label}}</text>
@@ -83,7 +83,7 @@
       <view class="panel-title">最近预约</view>
       <view class="panel-link" bindtap="goReservation">全部预约 ›</view>
     </view>
-    <view class="recent-card" bindtap="goReservation">
+    <view wx:if="{{recentReservation}}" class="recent-card" bindtap="goReservation">
       <image class="recent-image" src="{{recentReservation.image}}" mode="aspectFill"></image>
       <view class="recent-copy">
         <view class="recent-title">{{recentReservation.room}}</view>
@@ -101,6 +101,10 @@
         <view>查看详情</view>
       </view>
     </view>
+    <view wx:if="{{!recentReservation}}" class="empty-card" bindtap="goReservation">
+      <view class="empty-title">暂无茶室预约</view>
+      <text>选择日期和时段后，门店会人工确认。</text>
+    </view>
   </view>
 
   <view class="recent-panel">
@@ -108,7 +112,7 @@
       <view class="panel-title">最近活动</view>
       <view class="panel-link" bindtap="goEvents">全部活动 ›</view>
     </view>
-    <view class="recent-card" bindtap="goEvents">
+    <view wx:if="{{recentSignup}}" class="recent-card" bindtap="goEvents">
       <image class="recent-image" src="{{recentSignup.image}}" mode="aspectFill"></image>
       <view class="recent-copy">
         <view class="recent-title">{{recentSignup.title}}</view>
@@ -126,28 +130,10 @@
         <view>查看详情</view>
       </view>
     </view>
-  </view>
-
-  <view id="favorites-section" class="section">
-    <view class="h2">收藏茶品</view>
-    <view wx:if="{{favorites.length === 0}}" class="empty compact">暂无收藏</view>
-    <scroll-view wx:if="{{favorites.length > 0}}" scroll-x class="favorite-strip" enhanced show-scrollbar="{{false}}">
-      <view wx:for="{{favorites}}" wx:key="id" class="favorite-card" data-id="{{item.id}}" bindtap="goProduct">
-        <image class="favorite-image" src="{{item.image}}" mode="aspectFill"></image>
-        <view class="favorite-name">{{item.name}}</view>
-        <view class="favorite-price">¥{{item.price}} <text>/{{item.unit}}</text></view>
-      </view>
-    </scroll-view>
-  </view>
-
-  <view class="section record-section">
-    <view class="h2">云端记录</view>
-    <view wx:if="{{!hasCloudRecords}}" class="empty compact">暂无云端记录</view>
-    <view wx:if="{{orders.length > 0}}" class="record-list">
-      <view wx:for="{{orders}}" wx:key="id" class="record">
-        <view class="record-title">{{item.id}}</view>
-        <view class="muted">¥{{item.total}} · {{item.status}}</view>
-      </view>
+    <view wx:if="{{!recentSignup}}" class="empty-card" bindtap="goEvents">
+      <view class="empty-title">暂无活动报名</view>
+      <text>茶会、讲座和体验活动可在线提交报名。</text>
     </view>
   </view>
+
 </view>

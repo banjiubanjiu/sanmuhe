@@ -12,8 +12,13 @@ const specMultipliers = {
 };
 
 function normalizeProduct(product) {
+  const unit = product.unit || "50g";
+  const hasWeightSpecs = !!specMultipliers[unit];
   return Object.assign({}, product, {
-    sold: product.sold || 1286
+    sold: product.soldStock || product.sold || 0,
+    availableStock: product.availableStock,
+    unit,
+    hasWeightSpecs
   });
 }
 
@@ -31,6 +36,7 @@ Page({
     const product = normalizeProduct(teaProducts.find((item) => item.id === options.id) || teaProducts[0]);
     this.setData({
       product,
+      selectedSpec: product.hasWeightSpecs ? "50g" : product.unit,
       displayPrice: product.price,
       favored: isFavorite(product.id)
     });
@@ -39,9 +45,11 @@ Page({
       const nextProduct = products.find((item) => item.id === options.id);
       if (nextProduct) {
         const normalized = normalizeProduct(nextProduct);
+        const selectedSpec = normalized.hasWeightSpecs ? this.data.selectedSpec : normalized.unit;
         this.setData({
           product: normalized,
-          displayPrice: this.getPrice(normalized.price, this.data.selectedSpec),
+          selectedSpec,
+          displayPrice: this.getPrice(normalized.price, selectedSpec),
           favored: isFavorite(normalized.id)
         });
       }
@@ -49,6 +57,9 @@ Page({
   },
 
   getPrice(basePrice, spec) {
+    if (!specMultipliers[spec]) {
+      return Math.round(basePrice);
+    }
     return Math.round(basePrice * (specMultipliers[spec] || 1));
   },
 
@@ -74,6 +85,7 @@ Page({
       price: displayPrice,
       color: product.color,
       image: product.thumb || product.image,
+      category: product.category,
       quantity,
       options: {
         unit: selectedSpec
@@ -88,18 +100,7 @@ Page({
   },
 
   contactService() {
-    const app = getApp({ allowDefault: true });
-    const phoneNumber = app.globalData && app.globalData.servicePhone ? app.globalData.servicePhone : "021-0000-3333";
-    wx.makePhoneCall({
-      phoneNumber,
-      fail: () => {
-        wx.showModal({
-          title: "联系客服",
-          content: phoneNumber,
-          showCancel: false
-        });
-      }
-    });
+    wx.navigateTo({ url: "/pages/contact/index" });
   },
 
   toggleFavorite() {

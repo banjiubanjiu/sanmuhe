@@ -20,14 +20,58 @@
   text-align: center;
   color: #111;
   font-size: 32rpx;
-  font-weight: 800;
+  font-weight: 600;
+}
+
+.order-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin: 16rpx 28rpx 18rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 16rpx;
+  background: #fffaf1;
+  border: 1rpx solid rgba(35, 59, 49, 0.08);
+}
+
+.context-title {
+  color: #233b31;
+  font-size: 29rpx;
+  font-weight: 600;
+}
+
+.context-copy {
+  margin-top: 6rpx;
+  color: #746a5c;
+  font-size: 23rpx;
+}
+
+.context-scan {
+  flex: 0 0 auto;
+  min-width: 118rpx;
+  height: 58rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  color: #4f7d43;
+  border-radius: 999rpx;
+  background: #edf4ea;
+  font-size: 24rpx;
+  font-weight: 500;
+}
+
+.context-scan image {
+  width: 28rpx;
+  height: 28rpx;
 }
 
 .order-shell {
   position: fixed;
-  top: 250rpx;
+  top: 298rpx;
   right: 0;
-  bottom: calc(112rpx + env(safe-area-inset-bottom));
+  bottom: env(safe-area-inset-bottom);
   left: 0;
   display: grid;
   grid-template-columns: 186rpx 1fr;
@@ -56,7 +100,7 @@
 .side-cat.active {
   color: #244f2a;
   background: #fff;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .side-cat.active::before {
@@ -79,7 +123,7 @@
   margin-bottom: 16rpx;
   color: #111;
   font-size: 34rpx;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .drink-item {
@@ -120,7 +164,7 @@
 .drink-name {
   color: #111;
   font-size: 32rpx;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.25;
 }
 
@@ -137,8 +181,9 @@
 .drink-price {
   margin-top: 42rpx;
   color: #111;
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
   font-size: 30rpx;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .round-add {
@@ -165,7 +210,7 @@
 .order-cart-pill {
   position: fixed;
   right: 74rpx;
-  bottom: calc(126rpx + env(safe-area-inset-bottom));
+  bottom: calc(32rpx + env(safe-area-inset-bottom));
   left: 74rpx;
   z-index: 20;
   min-height: 84rpx;
@@ -206,7 +251,7 @@
   border-radius: 50%;
   background: #fff;
   font-size: 18rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .bar-title {
@@ -217,8 +262,9 @@
 
 .bar-total {
   color: #fff;
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
   font-size: 28rpx;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .checkout-chip {
@@ -231,42 +277,7 @@
   border-radius: 999rpx;
   background: #6f9c55;
   font-size: 28rpx;
-  font-weight: 800;
-}
-
-.order-tabbar {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 18;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  padding: 12rpx 0 calc(12rpx + env(safe-area-inset-bottom));
-  background: #fff;
-  border-top: 1rpx solid #eeeeee;
-}
-
-.order-tab {
-  min-height: 78rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  color: #777;
-  font-size: 24rpx;
-}
-
-.order-tab.active {
-  color: #4f7d43;
-  font-weight: 800;
-}
-
-.order-tab-icon {
-  width: 42rpx;
-  height: 42rpx;
-  display: block;
+  font-weight: 600;
 }
 
 .empty-list {

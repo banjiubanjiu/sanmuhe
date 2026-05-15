@@ -4,8 +4,8 @@ App({
   globalData: {
     brand: "三木合",
     storeName: "三木合茶事空间",
-    storeAddress: "上海市徐汇区梧桐街 33 号",
-    servicePhone: "021-0000-3333",
+    storeAddress: "广东省佛山市",
+    servicePhone: "0757-8888 8888",
     cloudReady: false,
     cloudEnv: ""
   },

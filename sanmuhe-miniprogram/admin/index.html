@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>三木合经营后台</title>
+    <link rel="stylesheet" href="./styles.css?v=20260515-ops2">
+    <script src="https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js"></script>
+  </head>
+  <body>
+    <main id="app" class="app">
+      <section class="login-view" data-view="login">
+        <div class="login-panel">
+          <div class="login-brand">
+            <span class="brand-mark">三木合</span>
+            <h1>经营后台</h1>
+            <p>Sanmuhe Operations</p>
+          </div>
+          <form id="loginForm" class="login-form">
+            <div class="form-head">
+              <span>Admin</span>
+              <strong>管理员登录</strong>
+            </div>
+            <label>
+              <span>账号</span>
+              <input id="username" autocomplete="username" required>
+            </label>
+            <label>
+              <span>密码</span>
+              <input id="password" type="password" autocomplete="current-password" required>
+            </label>
+            <button class="btn btn-primary" type="submit">登录后台</button>
+            <p id="loginError" class="form-error" role="alert"></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="dashboard-view hidden" data-view="dashboard">
+        <aside class="sidebar">
+          <div class="sidebar-brand">
+            <span>三木合</span>
+            <strong>Operations</strong>
+          </div>
+          <nav class="nav-tabs" aria-label="后台导航">
+            <button class="active" data-tab="catalog" type="button">商品与内容</button>
+            <button data-tab="orders" type="button">订单履约</button>
+            <button data-tab="reservations" type="button">茶室预约</button>
+            <button data-tab="signups" type="button">活动报名</button>
+          </nav>
+          <div class="sidebar-footer">
+            <div class="operator" id="userLine">管理员</div>
+            <button id="logoutBtn" class="btn btn-subtle" type="button">退出</button>
+          </div>
+        </aside>
+
+        <section class="workspace">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">Sanmuhe Operations</p>
+              <h2 id="pageTitle">商品与内容</h2>
+            </div>
+            <div class="topbar-actions">
+              <input id="globalKeyword" class="search-input" placeholder="搜索当前列表">
+              <button id="refreshBtn" class="btn btn-secondary" type="button">刷新</button>
+            </div>
+          </header>
+
+          <section class="summary-grid" id="summaryGrid" aria-label="经营概览"></section>
+
+          <section id="catalogPanel" class="panel active-panel">
+            <div class="panel-toolbar">
+              <div class="segmented" id="collectionTabs">
+                <button class="active" data-collection="tea_products" type="button">茶叶</button>
+                <button data-collection="drinks" type="button">茶饮</button>
+                <button data-collection="rooms" type="button">茶室</button>
+                <button data-collection="events" type="button">活动</button>
+              </div>
+              <div class="toolbar-actions">
+                <input id="catalogKeyword" class="compact-input" placeholder="筛选名称、分类、状态">
+                <button id="newItemBtn" class="btn btn-primary" type="button">新建资料</button>
+              </div>
+            </div>
+
+            <div class="split-view catalog-split">
+              <section class="table-shell" id="catalogTable"></section>
+              <aside class="detail-panel">
+                <form id="catalogForm" class="editor-form">
+                  <div class="detail-head">
+                    <div>
+                      <span class="eyebrow">Editor</span>
+                      <strong id="catalogFormTitle">新建资料</strong>
+                    </div>
+                    <span id="catalogModeBadge" class="status-badge neutral">草稿</span>
+                  </div>
+                  <input type="hidden" name="_mode" value="create">
+
+                  <div class="form-section">
+                    <label><span>ID</span><input name="id" placeholder="自动生成或自定义"></label>
+                    <label><span>名称 / 标题</span><input name="name"></label>
+                    <label><span>分类</span><input name="category"></label>
+                    <div class="two-col">
+                      <label><span>价格</span><input name="price" type="number" min="0"></label>
+                      <label><span>排序</span><input name="sort" type="number" min="0"></label>
+                    </div>
+                    <div class="two-col product-stock">
+                      <label><span>总库存</span><input name="stock" type="number" min="0"></label>
+                      <label><span>规格 / 容量</span><input name="unit"></label>
+                    </div>
+                  </div>
+
+                  <div class="form-section">
+                    <label><span>图片 URL</span><input name="image"></label>
+                    <div class="image-tool">
+                      <div id="imagePreview" class="image-preview">无图片</div>
+                      <div class="upload-stack">
+                        <input id="imageFile" class="file-input" type="file" accept="image/*">
+                        <label class="file-picker" for="imageFile">选择图片</label>
+                        <span id="imageFileName" class="file-name">未选择文件</span>
+                        <button class="btn btn-secondary" id="uploadBtn" type="button">上传图片</button>
+                      </div>
+                    </div>
+                    <label><span>摘要 / 说明</span><textarea name="summary" rows="4"></textarea></label>
+                    <label><span>扩展字段</span><textarea name="extra" rows="5" placeholder="每行 key: value；数组用逗号分隔"></textarea></label>
+                  </div>
+
+                  <label class="check-line"><input name="visible" type="checkbox" checked> 上架 / 可预约 / 可报名</label>
+                  <div class="form-actions">
+                    <button class="btn btn-primary" type="submit">保存</button>
+                    <button class="btn btn-danger" id="deleteItemBtn" type="button">下架</button>
+                  </div>
+                  <p id="catalogMessage" class="form-message" role="status"></p>
+                </form>
+              </aside>
+            </div>
+          </section>
+
+          <section id="ordersPanel" class="panel">
+            <div class="panel-toolbar">
+              <div class="filter-row">
+                <select id="orderStatus">
+                  <option value="all">全部订单</option>
+                  <option value="待支付">待支付</option>
+                  <option value="待发货">待发货</option>
+                  <option value="待自提">待自提</option>
+                  <option value="已发货">已发货</option>
+                  <option value="已完成">已完成</option>
+                  <option value="异常待处理">异常待处理</option>
+                  <option value="已取消">已取消</option>
+                </select>
+                <input id="orderKeyword" class="compact-input" placeholder="订单号、姓名、手机号">
+              </div>
+              <button id="reloadOrdersBtn" class="btn btn-secondary" type="button">刷新订单</button>
+            </div>
+            <div class="split-view">
+              <section class="table-shell" id="ordersTable"></section>
+              <aside class="detail-panel" id="orderDetail"></aside>
+            </div>
+          </section>
+
+          <section id="reservationsPanel" class="panel">
+            <div class="panel-toolbar">
+              <div class="filter-row">
+                <select id="reservationStatus">
+                  <option value="all">全部预约</option>
+                  <option value="待确认">待确认</option>
+                  <option value="已确认">已确认</option>
+                  <option value="已取消">已取消</option>
+                </select>
+                <input id="reservationKeyword" class="compact-input" placeholder="茶室、姓名、手机号">
+              </div>
+              <button id="reloadReservationsBtn" class="btn btn-secondary" type="button">刷新预约</button>
+            </div>
+            <div class="split-view">
+              <section class="table-shell" id="reservationsTable"></section>
+              <aside class="detail-panel" id="reservationDetail"></aside>
+            </div>
+          </section>
+
+          <section id="signupsPanel" class="panel">
+            <div class="panel-toolbar">
+              <div class="filter-row">
+                <select id="signupStatus">
+                  <option value="all">全部报名</option>
+                  <option value="待确认">待确认</option>
+                  <option value="已确认">已确认</option>
+                  <option value="已取消">已取消</option>
+                </select>
+                <input id="signupKeyword" class="compact-input" placeholder="活动、姓名、手机号">
+              </div>
+              <button id="reloadSignupsBtn" class="btn btn-secondary" type="button">刷新报名</button>
+            </div>
+            <div class="split-view">
+              <section class="table-shell" id="signupsTable"></section>
+              <aside class="detail-panel" id="signupDetail"></aside>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </main>
+    <script src="./app.js?v=20260515-ops2"></script>
+  </body>
+</html>

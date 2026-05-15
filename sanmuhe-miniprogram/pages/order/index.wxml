@@ -5,6 +5,17 @@
     <view class="nav-placeholder"></view>
   </view>
 
+  <view class="order-context">
+    <view>
+      <view class="context-title">{{tableLabel ? tableLabel : '到店点单'}}</view>
+      <view class="context-copy">{{tableLabel ? '已绑定桌号，结算时会随订单提交' : '扫码桌牌可自动带入桌号'}}</view>
+    </view>
+    <view class="context-scan" bindtap="scanTable">
+      <image src="/assets/icons/scan-ink.png" mode="aspectFit"></image>
+      <text>扫码</text>
+    </view>
+  </view>
+
   <view class="order-shell">
     <scroll-view scroll-y class="side-cats">
       <view
@@ -43,24 +54,5 @@
     <view class="bar-title">购物车</view>
     <view class="bar-total">¥{{cartTotal}}</view>
     <view class="checkout-chip">去结算</view>
-  </view>
-
-  <view class="order-tabbar">
-    <view class="order-tab active" data-url="/pages/index/index" bindtap="switchOrderTab">
-      <image class="order-tab-icon" src="/assets/icons/home-active.png" mode="aspectFit"></image>
-      <text>首页</text>
-    </view>
-    <view class="order-tab" data-url="/pages/shop/index" bindtap="switchOrderTab">
-      <image class="order-tab-icon" src="/assets/icons/category-line.png" mode="aspectFit"></image>
-      <text>分类</text>
-    </view>
-    <view class="order-tab" data-url="/pages/cart/index" bindtap="switchOrderTab">
-      <image class="order-tab-icon" src="/assets/icons/cart-line.png" mode="aspectFit"></image>
-      <text>购物车</text>
-    </view>
-    <view class="order-tab" data-url="/pages/profile/index" bindtap="switchOrderTab">
-      <image class="order-tab-icon" src="/assets/icons/profile-line.png" mode="aspectFit"></image>
-      <text>我的</text>
-    </view>
   </view>
 </view>

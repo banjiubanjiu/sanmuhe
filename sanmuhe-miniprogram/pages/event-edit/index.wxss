@@ -27,7 +27,7 @@
   border-radius: 999rpx;
   background: #fff;
   font-size: 25rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .category-pill.active {

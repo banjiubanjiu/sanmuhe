@@ -6,7 +6,7 @@
 .page-nav {
   height: 72rpx;
   display: grid;
-  grid-template-columns: 72rpx 1fr 132rpx;
+  grid-template-columns: 72rpx 1fr 72rpx;
   align-items: center;
 }
 
@@ -20,20 +20,7 @@
   text-align: center;
   color: #111;
   font-size: 32rpx;
-  font-weight: 800;
-}
-
-.mini-capsule {
-  height: 54rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #111;
-  border: 1rpx solid rgba(0, 0, 0, 0.08);
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.78);
-  font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .detail-hero {
@@ -75,7 +62,7 @@
 .detail-title {
   color: #111;
   font-size: 42rpx;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.25;
 }
 
@@ -85,7 +72,7 @@
   border-radius: 8rpx;
   background: #edf4ea;
   font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .detail-meta {
@@ -97,6 +84,16 @@
   margin-top: 16rpx;
 }
 
+.detail-story {
+  margin-top: 18rpx;
+  padding: 20rpx 22rpx;
+  color: #5b5045;
+  border-radius: 14rpx;
+  background: #fffaf1;
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
 .detail-price {
   display: flex;
   align-items: baseline;
@@ -105,14 +102,34 @@
 
 .detail-price .price {
   color: #111;
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
   font-size: 54rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .sold {
   margin-left: auto;
   color: #777;
   font-size: 24rpx;
+}
+
+.assurance-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10rpx;
+  margin-top: 24rpx;
+}
+
+.assurance-row view {
+  min-height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #547946;
+  border-radius: 10rpx;
+  background: #edf4ea;
+  font-size: 23rpx;
+  font-weight: 500;
 }
 
 .spec-row {
@@ -138,7 +155,27 @@
   color: #4f7d43;
   border-color: #4f7d43;
   background: #f5faf3;
-  font-weight: 800;
+  font-weight: 600;
+}
+
+.single-spec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.single-spec-pill {
+  min-width: 148rpx;
+  min-height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f7d43;
+  border: 1rpx solid #4f7d43;
+  border-radius: 10rpx;
+  background: #f5faf3;
+  font-size: 28rpx;
+  font-weight: 600;
 }
 
 .qty-section {
@@ -192,7 +229,7 @@
 
 .mini-action.active {
   color: #4f7d43;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .mini-action-icon {
@@ -210,7 +247,7 @@
   justify-content: center;
   border-radius: 999rpx;
   font-size: 30rpx;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .cart-action {

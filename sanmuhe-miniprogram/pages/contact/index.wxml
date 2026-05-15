@@ -1,0 +1,131 @@
+<view class="page contact-page">
+  <view class="top-space">
+    <view class="nav-capsule">
+      <view class="dots">
+        <text></text>
+        <text></text>
+        <text></text>
+      </view>
+      <view class="capsule-line"></view>
+      <view class="capsule-circle"></view>
+    </view>
+  </view>
+
+  <view class="intro">
+    <view class="contact-title">联系客服</view>
+    <view class="contact-subtitle">有任何关于茶品、茶席与活动的问题，都可以与我们慢慢聊。</view>
+  </view>
+
+  <view class="hero-card">
+    <image class="hero-image" src="{{contact.heroImage}}" mode="aspectFill"></image>
+    <view class="hero-shade"></view>
+    <view class="hero-content">
+      <view class="leaf-seal">
+        <view class="leaf-line leaf-left"></view>
+        <view class="leaf-line leaf-right"></view>
+      </view>
+      <view class="hero-title">三木合・佛山</view>
+      <view class="hero-subtitle">茶生活服务</view>
+      <view class="hero-rule"></view>
+    </view>
+  </view>
+
+  <view class="contact-card online-card" bindtap="openOnlineService">
+    <view class="icon-wrap">
+      <view class="chat-icon">
+        <view class="chat-dot"></view>
+        <view class="chat-dot"></view>
+        <view class="chat-dot"></view>
+      </view>
+    </view>
+    <view class="card-copy">
+      <view class="card-title">在线客服</view>
+      <view class="card-subtitle">订单 / 茶品 / 茶室 / 活动咨询</view>
+    </view>
+    <view class="consult-pill">立即咨询 <text>›</text></view>
+  </view>
+
+  <view class="contact-card" bindtap="callPhone">
+    <view class="icon-wrap">
+      <view class="phone-icon"></view>
+    </view>
+    <view class="card-copy">
+      <view class="card-title">拨打电话</view>
+      <view class="card-subtitle">营业时间内直接联系门店</view>
+    </view>
+    <view class="card-action phone-number">{{contact.phone}} <text>›</text></view>
+  </view>
+
+  <view class="contact-card" bindtap="copyWechat">
+    <view class="icon-wrap">
+      <view class="wechat-icon">
+        <view class="wechat-bubble big"></view>
+        <view class="wechat-bubble small"></view>
+      </view>
+    </view>
+    <view class="card-copy">
+      <view class="card-title">添加微信</view>
+      <view class="card-subtitle">预约茶室 / 活动咨询 / 私人茶会</view>
+    </view>
+    <view class="qr-box" aria-label="微信二维码">
+      <view
+        wx:for="{{qrCells}}"
+        wx:key="index"
+        class="qr-cell {{item ? 'is-filled' : ''}}"
+      ></view>
+    </view>
+    <view class="card-chevron">›</view>
+  </view>
+
+  <view class="info-card" bindtap="copyAddress">
+    <view class="info-content">
+      <view class="info-line">
+        <view class="info-icon clock-icon"></view>
+        <view class="info-text">服务时间&nbsp; {{contact.serviceTime}}</view>
+      </view>
+      <view class="info-line address-line">
+        <image class="info-img" src="/assets/icons/map-pin-line.png" mode="aspectFit"></image>
+        <view>
+          <view class="info-text strong">{{contact.store}}</view>
+          <view class="info-muted">{{contact.address}}</view>
+        </view>
+      </view>
+      <view class="info-line note-line">
+        <view class="info-icon note-icon">i</view>
+        <view class="info-note">如遇繁忙，请稍候片刻，我们会尽快回复。</view>
+      </view>
+    </view>
+    <view class="bamboo-art">
+      <view class="bamboo-stem stem-one"></view>
+      <view class="bamboo-stem stem-two"></view>
+      <view class="bamboo-leaf leaf-a"></view>
+      <view class="bamboo-leaf leaf-b"></view>
+      <view class="bamboo-leaf leaf-c"></view>
+      <view class="bamboo-leaf leaf-d"></view>
+      <view class="bamboo-leaf leaf-e"></view>
+    </view>
+  </view>
+
+  <view class="contact-tabbar">
+    <view class="tab-item" data-url="/pages/index/index" bindtap="goTab">
+      <image src="/assets/icons/home-line.png" mode="aspectFit"></image>
+      <text>首页</text>
+    </view>
+    <view class="tab-item" data-url="/pages/shop/index" bindtap="goTab">
+      <image src="/assets/icons/category-line.png" mode="aspectFit"></image>
+      <text>茶品</text>
+    </view>
+    <view class="tab-item" data-url="/pages/events/index" bindtap="goTab">
+      <image src="/assets/icons/events-line.png" mode="aspectFit"></image>
+      <text>活动</text>
+    </view>
+    <view class="tab-item" data-url="/pages/reservation/index" bindtap="goTab">
+      <image src="/assets/icons/profile-room.png" mode="aspectFit"></image>
+      <text>茶席</text>
+    </view>
+    <view class="tab-item active" data-url="/pages/profile/index" bindtap="goTab">
+      <image src="/assets/icons/profile-active.png" mode="aspectFit"></image>
+      <text>我的</text>
+    </view>
+  </view>
+</view>

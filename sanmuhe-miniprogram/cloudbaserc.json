@@ -25,9 +25,36 @@
       "handler": "index.main"
     },
     {
+      "name": "manageOperations",
+      "runtime": "Nodejs16.13",
+      "handler": "index.main"
+    },
+    {
       "name": "createOrder",
       "runtime": "Nodejs16.13",
       "handler": "index.main"
+    },
+    {
+      "name": "createPayment",
+      "runtime": "Nodejs16.13",
+      "handler": "index.main"
+    },
+    {
+      "name": "wechatPayNotify",
+      "runtime": "Nodejs16.13",
+      "type": "HTTP"
+    },
+    {
+      "name": "releaseOrderLocks",
+      "runtime": "Nodejs16.13",
+      "handler": "index.main",
+      "triggers": [
+        {
+          "name": "release-order-locks-every-5-min",
+          "type": "timer",
+          "config": "0 */5 * * * * *"
+        }
+      ]
     },
     {
       "name": "createReservation",

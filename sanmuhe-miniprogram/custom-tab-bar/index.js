@@ -1,4 +1,11 @@
 Component({
+  properties: {
+    forceSelected: {
+      type: Number,
+      value: -1
+    }
+  },
+
   data: {
     selected: 0,
     list: [
@@ -24,6 +31,11 @@ Component({
 
   methods: {
     syncSelected() {
+      const forced = Number(this.data.forceSelected);
+      if (forced >= 0 && forced !== this.data.selected) {
+        this.setData({ selected: forced });
+        return;
+      }
       const pages = getCurrentPages();
       const current = pages.length ? pages[pages.length - 1].route : "";
       const selected = this.data.list.findIndex((item) => item.pagePath === current);

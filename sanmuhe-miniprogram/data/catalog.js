@@ -7,7 +7,7 @@ const drinks = [
     notes: "清香桂花，龙井茶底",
     badge: "推荐",
     color: "#5a844c",
-    image: "/assets/images/design-drink-osmanthus.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-drink-osmanthus.jpg",
     temps: ["冷", "常温"],
     sugars: ["无糖", "微甜"]
   },
@@ -19,7 +19,7 @@ const drinks = [
     notes: "抹茶茶底，芝士奶盖",
     badge: "热卖",
     color: "#5a844c",
-    image: "/assets/images/design-drink-matcha.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-drink-matcha.jpg",
     temps: ["冷", "少冰"],
     sugars: ["无糖", "微甜", "半糖"]
   },
@@ -31,7 +31,7 @@ const drinks = [
     notes: "清新柠檬，红茶茶底",
     badge: "清爽",
     color: "#c17831",
-    image: "/assets/images/design-drink-lemon.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-drink-lemon.jpg",
     temps: ["冷", "少冰"],
     sugars: ["无糖", "微甜"]
   },
@@ -43,7 +43,7 @@ const drinks = [
     notes: "清汤绿叶，鲜爽回甘",
     badge: "纯茶",
     color: "#4f7d43",
-    image: "/assets/images/design-tea-longjing.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-longjing.jpg",
     temps: ["热", "常温"],
     sugars: ["无糖"]
   },
@@ -55,7 +55,7 @@ const drinks = [
     notes: "白桃香气，乌龙茶底",
     badge: "果香",
     color: "#8f7f4d",
-    image: "/assets/images/design-hero-tea.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg",
     temps: ["冷", "少冰"],
     sugars: ["无糖", "微甜"]
   },
@@ -67,11 +67,14 @@ const drinks = [
     notes: "抹茶奶香，红豆绵密",
     badge: "甜点",
     color: "#607c4c",
-    image: "/assets/images/design-drink-matcha.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-drink-matcha.jpg",
     temps: ["冷"],
     sugars: ["微甜", "半糖"]
   }
 ];
+
+const cloudAssetBase = "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la";
+const cloudImage = (path) => `${cloudAssetBase}/${path}`;
 
 const teaProducts = [
   {
@@ -85,8 +88,8 @@ const teaProducts = [
     taste: "口感鲜醇，鲜爽甘甜，春日限定的鲜爽滋味。",
     stock: 42,
     color: "#4f7d43",
-    image: "/assets/images/design-product-longjing.jpg",
-    thumb: "/assets/images/design-tea-longjing.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-product-longjing.jpg",
+    thumb: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-longjing.jpg",
     detail: "色翠形美，鲜醇甘爽。建议 85 度水温冲泡，茶汤清亮，豆香与兰花香层次分明。"
   },
   {
@@ -100,8 +103,8 @@ const teaProducts = [
     taste: "岩骨花香，焙火温润，茶汤厚实。",
     stock: 36,
     color: "#7b4e34",
-    image: "/assets/images/design-tea-dahongpao.jpg",
-    thumb: "/assets/images/design-tea-dahongpao.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-dahongpao.jpg",
+    thumb: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-dahongpao.jpg",
     detail: "岩韵清晰，适合功夫泡。首泡快速出汤，后续按口感递增。"
   },
   {
@@ -115,8 +118,8 @@ const teaProducts = [
     taste: "毫香清雅，汤感轻柔，回甘细腻。",
     stock: 28,
     color: "#9aa477",
-    image: "/assets/images/design-tea-silver.jpg",
-    thumb: "/assets/images/design-tea-silver.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-silver.jpg",
+    thumb: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-silver.jpg",
     detail: "芽头肥壮，满披白毫，适合玻璃杯或盖碗慢泡。"
   },
   {
@@ -130,8 +133,8 @@ const teaProducts = [
     taste: "条索纤细，卷曲成螺，花果香明显。",
     stock: 35,
     color: "#688c48",
-    image: "/assets/images/design-tea-biluochun.jpg",
-    thumb: "/assets/images/design-tea-biluochun.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-biluochun.jpg",
+    thumb: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-biluochun.jpg",
     detail: "洞庭风味，鲜爽细甜，适合日常清饮。"
   },
   {
@@ -145,8 +148,8 @@ const teaProducts = [
     taste: "条索微卷，白毫显露，兰香清长。",
     stock: 40,
     color: "#778b46",
-    image: "/assets/images/design-tea-maofeng.jpg",
-    thumb: "/assets/images/design-tea-maofeng.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-maofeng.jpg",
+    thumb: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-maofeng.jpg",
     detail: "芽叶肥壮，汤色清澈，适合 85 度水温冲泡。"
   },
   {
@@ -160,8 +163,8 @@ const teaProducts = [
     taste: "形似瓜子，清香高长，滋味鲜醇。",
     stock: 32,
     color: "#4d6f38",
-    image: "/assets/images/design-tea-liuan.jpg",
-    thumb: "/assets/images/design-tea-liuan.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-liuan.jpg",
+    thumb: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-liuan.jpg",
     detail: "单片无芽无梗，茶味干净，适合玻璃杯冲泡。"
   },
   {
@@ -175,9 +178,159 @@ const teaProducts = [
     taste: "细圆紧直，香高味浓，回甘明显。",
     stock: 30,
     color: "#788342",
-    image: "/assets/images/design-tea-xinyang.jpg",
-    thumb: "/assets/images/design-tea-xinyang.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-xinyang.jpg",
+    thumb: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-tea-xinyang.jpg",
     detail: "嫩香鲜活，适合办公和日常茶饮。"
+  },
+  {
+    id: "tea-008",
+    name: "滇红金芽",
+    category: "红茶",
+    price: 168,
+    unit: "50g",
+    origin: "云南・凤庆",
+    roast: "全发酵",
+    taste: "蜜香高扬，汤色红亮，入口甜润。",
+    stock: 34,
+    color: "#8d4a2f",
+    image: cloudImage("assets/images/category-tea-black.jpg"),
+    thumb: cloudImage("assets/images/category-tea-black.jpg"),
+    detail: "芽头肥壮，金毫显露，适合盖碗或飘逸杯冲泡。"
+  },
+  {
+    id: "tea-009",
+    name: "正山小种",
+    category: "红茶",
+    price: 158,
+    unit: "50g",
+    origin: "福建・武夷山",
+    roast: "松烟轻焙",
+    taste: "桂圆汤感，木质甜香，滋味温润。",
+    stock: 26,
+    color: "#7a3f2a",
+    image: cloudImage("assets/images/category-tea-black.jpg"),
+    thumb: cloudImage("assets/images/category-tea-black.jpg"),
+    detail: "传统红茶代表，适合晨饮和搭配茶点。"
+  },
+  {
+    id: "tea-010",
+    name: "君山银针",
+    category: "黄茶",
+    price: 228,
+    unit: "50g",
+    origin: "湖南・岳阳",
+    roast: "闷黄工艺",
+    taste: "清甜柔和，栗香细腻，汤感圆润。",
+    stock: 22,
+    color: "#c2a34a",
+    image: cloudImage("assets/images/category-tea-yellow.jpg"),
+    thumb: cloudImage("assets/images/category-tea-yellow.jpg"),
+    detail: "黄茶风味温和，适合喜欢低苦涩茶汤的茶友。"
+  },
+  {
+    id: "tea-011",
+    name: "普洱熟茶",
+    category: "黑茶",
+    price: 128,
+    unit: "50g",
+    origin: "云南・勐海",
+    roast: "渥堆发酵",
+    taste: "陈香糯滑，汤色红浓，回甘稳定。",
+    stock: 48,
+    color: "#6b3f2f",
+    image: cloudImage("assets/images/category-tea-puer.jpg"),
+    thumb: cloudImage("assets/images/category-tea-puer.jpg"),
+    detail: "适合日常醒茶后冲泡，也适合围炉煮饮。"
+  },
+  {
+    id: "tea-012",
+    name: "安化黑茶",
+    category: "黑茶",
+    price: 118,
+    unit: "50g",
+    origin: "湖南・安化",
+    roast: "后发酵",
+    taste: "菌花香、木质香明显，耐泡度高。",
+    stock: 32,
+    color: "#5a3f32",
+    image: cloudImage("assets/images/category-tea-puer.jpg"),
+    thumb: cloudImage("assets/images/category-tea-puer.jpg"),
+    detail: "适合煮饮或大壶冲泡，口感厚实。"
+  },
+  {
+    id: "tea-013",
+    name: "茉莉龙珠",
+    category: "花茶",
+    price: 98,
+    unit: "50g",
+    origin: "广西・横州",
+    roast: "窨花工艺",
+    taste: "花香清透，茶底鲜灵，入口清甜。",
+    stock: 44,
+    color: "#7f9d60",
+    image: cloudImage("assets/images/category-tea-jasmine.jpg"),
+    thumb: cloudImage("assets/images/category-tea-jasmine.jpg"),
+    detail: "多次窨制，花香不浮，适合玻璃杯冲泡。"
+  },
+  {
+    id: "tea-014",
+    name: "玻璃煮茶壶",
+    category: "茶具",
+    price: 168,
+    unit: "件",
+    origin: "耐热玻璃",
+    roast: "600ml",
+    taste: "适合煮白茶、黑茶和花草茶。",
+    stock: 18,
+    color: "#8c8f87",
+    image: cloudImage("assets/images/category-teaware.jpg"),
+    thumb: cloudImage("assets/images/category-teaware.jpg"),
+    detail: "耐热玻璃壶身，带滤胆，适合家庭和办公室使用。"
+  },
+  {
+    id: "tea-015",
+    name: "手工盖碗",
+    category: "茶具",
+    price: 138,
+    unit: "件",
+    origin: "景德镇",
+    roast: "约150ml",
+    taste: "胎体轻薄，出汤利落，适合功夫泡。",
+    stock: 16,
+    color: "#8a8373",
+    image: cloudImage("assets/images/home-slide-tea-set.jpg"),
+    thumb: cloudImage("assets/images/home-slide-tea-set.jpg"),
+    detail: "适配绿茶、乌龙茶、白茶等多类茶品。"
+  },
+  {
+    id: "tea-016",
+    name: "桂花糕",
+    category: "茶点",
+    price: 28,
+    unit: "份",
+    origin: "门店现配",
+    roast: "6枚装",
+    taste: "桂花清香，口感软糯，适合搭配绿茶和花茶。",
+    stock: 60,
+    color: "#c19a5b",
+    image: cloudImage("assets/images/category-tea-snack.jpg"),
+    thumb: cloudImage("assets/images/category-tea-snack.jpg"),
+    detail: "门店每日限量备货，建议与茶饮或茶席一起下单。"
+  },
+  {
+    id: "tea-017",
+    name: "花样酥点",
+    category: "茶点",
+    price: 36,
+    unit: "盒",
+    origin: "门店现配",
+    roast: "4枚装",
+    taste: "外皮酥松，馅心细腻，适合搭配红茶。",
+    stock: 40,
+    color: "#b68152",
+    image: cloudImage("assets/images/category-tea-snack.jpg"),
+    thumb: cloudImage("assets/images/category-tea-snack.jpg"),
+    detail: "适合下午茶和活动茶会配套。"
   }
 ];
 
@@ -188,7 +341,7 @@ const rooms = [
     capacity: "2人",
     price: 168,
     floor: "安静雅致 ｜ 观山景",
-    image: "/assets/images/design-room-guanshan.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-guanshan.jpg",
     features: ["安静雅致", "观山景"],
     color: "#5a844c",
     status: "可预定"
@@ -199,7 +352,7 @@ const rooms = [
     capacity: "2-4人",
     price: 198,
     floor: "庭院茶室 ｜ 临窗听雨",
-    image: "/assets/images/design-room-tingyu.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-tingyu.jpg",
     features: ["庭院茶室", "临窗听雨"],
     color: "#6b8050",
     status: "可预定"
@@ -210,7 +363,7 @@ const rooms = [
     capacity: "2人",
     price: 128,
     floor: "书香氛围 ｜ 静谧",
-    image: "/assets/images/design-room-shuxiang.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-shuxiang.jpg",
     features: ["书香氛围", "静谧"],
     color: "#587249",
     status: "可预定"
@@ -221,7 +374,7 @@ const rooms = [
     capacity: "4-6人",
     price: 148,
     floor: "松林清幽 ｜ 静心小室",
-    image: "/assets/images/design-room-songfeng.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-songfeng.jpg",
     features: ["松林清幽", "静心小室"],
     color: "#6d6a42",
     status: "已订满"
@@ -232,7 +385,7 @@ const rooms = [
     capacity: "2-4人",
     price: 138,
     floor: "竹影摇曳 ｜ 清雅怡人",
-    image: "/assets/images/design-room-zhuyun.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-zhuyun.jpg",
     features: ["竹影摇曳", "清雅怡人"],
     color: "#617b4b",
     status: "可预定"
@@ -250,7 +403,7 @@ const events = [
     quota: 30,
     signed: 28,
     price: 68,
-    image: "/assets/images/design-event-spring.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-spring.jpg",
     summary: "一起品鉴春日的新茶，感受茶香与自然的交融。",
     status: "报名中"
   },
@@ -264,7 +417,7 @@ const events = [
     quota: 50,
     signed: 45,
     price: 0,
-    image: "/assets/images/design-event-culture.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-culture.jpg",
     summary: "茶文化的历史与审美哲学分享。",
     status: "报名中"
   },
@@ -278,7 +431,7 @@ const events = [
     quota: 20,
     signed: 16,
     price: 128,
-    image: "/assets/images/design-event-handmade.jpg",
+    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-handmade.jpg",
     summary: "亲手制作一只茶器，体验茶生活之美。",
     status: "报名中"
   }

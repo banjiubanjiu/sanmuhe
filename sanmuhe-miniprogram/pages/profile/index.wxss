@@ -1,6 +1,6 @@
 .profile-page {
-  padding: 88rpx 28rpx calc(150rpx + env(safe-area-inset-bottom));
-  background: #fff;
+  padding: 88rpx 28rpx calc(160rpx + env(safe-area-inset-bottom));
+  background: #faf8f2;
 }
 
 .page-nav {
@@ -13,20 +13,23 @@
 .page-title {
   text-align: center;
   color: #111;
-  font-size: 32rpx;
-  font-weight: 800;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 40rpx;
+  font-weight: 600;
+  line-height: 1;
 }
 
-.user-card {
-  display: flex;
+.profile-head {
+  min-height: 164rpx;
+  display: grid;
+  grid-template-columns: 144rpx 1fr 44rpx;
+  gap: 30rpx;
   align-items: center;
-  gap: 28rpx;
-  margin-top: 18rpx;
+  margin-top: 28rpx;
 }
 
 .avatar-wrap {
   position: relative;
-  flex: 0 0 144rpx;
   width: 144rpx;
   height: 144rpx;
 }
@@ -37,76 +40,88 @@
   display: block;
   border-radius: 50%;
   background: #eee9df;
+  box-shadow: 0 12rpx 26rpx rgba(52, 47, 38, 0.1);
 }
 
 .avatar-badge {
   position: absolute;
   right: -4rpx;
   bottom: 4rpx;
-  width: 44rpx;
-  height: 44rpx;
+  width: 42rpx;
+  height: 42rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 4rpx solid #fff;
+  border: 4rpx solid #faf8f2;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 6rpx 16rpx rgba(31, 54, 45, 0.18);
+  box-shadow: 0 8rpx 18rpx rgba(31, 54, 45, 0.18);
 }
 
 .avatar-badge image {
   width: 24rpx;
   height: 24rpx;
+  display: block;
 }
 
 .user-copy {
-  flex: 1;
   min-width: 0;
 }
 
 .user-name {
-  color: #183725;
-  font-size: 48rpx;
-  font-weight: 900;
-  line-height: 1.1;
+  color: #163a24;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 50rpx;
+  font-weight: 600;
+  line-height: 1.08;
 }
 
 .user-title {
   margin-top: 10rpx;
   overflow: hidden;
-  color: #5f5b53;
-  font-size: 28rpx;
+  color: #59564f;
+  font-size: 29rpx;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tier-pill {
+  min-height: 42rpx;
   display: inline-flex;
-  margin-top: 12rpx;
-  padding: 8rpx 18rpx;
-  color: #9a6546;
-  border: 1rpx solid rgba(154, 101, 70, 0.28);
-  border-radius: 999rpx;
-  background: #f7ead4;
-  font-size: 24rpx;
-  font-weight: 800;
+  align-items: center;
+  gap: 8rpx;
+  margin-top: 14rpx;
+  padding: 0 18rpx;
+  color: #a46b32;
+  border: 1rpx solid rgba(171, 121, 64, 0.28);
+  border-radius: 12rpx;
+  background: #f8ead5;
+  font-size: 25rpx;
+  font-weight: 500;
 }
 
-.chevron {
-  flex: 0 0 42rpx;
-  color: #8a8a84;
-  font-size: 54rpx;
+.tier-crown {
+  color: #b9853d;
+  font-size: 24rpx;
   line-height: 1;
 }
 
-.member-hero {
+.chevron {
+  color: #8d8a84;
+  font-size: 58rpx;
+  line-height: 1;
+  text-align: right;
+}
+
+.member-card {
   position: relative;
-  min-height: 196rpx;
+  min-height: 206rpx;
   margin-top: 34rpx;
   overflow: hidden;
   border-radius: 18rpx;
-  background: #213728;
-  box-shadow: 0 18rpx 38rpx rgba(35, 59, 49, 0.16);
+  background: #203927;
+  box-shadow: 0 18rpx 42rpx rgba(51, 42, 30, 0.11);
 }
 
 .member-bg,
@@ -121,17 +136,17 @@
 }
 
 .member-bg {
-  opacity: 0.58;
+  opacity: 0.62;
 }
 
 .member-shade {
-  background: linear-gradient(90deg, rgba(31, 54, 45, 0.98) 0%, rgba(31, 54, 45, 0.84) 42%, rgba(31, 54, 45, 0.25) 100%);
+  background: linear-gradient(90deg, rgba(31, 54, 45, 0.98) 0%, rgba(31, 54, 45, 0.86) 40%, rgba(31, 54, 45, 0.22) 100%);
 }
 
 .member-content {
   position: relative;
   z-index: 1;
-  min-height: 196rpx;
+  min-height: 206rpx;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -140,77 +155,85 @@
 }
 
 .member-title {
-  font-size: 38rpx;
-  font-weight: 900;
+  color: #fff9ea;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 36rpx;
+  font-weight: 600;
   line-height: 1.15;
 }
 
 .member-subtitle {
-  margin-top: 10rpx;
-  color: #e6d7ba;
-  font-size: 25rpx;
+  margin-top: 12rpx;
+  color: rgba(255, 246, 225, 0.88);
+  font-size: 26rpx;
 }
 
 .member-bottom {
   display: flex;
   align-items: flex-end;
-  gap: 28rpx;
+  gap: 32rpx;
+}
+
+.member-stat {
+  min-width: 120rpx;
 }
 
 .member-stat text {
-  color: #e4d7bd;
-  font-size: 23rpx;
+  color: rgba(255, 246, 225, 0.86);
+  font-size: 24rpx;
 }
 
 .member-stat-number {
-  display: block;
   margin-top: 8rpx;
-  color: #e7d1a0;
-  font-size: 38rpx;
-  font-weight: 900;
+  color: #f0d7a1;
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
+  font-size: 40rpx;
+  font-weight: 600;
   line-height: 1;
 }
 
 .member-stat-number text {
-  color: #e7d1a0;
+  margin-left: 6rpx;
+  color: #f0d7a1;
   font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .member-divider {
   width: 1rpx;
   height: 58rpx;
-  background: rgba(231, 209, 160, 0.42);
+  background: rgba(240, 215, 161, 0.44);
 }
 
 .benefit-btn {
-  margin-left: auto;
-  min-width: 142rpx;
+  min-width: 144rpx;
   height: 58rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #233b31;
+  margin-left: auto;
+  color: #213728;
   border-radius: 999rpx;
-  background: #f2dfb8;
+  background: linear-gradient(180deg, #fff1cf 0%, #efd197 100%);
   font-size: 25rpx;
-  font-weight: 800;
+  font-weight: 600;
+  box-shadow: 0 8rpx 18rpx rgba(14, 28, 20, 0.18);
 }
 
 .order-panel,
 .service-panel,
 .recent-panel {
   margin-top: 24rpx;
-  padding: 26rpx 22rpx;
+  overflow: hidden;
   border-radius: 18rpx;
-  background: #fff;
-  box-shadow: 0 10rpx 30rpx rgba(31, 54, 45, 0.07);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12rpx 34rpx rgba(51, 42, 30, 0.06);
 }
 
 .order-panel {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10rpx;
+  padding: 24rpx 18rpx 22rpx;
 }
 
 .order-shortcut,
@@ -221,13 +244,13 @@
   align-items: center;
   justify-content: center;
   color: #4d4a43;
-  font-size: 25rpx;
+  font-size: 26rpx;
 }
 
 .order-icon-wrap {
   position: relative;
-  width: 58rpx;
-  height: 58rpx;
+  width: 66rpx;
+  height: 66rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -235,15 +258,15 @@
 }
 
 .order-icon {
-  width: 50rpx;
-  height: 50rpx;
+  width: 58rpx;
+  height: 58rpx;
   display: block;
 }
 
 .count-dot {
   position: absolute;
   top: -8rpx;
-  right: -10rpx;
+  right: -12rpx;
   min-width: 30rpx;
   height: 30rpx;
   display: flex;
@@ -254,45 +277,66 @@
   border-radius: 999rpx;
   background: #b04737;
   font-size: 18rpx;
-  font-weight: 800;
+  font-weight: 500;
+}
+
+.service-panel,
+.recent-panel {
+  padding: 26rpx 22rpx;
 }
 
 .panel-title {
   color: #111;
-  font-size: 31rpx;
-  font-weight: 900;
+  font-size: 32rpx;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .service-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  row-gap: 34rpx;
-  margin-top: 28rpx;
+  margin-top: 24rpx;
+}
+
+.service-item {
+  min-height: 150rpx;
+  padding: 20rpx 8rpx 18rpx;
+  border-right: 1rpx solid #f0ede6;
+}
+
+.service-item:nth-child(4n) {
+  border-right: 0;
+}
+
+.service-item:nth-child(n+5) {
+  border-top: 1rpx solid #f0ede6;
 }
 
 .service-icon-wrap {
-  width: 58rpx;
-  height: 58rpx;
+  width: 64rpx;
+  height: 64rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 12rpx;
 }
 
-.service-icon-wrap.filled {
-  border-radius: 16rpx;
-  background: #4f7d43;
-}
-
 .service-icon {
-  width: 46rpx;
-  height: 46rpx;
+  width: 54rpx;
+  height: 54rpx;
   display: block;
 }
 
+.service-item text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .address-line {
-  margin: 26rpx 8rpx 0;
-  padding-top: 20rpx;
+  margin: 22rpx 8rpx 0;
+  padding-top: 18rpx;
   overflow: hidden;
   color: #746a5c;
   border-top: 1rpx solid #eee9df;
@@ -305,16 +349,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20rpx;
 }
 
 .panel-link {
+  flex: 0 0 auto;
   color: #77736b;
   font-size: 25rpx;
 }
 
 .recent-card {
   display: grid;
-  grid-template-columns: 196rpx 1fr 122rpx;
+  grid-template-columns: 196rpx 1fr 124rpx;
   gap: 20rpx;
   align-items: center;
   margin-top: 22rpx;
@@ -335,8 +381,9 @@
 .recent-title {
   overflow: hidden;
   color: #111;
-  font-size: 29rpx;
-  font-weight: 900;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -347,7 +394,7 @@
   gap: 8rpx;
   margin-top: 12rpx;
   color: #666;
-  font-size: 23rpx;
+  font-size: 24rpx;
 }
 
 .recent-line image {
@@ -357,6 +404,7 @@
 }
 
 .recent-line text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -373,7 +421,7 @@
 .recent-status text {
   color: #4f7d43;
   font-size: 24rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .recent-status view {
@@ -386,82 +434,29 @@
   border: 1rpx solid rgba(79, 125, 67, 0.45);
   border-radius: 12rpx;
   font-size: 23rpx;
-  font-weight: 800;
-}
-
-.compact {
-  margin-top: 18rpx;
-  padding: 34rpx 24rpx;
-}
-
-.favorite-strip {
-  width: 100%;
-  margin-top: 18rpx;
-  white-space: nowrap;
-}
-
-.favorite-card {
-  width: 214rpx;
-  display: inline-block;
-  margin-right: 18rpx;
-  padding-bottom: 16rpx;
-  overflow: hidden;
-  vertical-align: top;
-  border: 1rpx solid rgba(35, 59, 49, 0.08);
-  border-radius: 14rpx;
-  background: rgba(255, 252, 246, 0.92);
-}
-
-.favorite-image {
-  width: 214rpx;
-  height: 168rpx;
-  display: block;
-  background: #ece8df;
-}
-
-.favorite-name {
-  margin: 14rpx 14rpx 0;
-  overflow: hidden;
-  color: #233b31;
-  font-size: 26rpx;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.favorite-price {
-  margin: 8rpx 14rpx 0;
-  color: #b04737;
-  font-size: 25rpx;
-  font-weight: 800;
-}
-
-.favorite-price text {
-  color: #746a5c;
-  font-size: 20rpx;
   font-weight: 500;
 }
 
-.record-section {
-  padding-bottom: 18rpx;
+.empty-card {
+  margin-top: 20rpx;
+  padding: 34rpx 24rpx;
+  color: #746a5c;
+  border-radius: 14rpx;
+  background: #fbf8f1;
+  font-size: 25rpx;
+  line-height: 1.45;
+  text-align: center;
 }
 
-.record-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-top: 18rpx;
-}
-
-.record {
-  padding: 22rpx;
-  border-radius: 16rpx;
-  background: rgba(255, 252, 246, 0.9);
-  border: 1rpx solid rgba(35, 59, 49, 0.08);
-}
-
-.record-title {
+.empty-title {
   color: #233b31;
-  font-size: 29rpx;
-  font-weight: 800;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.empty-card text {
+  display: block;
+  margin-top: 10rpx;
+  color: #746a5c;
+  font-size: 24rpx;
 }

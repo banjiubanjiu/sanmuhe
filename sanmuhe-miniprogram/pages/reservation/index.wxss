@@ -1,175 +1,362 @@
 .reservation-page {
-  padding: 88rpx 28rpx calc(230rpx + env(safe-area-inset-bottom));
-  background: #fff;
+  min-height: 100vh;
+  padding: 88rpx 0 calc(52rpx + env(safe-area-inset-bottom));
+  background: #f8f3ea;
 }
 
 .page-nav {
-  height: 72rpx;
+  height: 96rpx;
   display: grid;
-  grid-template-columns: 72rpx 1fr 72rpx;
+  grid-template-columns: 96rpx 1fr 150rpx;
   align-items: center;
+  padding: 0 30rpx;
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .back-mark {
   color: #111;
-  font-size: 46rpx;
+  font-size: 60rpx;
   line-height: 1;
 }
 
-.page-title {
+.nav-title {
   text-align: center;
+}
+
+.nav-title view {
   color: #111;
-  font-size: 32rpx;
-  font-weight: 800;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 38rpx;
+  font-weight: 600;
+  line-height: 1.05;
 }
 
-.filter-row {
-  display: flex;
-  gap: 18rpx;
-  margin-top: 24rpx;
-  overflow-x: auto;
+.nav-title text {
+  display: block;
+  margin-top: 8rpx;
+  color: #77716a;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18rpx;
+  letter-spacing: 0;
 }
 
-.filter-pill {
-  flex: 0 0 auto;
-  min-height: 58rpx;
+.nav-capsule {
+  height: 54rpx;
   display: flex;
   align-items: center;
-  padding: 0 24rpx;
-  color: #333;
-  border: 1rpx solid #eeeeee;
+  justify-content: center;
+  gap: 8rpx;
+  justify-self: end;
+  padding: 0 14rpx;
+  border: 1rpx solid #e9e5dd;
   border-radius: 999rpx;
   background: #fff;
-  font-size: 24rpx;
 }
 
-.room-list {
-  display: flex;
-  flex-direction: column;
-  gap: 26rpx;
-  margin-top: 30rpx;
+.nav-capsule text {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #111;
 }
 
-.room-card {
-  display: flex;
-  gap: 30rpx;
-  min-height: 208rpx;
-  padding: 14rpx 22rpx 14rpx 0;
-  text-align: left;
-  border: 1rpx solid #f0f0f0;
-  border-radius: 14rpx;
-  background: #fff;
-  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.06);
+.nav-capsule view {
+  width: 36rpx;
+  height: 36rpx;
+  margin-left: 12rpx;
+  border: 6rpx solid #111;
+  border-radius: 50%;
 }
 
-.room-card.active {
-  border-color: #eeeeee;
-}
-
-.room-image {
-  flex: 0 0 269rpx;
-  width: 269rpx;
-  height: 197rpx;
-  border-radius: 10rpx;
-  background: #eee;
-}
-
-.room-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.room-title {
+.hero-section {
+  position: relative;
+  height: 666rpx;
   overflow: hidden;
-  color: #111;
-  font-size: 32rpx;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: #d8d0bf;
 }
 
-.room-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 34rpx;
+.hero-image,
+.hero-shade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.room-price {
-  color: #111;
-  font-size: 28rpx;
-  font-weight: 800;
+.hero-shade {
+  background: linear-gradient(90deg, rgba(72, 52, 34, 0.72) 0%, rgba(72, 52, 34, 0.42) 42%, rgba(72, 52, 34, 0.04) 100%);
 }
 
-.room-price text {
-  color: #777;
-  font-size: 20rpx;
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  width: 380rpx;
+  padding: 74rpx 0 0 64rpx;
+  color: #f8eddb;
+}
+
+.hero-title {
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 58rpx;
   font-weight: 500;
+  line-height: 1.42;
 }
 
-.bookable {
-  color: #4f7d43;
-  font-size: 24rpx;
-}
-
-.bookable.full {
-  color: #888;
-}
-
-.reserve-bar {
-  position: fixed;
-  right: 28rpx;
-  bottom: calc(126rpx + env(safe-area-inset-bottom));
-  left: 28rpx;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20rpx 24rpx;
-  color: #fff;
-  border-radius: 18rpx;
-  background: #223529;
-  box-shadow: 0 18rpx 36rpx rgba(23, 44, 30, 0.22);
-}
-
-.reserve-title {
-  max-width: 430rpx;
-  overflow: hidden;
+.hero-desc {
+  margin-top: 40rpx;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 28rpx;
-  font-weight: 800;
-  text-overflow: ellipsis;
+  line-height: 1.65;
+}
+
+.hero-desc text,
+.hero-en text {
+  display: block;
+}
+
+.hero-line {
+  width: 62rpx;
+  height: 2rpx;
+  margin-top: 76rpx;
+  background: #f8eddb;
+}
+
+.hero-en {
+  margin-top: 36rpx;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.booking-panel {
+  position: relative;
+  z-index: 2;
+  margin: -72rpx 34rpx 0;
+  padding: 44rpx 52rpx 40rpx;
+  overflow: hidden;
+  border-radius: 30rpx 30rpx 0 0;
+  background: #fbf8f0;
+  box-shadow: 0 -12rpx 36rpx rgba(70, 55, 40, 0.08);
+}
+
+.panel-art {
+  position: absolute;
+  top: 46rpx;
+  right: 56rpx;
+  width: 220rpx;
+  height: 96rpx;
+  pointer-events: none;
+}
+
+.sun-dot {
+  position: absolute;
+  top: 0;
+  right: 36rpx;
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  background: rgba(216, 181, 123, 0.5);
+}
+
+.mountain-line {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  color: rgba(71, 81, 72, 0.13);
+  font-size: 88rpx;
+  line-height: 1;
+}
+
+.room-name {
+  color: #28231d;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 44rpx;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.room-city {
+  margin-top: 16rpx;
+  color: #28231d;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 36rpx;
+  line-height: 1.2;
+}
+
+.address-row {
+  min-height: 86rpx;
+  display: grid;
+  grid-template-columns: 38rpx 1fr 34rpx;
+  gap: 14rpx;
+  align-items: center;
+  margin-top: 26rpx;
+  padding: 0 0 0 2rpx;
+  border-top: 1rpx solid #e3ded4;
+  border-bottom: 1rpx solid #e3ded4;
+}
+
+.address-row image {
+  width: 34rpx;
+  height: 34rpx;
+  display: block;
+}
+
+.address-row view {
+  color: #332e28;
+  font-size: 29rpx;
+}
+
+.address-row text {
+  color: #2e302a;
+  font-size: 48rpx;
+  line-height: 1;
+  text-align: right;
+}
+
+.block-title {
+  margin-top: 34rpx;
+  color: #1e1b17;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 35rpx;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.date-scroll {
+  width: 100%;
+  margin-top: 18rpx;
   white-space: nowrap;
 }
 
-.reserve-meta {
-  margin-top: 4rpx;
-  color: #dbe7d6;
+.date-card {
+  width: 114rpx;
+  height: 106rpx;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12rpx;
+  color: #27231e;
+  border: 1rpx solid #dfd9cd;
+  border-radius: 14rpx;
+  background: #fbf8f0;
+  vertical-align: top;
+}
+
+.date-card.active {
+  color: #fffaf0;
+  border-color: #3f5834;
+  background: #3f5834;
+}
+
+.date-card.active view,
+.time-card.active view {
+  font-weight: 600;
+}
+
+.date-card view {
+  font-size: 27rpx;
+  line-height: 1.2;
+}
+
+.date-card text {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+}
+
+.date-card.more image {
+  width: 34rpx;
+  height: 34rpx;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.date-card.more text {
+  margin-top: 0;
+}
+
+.time-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 26rpx;
+}
+
+.time-head text {
+  padding-bottom: 2rpx;
+  color: #77716a;
   font-size: 22rpx;
 }
 
-.reserve-btn {
-  min-width: 168rpx;
-  min-height: 64rpx;
-  color: #244f2a;
-  border-radius: 999rpx;
-  background: #fff;
-  font-size: 26rpx;
-  font-weight: 800;
+.time-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+
+.time-card {
+  min-height: 86rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #2c2822;
+  border: 1rpx solid #dfd9cd;
+  border-radius: 14rpx;
+  background: #fbf8f0;
+}
+
+.time-card.active {
+  color: #fffaf0;
+  border-color: #3f5834;
+  background: #3f5834;
+}
+
+.time-card view {
+  font-size: 31rpx;
+  line-height: 1.1;
+}
+
+.time-card text {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+}
+
+.next-btn {
+  width: 100%;
+  height: 86rpx;
+  margin-top: 42rpx;
+  color: #fffaf0;
+  border-radius: 14rpx;
+  background: #3f5834;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 31rpx;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.next-btn text {
+  margin-left: 28rpx;
 }
 
 .booking-mask {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 80;
   display: flex;
   align-items: flex-end;
   background: rgba(17, 24, 19, 0.36);
 }
 
-.booking-sheet {
+.booking-sheet,
+.room-sheet {
   width: 100%;
   max-height: 82vh;
   overflow-y: auto;
@@ -183,12 +370,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 24rpx;
 }
 
 .sheet-title {
   color: #111;
   font-size: 34rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .sheet-close {
@@ -203,50 +391,73 @@
   font-size: 40rpx;
 }
 
+.room-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 26rpx;
+}
+
+.room-option {
+  display: grid;
+  grid-template-columns: 150rpx 1fr auto;
+  gap: 18rpx;
+  align-items: center;
+  padding: 14rpx;
+  border: 1rpx solid #eee9df;
+  border-radius: 16rpx;
+  background: #fffaf1;
+}
+
+.room-option.active {
+  border-color: #3f5834;
+  background: #f3f7ef;
+}
+
+.room-option image {
+  width: 150rpx;
+  height: 104rpx;
+  border-radius: 12rpx;
+  background: #eee9df;
+}
+
+.room-option-title {
+  overflow: hidden;
+  color: #111;
+  font-size: 29rpx;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-option text {
+  display: block;
+  margin-top: 8rpx;
+  overflow: hidden;
+  color: #77716a;
+  font-size: 23rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-option-status {
+  color: #3f5834;
+  font-size: 24rpx;
+  font-weight: 500;
+}
+
+.room-option-status.full {
+  color: #888;
+}
+
 .sheet-section {
   margin-top: 28rpx;
 }
 
 .sheet-label {
-  margin-bottom: 16rpx;
   color: #111;
   font-size: 28rpx;
-  font-weight: 800;
-}
-
-.option-scroll {
-  white-space: nowrap;
-}
-
-.option-pill {
-  display: inline-flex;
-  min-height: 58rpx;
-  align-items: center;
-  justify-content: center;
-  margin-right: 14rpx;
-  padding: 0 22rpx;
-  color: #555;
-  border: 1rpx solid #e5e5e5;
-  border-radius: 999rpx;
-  background: #fff;
-  font-size: 24rpx;
-  font-weight: 700;
-}
-
-.option-pill.active {
-  color: #4f7d43;
-  border-color: #4f7d43;
-  background: #f2f8ee;
-}
-
-.time-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14rpx;
-}
-
-.time-grid .option-pill {
-  margin-right: 0;
+  font-weight: 500;
 }
 
 .people-stepper {
@@ -276,13 +487,23 @@
   gap: 16rpx;
 }
 
+.booking-note {
+  margin-top: 20rpx;
+  padding: 18rpx 20rpx;
+  color: #746a5c;
+  border-radius: 14rpx;
+  background: #fffaf1;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
 .submit-reserve {
   width: 100%;
   min-height: 86rpx;
   margin-top: 26rpx;
   color: #fff;
   border-radius: 999rpx;
-  background: #4f7d43;
+  background: #3f5834;
   font-size: 30rpx;
-  font-weight: 900;
+  font-weight: 600;
 }

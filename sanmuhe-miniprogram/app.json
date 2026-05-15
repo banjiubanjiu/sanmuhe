@@ -9,6 +9,8 @@
     "pages/events/index",
     "pages/event-edit/index",
     "pages/cloud-status/index",
+    "pages/member/index",
+    "pages/contact/index",
     "pages/profile/index"
   ],
   "window": {

@@ -1,0 +1,116 @@
+<view class="page member-page">
+  <view class="member-nav">
+    <view class="back-btn" bindtap="goBack">
+      <image src="/assets/icons/back-ink.png" mode="aspectFit"></image>
+    </view>
+    <view class="page-title">会员中心</view>
+    <view class="nav-capsule">
+      <text></text>
+      <text></text>
+      <text></text>
+      <view></view>
+    </view>
+  </view>
+
+  <view class="member-hero-card">
+    <image class="hero-bg" src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg" mode="aspectFill"></image>
+    <view class="hero-shade"></view>
+    <view class="hero-content">
+      <view class="hero-top">
+        <view class="tier-name"><text>♕</text>{{member.tier}}</view>
+        <view class="rights-pill"><text>♕</text>尊享权益</view>
+      </view>
+      <view class="member-name-row">
+        <view class="member-name">{{member.name}}</view>
+        <view class="leaf-dot">叶</view>
+      </view>
+      <view class="card-line"></view>
+      <view class="card-no">{{member.cardNo}}</view>
+      <view class="points-block">
+        <text>会员积分</text>
+        <view>{{member.points}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="highlight-card">
+    <view
+      wx:for="{{highlights}}"
+      wx:key="title"
+      class="highlight-item"
+    >
+      <view class="highlight-icon">
+        <image src="{{item.icon}}" mode="aspectFit"></image>
+      </view>
+      <view class="highlight-title">{{item.title}}</view>
+      <view class="highlight-desc">{{item.desc}}</view>
+    </view>
+  </view>
+
+  <view class="level-card">
+    <view class="panel-head">
+      <view class="panel-title">会员等级</view>
+      <view class="panel-link" bindtap="showAllLevels">查看全部等级 ›</view>
+    </view>
+    <view class="level-row">
+      <view class="level-badge">♕</view>
+      <view class="level-copy">
+        <view class="level-title">{{level.current}}</view>
+        <view class="progress-track">
+          <view class="progress-fill" style="width: {{level.progress}}%;"></view>
+        </view>
+        <view class="upgrade-text">再消费 ¥{{level.spendMore}} 升级为 <text>{{level.next}}</text></view>
+      </view>
+      <view class="level-points">{{level.points}}/{{level.target}}</view>
+    </view>
+  </view>
+
+  <view class="benefit-card">
+    <view class="panel-head">
+      <view class="panel-title">权益详情</view>
+      <view class="panel-link" bindtap="showAllBenefits">查看全部权益 ›</view>
+    </view>
+    <view class="benefit-list">
+      <view
+        wx:for="{{benefitDetails}}"
+        wx:key="title"
+        class="benefit-row"
+      >
+        <image class="benefit-icon" src="{{item.icon}}" mode="aspectFit"></image>
+        <view class="benefit-copy">
+          <view class="benefit-title">{{item.title}}</view>
+          <view class="benefit-desc">{{item.desc}}</view>
+        </view>
+        <view class="row-arrow">›</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="recommend-card">
+    <view class="panel-head">
+      <view class="panel-title">专属推荐</view>
+      <view class="panel-link" bindtap="goMoreRecommendations">更多推荐 ›</view>
+    </view>
+    <view class="recommend-grid">
+      <view
+        wx:for="{{recommendations}}"
+        wx:key="id"
+        class="recommend-item"
+        data-id="{{item.id}}"
+        bindtap="goProduct"
+      >
+        <image class="recommend-image" src="{{item.displayImage}}" mode="aspectFill"></image>
+        <view class="recommend-copy">
+          <view class="recommend-name">{{item.name}}</view>
+          <view class="recommend-note">{{item.memberNote}}</view>
+          <view class="recommend-bottom">
+            <view class="recommend-price">¥{{item.price}}</view>
+            <view class="add-btn" data-id="{{item.id}}" catchtap="addRecommendation">+</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <custom-tab-bar force-selected="{{4}}"></custom-tab-bar>
+</view>

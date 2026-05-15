@@ -2,8 +2,10 @@ page {
   min-height: 100%;
   color: #233b31;
   background: #f7f7f4;
-  font-family: "PingFang SC", "Helvetica Neue", sans-serif;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", "PingFang SC", "Helvetica Neue", serif;
   font-size: 28rpx;
+  font-weight: 400;
+  line-height: 1.45;
   letter-spacing: 0;
 }
 
@@ -14,6 +16,7 @@ input,
 textarea,
 picker {
   box-sizing: border-box;
+  font-family: inherit;
   letter-spacing: 0;
 }
 
@@ -26,9 +29,16 @@ button {
   padding: 0;
   margin: 0;
   border: 0;
+  font-family: inherit;
   line-height: inherit;
   background: transparent;
   border-radius: 0;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  font-weight: 400;
 }
 
 button::after {
@@ -47,21 +57,21 @@ button::after {
 .eyebrow {
   color: #9a6546;
   font-size: 22rpx;
-  font-weight: 800;
-  letter-spacing: 1rpx;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .h1 {
   margin-top: 14rpx;
   font-size: 54rpx;
-  font-weight: 800;
-  line-height: 1.08;
+  font-weight: 600;
+  line-height: 1.12;
   color: #1f362d;
 }
 
 .h2 {
   font-size: 34rpx;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.2;
   color: #1f362d;
 }
@@ -92,7 +102,7 @@ button::after {
   padding: 0 30rpx;
   border-radius: 14rpx;
   font-size: 28rpx;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .ink-button {
@@ -136,7 +146,7 @@ button::after {
   color: #655c50;
   background: rgba(255, 252, 246, 0.86);
   font-size: 25rpx;
-  font-weight: 800;
+  font-weight: 400;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -150,8 +160,9 @@ button::after {
 
 .price {
   color: #a05537;
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
   font-size: 30rpx;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .field {

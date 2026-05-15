@@ -1,0 +1,637 @@
+page {
+  min-height: 100%;
+  background: #fbf8f1;
+}
+
+.contact-page {
+  min-height: 100vh;
+  padding: 30rpx 42rpx calc(170rpx + env(safe-area-inset-bottom));
+  color: #1f1b17;
+  background:
+    radial-gradient(circle at 8% 6%, rgba(233, 222, 199, 0.52), rgba(251, 248, 241, 0) 32%),
+    linear-gradient(180deg, #fbf8f1 0%, #f7f1e7 100%);
+  box-sizing: border-box;
+}
+
+.top-space {
+  height: 128rpx;
+  position: relative;
+}
+
+.nav-capsule {
+  position: absolute;
+  top: 68rpx;
+  right: 0;
+  width: 150rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18rpx;
+  border: 1rpx solid #e7e1d8;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.dots {
+  display: flex;
+  gap: 8rpx;
+}
+
+.dots text {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background: #111;
+}
+
+.capsule-line {
+  width: 1rpx;
+  height: 30rpx;
+  background: #dfd8ce;
+}
+
+.capsule-circle {
+  width: 34rpx;
+  height: 34rpx;
+  border: 7rpx solid #111;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.intro {
+  margin-top: -2rpx;
+}
+
+.contact-title {
+  color: #315f34;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 55rpx;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.contact-subtitle {
+  max-width: 650rpx;
+  margin-top: 30rpx;
+  color: rgba(44, 38, 32, 0.7);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 27rpx;
+  line-height: 1.7;
+  letter-spacing: 0;
+}
+
+.hero-card {
+  position: relative;
+  height: 286rpx;
+  margin-top: 36rpx;
+  overflow: hidden;
+  border-radius: 18rpx;
+  background: #243827;
+  box-shadow: 0 14rpx 32rpx rgba(48, 41, 31, 0.1);
+}
+
+.hero-image,
+.hero-shade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-shade {
+  background: linear-gradient(90deg, rgba(21, 29, 18, 0.9) 0%, rgba(24, 35, 23, 0.58) 47%, rgba(24, 35, 23, 0.08) 100%);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 34rpx 42rpx;
+  box-sizing: border-box;
+  color: #fffaf0;
+}
+
+.leaf-seal {
+  position: relative;
+  width: 38rpx;
+  height: 38rpx;
+  border: 2rpx solid #d9b975;
+  border-radius: 50%;
+}
+
+.leaf-line {
+  position: absolute;
+  left: 17rpx;
+  top: 8rpx;
+  width: 2rpx;
+  height: 22rpx;
+  background: #d9b975;
+  transform-origin: bottom center;
+}
+
+.leaf-left {
+  transform: rotate(-38deg);
+}
+
+.leaf-right {
+  transform: rotate(38deg);
+}
+
+.hero-title {
+  margin-top: 46rpx;
+  color: #fffaf4;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 48rpx;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.hero-subtitle {
+  margin-top: 28rpx;
+  color: rgba(255, 250, 244, 0.94);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 28rpx;
+  line-height: 1;
+}
+
+.hero-rule {
+  width: 40rpx;
+  height: 2rpx;
+  margin-top: 24rpx;
+  background: #d6b06b;
+}
+
+.contact-card {
+  min-height: 128rpx;
+  display: flex;
+  align-items: center;
+  gap: 28rpx;
+  margin-top: 20rpx;
+  padding: 22rpx 34rpx 22rpx 24rpx;
+  border: 1rpx solid rgba(220, 214, 202, 0.86);
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10rpx 28rpx rgba(44, 36, 28, 0.08);
+  box-sizing: border-box;
+}
+
+.online-card {
+  margin-top: 28rpx;
+}
+
+.icon-wrap {
+  width: 84rpx;
+  height: 84rpx;
+  flex: 0 0 84rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f1f0e9;
+}
+
+.chat-icon {
+  position: relative;
+  width: 44rpx;
+  height: 34rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5rpx;
+  border: 5rpx solid #335f38;
+  border-radius: 20rpx;
+  box-sizing: border-box;
+}
+
+.chat-icon::after {
+  content: "";
+  position: absolute;
+  left: 6rpx;
+  bottom: -10rpx;
+  width: 13rpx;
+  height: 12rpx;
+  border-left: 5rpx solid #335f38;
+  border-bottom: 5rpx solid #335f38;
+  border-bottom-left-radius: 12rpx;
+  transform: rotate(-18deg);
+}
+
+.chat-dot {
+  width: 5rpx;
+  height: 5rpx;
+  border-radius: 50%;
+  background: #335f38;
+}
+
+.phone-icon {
+  position: relative;
+  width: 40rpx;
+  height: 54rpx;
+  border-left: 6rpx solid #335f38;
+  border-bottom: 6rpx solid #335f38;
+  border-radius: 0 0 0 34rpx;
+  transform: rotate(-34deg);
+}
+
+.phone-icon::before,
+.phone-icon::after {
+  content: "";
+  position: absolute;
+  left: -9rpx;
+  width: 18rpx;
+  height: 19rpx;
+  border: 6rpx solid #335f38;
+  background: #f1f0e9;
+  box-sizing: border-box;
+}
+
+.phone-icon::before {
+  top: -7rpx;
+  border-radius: 10rpx 10rpx 4rpx 4rpx;
+}
+
+.phone-icon::after {
+  bottom: -8rpx;
+  border-radius: 4rpx 4rpx 10rpx 10rpx;
+}
+
+.wechat-icon {
+  position: relative;
+  width: 58rpx;
+  height: 48rpx;
+}
+
+.wechat-bubble {
+  position: absolute;
+  border: 5rpx solid #335f38;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.wechat-bubble::before,
+.wechat-bubble::after {
+  content: "";
+  position: absolute;
+  top: 17rpx;
+  width: 5rpx;
+  height: 5rpx;
+  border-radius: 50%;
+  background: #335f38;
+}
+
+.wechat-bubble::before {
+  left: 13rpx;
+}
+
+.wechat-bubble::after {
+  left: 28rpx;
+}
+
+.wechat-bubble.big {
+  left: 0;
+  top: 0;
+  width: 44rpx;
+  height: 36rpx;
+  background: #f1f0e9;
+}
+
+.wechat-bubble.small {
+  right: 0;
+  bottom: 0;
+  width: 38rpx;
+  height: 31rpx;
+  background: #f1f0e9;
+}
+
+.wechat-bubble.small::before {
+  top: 13rpx;
+  left: 10rpx;
+}
+
+.wechat-bubble.small::after {
+  top: 13rpx;
+  left: 22rpx;
+}
+
+.card-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title {
+  color: #1b1714;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 34rpx;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.card-subtitle {
+  margin-top: 16rpx;
+  color: rgba(37, 31, 26, 0.68);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 24rpx;
+  line-height: 1.35;
+}
+
+.consult-pill {
+  min-width: 162rpx;
+  height: 52rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  padding: 0 22rpx;
+  color: #fffdf5;
+  border-radius: 999rpx;
+  background: #345e35;
+  box-shadow: inset 0 -4rpx 0 rgba(0, 0, 0, 0.08);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 25rpx;
+  box-sizing: border-box;
+}
+
+.consult-pill text,
+.card-action text,
+.card-chevron {
+  font-family: "PingFang SC", "Helvetica Neue", sans-serif;
+}
+
+.card-action {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  color: #315f34;
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 27rpx;
+  white-space: nowrap;
+}
+
+.qr-box {
+  width: 76rpx;
+  height: 76rpx;
+  flex: 0 0 76rpx;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 4rpx;
+  padding: 10rpx;
+  border: 1rpx solid #e5dfd4;
+  border-radius: 16rpx;
+  background: rgba(249, 250, 244, 0.88);
+  box-sizing: border-box;
+}
+
+.qr-cell {
+  border-radius: 2rpx;
+  background: rgba(72, 104, 60, 0.14);
+}
+
+.qr-cell.is-filled {
+  background: rgba(72, 104, 60, 0.46);
+}
+
+.card-chevron {
+  flex: 0 0 auto;
+  color: #1f251d;
+  font-size: 42rpx;
+  line-height: 1;
+}
+
+.info-card {
+  position: relative;
+  min-height: 234rpx;
+  margin-top: 26rpx;
+  overflow: hidden;
+  padding: 32rpx 34rpx;
+  border: 1rpx solid rgba(220, 214, 202, 0.78);
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 10rpx 26rpx rgba(44, 36, 28, 0.05);
+  box-sizing: border-box;
+}
+
+.info-content {
+  position: relative;
+  z-index: 1;
+}
+
+.info-line {
+  display: flex;
+  align-items: center;
+  gap: 22rpx;
+  margin-bottom: 24rpx;
+}
+
+.info-line:last-child {
+  margin-bottom: 0;
+}
+
+.address-line {
+  align-items: flex-start;
+}
+
+.info-icon,
+.info-img {
+  width: 34rpx;
+  height: 34rpx;
+  flex: 0 0 34rpx;
+}
+
+.clock-icon {
+  position: relative;
+  border: 4rpx solid #335f38;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.clock-icon::before,
+.clock-icon::after {
+  content: "";
+  position: absolute;
+  left: 14rpx;
+  top: 6rpx;
+  width: 4rpx;
+  height: 13rpx;
+  border-radius: 999rpx;
+  background: #335f38;
+  transform-origin: bottom center;
+}
+
+.clock-icon::after {
+  height: 11rpx;
+  transform: rotate(124deg);
+}
+
+.note-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #335f38;
+  border: 4rpx solid #335f38;
+  border-radius: 50%;
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 22rpx;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.info-text,
+.info-note {
+  color: #2a2520;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 25rpx;
+  line-height: 1.45;
+}
+
+.info-text.strong {
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.info-muted {
+  margin-top: 8rpx;
+  color: rgba(42, 37, 32, 0.62);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 23rpx;
+}
+
+.note-line {
+  max-width: 500rpx;
+  align-items: flex-start;
+}
+
+.bamboo-art {
+  position: absolute;
+  right: -8rpx;
+  bottom: -8rpx;
+  width: 250rpx;
+  height: 214rpx;
+  opacity: 0.18;
+}
+
+.bamboo-stem {
+  position: absolute;
+  bottom: -16rpx;
+  width: 6rpx;
+  height: 190rpx;
+  border-radius: 999rpx;
+  background: #5e774d;
+  transform-origin: bottom center;
+}
+
+.stem-one {
+  right: 76rpx;
+  transform: rotate(14deg);
+}
+
+.stem-two {
+  right: 42rpx;
+  transform: rotate(-5deg);
+}
+
+.bamboo-leaf {
+  position: absolute;
+  width: 86rpx;
+  height: 18rpx;
+  border-radius: 100% 0 100% 0;
+  background: #5e774d;
+  transform-origin: right center;
+}
+
+.leaf-a {
+  right: 76rpx;
+  top: 34rpx;
+  transform: rotate(-14deg);
+}
+
+.leaf-b {
+  right: 116rpx;
+  top: 78rpx;
+  transform: rotate(18deg);
+}
+
+.leaf-c {
+  right: 24rpx;
+  top: 76rpx;
+  transform: rotate(-28deg);
+}
+
+.leaf-d {
+  right: 96rpx;
+  top: 124rpx;
+  transform: rotate(-10deg);
+}
+
+.leaf-e {
+  right: 4rpx;
+  top: 126rpx;
+  transform: rotate(22deg);
+}
+
+.contact-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  height: calc(116rpx + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: start;
+  padding: 16rpx 18rpx env(safe-area-inset-bottom);
+  border-top: 1rpx solid rgba(218, 211, 199, 0.72);
+  background: rgba(254, 252, 247, 0.96);
+  box-shadow: 0 -8rpx 28rpx rgba(51, 42, 30, 0.06);
+  box-sizing: border-box;
+}
+
+.tab-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6rpx;
+  color: #6a655d;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 22rpx;
+  line-height: 1;
+}
+
+.tab-item image {
+  width: 43rpx;
+  height: 43rpx;
+  opacity: 0.72;
+}
+
+.tab-item.active {
+  color: #315f34;
+  font-weight: 600;
+}
+
+.tab-item.active image {
+  opacity: 1;
+}
+
+@media (max-width: 360px) {
+  .contact-page {
+    padding-left: 32rpx;
+    padding-right: 32rpx;
+  }
+
+  .card-action {
+    font-size: 24rpx;
+  }
+
+  .consult-pill {
+    min-width: 142rpx;
+    padding: 0 16rpx;
+  }
+}

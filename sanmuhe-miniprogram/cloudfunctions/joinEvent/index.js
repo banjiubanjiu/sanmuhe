@@ -24,9 +24,19 @@ exports.main = async (event) => {
   const eventId = cleanText(event.eventId, 80);
   const title = cleanText(event.title, 80);
   const source = cleanText(event.source, 40);
+  const name = cleanText(event.name, 40);
+  const phone = cleanText(event.phone, 30);
+  const note = cleanText(event.note, 200);
+  const eventDate = cleanText(event.date, 40);
+  const eventTime = cleanText(event.time, 20);
+  const eventPlace = cleanText(event.place, 80);
+  const eventImage = cleanText(event.image, 240);
 
   if (!eventId || !title) {
     return { ok: false, message: "活动信息无效" };
+  }
+  if (!name || !phone) {
+    return { ok: false, message: "请填写报名联系人和手机号" };
   }
 
   await ensureCollection("event_signups");
@@ -57,6 +67,13 @@ exports.main = async (event) => {
       eventId,
       title,
       source,
+      name,
+      phone,
+      note,
+      date: cleanText(eventDoc && eventDoc.date, 40) || eventDate,
+      time: cleanText(eventDoc && eventDoc.time, 20) || eventTime,
+      place: cleanText(eventDoc && eventDoc.place, 80) || eventPlace,
+      image: cleanText(eventDoc && (eventDoc.image || eventDoc.cover), 240) || eventImage,
       status: "待确认",
       createdAt: db.serverDate(),
       updatedAt: db.serverDate()
