@@ -1,4 +1,4 @@
-const { drinks, teaProducts, rooms, events } = require("../data/catalog");
+const { drinks, teaProducts, rooms, events, homeSlides } = require("../data/catalog");
 
 function getFallbackCatalog() {
   return {
@@ -7,7 +7,7 @@ function getFallbackCatalog() {
     rooms,
     events,
     content: {
-      homeSlides: []
+      homeSlides
     },
     settings: null,
     fromCloud: false

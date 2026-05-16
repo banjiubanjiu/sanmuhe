@@ -437,9 +437,52 @@ const events = [
   }
 ];
 
+const homeSlides = [
+  {
+    key: "home-carousel-gu-yu",
+    type: "home_carousel",
+    title: "谷雨新茶",
+    subtitle: "清润一季",
+    summary: "春去夏来，茶韵正清\n山野之气，凝于一杯",
+    image: cloudImage("assets/images/home-carousel-1.jpg"),
+    badge: "新",
+    linkType: "page",
+    linkTarget: "/pages/shop/index",
+    visible: true,
+    sort: 10
+  },
+  {
+    key: "home-carousel-tea-set",
+    type: "home_carousel",
+    title: "雅室新席",
+    subtitle: "静候一盏",
+    summary: "茶器、茶席、茶室\n把日常安放得更从容",
+    image: cloudImage("assets/images/home-carousel-2.jpg"),
+    badge: "雅",
+    linkType: "page",
+    linkTarget: "/pages/reservation/index",
+    visible: true,
+    sort: 20
+  },
+  {
+    key: "home-carousel-matcha",
+    type: "home_carousel",
+    title: "茶饮上新",
+    subtitle: "清甜入夏",
+    summary: "现制茶饮，门店自取\n也可与好友同享",
+    image: cloudImage("assets/images/home-carousel-3.jpg"),
+    badge: "饮",
+    linkType: "page",
+    linkTarget: "/pages/shop/index",
+    visible: true,
+    sort: 30
+  }
+];
+
 module.exports = {
   drinks,
   teaProducts,
   rooms,
-  events
+  events,
+  homeSlides
 };

@@ -1,4 +1,4 @@
-const { drinks, teaProducts, rooms, events } = require("../../data/catalog");
+const { drinks, teaProducts, rooms, events, homeSlides } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, listEvents } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
@@ -115,35 +115,7 @@ function buildHomeSlides(contentSlides, fallbackSlides) {
 Page({
   data: {
     homeCatalog: normalizeCatalog({ drinks, teaProducts, rooms, events }, events),
-    heroSlides: [
-      {
-        id: "gu-yu",
-        image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-carousel-1.jpg",
-        titleTop: "谷雨新茶",
-        titleBottom: "清润一季",
-        descTop: "春去夏来，茶韵正清",
-        descBottom: "山野之气，凝于一杯",
-        seal: "新"
-      },
-      {
-        id: "tea-set",
-        image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-carousel-2.jpg",
-        titleTop: "雅室新席",
-        titleBottom: "静候一盏",
-        descTop: "茶器、茶席、茶室",
-        descBottom: "把日常安放得更从容",
-        seal: "雅"
-      },
-      {
-        id: "matcha",
-        image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-carousel-3.jpg",
-        titleTop: "茶饮上新",
-        titleBottom: "清甜入夏",
-        descTop: "现制茶饮，门店自取",
-        descBottom: "也可与好友同享",
-        seal: "饮"
-      }
-    ],
+    heroSlides: buildHomeSlides(homeSlides, []),
     heroCurrent: 0,
     quickActions: [
       { key: "tea", title: "茶叶购买", desc: "甄选好茶", icon: "/assets/icons/home-leaf.png" },
