@@ -91,6 +91,34 @@ function getInventorySnapshot(item) {
   };
 }
 
+async function writeInventoryLog(entry = {}) {
+  try {
+    await ensureCollection("inventory_logs");
+    await db.collection("inventory_logs").add({
+      data: Object.assign({
+        collection: "",
+        docId: "",
+        itemId: "",
+        itemName: "",
+        type: "",
+        quantity: 0,
+        beforeStock: null,
+        afterStock: null,
+        beforeLockedStock: null,
+        afterLockedStock: null,
+        beforeSoldStock: null,
+        afterSoldStock: null,
+        orderNo: "",
+        operator: "system",
+        note: "",
+        createdAt: db.serverDate()
+      }, entry)
+    });
+  } catch (error) {
+    // Inventory logs are operational evidence; order creation should not fail solely because logging failed.
+  }
+}
+
 async function findTrustedItem(type, id) {
   const collection = type === "tea" ? "tea_products" : "drinks";
   await ensureCollection(collection);
@@ -181,7 +209,7 @@ async function sanitizeItems(items) {
   };
 }
 
-async function lockInventory(locks) {
+async function lockInventory(locks, orderNo) {
   const applied = [];
 
   for (const lock of locks) {
@@ -202,6 +230,23 @@ async function lockInventory(locks) {
         updatedAt: db.serverDate()
       }
     });
+    await writeInventoryLog({
+      collection: lock.collection,
+      docId: lock.docId,
+      itemId: lock.id || "",
+      itemName: lock.name || "",
+      type: "order_lock",
+      quantity: lock.quantity,
+      beforeStock: inventory.stock,
+      afterStock: inventory.stock,
+      beforeLockedStock: inventory.lockedStock,
+      afterLockedStock: inventory.lockedStock + lock.quantity,
+      beforeSoldStock: inventory.soldStock,
+      afterSoldStock: inventory.soldStock,
+      orderNo,
+      operator: "createOrder",
+      note: "创建订单锁定库存"
+    });
     applied.push(lock);
   }
 
@@ -214,11 +259,29 @@ async function releaseInventory(locks) {
       continue;
     }
     try {
+      const latest = await db.collection(lock.collection).doc(lock.docId).get();
+      const inventory = getInventorySnapshot(latest.data || {});
       await db.collection(lock.collection).doc(lock.docId).update({
         data: {
           lockedStock: _.inc(-lock.quantity),
           updatedAt: db.serverDate()
         }
+      });
+      await writeInventoryLog({
+        collection: lock.collection,
+        docId: lock.docId,
+        itemId: lock.id || "",
+        itemName: lock.name || "",
+        type: "order_lock_rollback",
+        quantity: lock.quantity,
+        beforeStock: inventory.stock,
+        afterStock: inventory.stock,
+        beforeLockedStock: inventory.lockedStock,
+        afterLockedStock: Math.max(0, inventory.lockedStock - lock.quantity),
+        beforeSoldStock: inventory.soldStock,
+        afterSoldStock: inventory.soldStock,
+        operator: "createOrder",
+        note: "订单创建失败回滚库存锁定"
       });
     } catch (error) {
       // Continue releasing the remaining locks.
@@ -439,7 +502,7 @@ exports.main = async (event = {}) => {
     }
 
     await ensureCollection("orders");
-    appliedLocks = await lockInventory(inventoryLocks);
+    appliedLocks = await lockInventory(inventoryLocks, orderNo);
 
     const addResult = await db.collection("orders").add({
       data: {

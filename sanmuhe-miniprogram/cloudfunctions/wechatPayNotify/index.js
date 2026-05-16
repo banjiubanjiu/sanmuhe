@@ -110,17 +110,72 @@ async function findOrder(outTradeNo) {
   return result.data && result.data[0] ? result.data[0] : null;
 }
 
-async function confirmInventory(locks) {
+function inventorySnapshot(item = {}) {
+  return {
+    stock: Math.max(0, Number(item.stock) || 0),
+    lockedStock: Math.max(0, Number(item.lockedStock) || 0),
+    soldStock: Math.max(0, Number(item.soldStock) || 0)
+  };
+}
+
+async function writeInventoryLog(entry = {}) {
+  try {
+    await ensureCollection("inventory_logs");
+    await db.collection("inventory_logs").add({
+      data: Object.assign({
+        collection: "",
+        docId: "",
+        itemId: "",
+        itemName: "",
+        type: "",
+        quantity: 0,
+        beforeStock: null,
+        afterStock: null,
+        beforeLockedStock: null,
+        afterLockedStock: null,
+        beforeSoldStock: null,
+        afterSoldStock: null,
+        orderNo: "",
+        operator: "system",
+        note: "",
+        createdAt: db.serverDate()
+      }, entry)
+    });
+  } catch (error) {
+    // Do not fail a paid order because operational logging failed.
+  }
+}
+
+async function confirmInventory(locks, orderNo) {
   for (const lock of locks || []) {
     if (!lock.docId || lock.quantity <= 0) {
       continue;
     }
+    const latest = await db.collection(lock.collection).doc(lock.docId).get();
+    const before = inventorySnapshot(latest.data || {});
     await db.collection(lock.collection).doc(lock.docId).update({
       data: {
         lockedStock: _.inc(-lock.quantity),
         soldStock: _.inc(lock.quantity),
         updatedAt: db.serverDate()
       }
+    });
+    await writeInventoryLog({
+      collection: lock.collection,
+      docId: lock.docId,
+      itemId: lock.id || "",
+      itemName: lock.name || "",
+      type: "payment_confirm",
+      quantity: lock.quantity,
+      beforeStock: before.stock,
+      afterStock: before.stock,
+      beforeLockedStock: before.lockedStock,
+      afterLockedStock: Math.max(0, before.lockedStock - lock.quantity),
+      beforeSoldStock: before.soldStock,
+      afterSoldStock: before.soldStock + lock.quantity,
+      orderNo,
+      operator: "wechatPayNotify",
+      note: "支付成功确认库存"
     });
   }
 }
@@ -305,7 +360,7 @@ async function handleTransactionSuccess(transaction) {
     return;
   }
 
-  await confirmInventory(order.inventoryLocks);
+  await confirmInventory(order.inventoryLocks, order.orderNo);
   await markCouponUsed(order);
   const memberUpdate = await updateMemberAfterPaid(order);
   await db.collection("orders").doc(order._id).update({

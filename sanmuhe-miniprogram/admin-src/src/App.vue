@@ -53,11 +53,14 @@ const navItems = [
   { key: "reservations", label: "茶室预约", icon: CalendarCheck },
   { key: "signups", label: "茶事活动", icon: TicketPercent },
   { key: "orders", label: "订单管理", icon: ClipboardList },
+  { key: "afterSales", label: "售后管理", icon: BadgeDollarSign },
+  { key: "inventory", label: "库存流水", icon: Package },
   { key: "customers", label: "用户管理", icon: UserRound },
   { key: "catalog", label: "商品管理", icon: Package },
   { key: "content", label: "内容管理", icon: FileText },
   { key: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing },
   { key: "marketing", label: "营销中心", icon: Megaphone },
+  { key: "audit", label: "审计日志", icon: FileText },
   { key: "settings", label: "设置管理", icon: Settings }
 ];
 
@@ -80,6 +83,8 @@ const quickActions = [
   { tab: "signups", label: "新增活动", icon: TicketPercent },
   { tab: "content", label: "发布内容", icon: PenLine },
   { tab: "orders", label: "订单管理", icon: ClipboardList },
+  { tab: "afterSales", label: "售后处理", icon: BadgeDollarSign },
+  { tab: "inventory", label: "库存流水", icon: Package },
   { tab: "customers", label: "用户管理", icon: Users },
   { tab: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing }
 ];
@@ -91,11 +96,14 @@ const pageTitles = {
   reservations: ["茶室预约", "确认、取消与备注每一次茶席"],
   signups: ["活动报名", "茶会报名与名额动态"],
   orders: ["订单管理", "支付、发货、自提和异常处理"],
+  afterSales: ["售后管理", "退款、拒绝、关闭和人工处理记录"],
+  inventory: ["库存流水", "库存锁定、释放、扣减和人工调整"],
   customers: ["用户管理", "会员画像、消费与互动记录"],
   catalog: ["商品管理", "茶叶、茶饮、茶室与活动资料"],
   content: ["内容管理", "首页轮播、公告和运营内容"],
   analytics: ["数据统计", "经营走势、转化和热销项目"],
   marketing: ["营销中心", "优惠券和活动计划"],
+  audit: ["审计日志", "关键后台操作和隐私动作留痕"],
   settings: ["设置管理", "门店、会员和通知配置"]
 };
 
@@ -112,6 +120,9 @@ const state = reactive({
   dashboard: null,
   catalogItems: [],
   orders: [],
+  afterSales: [],
+  inventoryLogs: [],
+  auditLogs: [],
   reservations: [],
   signups: [],
   customers: [],
@@ -122,10 +133,12 @@ const state = reactive({
   settings: {},
   selectedCatalogId: "",
   selectedOrderId: "",
+  selectedAfterSaleId: "",
   selectedReservationId: "",
   selectedSignupId: "",
   selectedCustomerId: "",
-  selectedContentKey: ""
+  selectedContentKey: "",
+  reservationCalendarDate: new Date().toISOString().slice(0, 10)
 });
 
 if (import.meta.env.DEV && typeof window !== "undefined") {
@@ -137,11 +150,15 @@ const filters = reactive({
   catalog: "",
   orderStatus: "",
   orderKeyword: "",
+  afterSaleStatus: "",
+  afterSaleKeyword: "",
+  inventoryKeyword: "",
   reservationStatus: "",
   reservationKeyword: "",
   signupStatus: "",
   signupKeyword: "",
-  customerKeyword: ""
+  customerKeyword: "",
+  auditKeyword: ""
 });
 
 const loginForm = reactive({ username: "", password: "" });
@@ -150,6 +167,18 @@ const orderForm = reactive({
   trackingCompany: "",
   trackingNo: "",
   cancelReason: "管理员取消"
+});
+const afterSaleForm = reactive({
+  status: "处理中",
+  refundAmount: 0,
+  reason: "",
+  note: ""
+});
+const inventoryForm = reactive({
+  collection: "tea_products",
+  id: "",
+  delta: 0,
+  note: ""
 });
 const toast = reactive({ show: false, text: "" });
 let toastTimer = null;
@@ -225,9 +254,28 @@ const forms = reactive({
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
 const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾熙管理员");
 const selectedOrder = computed(() => state.orders.find((item) => item._id === state.selectedOrderId) || state.orders[0] || null);
+const selectedAfterSale = computed(() => state.afterSales.find((item) => item._id === state.selectedAfterSaleId) || state.afterSales[0] || null);
 const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || state.reservations[0] || null);
 const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || state.signups[0] || null);
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || state.customers[0] || null);
+const reservationCalendarRows = computed(() => {
+  const day = state.reservationCalendarDate;
+  const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
+  const rows = {};
+  state.reservations
+    .filter((item) => (item.day || item.date || "").slice(0, 10) === day && item.status !== "已取消")
+    .forEach((item) => {
+      const room = item.roomName || item.room || "未分配茶室";
+      if (!rows[room]) {
+        rows[room] = { room, slots: slots.map((slot) => ({ time: slot, record: null })) };
+      }
+      const target = rows[room].slots.find((slot) => slot.time === item.time || slot.time === item.slot);
+      if (target) {
+        target.record = item;
+      }
+    });
+  return Object.values(rows);
+});
 const dashboardInsight = computed(() => {
   const summary = state.dashboard?.summary || {};
   const revenue = Number(summary.monthRevenue || summary.totalRevenue || 0);
@@ -514,12 +562,15 @@ async function loadActiveTab() {
     dashboard: loadDashboard,
     catalog: loadCatalog,
     orders: loadOrders,
+    afterSales: loadAfterSales,
+    inventory: loadInventoryLogs,
     reservations: loadReservations,
     signups: loadSignups,
     customers: loadCustomers,
     content: loadContent,
     analytics: loadAnalytics,
     marketing: loadMarketing,
+    audit: loadAuditLogs,
     settings: loadSettings
   };
   return map[state.activeTab]?.();
@@ -621,6 +672,101 @@ async function loadOrders() {
   });
 }
 
+async function loadAfterSales() {
+  await withLoading("读取售后", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "listAfterSales",
+      status: filters.afterSaleStatus,
+      keyword: filters.afterSaleKeyword
+    });
+    state.afterSales = result.orders || [];
+    state.selectedAfterSaleId = state.afterSales[0]?._id || "";
+    fillAfterSaleForm(selectedAfterSale.value);
+  });
+}
+
+function fillAfterSaleForm(order) {
+  Object.assign(afterSaleForm, {
+    status: order?.afterSaleStatus || "处理中",
+    refundAmount: Number(order?.refundAmount || 0),
+    reason: order?.afterSaleReason || "",
+    note: order?.afterSaleNote || ""
+  });
+}
+
+async function saveAfterSale(order) {
+  if (!order) return;
+  await withLoading("保存售后", async () => {
+    await callFunction("manageOperations", {
+      action: "updateAfterSale",
+      orderId: order._id,
+      orderNo: order.orderNo,
+      afterSaleStatus: afterSaleForm.status,
+      refundAmount: Number(afterSaleForm.refundAmount || 0),
+      reason: afterSaleForm.reason,
+      note: afterSaleForm.note
+    });
+    showToast("售后状态已保存");
+    await loadAfterSales();
+  });
+}
+
+async function startAfterSale(order) {
+  if (!order) return;
+  await withLoading("转入售后", async () => {
+    await callFunction("manageOperations", {
+      action: "updateAfterSale",
+      orderId: order._id,
+      orderNo: order.orderNo,
+      afterSaleStatus: "处理中",
+      refundAmount: Number(order.refundAmount || 0),
+      reason: order.afterSaleReason || "后台发起售后处理",
+      note: order.afterSaleNote || ""
+    });
+    showToast("已转入售后");
+    state.activeTab = "afterSales";
+    await loadAfterSales();
+    state.selectedAfterSaleId = order._id;
+    fillAfterSaleForm(state.afterSales.find((item) => item._id === order._id) || order);
+  });
+}
+
+async function loadInventoryLogs() {
+  await withLoading("读取库存流水", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "listInventoryLogs",
+      keyword: filters.inventoryKeyword
+    });
+    state.inventoryLogs = result.logs || [];
+  });
+}
+
+async function adjustInventory() {
+  await withLoading("调整库存", async () => {
+    await callFunction("manageOperations", {
+      action: "adjustInventory",
+      collection: inventoryForm.collection,
+      id: inventoryForm.id,
+      delta: Number(inventoryForm.delta),
+      note: inventoryForm.note
+    });
+    showToast("库存已调整");
+    inventoryForm.delta = 0;
+    inventoryForm.note = "";
+    await loadInventoryLogs();
+  });
+}
+
+async function loadAuditLogs() {
+  await withLoading("读取审计日志", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "listAuditLogs",
+      keyword: filters.auditKeyword
+    });
+    state.auditLogs = result.logs || [];
+  });
+}
+
 async function loadReservations() {
   await withLoading("读取预约", async () => {
     const result = await callFunction("manageOperations", {
@@ -631,6 +777,12 @@ async function loadReservations() {
     state.reservations = result.reservations || [];
     state.selectedReservationId = state.reservations[0]?._id || "";
   });
+}
+
+function shiftReservationCalendar(step) {
+  const date = new Date(`${state.reservationCalendarDate}T00:00:00`);
+  date.setDate(date.getDate() + step);
+  state.reservationCalendarDate = date.toISOString().slice(0, 10);
 }
 
 async function loadSignups() {
@@ -706,6 +858,71 @@ async function orderAction(action, order) {
     showToast("订单已更新");
     await loadOrders();
   });
+}
+
+function escapeCsv(value) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv(filename, columns, rows) {
+  const head = columns.map((item) => escapeCsv(item.label)).join(",");
+  const body = rows.map((row) => columns.map((item) => escapeCsv(item.value(row))).join(",")).join("\n");
+  const blob = new Blob([`\uFEFF${head}\n${body}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportOrders() {
+  downloadCsv("hexi-orders.csv", [
+    { label: "订单号", value: (item) => item.orderNo || item._id },
+    { label: "状态", value: (item) => item.status || "" },
+    { label: "支付", value: (item) => item.payStatus || "" },
+    { label: "金额", value: (item) => money(item.total) },
+    { label: "客户", value: (item) => item.name || item.contactName || item.consignee || "" },
+    { label: "手机号", value: (item) => item.phone || item.mobile || "" },
+    { label: "创建时间", value: (item) => formatDate(item.createdAt) }
+  ], state.orders);
+}
+
+function exportReservations() {
+  downloadCsv("hexi-reservations.csv", [
+    { label: "茶室", value: (item) => item.roomName || item.room || "" },
+    { label: "客户", value: (item) => item.name || item.customerName || "" },
+    { label: "手机号", value: (item) => item.phone || item.mobile || "" },
+    { label: "日期", value: (item) => item.day || item.date || "" },
+    { label: "时段", value: (item) => item.time || item.slot || "" },
+    { label: "人数", value: (item) => item.people || item.count || "" },
+    { label: "状态", value: (item) => item.status || "" }
+  ], state.reservations);
+}
+
+function exportSignups() {
+  downloadCsv("hexi-signups.csv", [
+    { label: "活动", value: (item) => item.eventTitle || item.title || "" },
+    { label: "客户", value: (item) => item.name || item.customerName || "" },
+    { label: "手机号", value: (item) => item.phone || item.mobile || "" },
+    { label: "日期", value: (item) => item.date || "" },
+    { label: "时段", value: (item) => item.time || "" },
+    { label: "状态", value: (item) => item.status || "" }
+  ], state.signups);
+}
+
+function exportCustomers() {
+  downloadCsv("hexi-customers.csv", [
+    { label: "标识", value: (item) => item.openid || item.id || "" },
+    { label: "姓名", value: (item) => item.name || "" },
+    { label: "手机号", value: (item) => item.phone || "" },
+    { label: "订单数", value: (item) => item.orders || 0 },
+    { label: "预约数", value: (item) => item.reservations || 0 },
+    { label: "报名数", value: (item) => item.signups || 0 },
+    { label: "消费", value: (item) => money(customerSpend(item)) },
+    { label: "标签", value: (item) => Array.isArray(item.tags) ? item.tags.join(" ") : item.tag || "" }
+  ], state.customers);
 }
 
 async function loadContent() {
@@ -815,10 +1032,13 @@ function globalSearch() {
   const keyword = filters.global.trim();
   if (!keyword) return;
   if (state.activeTab === "orders") filters.orderKeyword = keyword;
+  if (state.activeTab === "afterSales") filters.afterSaleKeyword = keyword;
+  if (state.activeTab === "inventory") filters.inventoryKeyword = keyword;
   if (state.activeTab === "reservations") filters.reservationKeyword = keyword;
   if (state.activeTab === "signups") filters.signupKeyword = keyword;
   if (state.activeTab === "customers") filters.customerKeyword = keyword;
   if (state.activeTab === "catalog") filters.catalog = keyword;
+  if (state.activeTab === "audit") filters.auditKeyword = keyword;
   loadActiveTab();
 }
 
@@ -1122,6 +1342,7 @@ onMounted(async () => {
                 <option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
               <input v-model="filters.orderKeyword" class="line-input" placeholder="订单号、姓名、手机号" @keydown.enter="loadOrders">
+              <button class="secondary-action small" type="button" @click="exportOrders">导出 CSV</button>
             </div>
             <div class="record-list">
               <button v-for="order in state.orders" :key="order._id" :class="{ selected: state.selectedOrderId === order._id }" type="button" @click="state.selectedOrderId = order._id">
@@ -1158,7 +1379,80 @@ onMounted(async () => {
               <button v-if="selectedOrder.status === '待发货'" class="secondary-action" type="button" @click="orderAction('ship', selectedOrder)">标记发货</button>
               <button v-if="selectedOrder.status === '待自提'" class="secondary-action" type="button" @click="orderAction('pickup', selectedOrder)">完成自提</button>
               <button v-if="selectedOrder.status === '待支付'" class="danger-action" type="button" @click="orderAction('cancel', selectedOrder)">取消订单</button>
+              <button class="secondary-action" type="button" @click="startAfterSale(selectedOrder)">转售后处理</button>
             </div>
+          </aside>
+        </section>
+
+        <section v-if="state.activeTab === 'afterSales'" class="split-panel">
+          <article class="panel-card data-panel">
+            <div class="panel-toolbar">
+              <select v-model="filters.afterSaleStatus" class="line-input" @change="loadAfterSales">
+                <option value="">全部售后</option>
+                <option>处理中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option>
+              </select>
+              <input v-model="filters.afterSaleKeyword" class="line-input" placeholder="订单号、姓名、手机号、原因" @keydown.enter="loadAfterSales">
+            </div>
+            <div class="record-list">
+              <button
+                v-for="order in state.afterSales"
+                :key="order._id"
+                :class="{ selected: state.selectedAfterSaleId === order._id }"
+                type="button"
+                @click="state.selectedAfterSaleId = order._id; fillAfterSaleForm(order)"
+              >
+                <strong>{{ order.orderNo || order._id }} <em>{{ order.afterSaleStatus || order.status }}</em></strong>
+                <span>{{ maskName(order.name || order.contactName || order.consignee) || "访客" }} · ¥{{ money(order.total) }} · {{ formatDate(order.afterSaleUpdatedAt || order.updatedAt) }}</span>
+              </button>
+              <div v-if="state.afterSales.length === 0" class="empty-state">暂无售后记录</div>
+            </div>
+          </article>
+          <aside class="panel-card editor-panel" v-if="selectedAfterSale">
+            <div class="panel-title"><h2>售后处理</h2><span class="status-pill neutral">{{ selectedAfterSale.afterSaleStatus || "未处理" }}</span></div>
+            <DetailRow label="订单号" :value="selectedAfterSale.orderNo || selectedAfterSale._id" />
+            <DetailRow label="金额" :value="`¥${money(selectedAfterSale.total)}`" />
+            <DetailRow label="客户" :value="maskName(selectedAfterSale.name || selectedAfterSale.contactName || selectedAfterSale.consignee) || '-'" />
+            <form class="editor-grid" @submit.prevent="saveAfterSale(selectedAfterSale)">
+              <label><span>售后状态</span><select v-model="afterSaleForm.status"><option>处理中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option></select></label>
+              <label><span>退款金额</span><input v-model.number="afterSaleForm.refundAmount" type="number" min="0"></label>
+              <label class="wide"><span>售后原因</span><input v-model="afterSaleForm.reason" placeholder="如用户申请退款、商品异常"></label>
+              <label class="wide"><span>处理备注</span><textarea v-model="afterSaleForm.note" rows="4"></textarea></label>
+              <button class="primary-action wide" type="submit">保存售后状态</button>
+            </form>
+          </aside>
+        </section>
+
+        <section v-if="state.activeTab === 'inventory'" class="split-panel">
+          <article class="panel-card data-panel">
+            <div class="panel-toolbar">
+              <input v-model="filters.inventoryKeyword" class="line-input" placeholder="商品、订单号、类型、备注" @keydown.enter="loadInventoryLogs">
+              <button class="secondary-action small" type="button" @click="loadInventoryLogs">筛选</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>时间</th><th>商品</th><th>类型</th><th>数量</th><th>库存变化</th><th>订单/备注</th></tr></thead>
+                <tbody>
+                  <tr v-for="log in state.inventoryLogs" :key="log._id">
+                    <td>{{ formatDate(log.createdAt) }}</td>
+                    <td><strong>{{ log.itemName || log.itemId || "-" }}</strong><small>{{ log.collection }}</small></td>
+                    <td>{{ log.type || "-" }}</td>
+                    <td>{{ log.quantity }}</td>
+                    <td>{{ log.beforeStock }} → {{ log.afterStock }}</td>
+                    <td><small>{{ log.orderNo || log.note || "-" }}</small></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <aside class="panel-card editor-panel">
+            <div class="panel-title"><h2>人工调整库存</h2></div>
+            <form class="editor-grid" @submit.prevent="adjustInventory">
+              <label><span>类型</span><select v-model="inventoryForm.collection"><option value="tea_products">茶叶</option><option value="drinks">茶饮</option></select></label>
+              <label><span>商品 ID</span><input v-model="inventoryForm.id" required placeholder="如 tea-001"></label>
+              <label><span>调整数量</span><input v-model.number="inventoryForm.delta" type="number" required placeholder="正数增加，负数减少"></label>
+              <label class="wide"><span>原因</span><textarea v-model="inventoryForm.note" rows="4" placeholder="盘点、损耗、补货等"></textarea></label>
+              <button class="primary-action wide" type="submit">写入库存流水</button>
+            </form>
           </aside>
         </section>
 
@@ -1173,6 +1467,23 @@ onMounted(async () => {
               </select>
               <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" placeholder="茶室、姓名、手机号" @keydown.enter="loadReservations">
               <input v-else v-model="filters.signupKeyword" class="line-input" placeholder="活动、姓名、手机号" @keydown.enter="loadSignups">
+              <button v-if="state.activeTab === 'reservations'" class="secondary-action small" type="button" @click="exportReservations">导出 CSV</button>
+              <button v-else class="secondary-action small" type="button" @click="exportSignups">导出 CSV</button>
+            </div>
+            <div v-if="state.activeTab === 'reservations'" class="calendar-strip">
+              <button type="button" @click="shiftReservationCalendar(-1)">‹</button>
+              <strong>{{ state.reservationCalendarDate }}</strong>
+              <button type="button" @click="shiftReservationCalendar(1)">›</button>
+            </div>
+            <div v-if="state.activeTab === 'reservations'" class="calendar-board compact-board">
+              <div v-for="row in reservationCalendarRows" :key="row.room" class="calendar-row">
+                <strong>{{ row.room }}</strong>
+                <span v-for="slot in row.slots" :key="slot.time" :class="['calendar-slot', slot.record ? 'busy' : 'free']">
+                  <b>{{ slot.time }}</b>
+                  <small>{{ slot.record ? `${maskName(slot.record.name || slot.record.customerName) || '访客'} · ${slot.record.people || 1}人` : "可预约" }}</small>
+                </span>
+              </div>
+              <div v-if="reservationCalendarRows.length === 0" class="empty-state">当天暂无预约</div>
             </div>
             <div class="record-list">
               <button
@@ -1217,7 +1528,10 @@ onMounted(async () => {
 
         <section v-if="state.activeTab === 'customers'" class="split-panel">
           <article class="panel-card data-panel">
-            <div class="panel-toolbar"><input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="loadCustomers"></div>
+            <div class="panel-toolbar">
+              <input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="loadCustomers">
+              <button class="secondary-action small" type="button" @click="exportCustomers">导出 CSV</button>
+            </div>
             <div class="record-list">
               <button v-for="customer in state.customers" :key="customer.id" :class="{ selected: state.selectedCustomerId === customer.id }" type="button" @click="state.selectedCustomerId = customer.id">
                 <strong>{{ customerDisplayName(customer) }} <em>{{ customerLevel(customer) }}</em></strong>
@@ -1327,6 +1641,25 @@ onMounted(async () => {
             <label><span>摘要</span><textarea v-model="forms.campaign.summary" rows="3"></textarea></label>
             <button class="primary-action icon-action" type="submit"><Send :size="16" :stroke-width="1.8" /> 保存计划</button>
           </form>
+        </section>
+
+        <section v-if="state.activeTab === 'audit'" class="panel-card wide-table audit-panel">
+          <div class="panel-toolbar">
+            <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="loadAuditLogs">
+            <button class="secondary-action small" type="button" @click="loadAuditLogs">筛选</button>
+          </div>
+          <table>
+            <thead><tr><th>时间</th><th>动作</th><th>管理员</th><th>详情</th></tr></thead>
+            <tbody>
+              <tr v-for="log in state.auditLogs" :key="log._id">
+                <td>{{ formatDate(log.createdAt) }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.adminUid || log.adminOpenid || "-" }}</td>
+                <td><small>{{ JSON.stringify(log.detail || {}) }}</small></td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="state.auditLogs.length === 0" class="empty-state">暂无审计日志</div>
         </section>
 
         <section v-if="state.activeTab === 'settings'" class="panel-card settings-panel">

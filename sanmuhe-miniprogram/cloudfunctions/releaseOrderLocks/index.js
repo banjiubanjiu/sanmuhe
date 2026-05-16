@@ -15,17 +15,72 @@ async function ensureCollection(name) {
   }
 }
 
-async function releaseInventory(locks) {
+function inventorySnapshot(item = {}) {
+  return {
+    stock: Math.max(0, Number(item.stock) || 0),
+    lockedStock: Math.max(0, Number(item.lockedStock) || 0),
+    soldStock: Math.max(0, Number(item.soldStock) || 0)
+  };
+}
+
+async function writeInventoryLog(entry = {}) {
+  try {
+    await ensureCollection("inventory_logs");
+    await db.collection("inventory_logs").add({
+      data: Object.assign({
+        collection: "",
+        docId: "",
+        itemId: "",
+        itemName: "",
+        type: "",
+        quantity: 0,
+        beforeStock: null,
+        afterStock: null,
+        beforeLockedStock: null,
+        afterLockedStock: null,
+        beforeSoldStock: null,
+        afterSoldStock: null,
+        orderNo: "",
+        operator: "system",
+        note: "",
+        createdAt: db.serverDate()
+      }, entry)
+    });
+  } catch (error) {
+    // Timeout release should not be blocked by operation log writes.
+  }
+}
+
+async function releaseInventory(locks, orderNo) {
   for (const lock of locks || []) {
     if (!lock.docId || lock.quantity <= 0) {
       continue;
     }
     try {
+      const latest = await db.collection(lock.collection).doc(lock.docId).get();
+      const before = inventorySnapshot(latest.data || {});
       await db.collection(lock.collection).doc(lock.docId).update({
         data: {
           lockedStock: _.inc(-lock.quantity),
           updatedAt: db.serverDate()
         }
+      });
+      await writeInventoryLog({
+        collection: lock.collection,
+        docId: lock.docId,
+        itemId: lock.id || "",
+        itemName: lock.name || "",
+        type: "timeout_release",
+        quantity: lock.quantity,
+        beforeStock: before.stock,
+        afterStock: before.stock,
+        beforeLockedStock: before.lockedStock,
+        afterLockedStock: Math.max(0, before.lockedStock - lock.quantity),
+        beforeSoldStock: before.soldStock,
+        afterSoldStock: before.soldStock,
+        orderNo,
+        operator: "releaseOrderLocks",
+        note: "支付超时释放库存"
       });
     } catch (error) {
       // Continue releasing the remaining locks.
@@ -85,7 +140,7 @@ exports.main = async () => {
       continue;
     }
 
-    await releaseInventory(order.inventoryLocks);
+    await releaseInventory(order.inventoryLocks, order.orderNo);
     await releaseUserCoupon(order.coupon);
     released += 1;
   }

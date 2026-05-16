@@ -89,6 +89,10 @@ function parseList(value) {
     .filter(Boolean);
 }
 
+function callerLabel(caller = {}) {
+  return caller.username || caller.uid || caller.openid || "admin";
+}
+
 function getAuthObject() {
   try {
     const cloudbase = require("@cloudbase/js-sdk");
@@ -213,17 +217,68 @@ async function upsertRecord(collection, identityField, identityValue, data) {
   return { created: true, _id: addResult._id };
 }
 
-async function releaseInventory(locks) {
+async function writeInventoryLog(entry = {}) {
+  await ensureCollection("inventory_logs");
+  await db.collection("inventory_logs").add({
+    data: Object.assign({
+      collection: "",
+      docId: "",
+      itemId: "",
+      itemName: "",
+      type: "",
+      quantity: 0,
+      beforeStock: null,
+      afterStock: null,
+      beforeLockedStock: null,
+      afterLockedStock: null,
+      beforeSoldStock: null,
+      afterSoldStock: null,
+      orderNo: "",
+      operator: "system",
+      note: "",
+      createdAt: db.serverDate()
+    }, entry)
+  });
+}
+
+function inventorySnapshot(item = {}) {
+  return {
+    stock: Math.max(0, Number(item.stock) || 0),
+    lockedStock: Math.max(0, Number(item.lockedStock) || 0),
+    soldStock: Math.max(0, Number(item.soldStock) || 0)
+  };
+}
+
+async function releaseInventory(locks, meta = {}) {
   for (const lock of locks || []) {
     if (!lock.docId || lock.quantity <= 0) {
       continue;
     }
     try {
+      const beforeDoc = await db.collection(lock.collection).doc(lock.docId).get();
+      const before = inventorySnapshot(beforeDoc.data || {});
       await db.collection(lock.collection).doc(lock.docId).update({
         data: {
           lockedStock: _.inc(-lock.quantity),
           updatedAt: db.serverDate()
         }
+      });
+      await writeInventoryLog({
+        collection: lock.collection,
+        docId: lock.docId,
+        itemId: lock.id || "",
+        itemName: lock.name || "",
+        type: meta.type || "release",
+        quantity: lock.quantity,
+        beforeStock: before.stock,
+        afterStock: before.stock,
+        beforeLockedStock: before.lockedStock,
+        afterLockedStock: Math.max(0, before.lockedStock - lock.quantity),
+        beforeSoldStock: before.soldStock,
+        afterSoldStock: before.soldStock,
+        orderNo: meta.orderNo || "",
+        operator: meta.operator || "system",
+        note: meta.note || ""
       });
     } catch (error) {
       // Continue releasing the remaining locks.
@@ -333,7 +388,12 @@ async function cancelOrder(event) {
   }
 
   if (order.payStatus === "pending" && order.lockReleased !== true) {
-    await releaseInventory(order.inventoryLocks);
+    await releaseInventory(order.inventoryLocks, {
+      type: "admin_cancel_release",
+      orderNo: order.orderNo,
+      operator: "admin",
+      note: cleanText(event.reason, 160) || "管理员取消"
+    });
     await releaseUserCoupon(order.coupon);
   }
 
@@ -666,6 +726,158 @@ async function listCustomers(event) {
       totalSpend: customers.reduce((sum, item) => sum + item.spend, 0)
     }
   };
+}
+
+async function listAuditLogs(event) {
+  const keyword = cleanText(event.keyword, 80);
+  const logs = await readCollection("admin_audit_logs", {
+    orderBy: "createdAt",
+    limit: 200
+  });
+  return {
+    ok: true,
+    logs: logs.filter((item) => {
+      if (!keyword) return true;
+      return [
+        item.action,
+        item.adminOpenid,
+        item.adminUid,
+        JSON.stringify(item.detail || {})
+      ].join(" ").includes(keyword);
+    })
+  };
+}
+
+async function listInventoryLogs(event) {
+  const keyword = cleanText(event.keyword, 80);
+  const logs = await readCollection("inventory_logs", {
+    orderBy: "createdAt",
+    limit: 300
+  });
+  return {
+    ok: true,
+    logs: logs.filter((item) => {
+      if (!keyword) return true;
+      return [
+        item.itemName,
+        item.itemId,
+        item.type,
+        item.orderNo,
+        item.operator,
+        item.note
+      ].join(" ").includes(keyword);
+    })
+  };
+}
+
+async function adjustInventory(event, caller) {
+  const collection = cleanText(event.collection, 40);
+  if (!["tea_products", "drinks"].includes(collection)) {
+    return { ok: false, message: "只能调整茶叶或茶饮库存" };
+  }
+  const id = cleanText(event.id || event.itemId, 80);
+  const delta = Number(event.delta);
+  const note = cleanText(event.note || event.reason, 180);
+  if (!id || !Number.isFinite(delta) || delta === 0) {
+    return { ok: false, message: "缺少商品 ID 或库存调整数量" };
+  }
+  const existing = await findRecord(collection, "id", id);
+  if (!existing) {
+    return { ok: false, message: "商品不存在" };
+  }
+  const before = inventorySnapshot(existing);
+  const afterStock = before.stock + delta;
+  if (afterStock < before.lockedStock + before.soldStock) {
+    return { ok: false, message: "调整后总库存不能小于已锁定和已售数量" };
+  }
+  await db.collection(collection).doc(existing._id).update({
+    data: {
+      stock: afterStock,
+      updatedAt: db.serverDate()
+    }
+  });
+  await writeInventoryLog({
+    collection,
+    docId: existing._id,
+    itemId: existing.id,
+    itemName: existing.name || existing.title || existing.id,
+    type: "manual_adjust",
+    quantity: delta,
+    beforeStock: before.stock,
+    afterStock,
+    beforeLockedStock: before.lockedStock,
+    afterLockedStock: before.lockedStock,
+    beforeSoldStock: before.soldStock,
+    afterSoldStock: before.soldStock,
+    operator: callerLabel(caller),
+    note
+  });
+  await writeAdminAuditLog(caller, "adjustInventory", {
+    collection,
+    id,
+    delta,
+    beforeStock: before.stock,
+    afterStock,
+    note
+  });
+  return { ok: true, beforeStock: before.stock, afterStock };
+}
+
+async function listAfterSales(event) {
+  const status = cleanText(event.status, 30);
+  const keyword = cleanText(event.keyword, 80);
+  const orders = await readCollection("orders", { orderBy: "createdAt", limit: 300 });
+  const items = orders.filter((order) => {
+    const afterSaleStatus = order.afterSaleStatus || order.afterSale && order.afterSale.status || "";
+    if (!afterSaleStatus && !/退款|售后|异常/.test(String(order.status || ""))) {
+      return false;
+    }
+    if (status && status !== "all" && afterSaleStatus !== status) {
+      return false;
+    }
+    if (!keyword) {
+      return true;
+    }
+    return [
+      order.orderNo,
+      order.consignee,
+      order.name,
+      order.phone,
+      afterSaleStatus,
+      order.afterSaleReason,
+      order.afterSaleNote
+    ].join(" ").includes(keyword);
+  });
+  return { ok: true, orders: items };
+}
+
+async function updateAfterSale(event, caller) {
+  const order = await getOrder(event);
+  if (!order) {
+    return { ok: false, message: "订单不存在" };
+  }
+  const afterSaleStatus = cleanText(event.afterSaleStatus || event.status, 30) || "处理中";
+  const refundAmount = Math.max(0, Number(event.refundAmount) || 0);
+  const afterSaleReason = cleanText(event.reason || event.afterSaleReason, 160);
+  const afterSaleNote = cleanText(event.note || event.afterSaleNote, 300);
+  await db.collection("orders").doc(order._id).update({
+    data: {
+      afterSaleStatus,
+      afterSaleReason,
+      afterSaleNote,
+      refundAmount,
+      afterSaleUpdatedBy: callerLabel(caller),
+      afterSaleUpdatedAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    }
+  });
+  await writeAdminAuditLog(caller, "updateAfterSale", {
+    orderNo: order.orderNo,
+    afterSaleStatus,
+    refundAmount,
+    afterSaleReason
+  });
+  return { ok: true };
 }
 
 function normalizeIdentity(event = {}) {
@@ -1087,6 +1299,21 @@ exports.main = async (event = {}) => {
     }
     if (action === "deleteCustomerData") {
       return await deleteCustomerData(event, caller);
+    }
+    if (action === "listAuditLogs") {
+      return await listAuditLogs(event);
+    }
+    if (action === "listInventoryLogs") {
+      return await listInventoryLogs(event);
+    }
+    if (action === "adjustInventory") {
+      return await adjustInventory(event, caller);
+    }
+    if (action === "listAfterSales") {
+      return await listAfterSales(event);
+    }
+    if (action === "updateAfterSale") {
+      return await updateAfterSale(event, caller);
     }
     if (action === "getAnalytics") {
       return await getAnalytics();
