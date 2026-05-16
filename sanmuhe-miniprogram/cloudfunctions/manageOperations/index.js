@@ -518,20 +518,100 @@ function matchesKeyword(item, keyword) {
   return haystack.indexOf(keyword) >= 0;
 }
 
-async function listCollection(collection, status, keyword) {
+function pageOptions(event = {}) {
+  const page = Math.max(1, Math.floor(Number(event.page) || 1));
+  const pageSize = Math.min(100, Math.max(10, Math.floor(Number(event.pageSize || event.limit) || 20)));
+  return {
+    page,
+    pageSize,
+    offset: (page - 1) * pageSize
+  };
+}
+
+function pageMeta(total, options) {
+  return {
+    page: options.page,
+    pageSize: options.pageSize,
+    total,
+    pageCount: Math.max(1, Math.ceil(total / options.pageSize))
+  };
+}
+
+function paginateArray(items, event = {}) {
+  const options = pageOptions(event);
+  return {
+    items: items.slice(options.offset, options.offset + options.pageSize),
+    page: pageMeta(items.length, options)
+  };
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function keywordCommand(keyword, fields = []) {
+  if (!keyword || !fields.length) {
+    return null;
+  }
+  const regex = db.RegExp({
+    regexp: escapeRegExp(keyword),
+    options: "i"
+  });
+  return _.or(fields.map((field) => ({ [field]: regex })));
+}
+
+function composeWhere(baseWhere = {}, keyword, keywordFields = []) {
+  const clauses = [];
+  if (baseWhere && Object.keys(baseWhere).length) {
+    clauses.push(baseWhere);
+  }
+  const keywordWhere = keywordCommand(keyword, keywordFields);
+  if (keywordWhere) {
+    clauses.push(keywordWhere);
+  }
+  if (clauses.length === 0) {
+    return {};
+  }
+  return clauses.length === 1 ? clauses[0] : _.and(clauses);
+}
+
+async function readCollectionPage(collection, options = {}) {
+  await ensureCollection(collection);
+  const paging = pageOptions(options.event || {});
+  const where = composeWhere(options.where || {}, options.keyword || "", options.keywordFields || []);
+  const base = () => {
+    let query = db.collection(collection);
+    if (where && (Object.keys(where).length || where._internalType)) {
+      query = query.where(where);
+    }
+    return query;
+  };
+  const countResult = await base().count();
+  let query = base();
+  if (options.orderBy) {
+    query = query.orderBy(options.orderBy, options.order || "desc");
+  }
+  const result = await query.skip(paging.offset).limit(paging.pageSize).get();
+  return {
+    items: result.data || [],
+    page: pageMeta(countResult.total || 0, paging)
+  };
+}
+
+async function listCollection(collection, status, keyword, event, keywordFields = []) {
   await ensureCollection(collection);
   const where = {};
   if (status && status !== "all") {
     where.status = status;
   }
-
-  const result = await db.collection(collection)
-    .where(where)
-    .orderBy("createdAt", "desc")
-    .limit(200)
-    .get();
-
-  return (result.data || []).filter((item) => matchesKeyword(item, keyword));
+  const result = await readCollectionPage(collection, {
+    where,
+    keyword,
+    keywordFields,
+    orderBy: "createdAt",
+    event
+  });
+  return result;
 }
 
 async function getByDocId(collection, id) {
@@ -943,9 +1023,9 @@ async function getDashboard() {
 async function listCustomers(event) {
   const keyword = cleanText(event.keyword, 80);
   const [orders, reservations, signups] = await Promise.all([
-    readCollection("orders", { orderBy: "createdAt", limit: 200 }),
-    readCollection("reservations", { orderBy: "createdAt", limit: 200 }),
-    readCollection("event_signups", { orderBy: "createdAt", limit: 200 })
+    readCollection("orders", { orderBy: "createdAt", limit: 1000 }),
+    readCollection("reservations", { orderBy: "createdAt", limit: 1000 }),
+    readCollection("event_signups", { orderBy: "createdAt", limit: 1000 })
   ]);
   const customers = summarizeCustomers(orders, reservations, signups).filter((customer) => {
     if (!keyword) {
@@ -955,9 +1035,11 @@ async function listCustomers(event) {
       .join(" ")
       .includes(keyword);
   });
+  const paged = paginateArray(customers, event);
   return {
     ok: true,
-    customers,
+    customers: paged.items,
+    page: paged.page,
     summary: {
       totalCustomers: customers.length,
       activeCustomers: customers.filter((item) => item.orders + item.reservations + item.signups > 0).length,
@@ -968,65 +1050,46 @@ async function listCustomers(event) {
 
 async function listAuditLogs(event) {
   const keyword = cleanText(event.keyword, 80);
-  const logs = await readCollection("admin_audit_logs", {
+  const result = await readCollectionPage("admin_audit_logs", {
+    keyword,
+    keywordFields: ["action", "adminOpenid", "adminUid"],
     orderBy: "createdAt",
-    limit: 200
+    event
   });
   return {
     ok: true,
-    logs: logs.filter((item) => {
-      if (!keyword) return true;
-      return [
-        item.action,
-        item.adminOpenid,
-        item.adminUid,
-        JSON.stringify(item.detail || {})
-      ].join(" ").includes(keyword);
-    })
+    logs: result.items,
+    page: result.page
   };
 }
 
 async function listInventoryLogs(event) {
   const keyword = cleanText(event.keyword, 80);
-  const logs = await readCollection("inventory_logs", {
+  const result = await readCollectionPage("inventory_logs", {
+    keyword,
+    keywordFields: ["itemName", "itemId", "type", "orderNo", "operator", "note"],
     orderBy: "createdAt",
-    limit: 300
+    event
   });
   return {
     ok: true,
-    logs: logs.filter((item) => {
-      if (!keyword) return true;
-      return [
-        item.itemName,
-        item.itemId,
-        item.type,
-        item.orderNo,
-        item.operator,
-        item.note
-      ].join(" ").includes(keyword);
-    })
+    logs: result.items,
+    page: result.page
   };
 }
 
 async function listNotificationLogs(event) {
   const keyword = cleanText(event.keyword, 80);
-  const logs = await readCollection("notification_logs", {
+  const result = await readCollectionPage("notification_logs", {
+    keyword,
+    keywordFields: ["kind", "openid", "templateId", "status", "reason", "error"],
     orderBy: "createdAt",
-    limit: 300
+    event
   });
   return {
     ok: true,
-    logs: logs.filter((item) => {
-      if (!keyword) return true;
-      return [
-        item.kind,
-        item.openid,
-        item.templateId,
-        item.status,
-        item.reason,
-        item.error
-      ].join(" ").includes(keyword);
-    })
+    logs: result.items,
+    page: result.page
   };
 }
 
@@ -1271,7 +1334,7 @@ async function adjustInventory(event, caller) {
 async function listAfterSales(event) {
   const status = cleanText(event.status, 30);
   const keyword = cleanText(event.keyword, 80);
-  const orders = await readCollection("orders", { orderBy: "createdAt", limit: 300 });
+  const orders = await readCollection("orders", { orderBy: "createdAt", limit: 1000 });
   const items = orders.filter((order) => {
     const afterSaleStatus = order.afterSaleStatus || order.afterSale && order.afterSale.status || "";
     if (!afterSaleStatus && !/退款|售后|异常/.test(String(order.status || ""))) {
@@ -1293,7 +1356,8 @@ async function listAfterSales(event) {
       order.afterSaleNote
     ].join(" ").includes(keyword);
   });
-  return { ok: true, orders: items };
+  const paged = paginateArray(items, event);
+  return { ok: true, orders: paged.items, page: paged.page };
 }
 
 async function updateAfterSale(event, caller) {
@@ -1547,12 +1611,14 @@ async function readBackupCollection(collection, limit) {
   return result.data || [];
 }
 
-async function listBackupLogs() {
-  const logs = await readCollection("data_backup_logs", {
+async function listBackupLogs(event = {}) {
+  const result = await readCollectionPage("data_backup_logs", {
+    keyword: cleanText(event.keyword, 80),
+    keywordFields: ["cloudPath", "status", "operator", "error"],
     orderBy: "createdAt",
-    limit: 100
+    event
   });
-  return { ok: true, logs };
+  return { ok: true, logs: result.items, page: result.page };
 }
 
 async function getBackupDownloadUrl(event, caller) {
@@ -1994,8 +2060,8 @@ exports.main = async (event = {}) => {
       return await getDashboard();
     }
     if (action === "listOrders") {
-      const orders = await listCollection("orders", status, keyword);
-      return { ok: true, orders };
+      const result = await listCollection("orders", status, keyword, event, ["orderNo", "name", "contactName", "consignee", "phone", "mobile", "status"]);
+      return { ok: true, orders: result.items, page: result.page };
     }
     if (action === "cancelOrder") {
       return await cancelOrder(event, caller);
@@ -2007,15 +2073,15 @@ exports.main = async (event = {}) => {
       return await markPickupDone(event, caller);
     }
     if (action === "listReservations") {
-      const reservations = await listCollection("reservations", status, keyword);
-      return { ok: true, reservations };
+      const result = await listCollection("reservations", status, keyword, event, ["room", "roomName", "name", "customerName", "phone", "mobile", "status"]);
+      return { ok: true, reservations: result.items, page: result.page };
     }
     if (action === "updateReservation") {
       return await updateReservation(event, caller);
     }
     if (action === "listSignups") {
-      const signups = await listCollection("event_signups", status, keyword);
-      return { ok: true, signups };
+      const result = await listCollection("event_signups", status, keyword, event, ["eventTitle", "title", "name", "customerName", "phone", "mobile", "status"]);
+      return { ok: true, signups: result.items, page: result.page };
     }
     if (action === "updateSignup") {
       return await updateSignup(event, caller);
@@ -2096,7 +2162,7 @@ exports.main = async (event = {}) => {
       return await saveAdminRole(event, caller);
     }
     if (action === "listBackupLogs") {
-      return await listBackupLogs();
+      return await listBackupLogs(event);
     }
     if (action === "getBackupDownloadUrl") {
       return await getBackupDownloadUrl(event, caller);

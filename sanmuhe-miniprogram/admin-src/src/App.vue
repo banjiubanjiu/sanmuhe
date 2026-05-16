@@ -138,6 +138,7 @@ const quickActions = [
 ];
 
 const fallbackMetricIcons = [CalendarCheck, TicketPercent, BadgeDollarSign, UserPlus, CircleDollarSign];
+const createPageState = () => ({ page: 1, pageSize: 20, total: 0, pageCount: 1 });
 
 const pageTitles = {
   dashboard: ["后台首页", "今日经营、履约状态与高频动作"],
@@ -211,6 +212,17 @@ const state = reactive({
   couponStats: [],
   campaigns: [],
   settings: {},
+  pagination: {
+    orders: createPageState(),
+    afterSales: createPageState(),
+    inventory: createPageState(),
+    reservations: createPageState(),
+    signups: createPageState(),
+    customers: createPageState(),
+    audit: createPageState(),
+    notifications: createPageState(),
+    backups: createPageState()
+  },
   selectedCatalogId: "",
   selectedOrderId: "",
   selectedAfterSaleId: "",
@@ -472,20 +484,20 @@ const currentRecordCount = computed(() => {
   const counts = {
     dashboard: state.summary.length,
     catalog: filteredCatalog.value.length,
-    orders: state.orders.length,
-    afterSales: state.afterSales.length,
-    inventory: state.inventoryLogs.length,
-    reservations: state.reservations.length,
-    signups: state.signups.length,
-    customers: state.customers.length,
+    orders: state.pagination.orders.total || state.orders.length,
+    afterSales: state.pagination.afterSales.total || state.afterSales.length,
+    inventory: state.pagination.inventory.total || state.inventoryLogs.length,
+    reservations: state.pagination.reservations.total || state.reservations.length,
+    signups: state.pagination.signups.total || state.signups.length,
+    customers: state.pagination.customers.total || state.customers.length,
     content: state.contentItems.length,
     analytics: state.analytics?.topItems?.length || 0,
     marketing: state.coupons.length + state.campaigns.length + state.couponStats.length,
-    audit: state.auditLogs.length,
-    notifications: state.notificationLogs.length,
+    audit: state.pagination.audit.total || state.auditLogs.length,
+    notifications: state.pagination.notifications.total || state.notificationLogs.length,
     system: state.systemStatus?.checks?.length || 0,
     roles: state.adminRoles.length,
-    backups: state.backupLogs.length,
+    backups: state.pagination.backups.total || state.backupLogs.length,
     settings: Object.keys(state.settings || {}).length
   };
   return counts[state.activeTab] || 0;
@@ -597,6 +609,56 @@ function customerLatestAt(customer) {
 
 function numberText(value) {
   return Number(value || 0).toLocaleString("zh-CN");
+}
+
+function pageMetaFor(key) {
+  return state.pagination[key] || createPageState();
+}
+
+function pagePayload(key) {
+  const page = pageMetaFor(key);
+  return {
+    page: page.page || 1,
+    pageSize: page.pageSize || 20
+  };
+}
+
+function setPageMeta(key, meta = {}) {
+  if (!state.pagination[key]) {
+    state.pagination[key] = createPageState();
+  }
+  Object.assign(state.pagination[key], {
+    page: Number(meta.page) || 1,
+    pageSize: Number(meta.pageSize) || state.pagination[key].pageSize || 20,
+    total: Number(meta.total) || 0,
+    pageCount: Math.max(1, Number(meta.pageCount) || 1)
+  });
+}
+
+function resetPage(key) {
+  if (!state.pagination[key]) return;
+  state.pagination[key].page = 1;
+}
+
+function resetPageAndLoad(key, loader) {
+  resetPage(key);
+  loader();
+}
+
+function pageRangeText(key) {
+  const page = pageMetaFor(key);
+  if (!page.total) return "0 / 0";
+  const start = (page.page - 1) * page.pageSize + 1;
+  const end = Math.min(page.total, page.page * page.pageSize);
+  return `${numberText(start)}-${numberText(end)} / ${numberText(page.total)}`;
+}
+
+function changePage(key, delta, loader) {
+  const page = pageMetaFor(key);
+  const next = Math.min(Math.max(1, page.page + delta), page.pageCount || 1);
+  if (next === page.page) return;
+  page.page = next;
+  loader();
 }
 
 function metricValue(card) {
@@ -982,9 +1044,11 @@ async function loadOrders() {
     const result = await callFunction("manageOperations", {
       action: "listOrders",
       status: filters.orderStatus,
-      keyword: filters.orderKeyword
+      keyword: filters.orderKeyword,
+      ...pagePayload("orders")
     });
     state.orders = result.orders || [];
+    setPageMeta("orders", result.page);
     state.selectedOrderId = state.orders[0]?._id || "";
   });
 }
@@ -994,9 +1058,11 @@ async function loadAfterSales() {
     const result = await callFunction("manageOperations", {
       action: "listAfterSales",
       status: filters.afterSaleStatus,
-      keyword: filters.afterSaleKeyword
+      keyword: filters.afterSaleKeyword,
+      ...pagePayload("afterSales")
     });
     state.afterSales = result.orders || [];
+    setPageMeta("afterSales", result.page);
     state.selectedAfterSaleId = state.afterSales[0]?._id || "";
     fillAfterSaleForm(selectedAfterSale.value);
   });
@@ -1060,9 +1126,11 @@ async function loadInventoryLogs() {
   await withLoading("读取库存流水", async () => {
     const result = await callFunction("manageOperations", {
       action: "listInventoryLogs",
-      keyword: filters.inventoryKeyword
+      keyword: filters.inventoryKeyword,
+      ...pagePayload("inventory")
     });
     state.inventoryLogs = result.logs || [];
+    setPageMeta("inventory", result.page);
   });
 }
 
@@ -1098,9 +1166,11 @@ async function loadAuditLogs() {
   await withLoading("读取审计日志", async () => {
     const result = await callFunction("manageOperations", {
       action: "listAuditLogs",
-      keyword: filters.auditKeyword
+      keyword: filters.auditKeyword,
+      ...pagePayload("audit")
     });
     state.auditLogs = result.logs || [];
+    setPageMeta("audit", result.page);
     state.selectedAuditLogId = state.auditLogs[0]?._id || "";
   });
 }
@@ -1109,9 +1179,11 @@ async function loadNotificationLogs() {
   await withLoading("读取通知日志", async () => {
     const result = await callFunction("manageOperations", {
       action: "listNotificationLogs",
-      keyword: filters.notificationKeyword
+      keyword: filters.notificationKeyword,
+      ...pagePayload("notifications")
     });
     state.notificationLogs = result.logs || [];
+    setPageMeta("notifications", result.page);
   });
 }
 
@@ -1207,8 +1279,12 @@ async function saveAdminRole() {
 
 async function loadBackupLogs() {
   await withLoading("读取备份", async () => {
-    const result = await callFunction("manageOperations", { action: "listBackupLogs" });
+    const result = await callFunction("manageOperations", {
+      action: "listBackupLogs",
+      ...pagePayload("backups")
+    });
     state.backupLogs = result.logs || [];
+    setPageMeta("backups", result.page);
   });
 }
 
@@ -1242,9 +1318,11 @@ async function loadReservations() {
     const result = await callFunction("manageOperations", {
       action: "listReservations",
       status: filters.reservationStatus,
-      keyword: filters.reservationKeyword
+      keyword: filters.reservationKeyword,
+      ...pagePayload("reservations")
     });
     state.reservations = result.reservations || [];
+    setPageMeta("reservations", result.page);
     state.selectedReservationId = state.reservations[0]?._id || "";
   });
 }
@@ -1260,9 +1338,11 @@ async function loadSignups() {
     const result = await callFunction("manageOperations", {
       action: "listSignups",
       status: filters.signupStatus,
-      keyword: filters.signupKeyword
+      keyword: filters.signupKeyword,
+      ...pagePayload("signups")
     });
     state.signups = result.signups || [];
+    setPageMeta("signups", result.page);
     state.selectedSignupId = state.signups[0]?._id || "";
   });
 }
@@ -1271,9 +1351,11 @@ async function loadCustomers() {
   await withLoading("读取用户", async () => {
     const result = await callFunction("manageOperations", {
       action: "listCustomers",
-      keyword: filters.customerKeyword
+      keyword: filters.customerKeyword,
+      ...pagePayload("customers")
     });
     state.customers = result.customers || [];
+    setPageMeta("customers", result.page);
     state.selectedCustomerId = state.customers[0]?.id || "";
   });
 }
@@ -1615,6 +1697,7 @@ function globalSearch() {
   if (state.activeTab === "catalog") filters.catalog = keyword;
   if (state.activeTab === "audit") filters.auditKeyword = keyword;
   if (state.activeTab === "notifications") filters.notificationKeyword = keyword;
+  resetPage(state.activeTab === "inventory" ? "inventory" : state.activeTab);
   loadActiveTab();
 }
 
@@ -1641,6 +1724,8 @@ function clearActiveFilters() {
   if (state.activeTab === "content") state.contentType = "home_carousel";
   if (state.activeTab === "audit") filters.auditKeyword = "";
   if (state.activeTab === "notifications") filters.notificationKeyword = "";
+  const pageKey = state.activeTab === "inventory" ? "inventory" : state.activeTab;
+  resetPage(pageKey);
   loadActiveTab();
 }
 
@@ -2017,11 +2102,11 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'orders'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <select v-model="filters.orderStatus" class="line-input" @change="loadOrders">
+              <select v-model="filters.orderStatus" class="line-input" @change="resetPageAndLoad('orders', loadOrders)">
                 <option value="">全部状态</option>
                 <option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
-              <input v-model="filters.orderKeyword" class="line-input" placeholder="订单号、姓名、手机号" @keydown.enter="loadOrders">
+              <input v-model="filters.orderKeyword" class="line-input" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
               <button class="secondary-action small" type="button" @click="exportOrders">导出 CSV</button>
             </div>
             <div class="record-list">
@@ -2033,6 +2118,11 @@ onMounted(async () => {
                 <strong>{{ emptyTitle('orders') }}</strong>
                 <span>{{ emptyHint('orders') }}</span>
               </div>
+            </div>
+            <div v-if="pageMetaFor('orders').total > pageMetaFor('orders').pageSize" class="pager">
+              <span>{{ pageRangeText('orders') }}</span>
+              <button type="button" :disabled="pageMetaFor('orders').page <= 1" @click="changePage('orders', -1, loadOrders)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('orders').page >= pageMetaFor('orders').pageCount" @click="changePage('orders', 1, loadOrders)">下一页</button>
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="selectedOrder">
@@ -2081,11 +2171,11 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'afterSales'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <select v-model="filters.afterSaleStatus" class="line-input" @change="loadAfterSales">
+              <select v-model="filters.afterSaleStatus" class="line-input" @change="resetPageAndLoad('afterSales', loadAfterSales)">
                 <option value="">全部售后</option>
                 <option>申请售后</option><option>审核中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option>
               </select>
-              <input v-model="filters.afterSaleKeyword" class="line-input" placeholder="订单号、姓名、手机号、原因" @keydown.enter="loadAfterSales">
+              <input v-model="filters.afterSaleKeyword" class="line-input" placeholder="订单号、姓名、手机号、原因" @keydown.enter="resetPageAndLoad('afterSales', loadAfterSales)">
             </div>
             <div class="record-list">
               <button
@@ -2102,6 +2192,11 @@ onMounted(async () => {
                 <strong>{{ emptyTitle('afterSales') }}</strong>
                 <span>{{ emptyHint('afterSales') }}</span>
               </div>
+            </div>
+            <div v-if="pageMetaFor('afterSales').total > pageMetaFor('afterSales').pageSize" class="pager">
+              <span>{{ pageRangeText('afterSales') }}</span>
+              <button type="button" :disabled="pageMetaFor('afterSales').page <= 1" @click="changePage('afterSales', -1, loadAfterSales)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('afterSales').page >= pageMetaFor('afterSales').pageCount" @click="changePage('afterSales', 1, loadAfterSales)">下一页</button>
             </div>
           </article>
           <aside class="panel-card editor-panel" v-if="selectedAfterSale">
@@ -2132,8 +2227,8 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'inventory'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.inventoryKeyword" class="line-input" placeholder="商品、订单号、类型、备注" @keydown.enter="loadInventoryLogs">
-              <button class="secondary-action small" type="button" @click="loadInventoryLogs">筛选</button>
+              <input v-model="filters.inventoryKeyword" class="line-input" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
+              <button class="secondary-action small" type="button" @click="resetPageAndLoad('inventory', loadInventoryLogs)">筛选</button>
               <button class="secondary-action small" type="button" @click="exportInventoryLogs">导出 CSV</button>
             </div>
             <div class="table-wrap">
@@ -2156,6 +2251,11 @@ onMounted(async () => {
               <strong>{{ emptyTitle('inventory') }}</strong>
               <span>{{ emptyHint('inventory') }}</span>
             </div>
+            <div v-if="pageMetaFor('inventory').total > pageMetaFor('inventory').pageSize" class="pager">
+              <span>{{ pageRangeText('inventory') }}</span>
+              <button type="button" :disabled="pageMetaFor('inventory').page <= 1" @click="changePage('inventory', -1, loadInventoryLogs)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('inventory').page >= pageMetaFor('inventory').pageCount" @click="changePage('inventory', 1, loadInventoryLogs)">下一页</button>
+            </div>
           </article>
           <aside class="panel-card editor-panel">
             <div class="panel-title"><h2>人工调整库存</h2></div>
@@ -2173,14 +2273,14 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'reservations' || state.activeTab === 'signups'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <select v-if="state.activeTab === 'reservations'" v-model="filters.reservationStatus" class="line-input" @change="loadReservations">
+              <select v-if="state.activeTab === 'reservations'" v-model="filters.reservationStatus" class="line-input" @change="resetPageAndLoad('reservations', loadReservations)">
                 <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已完成</option><option>已取消</option>
               </select>
-              <select v-else v-model="filters.signupStatus" class="line-input" @change="loadSignups">
+              <select v-else v-model="filters.signupStatus" class="line-input" @change="resetPageAndLoad('signups', loadSignups)">
                 <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已到场</option><option>未到场</option><option>已完成</option><option>已取消</option>
               </select>
-              <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" placeholder="茶室、姓名、手机号" @keydown.enter="loadReservations">
-              <input v-else v-model="filters.signupKeyword" class="line-input" placeholder="活动、姓名、手机号" @keydown.enter="loadSignups">
+              <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" placeholder="茶室、姓名、手机号" @keydown.enter="resetPageAndLoad('reservations', loadReservations)">
+              <input v-else v-model="filters.signupKeyword" class="line-input" placeholder="活动、姓名、手机号" @keydown.enter="resetPageAndLoad('signups', loadSignups)">
               <button v-if="state.activeTab === 'reservations'" class="secondary-action small" type="button" @click="exportReservations">导出 CSV</button>
               <button v-else class="secondary-action small" type="button" @click="exportSignups">导出 CSV</button>
             </div>
@@ -2217,6 +2317,16 @@ onMounted(async () => {
                 <strong>{{ emptyTitle(state.activeTab) }}</strong>
                 <span>{{ emptyHint(state.activeTab) }}</span>
               </div>
+            </div>
+            <div v-if="state.activeTab === 'reservations' && pageMetaFor('reservations').total > pageMetaFor('reservations').pageSize" class="pager">
+              <span>{{ pageRangeText('reservations') }}</span>
+              <button type="button" :disabled="pageMetaFor('reservations').page <= 1" @click="changePage('reservations', -1, loadReservations)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('reservations').page >= pageMetaFor('reservations').pageCount" @click="changePage('reservations', 1, loadReservations)">下一页</button>
+            </div>
+            <div v-if="state.activeTab === 'signups' && pageMetaFor('signups').total > pageMetaFor('signups').pageSize" class="pager">
+              <span>{{ pageRangeText('signups') }}</span>
+              <button type="button" :disabled="pageMetaFor('signups').page <= 1" @click="changePage('signups', -1, loadSignups)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('signups').page >= pageMetaFor('signups').pageCount" @click="changePage('signups', 1, loadSignups)">下一页</button>
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="state.activeTab === 'reservations' ? selectedReservation : selectedSignup">
@@ -2272,7 +2382,7 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'customers'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="loadCustomers">
+              <input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
               <button class="secondary-action small" type="button" @click="exportCustomers">导出 CSV</button>
             </div>
             <div class="record-list">
@@ -2284,6 +2394,11 @@ onMounted(async () => {
                 <strong>{{ emptyTitle('customers') }}</strong>
                 <span>{{ emptyHint('customers') }}</span>
               </div>
+            </div>
+            <div v-if="pageMetaFor('customers').total > pageMetaFor('customers').pageSize" class="pager">
+              <span>{{ pageRangeText('customers') }}</span>
+              <button type="button" :disabled="pageMetaFor('customers').page <= 1" @click="changePage('customers', -1, loadCustomers)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('customers').page >= pageMetaFor('customers').pageCount" @click="changePage('customers', 1, loadCustomers)">下一页</button>
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="selectedCustomer">
@@ -2424,8 +2539,8 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'audit'" class="split-panel">
           <article class="panel-card data-panel audit-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="loadAuditLogs">
-              <button class="secondary-action small" type="button" @click="loadAuditLogs">筛选</button>
+              <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="resetPageAndLoad('audit', loadAuditLogs)">
+              <button class="secondary-action small" type="button" @click="resetPageAndLoad('audit', loadAuditLogs)">筛选</button>
               <button class="secondary-action small" type="button" @click="exportAuditLogs">导出 CSV</button>
             </div>
             <div class="table-wrap">
@@ -2445,6 +2560,11 @@ onMounted(async () => {
             <div v-if="state.auditLogs.length === 0" class="empty-state rich-empty">
               <strong>{{ emptyTitle('audit') }}</strong>
               <span>{{ emptyHint('audit') }}</span>
+            </div>
+            <div v-if="pageMetaFor('audit').total > pageMetaFor('audit').pageSize" class="pager">
+              <span>{{ pageRangeText('audit') }}</span>
+              <button type="button" :disabled="pageMetaFor('audit').page <= 1" @click="changePage('audit', -1, loadAuditLogs)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('audit').page >= pageMetaFor('audit').pageCount" @click="changePage('audit', 1, loadAuditLogs)">下一页</button>
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="selectedAuditLog">
@@ -2471,8 +2591,8 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'notifications'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.notificationKeyword" class="line-input" placeholder="类型、OpenID、模板、原因" @keydown.enter="loadNotificationLogs">
-              <button class="secondary-action small" type="button" @click="loadNotificationLogs">筛选</button>
+              <input v-model="filters.notificationKeyword" class="line-input" placeholder="类型、OpenID、模板、原因" @keydown.enter="resetPageAndLoad('notifications', loadNotificationLogs)">
+              <button class="secondary-action small" type="button" @click="resetPageAndLoad('notifications', loadNotificationLogs)">筛选</button>
               <button class="secondary-action small" type="button" @click="exportNotificationLogs">导出 CSV</button>
             </div>
             <div class="table-wrap">
@@ -2493,6 +2613,11 @@ onMounted(async () => {
             <div v-if="state.notificationLogs.length === 0" class="empty-state rich-empty">
               <strong>{{ emptyTitle('notifications') }}</strong>
               <span>{{ emptyHint('notifications') }}</span>
+            </div>
+            <div v-if="pageMetaFor('notifications').total > pageMetaFor('notifications').pageSize" class="pager">
+              <span>{{ pageRangeText('notifications') }}</span>
+              <button type="button" :disabled="pageMetaFor('notifications').page <= 1" @click="changePage('notifications', -1, loadNotificationLogs)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('notifications').page >= pageMetaFor('notifications').pageCount" @click="changePage('notifications', 1, loadNotificationLogs)">下一页</button>
             </div>
           </article>
           <aside v-if="hasPermission('notification.write')" class="panel-card editor-panel">
@@ -2591,6 +2716,11 @@ onMounted(async () => {
             <div v-if="state.backupLogs.length === 0" class="empty-state rich-empty">
               <strong>{{ emptyTitle('backups') }}</strong>
               <span>{{ emptyHint('backups') }}</span>
+            </div>
+            <div v-if="pageMetaFor('backups').total > pageMetaFor('backups').pageSize" class="pager">
+              <span>{{ pageRangeText('backups') }}</span>
+              <button type="button" :disabled="pageMetaFor('backups').page <= 1" @click="changePage('backups', -1, loadBackupLogs)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('backups').page >= pageMetaFor('backups').pageCount" @click="changePage('backups', 1, loadBackupLogs)">下一页</button>
             </div>
           </article>
           <aside class="panel-card editor-panel">
