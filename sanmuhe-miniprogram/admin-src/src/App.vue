@@ -2695,7 +2695,7 @@ onMounted(async () => {
                   {{ item.label }}
                 </button>
               </div>
-              <input v-model="filters.catalog" class="line-input" placeholder="筛选名称、分类、状态">
+              <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="筛选名称、分类、状态">
             </div>
             <div class="table-wrap">
               <table>
@@ -2761,11 +2761,11 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'orders'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <select v-model="filters.orderStatus" class="line-input" @change="resetPageAndLoad('orders', loadOrders)">
+              <select v-model="filters.orderStatus" class="line-input" aria-label="筛选订单状态" @change="resetPageAndLoad('orders', loadOrders)">
                 <option value="">全部状态</option>
                 <option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
-              <input v-model="filters.orderKeyword" class="line-input" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
+              <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
@@ -2837,11 +2837,11 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'afterSales'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <select v-model="filters.afterSaleStatus" class="line-input" @change="resetPageAndLoad('afterSales', loadAfterSales)">
+              <select v-model="filters.afterSaleStatus" class="line-input" aria-label="筛选售后状态" @change="resetPageAndLoad('afterSales', loadAfterSales)">
                 <option value="">全部售后</option>
                 <option>申请售后</option><option>审核中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option>
               </select>
-              <input v-model="filters.afterSaleKeyword" class="line-input" placeholder="订单号、姓名、手机号、原因" @keydown.enter="resetPageAndLoad('afterSales', loadAfterSales)">
+              <input v-model="filters.afterSaleKeyword" class="line-input" aria-label="搜索售后记录" placeholder="订单号、姓名、手机号、原因" @keydown.enter="resetPageAndLoad('afterSales', loadAfterSales)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportAfterSales">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
@@ -2901,7 +2901,7 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'inventory'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.inventoryKeyword" class="line-input" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
+              <input v-model="filters.inventoryKeyword" class="line-input" aria-label="搜索库存流水" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('inventory', loadInventoryLogs)">筛选</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportInventoryLogs">{{ exportScopeLabel }}</button>
             </div>
@@ -2944,14 +2944,14 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'reservations' || state.activeTab === 'signups'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <select v-if="state.activeTab === 'reservations'" v-model="filters.reservationStatus" class="line-input" @change="resetPageAndLoad('reservations', loadReservations)">
+              <select v-if="state.activeTab === 'reservations'" v-model="filters.reservationStatus" class="line-input" aria-label="筛选预约状态" @change="resetPageAndLoad('reservations', loadReservations)">
                 <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已完成</option><option>已取消</option>
               </select>
-              <select v-else v-model="filters.signupStatus" class="line-input" @change="resetPageAndLoad('signups', loadSignups)">
+              <select v-else v-model="filters.signupStatus" class="line-input" aria-label="筛选报名状态" @change="resetPageAndLoad('signups', loadSignups)">
                 <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已到场</option><option>未到场</option><option>已完成</option><option>已取消</option>
               </select>
-              <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" placeholder="茶室、姓名、手机号" @keydown.enter="resetPageAndLoad('reservations', loadReservations)">
-              <input v-else v-model="filters.signupKeyword" class="line-input" placeholder="活动、姓名、手机号" @keydown.enter="resetPageAndLoad('signups', loadSignups)">
+              <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" aria-label="搜索茶室预约" placeholder="茶室、姓名、手机号" @keydown.enter="resetPageAndLoad('reservations', loadReservations)">
+              <input v-else v-model="filters.signupKeyword" class="line-input" aria-label="搜索活动报名" placeholder="活动、姓名、手机号" @keydown.enter="resetPageAndLoad('signups', loadSignups)">
               <button v-if="state.activeTab === 'reservations' && hasPermission('export.read')" class="secondary-action small" type="button" @click="exportReservations">{{ exportScopeLabel }}</button>
               <button v-else-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportSignups">{{ exportScopeLabel }}</button>
             </div>
@@ -3057,7 +3057,7 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'customers'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
+              <input v-model="filters.customerKeyword" class="line-input" aria-label="搜索用户" placeholder="姓名、手机号、OpenID" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportCustomers">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
@@ -3265,7 +3265,7 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'audit'" class="split-panel">
           <article class="panel-card data-panel audit-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="resetPageAndLoad('audit', loadAuditLogs)">
+              <input v-model="filters.auditKeyword" class="line-input" aria-label="搜索审计日志" placeholder="动作、管理员、详情" @keydown.enter="resetPageAndLoad('audit', loadAuditLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('audit', loadAuditLogs)">筛选</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportAuditLogs">{{ exportScopeLabel }}</button>
             </div>
@@ -3314,7 +3314,7 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'notifications'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.notificationKeyword" class="line-input" placeholder="类型、OpenID、模板、原因" @keydown.enter="resetPageAndLoad('notifications', loadNotificationLogs)">
+              <input v-model="filters.notificationKeyword" class="line-input" aria-label="搜索通知日志" placeholder="类型、OpenID、模板、原因" @keydown.enter="resetPageAndLoad('notifications', loadNotificationLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('notifications', loadNotificationLogs)">筛选</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportNotificationLogs">{{ exportScopeLabel }}</button>
             </div>
