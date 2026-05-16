@@ -1051,7 +1051,7 @@ async function listAuditLogs(event) {
   const keyword = cleanText(event.keyword, 80);
   const result = await readCollectionPage("admin_audit_logs", {
     keyword,
-    keywordFields: ["action", "adminOpenid", "adminUid"],
+    keywordFields: ["action", "adminOpenid", "adminUid", "detailText"],
     orderBy: "createdAt",
     event
   });
@@ -1458,6 +1458,7 @@ async function removeDocs(collection, docs) {
 }
 
 async function writeAdminAuditLog(caller, action, detail) {
+  const detailText = cleanText(JSON.stringify(detail || {}), 1000);
   await ensureCollection("admin_audit_logs");
   await db.collection("admin_audit_logs").add({
     data: {
@@ -1465,6 +1466,7 @@ async function writeAdminAuditLog(caller, action, detail) {
       adminOpenid: maskOpenid(caller.openid),
       adminUid: caller.uid ? maskOpenid(caller.uid) : "",
       detail,
+      detailText,
       createdAt: db.serverDate()
     }
   });
