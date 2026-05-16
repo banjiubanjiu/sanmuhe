@@ -74,10 +74,78 @@ function verifyBuiltAdminAssets() {
   console.log(`[admin:verify] built admin assets exist and each asset is under 2MB`);
 }
 
+function verifySourceContains(file, groups) {
+  const path = join(root, file);
+  if (!existsSync(path)) {
+    fail(`${file} missing`);
+  }
+  const source = readFileSync(path, "utf8");
+  for (const group of groups) {
+    const missing = group.items.filter((item) => !source.includes(item));
+    if (missing.length) {
+      fail(`${file} missing ${group.label}: ${missing.join(", ")}`);
+    }
+  }
+  console.log(`[admin:verify] ${file} covers ${groups.length} production surface groups`);
+}
+
+function verifyProductionSurfaces() {
+  verifySourceContains("cloudfunctions/manageOperations/index.js", [
+    {
+      label: "permissions and audit",
+      items: ["const actionPermissions", "writeAdminAuditLog", "writeExportAuditLog", "导出 CSV 需填写原因"]
+    },
+    {
+      label: "commercial admin workflows",
+      items: ["globalSearch", "listBackupLogs", "createDataBackup", "deleteCustomerData", "exportCustomerData", "adjustInventory"]
+    },
+    {
+      label: "server-side operation guards",
+      items: ["allowedStatuses", "标记发货需填写快递单号", "人工调整库存需填写原因"]
+    },
+    {
+      label: "customer operation context",
+      items: ["recentActivity", "customer.recentActivity.push"]
+    }
+  ]);
+
+  verifySourceContains("admin-src/src/App.vue", [
+    {
+      label: "core production tabs",
+      items: ["afterSales", "inventory", "audit", "notifications", "roles", "backups", "system"]
+    },
+    {
+      label: "search export and calendar workflows",
+      items: ["globalSearch", "exportOrders", "exportReservations", "exportSignups", "exportCustomers", "exportAuditLogs", "exportNotificationLogs", "reservationCalendarRows"]
+    },
+    {
+      label: "risk controls and customer context",
+      items: ["requireTypedConfirm", "promptActionReason", "customerTimeline", "exportScopeLabel"]
+    },
+    {
+      label: "professional state handling",
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner"]
+    }
+  ]);
+
+  verifySourceContains("admin-src/src/styles.css", [
+    {
+      label: "professional loading and empty states",
+      items: [".sync-banner", ".sync-skeleton", ".empty-action", ".rich-empty"]
+    },
+    {
+      label: "responsive admin shell",
+      items: ["@media (max-width: 1120px)", "@media (max-width: 860px)", ".global-search-panel"]
+    }
+  ]);
+}
+
 console.log("[admin:verify] checking cloud function syntax");
 for (const entrypoint of listFunctionEntrypoints()) {
   run(process.execPath, ["--check", rel(entrypoint)]);
 }
+
+verifyProductionSurfaces();
 
 console.log("[admin:verify] building admin");
 run("npm", ["run", "admin:build"]);
