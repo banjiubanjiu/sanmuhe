@@ -1798,6 +1798,10 @@ async function deleteCustomerData(event, caller) {
   if (!identity.openid && !identity.phone) {
     return { ok: false, message: "缺少可定位用户的 OpenID 或手机号" };
   }
+  const reason = cleanText(event.reason, 200);
+  if (!reason) {
+    return { ok: false, message: "删除个人数据需填写原因" };
+  }
 
   const recordFields = {
     openid: ["_openid", "openid"],
@@ -1857,6 +1861,7 @@ async function deleteCustomerData(event, caller) {
   await writeAdminAuditLog(caller, "deleteCustomerData", {
     openid: maskOpenid(identity.openid),
     phone: maskPhone(identity.phone),
+    reason,
     counts
   });
 
@@ -1867,6 +1872,10 @@ async function exportCustomerData(event, caller) {
   const identity = normalizeIdentity(event);
   if (!identity.openid && !identity.phone) {
     return { ok: false, message: "缺少可定位用户的 OpenID 或手机号" };
+  }
+  const reason = cleanText(event.reason, 200);
+  if (!reason) {
+    return { ok: false, message: "导出用户数据需填写原因" };
   }
 
   const recordFields = {
@@ -1897,6 +1906,7 @@ async function exportCustomerData(event, caller) {
   await writeAdminAuditLog(caller, "exportCustomerData", {
     openid: maskOpenid(identity.openid),
     phone: maskPhone(identity.phone),
+    reason,
     counts: {
       orders: orders.length,
       reservations: reservations.length,

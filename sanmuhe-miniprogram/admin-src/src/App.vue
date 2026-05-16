@@ -1396,12 +1396,15 @@ async function deleteCustomerData(customer) {
   const name = customerDisplayName(customer);
   const confirmed = requireTypedConfirm(`确认删除/匿名化 ${name} 的个人信息？订单、预约、报名会保留经营记录，但姓名、手机号、地址、备注和用户关联会被清空。`, customer.phone || customer.id);
   if (!confirmed) return;
+  const reason = promptActionReason(`删除/匿名化 ${name} 的个人数据`);
+  if (!reason) return;
   await withLoading("删除用户数据", async () => {
     const result = await callFunction("manageOperations", {
       action: "deleteCustomerData",
       customerId: customer.id,
       openid: customer.openid,
-      phone: customer.phone
+      phone: customer.phone,
+      reason
     });
     const counts = result.counts || {};
     const total = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
@@ -1412,12 +1415,16 @@ async function deleteCustomerData(customer) {
 
 async function exportCustomerData(customer) {
   if (!customer) return;
+  const name = customerDisplayName(customer);
+  const reason = promptActionReason(`导出 ${name} 的个人数据`);
+  if (!reason) return;
   await withLoading("导出用户数据", async () => {
     const result = await callFunction("manageOperations", {
       action: "exportCustomerData",
       customerId: customer.id,
       openid: customer.openid,
-      phone: customer.phone
+      phone: customer.phone,
+      reason
     });
     const data = result.data || {};
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
