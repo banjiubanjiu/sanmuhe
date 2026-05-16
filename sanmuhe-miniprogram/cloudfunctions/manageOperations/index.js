@@ -77,6 +77,28 @@ function assertPhoneText(value, label) {
   }
 }
 
+function assertOptionalNumber(value, label, options = {}) {
+  if (value === undefined || value === null || value === "") {
+    return;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    const error = new Error(`${label}必须是数字`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  if (options.min !== undefined && number < options.min) {
+    const error = new Error(`${label}不能小于 ${options.min}`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  if (options.max !== undefined && number > options.max) {
+    const error = new Error(`${label}不能大于 ${options.max}`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+}
+
 function cleanId(value, prefix) {
   const raw = cleanText(value, 80)
     .replace(/[^\w-]/g, "-")
@@ -2096,10 +2118,42 @@ async function getSettings() {
   };
 }
 
+function validateSettingsInput(data = {}, payload = {}) {
+  [
+    ["memberPointRate", "积分倍率", 0, undefined],
+    ["levelOneMinSpend", "一档会员门槛", 0, undefined],
+    ["levelTwoMinSpend", "二档会员门槛", 0, undefined],
+    ["levelThreeMinSpend", "三档会员门槛", 0, undefined],
+    ["levelOneDiscountRate", "一档会员折扣", 0.01, 1],
+    ["levelTwoDiscountRate", "二档会员折扣", 0.01, 1],
+    ["levelThreeDiscountRate", "三档会员折扣", 0.01, 1]
+  ].forEach(([field, label, min, max]) => {
+    assertOptionalNumber(data[field], label, { min, max });
+  });
+  if (payload.levelTwoMinSpend < payload.levelOneMinSpend || payload.levelThreeMinSpend < payload.levelTwoMinSpend) {
+    const error = new Error("会员等级门槛需按一档、二档、三档递增");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  if (payload.levelTwoDiscountRate > payload.levelOneDiscountRate || payload.levelThreeDiscountRate > payload.levelTwoDiscountRate) {
+    const error = new Error("高等级会员折扣率不能高于低等级会员");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  [
+    ["orderPaidPage", "支付成功跳转页"],
+    ["orderShippedPage", "发货通知跳转页"],
+    ["reservationNoticePage", "预约通知跳转页"],
+    ["eventNoticePage", "活动通知跳转页"]
+  ].forEach(([field, label]) => assertSafeTextRef(payload[field], label));
+}
+
 async function updateSettings(event, caller) {
   const existing = await findRecord("store_settings", "key", "store");
-  const payload = normalizeSettings(event.data || {});
+  const data = event.data || {};
+  const payload = normalizeSettings(data);
   assertPhoneText(payload.phone, "门店电话");
+  validateSettingsInput(data, payload);
   await upsertRecord("store_settings", "key", "store", payload);
   await writeAdminAuditLog(caller, "updateSettings", {
     brandName: payload.brandName,
