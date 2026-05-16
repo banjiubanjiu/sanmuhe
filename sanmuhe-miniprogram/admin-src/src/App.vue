@@ -139,6 +139,8 @@ const quickActions = [
 
 const fallbackMetricIcons = [CalendarCheck, TicketPercent, BadgeDollarSign, UserPlus, CircleDollarSign];
 const createPageState = () => ({ page: 1, pageSize: 20, total: 0, pageCount: 1 });
+const EXPORT_PAGE_SIZE = 100;
+const EXPORT_MAX_ROWS = 5000;
 
 const pageTitles = {
   dashboard: ["后台首页", "今日经营、履约状态与高频动作"],
@@ -1465,89 +1467,197 @@ function downloadCsv(filename, columns, rows) {
   URL.revokeObjectURL(url);
 }
 
-function exportOrders() {
-  downloadCsv("hexi-orders.csv", [
-    { label: "订单号", value: (item) => item.orderNo || item._id },
-    { label: "状态", value: (item) => item.status || "" },
-    { label: "支付", value: (item) => item.payStatus || "" },
-    { label: "金额", value: (item) => money(item.total) },
-    { label: "客户", value: (item) => item.name || item.contactName || item.consignee || "" },
-    { label: "手机号", value: (item) => item.phone || item.mobile || "" },
-    { label: "创建时间", value: (item) => formatDate(item.createdAt) }
-  ], state.orders);
+function csvFilename(name) {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return `hexi-${name}-${stamp}.csv`;
 }
 
-function exportReservations() {
-  downloadCsv("hexi-reservations.csv", [
-    { label: "茶室", value: (item) => item.roomName || item.room || "" },
-    { label: "客户", value: (item) => item.name || item.customerName || "" },
-    { label: "手机号", value: (item) => item.phone || item.mobile || "" },
-    { label: "日期", value: (item) => item.day || item.date || "" },
-    { label: "时段", value: (item) => item.time || item.slot || "" },
-    { label: "人数", value: (item) => item.people || item.count || "" },
-    { label: "状态", value: (item) => item.status || "" }
-  ], state.reservations);
+async function fetchExportRows({ action, rowsKey, label, payload = {} }) {
+  let rows = [];
+  let page = 1;
+  let pageCount = 1;
+  do {
+    const result = await callFunction("manageOperations", {
+      action,
+      ...payload,
+      page,
+      pageSize: EXPORT_PAGE_SIZE
+    });
+    const nextRows = result[rowsKey] || [];
+    const meta = result.page || {};
+    if (page === 1 && Number(meta.total || 0) > EXPORT_MAX_ROWS) {
+      throw new Error(`当前筛选有 ${numberText(meta.total)} 条${label}，单次导出上限 ${numberText(EXPORT_MAX_ROWS)} 条，请先缩小筛选条件。`);
+    }
+    rows = rows.concat(nextRows);
+    pageCount = Number(meta.pageCount) || 1;
+    page += 1;
+  } while (page <= pageCount && rows.length < EXPORT_MAX_ROWS);
+  return rows;
 }
 
-function exportSignups() {
-  downloadCsv("hexi-signups.csv", [
-    { label: "活动", value: (item) => item.eventTitle || item.title || "" },
-    { label: "客户", value: (item) => item.name || item.customerName || "" },
-    { label: "手机号", value: (item) => item.phone || item.mobile || "" },
-    { label: "日期", value: (item) => item.date || "" },
-    { label: "时段", value: (item) => item.time || "" },
-    { label: "状态", value: (item) => item.status || "" }
-  ], state.signups);
+async function exportOrders() {
+  await withLoading("导出订单", async () => {
+    const rows = await fetchExportRows({
+      action: "listOrders",
+      rowsKey: "orders",
+      label: "订单",
+      payload: {
+        status: filters.orderStatus,
+        keyword: filters.orderKeyword
+      }
+    });
+    downloadCsv(csvFilename("orders"), [
+      { label: "订单号", value: (item) => item.orderNo || item._id },
+      { label: "状态", value: (item) => item.status || "" },
+      { label: "支付", value: (item) => item.payStatus || "" },
+      { label: "金额", value: (item) => money(item.total) },
+      { label: "客户", value: (item) => item.name || item.contactName || item.consignee || "" },
+      { label: "手机号", value: (item) => item.phone || item.mobile || "" },
+      { label: "创建时间", value: (item) => formatDate(item.createdAt) }
+    ], rows);
+    showToast(`已导出 ${numberText(rows.length)} 条订单`);
+  });
 }
 
-function exportCustomers() {
-  downloadCsv("hexi-customers.csv", [
-    { label: "标识", value: (item) => item.openid || item.id || "" },
-    { label: "姓名", value: (item) => item.name || "" },
-    { label: "手机号", value: (item) => item.phone || "" },
-    { label: "订单数", value: (item) => item.orders || 0 },
-    { label: "预约数", value: (item) => item.reservations || 0 },
-    { label: "报名数", value: (item) => item.signups || 0 },
-    { label: "消费", value: (item) => money(customerSpend(item)) },
-    { label: "标签", value: (item) => Array.isArray(item.tags) ? item.tags.join(" ") : item.tag || "" }
-  ], state.customers);
+async function exportReservations() {
+  await withLoading("导出预约", async () => {
+    const rows = await fetchExportRows({
+      action: "listReservations",
+      rowsKey: "reservations",
+      label: "预约",
+      payload: {
+        status: filters.reservationStatus,
+        keyword: filters.reservationKeyword
+      }
+    });
+    downloadCsv(csvFilename("reservations"), [
+      { label: "茶室", value: (item) => item.roomName || item.room || "" },
+      { label: "客户", value: (item) => item.name || item.customerName || "" },
+      { label: "手机号", value: (item) => item.phone || item.mobile || "" },
+      { label: "日期", value: (item) => item.day || item.date || "" },
+      { label: "时段", value: (item) => item.time || item.slot || "" },
+      { label: "人数", value: (item) => item.people || item.count || "" },
+      { label: "状态", value: (item) => item.status || "" }
+    ], rows);
+    showToast(`已导出 ${numberText(rows.length)} 条预约`);
+  });
 }
 
-function exportInventoryLogs() {
-  downloadCsv("hexi-inventory-logs.csv", [
-    { label: "时间", value: (item) => formatDate(item.createdAt) },
-    { label: "商品", value: (item) => item.itemName || item.itemId || "" },
-    { label: "集合", value: (item) => item.collection || "" },
-    { label: "类型", value: (item) => item.type || "" },
-    { label: "数量", value: (item) => item.quantity || 0 },
-    { label: "库存前", value: (item) => item.beforeStock ?? "" },
-    { label: "库存后", value: (item) => item.afterStock ?? "" },
-    { label: "订单号", value: (item) => item.orderNo || "" },
-    { label: "操作人", value: (item) => item.operator || "" },
-    { label: "备注", value: (item) => item.note || "" }
-  ], state.inventoryLogs);
+async function exportSignups() {
+  await withLoading("导出报名", async () => {
+    const rows = await fetchExportRows({
+      action: "listSignups",
+      rowsKey: "signups",
+      label: "报名",
+      payload: {
+        status: filters.signupStatus,
+        keyword: filters.signupKeyword
+      }
+    });
+    downloadCsv(csvFilename("signups"), [
+      { label: "活动", value: (item) => item.eventTitle || item.title || "" },
+      { label: "客户", value: (item) => item.name || item.customerName || "" },
+      { label: "手机号", value: (item) => item.phone || item.mobile || "" },
+      { label: "日期", value: (item) => item.date || "" },
+      { label: "时段", value: (item) => item.time || "" },
+      { label: "状态", value: (item) => item.status || "" }
+    ], rows);
+    showToast(`已导出 ${numberText(rows.length)} 条报名`);
+  });
 }
 
-function exportAuditLogs() {
-  downloadCsv("hexi-audit-logs.csv", [
-    { label: "时间", value: (item) => formatDate(item.createdAt) },
-    { label: "动作", value: (item) => item.action || "" },
-    { label: "管理员", value: (item) => item.adminUid || item.adminOpenid || "" },
-    { label: "摘要", value: (item) => auditSummary(item) },
-    { label: "变更", value: (item) => auditChangeEntries(item).map((change) => `${change.field}: ${change.before} -> ${change.after}`).join("; ") },
-    { label: "详情", value: (item) => JSON.stringify(item.detail || {}) }
-  ], state.auditLogs);
+async function exportCustomers() {
+  await withLoading("导出用户", async () => {
+    const rows = await fetchExportRows({
+      action: "listCustomers",
+      rowsKey: "customers",
+      label: "用户",
+      payload: {
+        keyword: filters.customerKeyword
+      }
+    });
+    downloadCsv(csvFilename("customers"), [
+      { label: "标识", value: (item) => item.openid || item.id || "" },
+      { label: "姓名", value: (item) => item.name || "" },
+      { label: "手机号", value: (item) => item.phone || "" },
+      { label: "订单数", value: (item) => item.orders || 0 },
+      { label: "预约数", value: (item) => item.reservations || 0 },
+      { label: "报名数", value: (item) => item.signups || 0 },
+      { label: "消费", value: (item) => money(customerSpend(item)) },
+      { label: "标签", value: (item) => Array.isArray(item.tags) ? item.tags.join(" ") : item.tag || "" }
+    ], rows);
+    showToast(`已导出 ${numberText(rows.length)} 位用户`);
+  });
 }
 
-function exportNotificationLogs() {
-  downloadCsv("hexi-notification-logs.csv", [
-    { label: "时间", value: (item) => formatDate(item.createdAt) },
-    { label: "类型", value: (item) => item.kind || "" },
-    { label: "状态", value: (item) => item.status || "" },
-    { label: "模板", value: (item) => item.templateId || "" },
-    { label: "OpenID", value: (item) => item.openid || "" },
-    { label: "原因", value: (item) => item.reason || item.error || "" }
-  ], state.notificationLogs);
+async function exportInventoryLogs() {
+  await withLoading("导出库存流水", async () => {
+    const rows = await fetchExportRows({
+      action: "listInventoryLogs",
+      rowsKey: "logs",
+      label: "库存流水",
+      payload: {
+        keyword: filters.inventoryKeyword
+      }
+    });
+    downloadCsv(csvFilename("inventory-logs"), [
+      { label: "时间", value: (item) => formatDate(item.createdAt) },
+      { label: "商品", value: (item) => item.itemName || item.itemId || "" },
+      { label: "集合", value: (item) => item.collection || "" },
+      { label: "类型", value: (item) => item.type || "" },
+      { label: "数量", value: (item) => item.quantity || 0 },
+      { label: "库存前", value: (item) => item.beforeStock ?? "" },
+      { label: "库存后", value: (item) => item.afterStock ?? "" },
+      { label: "订单号", value: (item) => item.orderNo || "" },
+      { label: "操作人", value: (item) => item.operator || "" },
+      { label: "备注", value: (item) => item.note || "" }
+    ], rows);
+    showToast(`已导出 ${numberText(rows.length)} 条库存流水`);
+  });
+}
+
+async function exportAuditLogs() {
+  await withLoading("导出审计日志", async () => {
+    const rows = await fetchExportRows({
+      action: "listAuditLogs",
+      rowsKey: "logs",
+      label: "审计日志",
+      payload: {
+        keyword: filters.auditKeyword
+      }
+    });
+    downloadCsv(csvFilename("audit-logs"), [
+      { label: "时间", value: (item) => formatDate(item.createdAt) },
+      { label: "动作", value: (item) => item.action || "" },
+      { label: "管理员", value: (item) => item.adminUid || item.adminOpenid || "" },
+      { label: "摘要", value: (item) => auditSummary(item) },
+      { label: "变更", value: (item) => auditChangeEntries(item).map((change) => `${change.field}: ${change.before} -> ${change.after}`).join("; ") },
+      { label: "详情", value: (item) => JSON.stringify(item.detail || {}) }
+    ], rows);
+    showToast(`已导出 ${numberText(rows.length)} 条审计日志`);
+  });
+}
+
+async function exportNotificationLogs() {
+  await withLoading("导出通知日志", async () => {
+    const rows = await fetchExportRows({
+      action: "listNotificationLogs",
+      rowsKey: "logs",
+      label: "通知日志",
+      payload: {
+        keyword: filters.notificationKeyword
+      }
+    });
+    downloadCsv(csvFilename("notification-logs"), [
+      { label: "时间", value: (item) => formatDate(item.createdAt) },
+      { label: "类型", value: (item) => item.kind || "" },
+      { label: "状态", value: (item) => item.status || "" },
+      { label: "模板", value: (item) => item.templateId || "" },
+      { label: "OpenID", value: (item) => item.openid || "" },
+      { label: "原因", value: (item) => item.reason || item.error || "" }
+    ], rows);
+    showToast(`已导出 ${numberText(rows.length)} 条通知日志`);
+  });
 }
 
 async function loadContent() {
@@ -2107,7 +2217,7 @@ onMounted(async () => {
                 <option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
               <input v-model="filters.orderKeyword" class="line-input" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
-              <button class="secondary-action small" type="button" @click="exportOrders">导出 CSV</button>
+              <button class="secondary-action small" type="button" @click="exportOrders">导出全部 CSV</button>
             </div>
             <div class="record-list">
               <button v-for="order in state.orders" :key="order._id" :class="{ selected: state.selectedOrderId === order._id }" type="button" @click="state.selectedOrderId = order._id">
@@ -2229,7 +2339,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.inventoryKeyword" class="line-input" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('inventory', loadInventoryLogs)">筛选</button>
-              <button class="secondary-action small" type="button" @click="exportInventoryLogs">导出 CSV</button>
+              <button class="secondary-action small" type="button" @click="exportInventoryLogs">导出全部 CSV</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -2281,8 +2391,8 @@ onMounted(async () => {
               </select>
               <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" placeholder="茶室、姓名、手机号" @keydown.enter="resetPageAndLoad('reservations', loadReservations)">
               <input v-else v-model="filters.signupKeyword" class="line-input" placeholder="活动、姓名、手机号" @keydown.enter="resetPageAndLoad('signups', loadSignups)">
-              <button v-if="state.activeTab === 'reservations'" class="secondary-action small" type="button" @click="exportReservations">导出 CSV</button>
-              <button v-else class="secondary-action small" type="button" @click="exportSignups">导出 CSV</button>
+              <button v-if="state.activeTab === 'reservations'" class="secondary-action small" type="button" @click="exportReservations">导出全部 CSV</button>
+              <button v-else class="secondary-action small" type="button" @click="exportSignups">导出全部 CSV</button>
             </div>
             <div v-if="state.activeTab === 'reservations'" class="calendar-strip">
               <button type="button" @click="shiftReservationCalendar(-1)">‹</button>
@@ -2383,7 +2493,7 @@ onMounted(async () => {
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
-              <button class="secondary-action small" type="button" @click="exportCustomers">导出 CSV</button>
+              <button class="secondary-action small" type="button" @click="exportCustomers">导出全部 CSV</button>
             </div>
             <div class="record-list">
               <button v-for="customer in state.customers" :key="customer.id" :class="{ selected: state.selectedCustomerId === customer.id }" type="button" @click="state.selectedCustomerId = customer.id">
@@ -2541,7 +2651,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="resetPageAndLoad('audit', loadAuditLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('audit', loadAuditLogs)">筛选</button>
-              <button class="secondary-action small" type="button" @click="exportAuditLogs">导出 CSV</button>
+              <button class="secondary-action small" type="button" @click="exportAuditLogs">导出全部 CSV</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -2593,7 +2703,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.notificationKeyword" class="line-input" placeholder="类型、OpenID、模板、原因" @keydown.enter="resetPageAndLoad('notifications', loadNotificationLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('notifications', loadNotificationLogs)">筛选</button>
-              <button class="secondary-action small" type="button" @click="exportNotificationLogs">导出 CSV</button>
+              <button class="secondary-action small" type="button" @click="exportNotificationLogs">导出全部 CSV</button>
             </div>
             <div class="table-wrap">
               <table>
