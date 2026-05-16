@@ -276,6 +276,8 @@ const state = reactive({
   selectedCustomerId: "",
   selectedContentKey: "",
   selectedRoleId: "",
+  selectedCouponId: "",
+  selectedCampaignId: "",
   reservationCalendarDate: new Date().toISOString().slice(0, 10)
 });
 
@@ -381,6 +383,31 @@ const emptyCatalog = () => ({
   deleted: false
 });
 
+const emptyCoupon = () => ({
+  id: "",
+  name: "",
+  description: "",
+  amount: 10,
+  threshold: 0,
+  stock: 100,
+  claimLimit: 1,
+  startAt: "",
+  endAt: "",
+  status: "领取中",
+  visible: true
+});
+
+const emptyCampaign = () => ({
+  id: "",
+  name: "",
+  type: "banner",
+  summary: "",
+  startAt: "",
+  endAt: "",
+  status: "进行中",
+  visible: true
+});
+
 const forms = reactive({
   catalog: emptyCatalog(),
   content: {
@@ -395,29 +422,8 @@ const forms = reactive({
     sort: 10,
     visible: true
   },
-  coupon: {
-    id: "",
-    name: "",
-    description: "",
-    amount: 10,
-    threshold: 0,
-    stock: 100,
-    claimLimit: 1,
-    startAt: "",
-    endAt: "",
-    status: "领取中",
-    visible: true
-  },
-  campaign: {
-    id: "",
-    name: "",
-    type: "banner",
-    summary: "",
-    startAt: "",
-    endAt: "",
-    status: "进行中",
-    visible: true
-  }
+  coupon: emptyCoupon(),
+  campaign: emptyCampaign()
 });
 
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
@@ -1967,21 +1973,74 @@ async function loadMarketing() {
   });
 }
 
+function resetCoupon() {
+  Object.assign(forms.coupon, emptyCoupon());
+  state.selectedCouponId = "";
+}
+
+function editCoupon(item) {
+  if (!item) {
+    resetCoupon();
+    return;
+  }
+  state.selectedCouponId = item.id;
+  Object.assign(forms.coupon, emptyCoupon(), item);
+}
+
 async function saveCoupon() {
   try {
     assertText(forms.coupon.name, "请填写优惠券名称");
     assertNonNegative(forms.coupon.amount, "优惠券面额不能为负数");
     assertNonNegative(forms.coupon.threshold, "使用门槛不能为负数");
     assertNonNegative(forms.coupon.stock, "库存不能为负数");
+    if (!Number.isFinite(Number(forms.coupon.claimLimit)) || Number(forms.coupon.claimLimit) < 1) {
+      throw new Error("每人限领至少为 1");
+    }
+    if (Number(forms.coupon.threshold || 0) > 0 && Number(forms.coupon.amount || 0) > Number(forms.coupon.threshold || 0)) {
+      throw new Error("优惠金额不能大于使用门槛");
+    }
+    if (forms.coupon.startAt && forms.coupon.endAt && forms.coupon.startAt > forms.coupon.endAt) {
+      throw new Error("优惠券结束日期不能早于开始日期");
+    }
   } catch (error) {
     showToast(error.message);
     return;
   }
   await withLoading("保存优惠券", async () => {
-    await callFunction("manageOperations", { action: "saveCoupon", data: forms.coupon });
+    const result = await callFunction("manageOperations", { action: "saveCoupon", data: forms.coupon });
+    state.selectedCouponId = result.id || forms.coupon.id || "";
+    forms.coupon.id = state.selectedCouponId;
     showToast("优惠券已保存");
     await loadMarketing();
   });
+}
+
+async function disableCoupon(item = forms.coupon) {
+  if (!item?.id) {
+    showToast("请先选择优惠券");
+    return;
+  }
+  if (!(await requireTypedConfirm(`确认停用优惠券 ${item.name || item.id}？`, item.id))) return;
+  await withLoading("停用优惠券", async () => {
+    await callFunction("manageOperations", { action: "disableCoupon", id: item.id });
+    showToast("优惠券已停用");
+    resetCoupon();
+    await loadMarketing();
+  });
+}
+
+function resetCampaign() {
+  Object.assign(forms.campaign, emptyCampaign());
+  state.selectedCampaignId = "";
+}
+
+function editCampaign(item) {
+  if (!item) {
+    resetCampaign();
+    return;
+  }
+  state.selectedCampaignId = item.id;
+  Object.assign(forms.campaign, emptyCampaign(), item);
 }
 
 async function saveCampaign() {
@@ -1995,8 +2054,24 @@ async function saveCampaign() {
     return;
   }
   await withLoading("保存计划", async () => {
-    await callFunction("manageOperations", { action: "saveCampaign", data: forms.campaign });
+    const result = await callFunction("manageOperations", { action: "saveCampaign", data: forms.campaign });
+    state.selectedCampaignId = result.id || forms.campaign.id || "";
+    forms.campaign.id = state.selectedCampaignId;
     showToast("营销计划已保存");
+    await loadMarketing();
+  });
+}
+
+async function disableCampaign(item = forms.campaign) {
+  if (!item?.id) {
+    showToast("请先选择营销计划");
+    return;
+  }
+  if (!(await requireTypedConfirm(`确认停用营销计划 ${item.name || item.id}？`, item.id))) return;
+  await withLoading("停用计划", async () => {
+    await callFunction("manageOperations", { action: "disableCampaign", id: item.id });
+    showToast("营销计划已停用");
+    resetCampaign();
     await loadMarketing();
   });
 }
@@ -3000,12 +3075,36 @@ onMounted(async () => {
 
         <section v-if="state.activeTab === 'marketing'" class="marketing-grid">
           <article class="panel-card">
-            <div class="panel-title"><h2>优惠券</h2></div>
-            <div class="flow-list"><button v-for="item in state.coupons" :key="item.id" type="button"><strong>{{ item.name }} <em>¥{{ money(item.amount) }}</em></strong><span>{{ item.status }} · 库存 {{ item.stock }}</span></button><div v-if="state.coupons.length === 0" class="empty-state rich-empty"><strong>暂无优惠券</strong><span>{{ emptyHint('marketing') }}</span></div></div>
+            <div class="panel-title">
+              <h2>优惠券</h2>
+              <button v-if="hasPermission('marketing.write')" class="link-more" type="button" @click="resetCoupon">新建 ›</button>
+            </div>
+            <div class="flow-list">
+              <button v-for="item in state.coupons" :key="item.id" :class="['record-row', { selected: state.selectedCouponId === item.id }]" type="button" @click="editCoupon(item)">
+                <strong><span>{{ item.name }}</span><em>¥{{ money(item.amount) }}</em></strong>
+                <span class="record-meta">
+                  <span>{{ item.status }} · 门槛 ¥{{ money(item.threshold) }}</span>
+                  <i class="record-status neutral">库存 {{ item.stock || "不限" }}</i>
+                </span>
+              </button>
+              <div v-if="state.coupons.length === 0" class="empty-state rich-empty"><strong>暂无优惠券</strong><span>{{ emptyHint('marketing') }}</span></div>
+            </div>
           </article>
           <article class="panel-card">
-            <div class="panel-title"><h2>营销计划</h2></div>
-            <div class="flow-list"><button v-for="item in state.campaigns" :key="item.id" type="button"><strong>{{ item.name }} <em>{{ item.status }}</em></strong><span>{{ item.type }} · {{ item.summary }}</span></button><div v-if="state.campaigns.length === 0" class="empty-state rich-empty"><strong>暂无营销计划</strong><span>{{ emptyHint('marketing') }}</span></div></div>
+            <div class="panel-title">
+              <h2>营销计划</h2>
+              <button v-if="hasPermission('marketing.write')" class="link-more" type="button" @click="resetCampaign">新建 ›</button>
+            </div>
+            <div class="flow-list">
+              <button v-for="item in state.campaigns" :key="item.id" :class="['record-row', { selected: state.selectedCampaignId === item.id }]" type="button" @click="editCampaign(item)">
+                <strong><span>{{ item.name }}</span><em>{{ item.status }}</em></strong>
+                <span class="record-meta">
+                  <span>{{ item.type }} · {{ item.summary || "无摘要" }}</span>
+                  <i class="record-status neutral">{{ item.visible === false ? "已停用" : "启用" }}</i>
+                </span>
+              </button>
+              <div v-if="state.campaigns.length === 0" class="empty-state rich-empty"><strong>暂无营销计划</strong><span>{{ emptyHint('marketing') }}</span></div>
+            </div>
           </article>
           <article class="panel-card wide-table">
             <div class="panel-title"><h2>优惠券核销看板</h2></div>
@@ -3028,19 +3127,35 @@ onMounted(async () => {
             </div>
           </article>
           <form v-if="hasPermission('marketing.write')" class="panel-card editor-form" @submit.prevent="saveCoupon">
-            <h2>新建优惠券</h2>
+            <div class="panel-title">
+              <h2>{{ state.selectedCouponId ? "编辑优惠券" : "新建优惠券" }}</h2>
+              <button class="link-more" type="button" @click="resetCoupon">清空</button>
+            </div>
             <label><span>名称</span><input v-model="forms.coupon.name"></label>
-            <label><span>面额</span><input v-model.number="forms.coupon.amount" type="number"></label>
-            <label><span>门槛</span><input v-model.number="forms.coupon.threshold" type="number"></label>
-            <label><span>库存</span><input v-model.number="forms.coupon.stock" type="number"></label>
+            <label><span>面额</span><input v-model.number="forms.coupon.amount" type="number" min="0" step="0.01"></label>
+            <label><span>门槛</span><input v-model.number="forms.coupon.threshold" type="number" min="0" step="0.01"></label>
+            <label><span>库存</span><input v-model.number="forms.coupon.stock" type="number" min="0" placeholder="0 表示不限量"></label>
+            <label><span>状态</span><select v-model="forms.coupon.status"><option>领取中</option><option>暂停领取</option><option>已结束</option></select></label>
+            <label><span>每人限领</span><input v-model.number="forms.coupon.claimLimit" type="number" min="1"></label>
+            <label><span>开始日期</span><input v-model="forms.coupon.startAt" type="date"></label>
+            <label><span>结束日期</span><input v-model="forms.coupon.endAt" type="date"></label>
+            <label class="wide"><span>优惠说明</span><textarea v-model="forms.coupon.description" rows="3"></textarea></label>
             <button class="primary-action icon-action" type="submit"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 保存优惠券</button>
+            <button v-if="state.selectedCouponId" class="danger-action icon-action" type="button" @click="disableCoupon()"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 停用优惠券</button>
           </form>
           <form v-if="hasPermission('marketing.write')" class="panel-card editor-form" @submit.prevent="saveCampaign">
-            <h2>新建营销计划</h2>
+            <div class="panel-title">
+              <h2>{{ state.selectedCampaignId ? "编辑营销计划" : "新建营销计划" }}</h2>
+              <button class="link-more" type="button" @click="resetCampaign">清空</button>
+            </div>
             <label><span>名称</span><input v-model="forms.campaign.name"></label>
             <label><span>类型</span><input v-model="forms.campaign.type"></label>
+            <label><span>状态</span><select v-model="forms.campaign.status"><option>进行中</option><option>待上线</option><option>已暂停</option><option>已结束</option></select></label>
+            <label><span>开始日期</span><input v-model="forms.campaign.startAt" type="date"></label>
+            <label><span>结束日期</span><input v-model="forms.campaign.endAt" type="date"></label>
             <label><span>摘要</span><textarea v-model="forms.campaign.summary" rows="3"></textarea></label>
             <button class="primary-action icon-action" type="submit"><Send :size="16" :stroke-width="1.8" /> 保存计划</button>
+            <button v-if="state.selectedCampaignId" class="danger-action icon-action" type="button" @click="disableCampaign()"><Send :size="16" :stroke-width="1.8" /> 停用计划</button>
           </form>
         </section>
 

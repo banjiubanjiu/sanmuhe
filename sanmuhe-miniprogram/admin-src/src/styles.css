@@ -1348,6 +1348,7 @@ textarea:focus {
 }
 
 .record-list button.selected,
+.flow-list button.selected,
 .flow-list button:hover,
 .record-list button:hover {
   background: linear-gradient(90deg, rgba(230, 233, 218, 0.72), rgba(255, 253, 247, 0));
@@ -1956,6 +1957,22 @@ tr.selected td:first-child {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+}
+
+.editor-form {
+  display: grid;
+  align-content: start;
+  gap: 13px;
+}
+
+.editor-form .panel-title {
+  margin-bottom: 0;
+}
+
+.editor-form .primary-action,
+.editor-form .danger-action {
+  width: 100%;
+  margin-top: 0;
 }
 
 .wide-table {
