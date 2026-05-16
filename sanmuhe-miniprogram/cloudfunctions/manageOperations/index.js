@@ -1021,7 +1021,23 @@ function summarizeCustomers(orders, reservations, signups) {
   const customers = {};
 
   function keyFor(record) {
-    return record._openid || record.openid || record.phone || record.name || record._id;
+    return record._openid || record.openid || record.phone || record.mobile || record.consignee || record.contactName || record.customerName || record.name || record._id;
+  }
+
+  function activityTime(record) {
+    return record.afterSaleUpdatedAt || record.completedAt || record.shippedAt || record.paidAt || record.payAt || record.paymentAt || record.updatedAt || record.createdAt || null;
+  }
+
+  function activityRank(activity) {
+    const date = toDate(activity.time);
+    return date ? date.getTime() : 0;
+  }
+
+  function pushActivity(customer, activity) {
+    if (!activity.time) {
+      return;
+    }
+    customer.recentActivity.push(activity);
   }
 
   function ensureCustomer(record) {
@@ -1030,27 +1046,28 @@ function summarizeCustomers(orders, reservations, signups) {
       customers[key] = {
         id: key,
         openid: record._openid || record.openid || "",
-        name: record.consignee || record.name || "",
-        phone: record.phone || "",
+        name: record.consignee || record.contactName || record.customerName || record.name || "",
+        phone: record.phone || record.mobile || "",
         orders: 0,
         reservations: 0,
         signups: 0,
         spend: 0,
         lastSeenAt: record.createdAt || null,
-        tags: []
+        tags: [],
+        recentActivity: []
       };
     }
     const customer = customers[key];
-    if (!customer.name && (record.consignee || record.name)) {
-      customer.name = record.consignee || record.name;
+    if (!customer.name && (record.consignee || record.contactName || record.customerName || record.name)) {
+      customer.name = record.consignee || record.contactName || record.customerName || record.name;
     }
-    if (!customer.phone && record.phone) {
-      customer.phone = record.phone;
+    if (!customer.phone && (record.phone || record.mobile)) {
+      customer.phone = record.phone || record.mobile;
     }
     const last = toDate(customer.lastSeenAt);
-    const next = toDate(record.createdAt);
+    const next = toDate(activityTime(record));
     if (next && (!last || next > last)) {
-      customer.lastSeenAt = record.createdAt;
+      customer.lastSeenAt = activityTime(record);
     }
     return customer;
   }
@@ -1061,12 +1078,39 @@ function summarizeCustomers(orders, reservations, signups) {
     if (isRevenueOrder(order)) {
       customer.spend += number(order.total);
     }
+    pushActivity(customer, {
+      type: "order",
+      title: order.orderNo ? `订单 ${order.orderNo}` : "订单记录",
+      status: order.status || order.payStatus || "",
+      amount: number(order.total),
+      meta: compactSearchText([order.deliveryMethod === "shipping" ? "快递" : order.deliveryMethod === "pickup" ? "到店自提" : "", order.payStatus, order.afterSaleStatus]),
+      time: activityTime(order),
+      refId: order._id || order.orderNo || ""
+    });
   });
   reservations.forEach((reservation) => {
-    ensureCustomer(reservation).reservations += 1;
+    const customer = ensureCustomer(reservation);
+    customer.reservations += 1;
+    pushActivity(customer, {
+      type: "reservation",
+      title: reservation.roomName || reservation.room || "茶室预约",
+      status: reservation.status || "",
+      meta: compactSearchText([reservation.day || reservation.date, reservation.time || reservation.slot, reservation.people ? `${reservation.people} 人` : ""]),
+      time: activityTime(reservation),
+      refId: reservation._id || ""
+    });
   });
   signups.forEach((signup) => {
-    ensureCustomer(signup).signups += 1;
+    const customer = ensureCustomer(signup);
+    customer.signups += 1;
+    pushActivity(customer, {
+      type: "signup",
+      title: signup.eventTitle || signup.title || "活动报名",
+      status: signup.status || "",
+      meta: compactSearchText([signup.date || signup.day, signup.time, signup.people ? `${signup.people} 人` : ""]),
+      time: activityTime(signup),
+      refId: signup._id || ""
+    });
   });
 
   return Object.values(customers).map((customer) => {
@@ -1083,7 +1127,10 @@ function summarizeCustomers(orders, reservations, signups) {
     if (!tags.length) {
       tags.push("新客");
     }
-    return Object.assign({}, customer, { tags });
+    const recentActivity = customer.recentActivity
+      .sort((a, b) => activityRank(b) - activityRank(a))
+      .slice(0, 8);
+    return Object.assign({}, customer, { tags, recentActivity });
   }).sort((a, b) => b.spend - a.spend || String(b.lastSeenAt || "").localeCompare(String(a.lastSeenAt || "")));
 }
 

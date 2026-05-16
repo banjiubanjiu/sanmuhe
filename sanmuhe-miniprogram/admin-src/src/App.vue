@@ -440,6 +440,7 @@ const selectedAuditLog = computed(() => state.auditLogs.find((item) => item._id 
 const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || state.reservations[0] || null);
 const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || state.signups[0] || null);
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || state.customers[0] || null);
+const selectedCustomerSignal = computed(() => customerSignal(selectedCustomer.value));
 const selectedRole = computed(() => state.adminRoles.find((item) => item.id === state.selectedRoleId) || state.adminRoles[0] || null);
 const currentRolePreset = computed(() => state.rolePresets.find((item) => item.key === roleForm.roleKey) || state.rolePresets[0] || null);
 const currentPermissionGroups = computed(() => {
@@ -906,6 +907,48 @@ function recordTimeline(record) {
   addTimeline(items, record.updatedAt, "状态更新", record.status || "已更新", "good");
   addTimeline(items, record.privacyDeletedAt, "隐私删除", "个人信息已匿名化", "warn");
   return items.sort((a, b) => new Date(a.time?.$date || a.time?.seconds * 1000 || a.time || 0) - new Date(b.time?.$date || b.time?.seconds * 1000 || b.time || 0));
+}
+
+function customerActivityTone(activity) {
+  const status = String(activity?.status || "");
+  if (/待|申请|审核|异常|拒绝|取消/.test(status)) return "warn";
+  if (/已支付|已发货|已完成|已确认|已到场|已使用/.test(status)) return "good";
+  return "neutral";
+}
+
+function customerTimeline(customer) {
+  const typeLabel = { order: "订单", reservation: "预约", signup: "报名" };
+  return (customer?.recentActivity || []).map((activity) => {
+    const amount = activity.amount ? `¥${money(activity.amount)}` : "";
+    const detail = [activity.status, activity.meta, amount].filter(Boolean).join(" · ");
+    return {
+      time: activity.time,
+      title: `${typeLabel[activity.type] || "互动"} · ${activity.title || "记录"}`,
+      detail: detail || "已记录",
+      tone: customerActivityTone(activity)
+    };
+  });
+}
+
+function customerSignal(customer) {
+  if (!customer) {
+    return { title: "暂无用户", detail: "选择用户后显示最近互动和运营判断。" };
+  }
+  const activity = customer.recentActivity || [];
+  const pending = activity.find((item) => /待支付|待发货|待自提|待确认|申请售后|审核中/.test(String(item.status || "")));
+  if (pending) {
+    return { title: "需要跟进", detail: `${pending.title || "最近互动"} 处于「${pending.status}」状态。` };
+  }
+  if (customerSpend(customer) >= 3000) {
+    return { title: "高价值用户", detail: "累计消费较高，可优先安排专属茶席、活动邀约或会员关怀。" };
+  }
+  if (Number(customer.reservations || 0) > 0 && Number(customer.signups || 0) > 0) {
+    return { title: "深度体验用户", detail: "同时参与茶室预约和活动报名，适合持续运营和复访提醒。" };
+  }
+  if (!activity.length) {
+    return { title: "资料待补全", detail: "暂无订单、预约或报名记录，后续互动会自动进入时间线。" };
+  }
+  return { title: "普通活跃用户", detail: "最近互动正常，可按消费、预约和报名记录继续服务。" };
 }
 
 function auditText(value) {
@@ -2984,6 +3027,19 @@ onMounted(async () => {
             <DetailRow label="累计消费" :value="`¥${money(customerSpend(selectedCustomer))}`" />
             <DetailRow label="积分" :value="selectedCustomer.points || 0" />
             <DetailRow label="最近访问" :value="formatDate(customerLatestAt(selectedCustomer))" />
+            <div class="customer-signal">
+              <span>{{ selectedCustomerSignal.title }}</span>
+              <strong>{{ selectedCustomerSignal.detail }}</strong>
+            </div>
+            <div class="record-timeline" v-if="customerTimeline(selectedCustomer).length">
+              <h3>最近互动</h3>
+              <div v-for="step in customerTimeline(selectedCustomer)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
+                <span></span>
+                <strong>{{ step.title }}</strong>
+                <small>{{ formatDate(step.time) }}</small>
+                <p>{{ step.detail }}</p>
+              </div>
+            </div>
             <div class="privacy-note">默认脱敏展示；删除个人数据会清空联系方式、地址、备注、订阅偏好和未使用优惠券。</div>
             <div class="action-row">
               <button v-if="hasPermission('export.read')" class="secondary-action" type="button" @click="exportCustomerData(selectedCustomer)">导出该用户数据</button>
