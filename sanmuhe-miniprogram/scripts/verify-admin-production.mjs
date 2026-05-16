@@ -93,7 +93,7 @@ function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageOperations/index.js", [
     {
       label: "permissions and audit",
-      items: ["const actionPermissions", "writeAdminAuditLog", "writeExportAuditLog", "导出 CSV 需填写原因"]
+      items: ["const actionPermissions", "writeAdminAuditLog", "writeExportAuditLog", "redactAuditDetail", "导出 CSV 需填写原因"]
     },
     {
       label: "commercial admin workflows",
@@ -124,7 +124,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected"]
     }
   ]);
 
@@ -135,7 +135,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "responsive admin shell",
-      items: ["@media (max-width: 1120px)", "@media (max-width: 860px)", ".global-search-panel"]
+      items: ["@media (max-width: 1120px)", "@media (max-width: 860px)", ".global-search-panel", ".interactive-row", ".panel-toolbar .line-input"]
     }
   ]);
 }

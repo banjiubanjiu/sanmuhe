@@ -37,7 +37,7 @@ html {
 }
 
 body {
-  min-width: 1180px;
+  min-width: 0;
   margin: 0;
   color: var(--admin-text);
   background:
@@ -918,8 +918,12 @@ textarea:focus {
 }
 
 .filter-chip {
+  max-width: 100%;
+  overflow: hidden;
   color: var(--admin-green-dark);
   background: rgba(222, 235, 217, 0.72);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .filter-chip.muted {
@@ -1030,6 +1034,14 @@ textarea:focus {
   margin-bottom: 16px;
 }
 
+.panel-toolbar {
+  flex-wrap: wrap;
+}
+
+.panel-toolbar .line-input {
+  flex: 1 1 190px;
+}
+
 .panel-title h2 {
   margin: 0;
   color: var(--admin-ink);
@@ -1055,9 +1067,12 @@ textarea:focus {
   color: var(--admin-ink);
 }
 
-.room-board-date button {
+.room-board-date button,
+.room-board-date > span {
   width: 26px;
   height: 26px;
+  display: grid;
+  place-items: center;
   border: 0;
   color: var(--admin-green-dark);
   background: transparent;
@@ -1594,6 +1609,7 @@ textarea:focus {
 
 table {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
 }
 
@@ -1632,6 +1648,21 @@ td {
 
 tbody tr:hover td {
   background: rgba(246, 242, 232, 0.58);
+}
+
+.interactive-row {
+  cursor: pointer;
+}
+
+.interactive-row:focus-visible {
+  outline: 2px solid rgba(77, 101, 66, 0.52);
+  outline-offset: -2px;
+}
+
+.interactive-row:focus-visible td,
+.record-list button:focus-visible,
+.flow-list button:focus-visible {
+  background: linear-gradient(90deg, rgba(230, 233, 218, 0.82), rgba(255, 253, 247, 0.12));
 }
 
 td small {
@@ -2565,6 +2596,15 @@ tr.selected td:first-child {
     flex-direction: column;
   }
 
+  .panel-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .segmented {
+    overflow-x: auto;
+  }
+
   .network-banner {
     align-items: flex-start;
     flex-direction: column;
@@ -2602,6 +2642,14 @@ tr.selected td:first-child {
 
   .room-board {
     overflow-x: auto;
+  }
+
+  .calendar-board {
+    overflow-x: auto;
+  }
+
+  .calendar-row {
+    min-width: 560px;
   }
 
   .quick-grid,

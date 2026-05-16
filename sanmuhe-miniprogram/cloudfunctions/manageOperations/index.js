@@ -181,6 +181,63 @@ function maskName(value) {
   return text.length <= 1 ? "*" : `${text.slice(0, 1)}*`;
 }
 
+function maskTrackingNo(value) {
+  const text = cleanText(value, 80);
+  if (!text) {
+    return "";
+  }
+  return text.length > 6 ? `${text.slice(0, 2)}***${text.slice(-4)}` : "***";
+}
+
+function maskAuditScalar(key, value) {
+  if (value === undefined || value === null || value === "") {
+    return value === undefined ? null : value;
+  }
+  if (/^(phone|mobile)$/i.test(key)) {
+    return maskPhone(value);
+  }
+  if (/^(_openid|openid)$/i.test(key)) {
+    return maskOpenid(value);
+  }
+  if (/^(consignee|contactName|customerName|recipientName|receiverName)$/i.test(key)) {
+    return maskName(value);
+  }
+  if (/^(address|remark)$/i.test(key)) {
+    return "已脱敏";
+  }
+  if (/^trackingNo$/i.test(key)) {
+    return maskTrackingNo(value);
+  }
+  return value;
+}
+
+function redactAuditValue(key, value) {
+  const sensitive = /^(phone|mobile|_openid|openid|consignee|contactName|customerName|recipientName|receiverName|address|remark|trackingNo)$/i.test(key);
+  if (sensitive && value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.keys(value).reduce((result, childKey) => {
+      result[childKey] = maskAuditScalar(key, value[childKey]);
+      return result;
+    }, {});
+  }
+  if (sensitive) {
+    return maskAuditScalar(key, value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => redactAuditValue(key, item));
+  }
+  if (value && typeof value === "object") {
+    return redactAuditDetail(value);
+  }
+  return value;
+}
+
+function redactAuditDetail(detail = {}) {
+  return Object.keys(detail || {}).reduce((result, key) => {
+    result[key] = redactAuditValue(key, detail[key]);
+    return result;
+  }, {});
+}
+
 function parseList(value) {
   return String(value || "")
     .split(/[\s,;]+/)
@@ -1863,14 +1920,15 @@ async function removeDocs(collection, docs) {
 }
 
 async function writeAdminAuditLog(caller, action, detail) {
-  const detailText = cleanText(JSON.stringify(detail || {}), 1000);
+  const safeDetail = redactAuditDetail(detail || {});
+  const detailText = cleanText(JSON.stringify(safeDetail), 1000);
   await ensureCollection("admin_audit_logs");
   await db.collection("admin_audit_logs").add({
     data: {
       action,
       adminOpenid: maskOpenid(caller.openid),
       adminUid: caller.uid ? maskOpenid(caller.uid) : "",
-      detail,
+      detail: safeDetail,
       detailText,
       createdAt: db.serverDate()
     }

@@ -2635,9 +2635,9 @@ onBeforeUnmount(() => {
               </button>
             </div>
             <div class="room-board-date">
-              <button type="button" aria-label="前一天">‹</button>
+              <span aria-hidden="true">‹</span>
               <strong>{{ state.dashboard?.dateLabel || "2024年5月20日" }}</strong>
-              <button type="button" aria-label="后一天">›</button>
+              <span aria-hidden="true">›</span>
             </div>
             <div class="room-board">
               <div class="room-board-head">
@@ -2756,9 +2756,20 @@ onBeforeUnmount(() => {
             <div class="table-wrap">
               <table>
                 <caption>商品、茶饮、茶室和活动资料列表</caption>
-                <thead><tr><th>资料</th><th>分类</th><th>价格</th><th>库存/名额</th><th>状态</th><th></th></tr></thead>
+                <thead><tr><th scope="col">资料</th><th scope="col">分类</th><th scope="col">价格</th><th scope="col">库存/名额</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
                 <tbody>
-                  <tr v-for="item in filteredCatalog" :key="item.id" :class="{ selected: state.selectedCatalogId === item.id }" @click="editCatalog(item)">
+                  <tr
+                    v-for="item in filteredCatalog"
+                    :key="item.id"
+                    :class="['interactive-row', { selected: state.selectedCatalogId === item.id }]"
+                    role="button"
+                    tabindex="0"
+                    :aria-selected="state.selectedCatalogId === item.id"
+                    :aria-label="`编辑资料：${displayName(item)}`"
+                    @click="editCatalog(item)"
+                    @keydown.enter.prevent="editCatalog(item)"
+                    @keydown.space.prevent="editCatalog(item)"
+                  >
                     <td><strong>{{ displayName(item) }}</strong><small>{{ item.id }}</small></td>
                     <td>{{ item.category || item.capacity || "-" }}</td>
                     <td>{{ item.price !== undefined ? `¥${money(item.price)}` : "-" }}</td>
@@ -2964,7 +2975,7 @@ onBeforeUnmount(() => {
             <div class="table-wrap">
               <table>
                 <caption>库存变化流水</caption>
-                <thead><tr><th>时间</th><th>商品</th><th>类型</th><th>数量</th><th>库存变化</th><th>订单/备注</th></tr></thead>
+                <thead><tr><th scope="col">时间</th><th scope="col">商品</th><th scope="col">类型</th><th scope="col">数量</th><th scope="col">库存变化</th><th scope="col">订单/备注</th></tr></thead>
                 <tbody>
                   <tr v-for="log in state.inventoryLogs" :key="log._id">
                     <td>{{ formatDate(log.createdAt) }}</td>
@@ -3230,7 +3241,7 @@ onBeforeUnmount(() => {
           </article>
           <article class="panel-card wide-table">
             <div class="panel-title"><h2>热销项目</h2></div>
-            <table><caption>热销项目统计</caption><thead><tr><th>名称</th><th>类型</th><th>销售额</th><th>数量</th></tr></thead><tbody><tr v-for="item in (state.analytics?.topItems || [])" :key="item.name"><td>{{ item.name }}</td><td>{{ item.type }}</td><td>¥{{ money(item.amount) }}</td><td>{{ item.count }}</td></tr></tbody></table>
+            <table><caption>热销项目统计</caption><thead><tr><th scope="col">名称</th><th scope="col">类型</th><th scope="col">销售额</th><th scope="col">数量</th></tr></thead><tbody><tr v-for="item in (state.analytics?.topItems || [])" :key="item.name"><td>{{ item.name }}</td><td>{{ item.type }}</td><td>¥{{ money(item.amount) }}</td><td>{{ item.count }}</td></tr></tbody></table>
             <EmptyState v-if="(state.analytics?.topItems || []).length === 0" title="暂无热销项目" hint="有已支付订单后会自动生成销售排行。" :action-label="emptyActionLabel('analytics')" @action="handleEmptyAction('analytics')" />
           </article>
         </section>
@@ -3272,7 +3283,7 @@ onBeforeUnmount(() => {
             <div class="panel-title"><h2>优惠券核销看板</h2></div>
             <table>
               <caption>优惠券领取与核销统计</caption>
-              <thead><tr><th>优惠券</th><th>领取</th><th>使用</th><th>核销率</th><th>带来订单金额</th></tr></thead>
+              <thead><tr><th scope="col">优惠券</th><th scope="col">领取</th><th scope="col">使用</th><th scope="col">核销率</th><th scope="col">带来订单金额</th></tr></thead>
               <tbody>
                 <tr v-for="item in state.couponStats" :key="item.id">
                   <td>{{ item.name || item.id }}</td>
@@ -3328,9 +3339,20 @@ onBeforeUnmount(() => {
             <div class="table-wrap">
               <table>
                 <caption>后台关键操作审计日志</caption>
-                <thead><tr><th>时间</th><th>动作</th><th>管理员</th><th>摘要</th></tr></thead>
+                <thead><tr><th scope="col">时间</th><th scope="col">动作</th><th scope="col">管理员</th><th scope="col">摘要</th></tr></thead>
                 <tbody>
-                  <tr v-for="log in state.auditLogs" :key="log._id" :class="{ selected: state.selectedAuditLogId === log._id }" @click="state.selectedAuditLogId = log._id">
+                  <tr
+                    v-for="log in state.auditLogs"
+                    :key="log._id"
+                    :class="['interactive-row', { selected: state.selectedAuditLogId === log._id }]"
+                    role="button"
+                    tabindex="0"
+                    :aria-selected="state.selectedAuditLogId === log._id"
+                    :aria-label="`查看审计日志：${log.action || '后台操作'}`"
+                    @click="state.selectedAuditLogId = log._id"
+                    @keydown.enter.prevent="state.selectedAuditLogId = log._id"
+                    @keydown.space.prevent="state.selectedAuditLogId = log._id"
+                  >
                     <td>{{ formatDate(log.createdAt) }}</td>
                     <td>{{ log.action }}</td>
                     <td>{{ log.adminUid || log.adminOpenid || "-" }}</td>
@@ -3377,7 +3399,7 @@ onBeforeUnmount(() => {
             <div class="table-wrap">
               <table>
                 <caption>订阅消息投递日志</caption>
-                <thead><tr><th>时间</th><th>类型</th><th>状态</th><th>模板/OpenID</th><th>原因</th></tr></thead>
+                <thead><tr><th scope="col">时间</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">模板/OpenID</th><th scope="col">原因</th></tr></thead>
                 <tbody>
                   <tr v-for="log in state.notificationLogs" :key="log._id">
                     <td>{{ formatDate(log.createdAt) }}</td>
@@ -3480,7 +3502,7 @@ onBeforeUnmount(() => {
             <div class="table-wrap">
               <table>
                 <caption>云端备份记录</caption>
-                <thead><tr><th>时间</th><th>状态</th><th>文件</th><th>大小</th><th></th></tr></thead>
+                <thead><tr><th scope="col">时间</th><th scope="col">状态</th><th scope="col">文件</th><th scope="col">大小</th><th scope="col">操作</th></tr></thead>
                 <tbody>
                   <tr v-for="log in state.backupLogs" :key="log._id">
                     <td>{{ formatDate(log.createdAt) }}</td>
