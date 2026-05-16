@@ -116,7 +116,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "search export and calendar workflows",
-      items: ["globalSearch", "exportOrders", "exportReservations", "exportSignups", "exportCustomers", "exportAuditLogs", "exportNotificationLogs", "reservationCalendarRows"]
+      items: ["globalSearch", "exportOrders", "exportReservations", "exportSignups", "exportCustomers", "exportAuditLogs", "exportNotificationLogs", "reservationCalendarRows", "protectCsvCell"]
     },
     {
       label: "risk controls and customer context",

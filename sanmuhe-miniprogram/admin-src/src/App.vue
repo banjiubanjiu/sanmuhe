@@ -1707,8 +1707,18 @@ async function orderAction(action, order) {
   });
 }
 
-function escapeCsv(value) {
+function protectCsvCell(value) {
   const text = String(value ?? "");
+  const trimmed = text.trimStart();
+  const safeNegativeNumber = /^-\d+(\.\d+)?$/.test(trimmed);
+  if (/^[=+\-@]/.test(trimmed) && !safeNegativeNumber) {
+    return `'${text}`;
+  }
+  return text;
+}
+
+function escapeCsv(value) {
+  const text = protectCsvCell(value);
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
