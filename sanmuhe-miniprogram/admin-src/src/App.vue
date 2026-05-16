@@ -1,5 +1,5 @@
 <script setup>
-import { computed, h, markRaw, onMounted, reactive } from "vue";
+import { computed, h, markRaw, onBeforeUnmount, onMounted, reactive } from "vue";
 import {
   BadgeDollarSign,
   Bell,
@@ -249,6 +249,8 @@ const state = reactive({
   loadingTab: "",
   loginError: "",
   moduleError: "",
+  runtimeError: "",
+  online: typeof navigator === "undefined" ? true : navigator.onLine,
   searchOpen: false,
   searching: false,
   searchMessage: "",
@@ -372,6 +374,7 @@ const actionDialog = reactive({
 });
 let toastTimer = null;
 let actionDialogResolve = null;
+let cleanupRuntimeGuards = null;
 
 const emptyCatalog = () => ({
   id: "",
@@ -2377,8 +2380,36 @@ function handleEmptyAction(tab = state.activeTab) {
   loadActiveTab();
 }
 
+function setRuntimeError(error) {
+  const message = error?.reason?.message || error?.message || error?.error?.message || String(error || "");
+  state.runtimeError = message || "后台运行异常";
+}
+
+function setupRuntimeGuards() {
+  if (typeof window === "undefined") return;
+  const onError = (event) => setRuntimeError(event);
+  const onUnhandledRejection = (event) => setRuntimeError(event);
+  const onOnline = () => {
+    state.online = true;
+  };
+  const onOffline = () => {
+    state.online = false;
+  };
+  window.addEventListener("error", onError);
+  window.addEventListener("unhandledrejection", onUnhandledRejection);
+  window.addEventListener("online", onOnline);
+  window.addEventListener("offline", onOffline);
+  cleanupRuntimeGuards = () => {
+    window.removeEventListener("error", onError);
+    window.removeEventListener("unhandledrejection", onUnhandledRejection);
+    window.removeEventListener("online", onOnline);
+    window.removeEventListener("offline", onOffline);
+  };
+}
+
 onMounted(async () => {
   try {
+    setupRuntimeGuards();
     initCloud();
     setCurrentUser(await getSessionUser());
     state.ready = true;
@@ -2387,6 +2418,10 @@ onMounted(async () => {
     state.loginError = error.message || "后台初始化失败";
     state.ready = true;
   }
+});
+
+onBeforeUnmount(() => {
+  cleanupRuntimeGuards?.();
 });
 </script>
 
@@ -2520,6 +2555,17 @@ onMounted(async () => {
           <span>当前模块加载失败</span>
           <strong>{{ state.moduleError }}</strong>
           <button type="button" @click="loadActiveTab">重试</button>
+        </div>
+
+        <div v-if="state.runtimeError" class="error-banner runtime-banner" role="alert">
+          <span>后台运行异常</span>
+          <strong>{{ state.runtimeError }}</strong>
+          <button type="button" @click="state.runtimeError = ''">关闭</button>
+        </div>
+
+        <div v-if="!state.online" class="network-banner" role="status" aria-live="polite">
+          <span>网络连接已断开</span>
+          <strong>恢复网络后再继续保存、导出或刷新数据。</strong>
         </div>
 
         <section v-if="showSyncBanner" class="sync-banner" role="status" aria-live="polite">

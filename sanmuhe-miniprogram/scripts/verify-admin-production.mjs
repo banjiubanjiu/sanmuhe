@@ -124,14 +124,14 @@ function verifyProductionSurfaces() {
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine"]
     }
   ]);
 
   verifySourceContains("admin-src/src/styles.css", [
     {
       label: "professional loading and empty states",
-      items: [".sync-banner", ".sync-skeleton", ".empty-action", ".rich-empty"]
+      items: [".sync-banner", ".sync-skeleton", ".empty-action", ".rich-empty", ".network-banner", ".runtime-banner"]
     },
     {
       label: "responsive admin shell",
