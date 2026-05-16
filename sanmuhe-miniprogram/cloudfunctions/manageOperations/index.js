@@ -170,6 +170,17 @@ function maskOpenid(value) {
   return text.length > 12 ? `${text.slice(0, 6)}...${text.slice(-4)}` : `${text.slice(0, 3)}...`;
 }
 
+function maskName(value) {
+  const text = cleanText(value, 40);
+  if (!text) {
+    return "";
+  }
+  if (text === "已匿名") {
+    return text;
+  }
+  return text.length <= 1 ? "*" : `${text.slice(0, 1)}*`;
+}
+
 function parseList(value) {
   return String(value || "")
     .split(/[\s,;]+/)
@@ -236,6 +247,7 @@ const actionPermissions = {
   getAdminProfile: "dashboard.read",
   getSummary: "dashboard.read",
   getDashboard: "dashboard.read",
+  globalSearch: "dashboard.read",
   listOrders: "order.read",
   cancelOrder: "order.write",
   markShipped: "order.write",
@@ -398,16 +410,23 @@ async function getAdminRole(caller) {
 }
 
 function requirePermission(role, permission) {
-  if (!permission) {
-    return;
-  }
-  const permissions = role && Array.isArray(role.permissions) ? role.permissions : [];
-  if (permissions.includes("*") || permissions.includes(permission)) {
+  if (hasRolePermission(role, permission)) {
     return;
   }
   const error = new Error("当前后台角色无权执行该操作");
   error.code = "ROLE_PERMISSION_DENIED";
   throw error;
+}
+
+function hasRolePermission(role, permission) {
+  if (!permission) {
+    return true;
+  }
+  const permissions = role && Array.isArray(role.permissions) ? role.permissions : [];
+  if (permissions.includes("*") || permissions.includes(permission)) {
+    return true;
+  }
+  return false;
 }
 
 function auditValue(value) {
@@ -1178,6 +1197,194 @@ async function listNotificationLogs(event) {
     logs: result.items,
     page: result.page
   };
+}
+
+function compactSearchText(parts) {
+  return parts.map((item) => cleanText(item, 120)).filter(Boolean).join(" · ");
+}
+
+function searchItem(id, title, subtitle, status, meta, keyword) {
+  return {
+    id: cleanText(id, 80),
+    title: cleanText(title, 120) || "未命名记录",
+    subtitle: cleanText(subtitle, 180),
+    status: cleanText(status, 40),
+    meta: cleanText(meta, 80),
+    keyword
+  };
+}
+
+function searchGroup(key, tab, label, result, items) {
+  return {
+    key,
+    tab,
+    label,
+    total: result.page?.total || items.length,
+    items
+  };
+}
+
+async function globalSearch(event, role) {
+  const keyword = cleanText(event.keyword, 80);
+  if (keyword.length < 2) {
+    return { ok: true, keyword, groups: [], message: "请输入至少 2 个字符" };
+  }
+  const searchEvent = { keyword, page: 1, pageSize: 5 };
+  const tasks = [
+    {
+      permission: "order.read",
+      run: async () => {
+        const result = await readCollectionPage("orders", {
+          keyword,
+          keywordFields: ["orderNo", "name", "contactName", "consignee", "phone", "mobile", "status"],
+          orderBy: "createdAt",
+          event: searchEvent
+        });
+        return searchGroup("orders", "orders", "订单", result, result.items.map((order) => searchItem(
+          order._id,
+          `订单 ${order.orderNo || order._id}`,
+          compactSearchText([maskName(order.name || order.contactName || order.consignee), maskPhone(order.phone || order.mobile), `¥${number(order.total)}`]),
+          order.status || order.payStatus,
+          dateKey(order.createdAt),
+          keyword
+        )));
+      }
+    },
+    {
+      permission: "afterSale.read",
+      run: async () => {
+        const result = await listAfterSales(searchEvent);
+        return searchGroup("afterSales", "afterSales", "售后", { page: result.page }, (result.orders || []).map((order) => searchItem(
+          order._id,
+          `售后 ${order.orderNo || order._id}`,
+          compactSearchText([maskName(order.name || order.contactName || order.consignee), maskPhone(order.phone || order.mobile), order.afterSaleReason]),
+          order.afterSaleStatus || order.status,
+          order.refundAmount ? `¥${number(order.refundAmount)}` : "",
+          keyword
+        )));
+      }
+    },
+    {
+      permission: "reservation.read",
+      run: async () => {
+        const result = await readCollectionPage("reservations", {
+          keyword,
+          keywordFields: ["room", "roomName", "name", "customerName", "phone", "mobile", "status"],
+          orderBy: "createdAt",
+          event: searchEvent
+        });
+        return searchGroup("reservations", "reservations", "预约", result, result.items.map((reservation) => searchItem(
+          reservation._id,
+          compactSearchText([reservation.roomName || reservation.room || "茶室预约", reservation.day || reservation.date, reservation.time || reservation.slot]),
+          compactSearchText([maskName(reservation.name || reservation.customerName), maskPhone(reservation.phone || reservation.mobile), reservation.people ? `${reservation.people} 人` : ""]),
+          reservation.status,
+          dateKey(reservation.createdAt),
+          keyword
+        )));
+      }
+    },
+    {
+      permission: "signup.read",
+      run: async () => {
+        const result = await readCollectionPage("event_signups", {
+          keyword,
+          keywordFields: ["eventTitle", "title", "name", "customerName", "phone", "mobile", "status"],
+          orderBy: "createdAt",
+          event: searchEvent
+        });
+        return searchGroup("signups", "signups", "活动报名", result, result.items.map((signup) => searchItem(
+          signup._id,
+          signup.eventTitle || signup.title || "活动报名",
+          compactSearchText([maskName(signup.name || signup.customerName), maskPhone(signup.phone || signup.mobile), signup.date || signup.day]),
+          signup.status,
+          dateKey(signup.createdAt),
+          keyword
+        )));
+      }
+    },
+    {
+      permission: "customer.read",
+      run: async () => {
+        const result = await listCustomers(searchEvent);
+        return searchGroup("customers", "customers", "用户", result, (result.customers || []).map((customer) => searchItem(
+          customer.id,
+          maskName(customer.name) || maskPhone(customer.phone) || maskOpenid(customer.openid || customer.id),
+          compactSearchText([`消费 ¥${number(customer.spend)}`, `订单 ${number(customer.orders)}`, `预约 ${number(customer.reservations)}`, `报名 ${number(customer.signups)}`]),
+          Array.isArray(customer.tags) ? customer.tags.join("、") : customer.tag,
+          dateKey(customer.lastSeenAt),
+          keyword
+        )));
+      }
+    },
+    {
+      permission: "inventory.read",
+      run: async () => {
+        const result = await readCollectionPage("inventory_logs", {
+          keyword,
+          keywordFields: ["itemName", "itemId", "type", "orderNo", "operator", "note"],
+          orderBy: "createdAt",
+          event: searchEvent
+        });
+        return searchGroup("inventory", "inventory", "库存流水", result, result.items.map((log) => searchItem(
+          log._id,
+          log.itemName || log.itemId || "库存流水",
+          compactSearchText([log.type, log.orderNo, log.note]),
+          log.quantity ? `${Number(log.quantity) > 0 ? "+" : ""}${log.quantity}` : "",
+          dateKey(log.createdAt),
+          keyword
+        )));
+      }
+    },
+    {
+      permission: "audit.read",
+      run: async () => {
+        const result = await readCollectionPage("admin_audit_logs", {
+          keyword,
+          keywordFields: ["action", "adminOpenid", "adminUid", "detailText"],
+          orderBy: "createdAt",
+          event: searchEvent
+        });
+        return searchGroup("audit", "audit", "审计日志", result, result.items.map((log) => searchItem(
+          log._id,
+          log.action || "后台操作",
+          compactSearchText([log.adminUsername || log.adminUid || maskOpenid(log.adminOpenid), log.detailText]),
+          log.status || "",
+          dateKey(log.createdAt),
+          keyword
+        )));
+      }
+    },
+    {
+      permission: "notification.read",
+      run: async () => {
+        const result = await readCollectionPage("notification_logs", {
+          keyword,
+          keywordFields: ["kind", "openid", "templateId", "status", "reason", "error"],
+          orderBy: "createdAt",
+          event: searchEvent
+        });
+        return searchGroup("notifications", "notifications", "通知日志", result, result.items.map((log) => searchItem(
+          log._id,
+          log.kind || "订阅消息",
+          compactSearchText([maskOpenid(log.openid), log.reason || log.error]),
+          log.status,
+          dateKey(log.createdAt),
+          keyword
+        )));
+      }
+    }
+  ];
+  const groups = [];
+  for (const task of tasks) {
+    if (!hasRolePermission(role, task.permission)) {
+      continue;
+    }
+    const group = await task.run();
+    if (group.items.length || group.total) {
+      groups.push(group);
+    }
+  }
+  return { ok: true, keyword, groups };
 }
 
 async function sendTestNotice(event, caller) {
@@ -2204,6 +2411,9 @@ exports.main = async (event = {}) => {
     }
     if (action === "getDashboard") {
       return await getDashboard();
+    }
+    if (action === "globalSearch") {
+      return await globalSearch(event, role);
     }
     if (action === "listOrders") {
       const result = await listCollection("orders", status, keyword, event, ["orderNo", "name", "contactName", "consignee", "phone", "mobile", "status"]);

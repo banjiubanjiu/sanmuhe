@@ -192,6 +192,9 @@ const state = reactive({
   loading: "",
   loginError: "",
   moduleError: "",
+  searchOpen: false,
+  searching: false,
+  searchMessage: "",
   adminProfile: null,
   summary: [],
   dashboard: null,
@@ -213,6 +216,7 @@ const state = reactive({
   coupons: [],
   couponStats: [],
   campaigns: [],
+  searchResults: [],
   settings: {},
   pagination: {
     orders: createPageState(),
@@ -504,6 +508,7 @@ const currentRecordCount = computed(() => {
   };
   return counts[state.activeTab] || 0;
 });
+const globalSearchTotal = computed(() => state.searchResults.reduce((sum, group) => sum + Number(group.total || group.items?.length || 0), 0));
 
 const filteredCatalog = computed(() => {
   const keyword = filters.catalog.trim().toLowerCase();
@@ -1839,20 +1844,74 @@ async function saveSettings() {
   });
 }
 
-function globalSearch() {
+function pageKeyForTab(tab) {
+  return tab === "inventory" ? "inventory" : tab;
+}
+
+function applyKeywordToTab(tab, keyword) {
+  if (tab === "orders") filters.orderKeyword = keyword;
+  if (tab === "afterSales") filters.afterSaleKeyword = keyword;
+  if (tab === "inventory") filters.inventoryKeyword = keyword;
+  if (tab === "reservations") filters.reservationKeyword = keyword;
+  if (tab === "signups") filters.signupKeyword = keyword;
+  if (tab === "customers") filters.customerKeyword = keyword;
+  if (tab === "catalog") filters.catalog = keyword;
+  if (tab === "audit") filters.auditKeyword = keyword;
+  if (tab === "notifications") filters.notificationKeyword = keyword;
+}
+
+function selectRecordFromSearch(tab, id) {
+  if (!id) return;
+  if (tab === "orders" && state.orders.some((item) => item._id === id)) state.selectedOrderId = id;
+  if (tab === "afterSales" && state.afterSales.some((item) => item._id === id)) {
+    state.selectedAfterSaleId = id;
+    fillAfterSaleForm(selectedAfterSale.value);
+  }
+  if (tab === "reservations" && state.reservations.some((item) => item._id === id)) state.selectedReservationId = id;
+  if (tab === "signups" && state.signups.some((item) => item._id === id)) state.selectedSignupId = id;
+  if (tab === "customers" && state.customers.some((item) => item.id === id)) state.selectedCustomerId = id;
+  if (tab === "audit" && state.auditLogs.some((item) => item._id === id)) state.selectedAuditLogId = id;
+}
+
+async function openSearchResult(group, item) {
+  const keyword = item.keyword || filters.global.trim();
+  if (!group?.tab || !canAccessTab(group.tab)) {
+    showToast("当前角色无权访问该模块");
+    return;
+  }
+  applyKeywordToTab(group.tab, keyword);
+  resetPage(pageKeyForTab(group.tab));
+  state.searchOpen = false;
+  state.activeTab = group.tab;
+  await loadActiveTab();
+  selectRecordFromSearch(group.tab, item.id);
+}
+
+async function runGlobalSearch() {
   const keyword = filters.global.trim();
-  if (!keyword) return;
-  if (state.activeTab === "orders") filters.orderKeyword = keyword;
-  if (state.activeTab === "afterSales") filters.afterSaleKeyword = keyword;
-  if (state.activeTab === "inventory") filters.inventoryKeyword = keyword;
-  if (state.activeTab === "reservations") filters.reservationKeyword = keyword;
-  if (state.activeTab === "signups") filters.signupKeyword = keyword;
-  if (state.activeTab === "customers") filters.customerKeyword = keyword;
-  if (state.activeTab === "catalog") filters.catalog = keyword;
-  if (state.activeTab === "audit") filters.auditKeyword = keyword;
-  if (state.activeTab === "notifications") filters.notificationKeyword = keyword;
-  resetPage(state.activeTab === "inventory" ? "inventory" : state.activeTab);
-  loadActiveTab();
+  if (!keyword) {
+    state.searchOpen = false;
+    state.searchResults = [];
+    state.searchMessage = "";
+    return;
+  }
+  state.searchOpen = true;
+  state.searching = true;
+  state.searchMessage = "";
+  try {
+    const result = await callFunction("manageOperations", { action: "globalSearch", keyword });
+    state.searchResults = result.groups || [];
+    state.searchMessage = result.message || (state.searchResults.length ? "" : "没有找到匹配记录");
+  } catch (error) {
+    state.searchResults = [];
+    state.searchMessage = error.message || "搜索失败";
+  } finally {
+    state.searching = false;
+  }
+}
+
+function closeSearch() {
+  state.searchOpen = false;
 }
 
 function clearActiveFilters() {
@@ -1878,8 +1937,7 @@ function clearActiveFilters() {
   if (state.activeTab === "content") state.contentType = "home_carousel";
   if (state.activeTab === "audit") filters.auditKeyword = "";
   if (state.activeTab === "notifications") filters.notificationKeyword = "";
-  const pageKey = state.activeTab === "inventory" ? "inventory" : state.activeTab;
-  resetPage(pageKey);
+  resetPage(pageKeyForTab(state.activeTab));
   loadActiveTab();
 }
 
@@ -2003,10 +2061,49 @@ onMounted(async () => {
             <p>{{ currentTitle[1] }}</p>
           </div>
           <div class="top-actions">
-            <label class="search-box">
-              <Search :size="17" :stroke-width="1.8" />
-              <input v-model="filters.global" aria-label="搜索当前模块" placeholder="搜索当前模块" @keydown.enter="globalSearch">
-            </label>
+            <div class="global-search-wrap">
+              <label class="search-box">
+                <Search :size="17" :stroke-width="1.8" />
+                <input
+                  v-model="filters.global"
+                  aria-label="全局搜索后台记录"
+                  placeholder="全局搜索：手机号 / 订单号 / 预约"
+                  @keydown.enter.prevent="runGlobalSearch"
+                  @keydown.esc="closeSearch"
+                  @focus="state.searchOpen = !!(state.searchResults.length || state.searchMessage)"
+                >
+              </label>
+              <button class="search-trigger" type="button" :disabled="state.searching" @click="runGlobalSearch">
+                {{ state.searching ? "搜索中" : "搜索" }}
+              </button>
+              <div v-if="state.searchOpen" class="global-search-panel" role="region" aria-label="全局搜索结果">
+                <div class="search-panel-head">
+                  <span>全局搜索</span>
+                  <strong>{{ state.searching ? "正在查找" : `${numberText(globalSearchTotal)} 条匹配` }}</strong>
+                  <button type="button" @click="closeSearch">关闭</button>
+                </div>
+                <p v-if="state.searchMessage" class="search-message">{{ state.searchMessage }}</p>
+                <div v-for="group in state.searchResults" :key="group.key" class="search-group">
+                  <div class="search-group-title">
+                    <strong>{{ group.label }}</strong>
+                    <span>{{ numberText(group.total) }} 条</span>
+                  </div>
+                  <button
+                    v-for="item in group.items"
+                    :key="`${group.key}-${item.id}`"
+                    class="search-result"
+                    type="button"
+                    @click="openSearchResult(group, item)"
+                  >
+                    <span>
+                      <strong>{{ item.title }}</strong>
+                      <em>{{ item.subtitle || "无补充信息" }}</em>
+                    </span>
+                    <small>{{ item.status || item.meta || "查看" }}</small>
+                  </button>
+                </div>
+              </div>
+            </div>
             <button class="secondary-action icon-action" aria-label="刷新当前模块" type="button" @click="loadActiveTab">
               <RefreshCw :size="16" :stroke-width="1.8" />
               刷新
