@@ -573,7 +573,7 @@ function buildRoomBoard(rooms, reservations) {
   const today = todayKey();
   const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
   const todayReservations = reservations.filter((item) => item.day === today && item.status !== "已取消");
-  return (rooms.length ? rooms : [{ id: "room-001", name: "三木合茶室", capacity: "2-6人" }]).slice(0, 5).map((room) => ({
+  return (rooms.length ? rooms : [{ id: "room-001", name: "禾熙书茶空间", capacity: "2-6人" }]).slice(0, 5).map((room) => ({
     id: room.id,
     name: room.name,
     capacity: room.capacity || "",
@@ -827,7 +827,7 @@ async function disableRecord(collection, id) {
 function normalizeSettings(data = {}) {
   return {
     key: "store",
-    brandName: cleanText(data.brandName, 80) || "三木合 SANMUHE TEA",
+    brandName: cleanText(data.brandName, 80) || "禾熙 HEXI TEA",
     slogan: cleanText(data.slogan, 120),
     storeName: cleanText(data.storeName, 80),
     address: cleanText(data.address, 160),

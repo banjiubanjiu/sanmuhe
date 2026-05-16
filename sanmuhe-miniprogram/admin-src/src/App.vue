@@ -223,7 +223,7 @@ const forms = reactive({
 });
 
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
-const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "三木合管理员");
+const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾熙管理员");
 const selectedOrder = computed(() => state.orders.find((item) => item._id === state.selectedOrderId) || state.orders[0] || null);
 const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || state.reservations[0] || null);
 const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || state.signups[0] || null);
@@ -783,8 +783,8 @@ onMounted(async () => {
     <section v-if="state.view === 'login'" class="login-screen">
       <div class="login-art">
         <div class="brand-block">
-          <span>三 木 合</span>
-          <strong>SANMUHE TEA</strong>
+          <span>禾 熙</span>
+          <strong>HEXI TEA</strong>
         </div>
         <div class="ink-copy">
           <p>经营后台</p>
@@ -812,8 +812,8 @@ onMounted(async () => {
     <section v-else class="admin-layout">
       <aside class="sidebar">
         <div class="logo-stack">
-          <span>三 木 合</span>
-          <strong>SANMUHE TEA</strong>
+          <span>禾 熙</span>
+          <strong>HEXI TEA</strong>
         </div>
         <nav class="nav-list">
           <button
@@ -837,7 +837,7 @@ onMounted(async () => {
       <section class="workspace">
         <header class="topbar">
           <div>
-            <span class="section-kicker">Sanmuhe Operations</span>
+            <span class="section-kicker">Hexi Operations</span>
             <h1>{{ currentTitle[0] }}</h1>
             <p>{{ currentTitle[1] }}</p>
           </div>

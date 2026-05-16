@@ -203,7 +203,7 @@ function isExpired(order) {
 
 function buildDescription(order) {
   const names = (order.items || []).map((item) => item.name).filter(Boolean);
-  return cleanText(`三木合茶事 ${names.slice(0, 3).join("、") || order.orderNo}`, 127);
+  return cleanText(`禾熙茶事 ${names.slice(0, 3).join("、") || order.orderNo}`, 127);
 }
 
 function buildPaymentParams(config, prepayId) {

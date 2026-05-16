@@ -69,7 +69,7 @@ async function readSettings() {
 function buildData(kind, payload = {}) {
   if (kind === "orderPaid") {
     return {
-      thing1: value(payload.orderNo || "三木合订单", 20),
+      thing1: value(payload.orderNo || "禾熙订单", 20),
       amount2: value(money(payload.total), 20),
       phrase3: value(payload.status || "支付成功", 10),
       time4: value(payload.time || nowText(), 20)
@@ -77,7 +77,7 @@ function buildData(kind, payload = {}) {
   }
   if (kind === "orderShipped") {
     return {
-      thing1: value(payload.orderNo || "三木合订单", 20),
+      thing1: value(payload.orderNo || "禾熙订单", 20),
       thing2: value(payload.trackingCompany || "门店配送", 20),
       character_string3: value(payload.trackingNo || "-", 20),
       phrase4: value(payload.status || "已发货", 10)
@@ -85,7 +85,7 @@ function buildData(kind, payload = {}) {
   }
   if (kind === "reservationStatus") {
     return {
-      thing1: value(payload.room || "三木合茶室", 20),
+      thing1: value(payload.room || "禾熙书茶空间", 20),
       time2: value(`${payload.day || ""} ${payload.time || ""}`.trim() || nowText(), 20),
       phrase3: value(payload.status || "待确认", 10),
       thing4: value(payload.note || "预约状态已更新", 20)
@@ -93,10 +93,10 @@ function buildData(kind, payload = {}) {
   }
   if (kind === "eventStatus") {
     return {
-      thing1: value(payload.title || "三木合茶事活动", 20),
+      thing1: value(payload.title || "禾熙茶事活动", 20),
       time2: value(`${payload.date || ""} ${payload.time || ""}`.trim() || nowText(), 20),
       phrase3: value(payload.status || "待确认", 10),
-      thing4: value(payload.place || "三木合", 20)
+      thing4: value(payload.place || "禾熙", 20)
     };
   }
   return {};

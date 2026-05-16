@@ -210,7 +210,7 @@ Page({
           title: eventTitle,
           date: `验${stamp}`,
           time: `${stamp.slice(4, 6)}:${stamp.slice(6, 8)}`,
-          place: "三木合茶事空间",
+          place: "禾熙书茶空间",
           quota: 8,
           price: 0,
           summary: "云开发状态页自动检查活动",

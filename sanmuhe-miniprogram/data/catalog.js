@@ -337,7 +337,7 @@ const teaProducts = [
 const rooms = [
   {
     id: "room-001",
-    name: "三木合・观山店",
+    name: "禾熙・观山店",
     capacity: "2人",
     price: 168,
     floor: "安静雅致 ｜ 观山景",
@@ -348,7 +348,7 @@ const rooms = [
   },
   {
     id: "room-002",
-    name: "三木合・听雨店",
+    name: "禾熙・听雨店",
     capacity: "2-4人",
     price: 198,
     floor: "庭院茶室 ｜ 临窗听雨",
@@ -359,7 +359,7 @@ const rooms = [
   },
   {
     id: "room-003",
-    name: "三木合・书香店",
+    name: "禾熙・书香店",
     capacity: "2人",
     price: 128,
     floor: "书香氛围 ｜ 静谧",
@@ -370,7 +370,7 @@ const rooms = [
   },
   {
     id: "room-004",
-    name: "三木合・松风店",
+    name: "禾熙・松风店",
     capacity: "4-6人",
     price: 148,
     floor: "松林清幽 ｜ 静心小室",
@@ -381,7 +381,7 @@ const rooms = [
   },
   {
     id: "room-005",
-    name: "三木合・竹韵店",
+    name: "禾熙・竹韵店",
     capacity: "2-4人",
     price: 138,
     floor: "竹影摇曳 ｜ 清雅怡人",
@@ -399,11 +399,12 @@ const events = [
     category: "养心茶会",
     date: "05.25 周六",
     time: "14:00",
-    place: "三木合・双山店",
+    place: "禾熙・双山店",
     quota: 30,
     signed: 28,
     price: 68,
     image: "/assets/images/event-yangxin-tea.jpg",
+    detailImage: cloudImage("assets/images/event-detail-content-1.png"),
     summary: "在茶香与静心中，慢慢安住自己",
     status: "报名中"
   },
@@ -413,11 +414,12 @@ const events = [
     category: "学茶",
     date: "06.01 周六",
     time: "10:00",
-    place: "三木合・听雨店",
+    place: "禾熙・听雨店",
     quota: 50,
     signed: 45,
     price: 0,
     image: "/assets/images/event-tea-class.jpg",
+    detailImage: cloudImage("assets/images/event-detail-content-2.png"),
     summary: "从识香、泡茶到品饮，轻松了解基础茶知识",
     status: "报名中"
   },
@@ -427,11 +429,12 @@ const events = [
     category: "时令茶会",
     date: "06.08 周六",
     time: "14:00",
-    place: "三木合・柏阳毛尖",
+    place: "禾熙・柏阳毛尖",
     quota: 20,
     signed: 16,
     price: 128,
     image: "/assets/images/event-seasonal-tea.jpg",
+    detailImage: cloudImage("assets/images/event-detail-content-3.png"),
     summary: "顺时品茶，感受节气与日常之美",
     status: "报名中"
   }

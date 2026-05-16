@@ -3,7 +3,7 @@ const { syncTabBar } = require("../../utils/tabbar");
 
 const defaultUser = {
   name: "木木",
-  title: "三木合雅客 · 茶生活会员",
+  title: "禾熙雅客 · 茶生活会员",
   avatar: "/assets/images/profile-avatar.jpg"
 };
 
@@ -86,7 +86,7 @@ function getRecentSignup(signups) {
     id: item.id,
     title: item.title || "活动报名",
     dateText: item.date && item.time ? `${item.date} ${item.time}` : item.dateText,
-    place: item.place || "三木合",
+    place: item.place || "禾熙",
     status: item.status || "待确认",
     image: item.image || "/assets/images/event-yangxin-tea.jpg"
   };

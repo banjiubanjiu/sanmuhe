@@ -221,7 +221,7 @@ async function updateMemberAfterPaid(order) {
   const level = getLevelBySpend(nextTotalSpend, getLevelRules(settings));
   const data = {
     _openid: openid,
-    name: existing && existing.name || order.consignee || "三木合会员",
+    name: existing && existing.name || order.consignee || "禾熙会员",
     phone: existing && existing.phone || order.phone || "",
     cardNo: existing && existing.cardNo || `SMH ${String(openid).slice(-6).toUpperCase()}`,
     tier: level.tier,

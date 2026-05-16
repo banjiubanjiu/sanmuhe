@@ -149,6 +149,7 @@ function normalizePayload(collection, payload) {
     "summary",
     "status",
     "image",
+    "detailImage",
     "thumb"
   ];
 

@@ -1,6 +1,6 @@
 <view class="page home">
   <view class="home-nav">
-    <view class="brand-title">三木合</view>
+    <view class="brand-title">禾熙</view>
   </view>
 
   <swiper
@@ -45,7 +45,7 @@
     </view>
     <view class="member-copy">
       <view>
-        <text class="member-name">三木合会员</text>
+        <text class="member-name">禾熙会员</text>
         <text class="growth-pill">积分自动累计</text>
       </view>
       <view class="member-meta">支付成功后更新等级、积分与可用优惠券</view>

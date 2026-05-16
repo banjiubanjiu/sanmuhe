@@ -11,9 +11,10 @@ const eventDisplay = {
     category: "养心茶会",
     date: "5月25日 周六",
     time: "14:00",
-    place: "三木合・佛山",
+    place: "禾熙・佛山",
     quota: 12,
     image: "/assets/images/event-yangxin-tea.jpg",
+    detailImage: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-1.png",
     summary: "在茶香与静心中，慢慢安住自己",
     joinText: "报名中",
     actionClass: "primary"
@@ -23,9 +24,10 @@ const eventDisplay = {
     category: "学茶",
     date: "6月1日 周六",
     time: "10:00",
-    place: "三木合・佛山",
+    place: "禾熙・佛山",
     quota: 10,
     image: "/assets/images/event-tea-class.jpg",
+    detailImage: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-2.png",
     summary: "从识香、泡茶到品饮，轻松了解基础茶知识",
     joinText: "可预约",
     actionClass: "outline"
@@ -35,9 +37,10 @@ const eventDisplay = {
     category: "时令茶会",
     date: "6月8日 周六",
     time: "15:00",
-    place: "三木合・佛山",
+    place: "禾熙・佛山",
     quota: 8,
     image: "/assets/images/event-seasonal-tea.jpg",
+    detailImage: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-3.png",
     summary: "顺时品茶，感受节气与日常之美",
     joinText: "可预约",
     actionClass: "outline"
@@ -122,6 +125,14 @@ Page({
 
   goBack() {
     wx.switchTab({ url: "/pages/index/index" });
+  },
+
+  viewEvent(event) {
+    const id = event.currentTarget.dataset.id;
+    if (!id) {
+      return;
+    }
+    wx.navigateTo({ url: `/pages/event-detail/index?id=${id}` });
   },
 
   openSignup(event) {

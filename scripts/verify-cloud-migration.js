@@ -579,7 +579,7 @@ const report = {
   codeReady,
   readyForWechatDevtools: codeReady && appIdConfigured && envConfigured,
   completionAudit: {
-    objective: "按 docs 下全部 UI 设计图优化三木合小程序 UI，并补齐云开发部署、商品/活动后台逻辑和微信开发者工具热部署路径。",
+    objective: "按 docs 下全部 UI 设计图优化禾熙小程序 UI，并补齐云开发部署、商品/活动后台逻辑和微信开发者工具热部署路径。",
     covered: auditCovered,
     missing: auditMissing
   },

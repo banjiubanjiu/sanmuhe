@@ -2,8 +2,8 @@ const cloudConfig = require("./config/cloud");
 
 App({
   globalData: {
-    brand: "三木合",
-    storeName: "三木合茶事空间",
+    brand: "禾熙",
+    storeName: "禾熙书茶空间",
     storeAddress: "广东省佛山市",
     servicePhone: "0757-8888 8888",
     cloudReady: false,
@@ -19,7 +19,7 @@ App({
       this.globalData.cloudReady = true;
       this.globalData.cloudEnv = cloudConfig.envId;
     } else if (cloudConfig.useCloud && !cloudConfig.envId) {
-      console.warn("三木合云开发未配置 envId，当前使用本地演示数据。");
+      console.warn("禾熙云开发未配置 envId，当前使用本地演示数据。");
     } else if (cloudConfig.useCloud && !wx.cloud) {
       console.warn("当前基础库不支持 wx.cloud，当前使用本地演示数据。");
     }

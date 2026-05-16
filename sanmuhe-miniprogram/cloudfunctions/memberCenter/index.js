@@ -127,7 +127,7 @@ async function getMember(openid, settings) {
   const saved = existing.data && existing.data[0] ? existing.data[0] : {};
   const member = {
     _openid: openid,
-    name: saved.name || "三木合会员",
+    name: saved.name || "禾熙会员",
     tier: level.tier,
     cardNo: saved.cardNo || `SMH ${String(openid || "000000").slice(-6).toUpperCase()}`,
     points,

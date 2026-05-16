@@ -12,7 +12,7 @@
 
   <view class="event-intro">
     <view class="event-place">
-      <text>三木合</text>
+      <text>禾熙</text>
       <view></view>
       <text>佛山</text>
     </view>
@@ -35,7 +35,7 @@
   </scroll-view>
 
   <view class="event-list">
-    <view wx:for="{{events}}" wx:key="id" class="event-card">
+    <view wx:for="{{events}}" wx:key="id" class="event-card" data-id="{{item.id}}" bindtap="viewEvent">
       <image class="event-image" src="{{item.image}}" mode="aspectFill"></image>
       <view class="event-main">
         <view class="event-title">{{item.title}}</view>
@@ -54,7 +54,7 @@
         </view>
       </view>
       <view class="event-action-col">
-        <button class="join-pill {{item.actionClass}}" disabled="{{!item.canJoin}}" data-id="{{item.id}}" bindtap="openSignup">{{item.joinText}}</button>
+        <button class="join-pill {{item.actionClass}}" disabled="{{!item.canJoin}}" data-id="{{item.id}}" catchtap="openSignup">{{item.joinText}}</button>
         <view class="event-arrow">›</view>
       </view>
     </view>

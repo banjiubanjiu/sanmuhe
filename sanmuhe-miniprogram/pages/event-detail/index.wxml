@@ -1,0 +1,49 @@
+<view class="page event-detail-page" wx:if="{{event}}">
+  <view class="design-sheet">
+    <image class="detail-design" src="{{event.detailImage}}" mode="widthFix" bindtap="previewDesign"></image>
+  </view>
+
+  <view class="detail-safe-bar">
+    <view class="bar-icon" bindtap="contactService">
+      <image src="/assets/icons/headset-ink.png" mode="aspectFit"></image>
+      <text>咨询</text>
+    </view>
+    <button class="bar-icon share-button" open-type="share">
+      <image src="/assets/icons/profile-star.png" mode="aspectFit"></image>
+      <text>分享</text>
+    </button>
+    <button class="signup-action {{event.canJoin ? '' : 'disabled'}}" disabled="{{!event.canJoin}}" bindtap="openSignup">
+      <image src="/assets/icons/calendar-white.png" mode="aspectFit"></image>
+      <text>{{event.joinText}}</text>
+    </button>
+  </view>
+
+  <view wx:if="{{signupOpen}}" class="signup-mask" bindtap="closeSignup">
+    <view class="signup-sheet" catchtap="noop">
+      <view class="sheet-head">
+        <view>
+          <view class="sheet-title">活动报名</view>
+          <view class="sheet-event">{{event.title}}</view>
+        </view>
+        <view class="sheet-close" bindtap="closeSignup">×</view>
+      </view>
+      <view class="signup-summary">
+        <view>{{event.date}} {{event.time}}</view>
+        <text>{{event.place}}</text>
+      </view>
+      <view class="form-fields">
+        <input class="field" placeholder="联系人" data-field="signupName" value="{{signupName}}" bindinput="onSignupInput" />
+        <input class="field" placeholder="手机号" type="number" data-field="signupPhone" value="{{signupPhone}}" bindinput="onSignupInput" />
+        <textarea class="textarea-field" placeholder="备注，如同行人数、茶席偏好" data-field="signupNote" value="{{signupNote}}" bindinput="onSignupInput"></textarea>
+      </view>
+      <button class="submit-signup" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitSignup">提交报名</button>
+    </view>
+  </view>
+</view>
+
+<view class="page event-detail-page empty-page" wx:else>
+  <view class="empty-copy">
+    <view class="empty-title">活动暂不可见</view>
+    <text>请返回活动列表查看当前可报名活动。</text>
+  </view>
+</view>
