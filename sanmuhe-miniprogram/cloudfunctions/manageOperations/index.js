@@ -753,6 +753,12 @@ async function cancelOrder(event, caller) {
   if (!order) {
     return { ok: false, message: "订单不存在" };
   }
+  if (order.status === "已取消") {
+    return { ok: false, message: "订单已取消，无需重复操作" };
+  }
+  if (order.status === "已完成") {
+    return { ok: false, message: "已完成订单请走售后处理，不能直接取消" };
+  }
   const reason = cleanText(event.reason, 160);
   if (!reason) {
     return { ok: false, message: "取消订单需填写原因" };
@@ -800,12 +806,20 @@ async function markShipped(event, caller) {
   if (!order) {
     return { ok: false, message: "订单不存在" };
   }
+  const trackingCompany = cleanText(event.trackingCompany, 80);
+  const trackingNo = cleanText(event.trackingNo, 80);
+  if (order.status !== "待发货") {
+    return { ok: false, message: "只有待发货订单可以标记发货" };
+  }
+  if (!trackingNo) {
+    return { ok: false, message: "标记发货需填写快递单号" };
+  }
   await db.collection("orders").doc(order._id).update({
     data: {
       status: "已发货",
       fulfillmentStatus: "shipped",
-      trackingCompany: cleanText(event.trackingCompany, 80),
-      trackingNo: cleanText(event.trackingNo, 80),
+      trackingCompany,
+      trackingNo,
       shippedAt: db.serverDate(),
       shippedBy: callerLabel(caller),
       adminNote: cleanText(event.adminNote, 300),
@@ -814,19 +828,19 @@ async function markShipped(event, caller) {
   });
   await sendServiceNotice("orderShipped", order._openid, {
     orderNo: order.orderNo,
-    trackingCompany: cleanText(event.trackingCompany, 80),
-    trackingNo: cleanText(event.trackingNo, 80),
+    trackingCompany,
+    trackingNo,
     status: "已发货"
   });
   await writeAdminAuditLog(caller, "markShipped", {
     orderNo: order.orderNo,
-    trackingCompany: cleanText(event.trackingCompany, 80),
-    trackingNo: cleanText(event.trackingNo, 80),
+    trackingCompany,
+    trackingNo,
     changes: auditDiff(order, {
       status: "已发货",
       fulfillmentStatus: "shipped",
-      trackingCompany: cleanText(event.trackingCompany, 80),
-      trackingNo: cleanText(event.trackingNo, 80)
+      trackingCompany,
+      trackingNo
     }, ["status", "fulfillmentStatus", "trackingCompany", "trackingNo"])
   });
   return { ok: true };
@@ -836,6 +850,9 @@ async function markPickupDone(event, caller) {
   const order = await getOrder(event);
   if (!order) {
     return { ok: false, message: "订单不存在" };
+  }
+  if (order.status !== "待自提") {
+    return { ok: false, message: "只有待自提订单可以标记完成自提" };
   }
   await db.collection("orders").doc(order._id).update({
     data: {
@@ -862,6 +879,10 @@ async function updateReservation(event, caller) {
   const status = cleanText(event.status, 20);
   if (!id || !status) {
     return { ok: false, message: "缺少预约 ID 或状态" };
+  }
+  const allowedStatuses = ["待确认", "已确认", "已完成", "已取消"];
+  if (!allowedStatuses.includes(status)) {
+    return { ok: false, message: "预约状态不支持" };
   }
   const adminNote = cleanText(event.adminNote, 300);
   if (status === "已取消" && !adminNote) {
@@ -904,6 +925,10 @@ async function updateSignup(event, caller) {
   const status = cleanText(event.status, 20);
   if (!id || !status) {
     return { ok: false, message: "缺少报名 ID 或状态" };
+  }
+  const allowedStatuses = ["待确认", "已确认", "已到场", "未到场", "已完成", "已取消"];
+  if (!allowedStatuses.includes(status)) {
+    return { ok: false, message: "报名状态不支持" };
   }
   const adminNote = cleanText(event.adminNote, 300);
   if (status === "已取消" && !adminNote) {
@@ -964,7 +989,10 @@ async function updateSignup(event, caller) {
 }
 
 async function checkInSignup(event, caller) {
-  const status = event.status === "未到场" ? "未到场" : "已到场";
+  const status = cleanText(event.status, 20);
+  if (!["已到场", "未到场"].includes(status)) {
+    return { ok: false, message: "报名核销状态只能是已到场或未到场" };
+  }
   return await updateSignup(Object.assign({}, event, { status }), caller);
 }
 
@@ -1644,6 +1672,9 @@ async function adjustInventory(event, caller) {
   const note = cleanText(event.note || event.reason, 180);
   if (!id || !Number.isFinite(delta) || delta === 0) {
     return { ok: false, message: "缺少商品 ID 或库存调整数量" };
+  }
+  if (!note) {
+    return { ok: false, message: "人工调整库存需填写原因" };
   }
   const existing = await findRecord(collection, "id", id);
   if (!existing) {
