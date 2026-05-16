@@ -267,7 +267,7 @@ const uploadState = reactive({ catalog: "", content: "" });
 const orderForm = reactive({
   trackingCompany: "",
   trackingNo: "",
-  cancelReason: "管理员取消"
+  cancelReason: ""
 });
 const afterSaleForm = reactive({
   status: "审核中",
@@ -597,6 +597,15 @@ function requireTypedConfirm(label, expected) {
     return window.confirm(label);
   }
   return window.prompt(`${label}\n请输入「${text}」确认。`) === text;
+}
+
+function promptActionReason(label) {
+  const reason = String(window.prompt(`${label}\n请输入操作原因，审计日志会记录。`) || "").trim();
+  if (!reason) {
+    showToast("请填写操作原因");
+    return "";
+  }
+  return reason;
 }
 
 function hasPermission(permission) {
@@ -1423,12 +1432,18 @@ async function exportCustomerData(customer) {
 }
 
 async function updateRecord(type, id, status) {
-  if (status === "已取消" && !requireTypedConfirm(`确认取消这条${type === "reservation" ? "预约" : "报名"}？`, id)) return;
+  let adminNote = "";
+  if (status === "已取消") {
+    if (!requireTypedConfirm(`确认取消这条${type === "reservation" ? "预约" : "报名"}？`, id)) return;
+    adminNote = promptActionReason(`取消${type === "reservation" ? "预约" : "报名"}`);
+    if (!adminNote) return;
+  }
   await withLoading("更新状态", async () => {
     await callFunction("manageOperations", {
       action: type === "reservation" ? "updateReservation" : "updateSignup",
       id,
-      status
+      status,
+      adminNote
     });
     showToast("状态已更新");
     await (type === "reservation" ? loadReservations() : loadSignups());
@@ -1450,6 +1465,10 @@ async function checkInSignup(signup, status) {
 
 async function orderAction(action, order) {
   if (action === "cancel" && !requireTypedConfirm(`确认取消订单 ${order.orderNo || order._id}？`, order.orderNo || order._id)) return;
+  if (action === "cancel" && !orderForm.cancelReason.trim()) {
+    showToast("请填写取消订单原因");
+    return;
+  }
   await withLoading("处理订单", async () => {
     const payload = { orderId: order._id, orderNo: order.orderNo };
     if (action === "ship") {
@@ -1464,8 +1483,9 @@ async function orderAction(action, order) {
       orderForm.trackingNo = "";
     }
     if (action === "pickup") await callFunction("manageOperations", { action: "markPickupDone", ...payload });
-    if (action === "cancel") await callFunction("manageOperations", { action: "cancelOrder", ...payload, reason: orderForm.cancelReason.trim() || "管理员取消" });
+    if (action === "cancel") await callFunction("manageOperations", { action: "cancelOrder", ...payload, reason: orderForm.cancelReason.trim() });
     showToast("订单已更新");
+    if (action === "cancel") orderForm.cancelReason = "";
     await loadOrders();
   });
 }
@@ -2449,7 +2469,7 @@ onMounted(async () => {
             </div>
             <label v-if="selectedOrder.status === '待支付'" class="cancel-box">
               <span>取消原因</span>
-              <input v-model="orderForm.cancelReason" placeholder="管理员取消">
+              <input v-model="orderForm.cancelReason" placeholder="必填，审计日志会记录">
             </label>
             <div class="action-row">
               <button v-if="selectedOrder.status === '待发货' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('ship', selectedOrder)">标记发货</button>

@@ -750,6 +750,10 @@ async function cancelOrder(event, caller) {
   if (!order) {
     return { ok: false, message: "订单不存在" };
   }
+  const reason = cleanText(event.reason, 160);
+  if (!reason) {
+    return { ok: false, message: "取消订单需填写原因" };
+  }
   if (order.payStatus === "paid" && !event.confirmPaidCancel) {
     return { ok: false, message: "已支付订单取消前请先完成人工退款或售后确认" };
   }
@@ -759,7 +763,7 @@ async function cancelOrder(event, caller) {
       type: "admin_cancel_release",
       orderNo: order.orderNo,
       operator: "admin",
-      note: cleanText(event.reason, 160) || "管理员取消"
+      note: reason
     });
     await releaseUserCoupon(order.coupon);
   }
@@ -769,7 +773,7 @@ async function cancelOrder(event, caller) {
       status: "已取消",
       payStatus: order.payStatus === "pending" ? "cancelled" : order.payStatus,
       lockReleased: order.payStatus === "pending" ? true : order.lockReleased,
-      cancelReason: cleanText(event.reason, 160) || "管理员取消",
+      cancelReason: reason,
       adminNote: cleanText(event.adminNote, 300),
       cancelledBy: callerLabel(caller),
       updatedAt: db.serverDate()
@@ -778,7 +782,7 @@ async function cancelOrder(event, caller) {
   await writeAdminAuditLog(caller, "cancelOrder", {
     orderNo: order.orderNo,
     payStatus: order.payStatus,
-    reason: cleanText(event.reason, 160) || "管理员取消",
+    reason,
     changes: auditDiff(order, {
       status: "已取消",
       payStatus: order.payStatus === "pending" ? "cancelled" : order.payStatus,
@@ -856,6 +860,10 @@ async function updateReservation(event, caller) {
   if (!id || !status) {
     return { ok: false, message: "缺少预约 ID 或状态" };
   }
+  const adminNote = cleanText(event.adminNote, 300);
+  if (status === "已取消" && !adminNote) {
+    return { ok: false, message: "取消预约需填写原因" };
+  }
   const existing = await getByDocId("reservations", id);
   if (!existing) {
     return { ok: false, message: "预约记录不存在" };
@@ -863,12 +871,12 @@ async function updateReservation(event, caller) {
   await db.collection("reservations").doc(id).update({
     data: {
       status,
-      adminNote: cleanText(event.adminNote, 300),
+      adminNote,
       updatedBy: callerLabel(caller),
       updatedAt: db.serverDate()
     }
   });
-  const updated = Object.assign({}, existing || {}, { status, adminNote: cleanText(event.adminNote, 300) });
+  const updated = Object.assign({}, existing || {}, { status, adminNote });
   await sendServiceNotice("reservationStatus", updated._openid, {
     room: updated.room,
     day: updated.day,
@@ -882,7 +890,7 @@ async function updateReservation(event, caller) {
     previousStatus: existing.status,
     changes: auditDiff(existing, {
       status,
-      adminNote: cleanText(event.adminNote, 300)
+      adminNote
     }, ["status", "adminNote"])
   });
   return { ok: true };
@@ -894,6 +902,10 @@ async function updateSignup(event, caller) {
   if (!id || !status) {
     return { ok: false, message: "缺少报名 ID 或状态" };
   }
+  const adminNote = cleanText(event.adminNote, 300);
+  if (status === "已取消" && !adminNote) {
+    return { ok: false, message: "取消报名需填写原因" };
+  }
   const existing = await getByDocId("event_signups", id);
   if (!existing) {
     return { ok: false, message: "报名记录不存在" };
@@ -901,7 +913,7 @@ async function updateSignup(event, caller) {
   await db.collection("event_signups").doc(id).update({
     data: {
       status,
-      adminNote: cleanText(event.adminNote, 300),
+      adminNote,
       updatedBy: callerLabel(caller),
       updatedAt: db.serverDate()
     }
@@ -942,7 +954,7 @@ async function updateSignup(event, caller) {
     previousStatus: existing.status,
     changes: auditDiff(existing, {
       status,
-      adminNote: cleanText(event.adminNote, 300)
+      adminNote
     }, ["status", "adminNote"])
   });
   return { ok: true };
