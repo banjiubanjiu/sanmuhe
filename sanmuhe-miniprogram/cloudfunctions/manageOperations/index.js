@@ -134,8 +134,7 @@ const rolePermissionMap = {
     "customer.read",
     "inventory.read",
     "notification.read",
-    "system.read",
-    "export.read"
+    "system.read"
   ]
 };
 
@@ -2044,6 +2043,9 @@ exports.main = async (event = {}) => {
 
     const action = cleanText(event.action, 40) || "getSummary";
     requirePermission(role, actionPermissions[action]);
+    if (event.exportAll) {
+      requirePermission(role, "export.read");
+    }
     const status = cleanText(event.status, 30);
     const keyword = cleanText(event.keyword, 80);
 

@@ -1473,6 +1473,9 @@ function csvFilename(name) {
 }
 
 async function fetchExportRows({ action, rowsKey, label, payload = {} }) {
+  if (!hasPermission("export.read")) {
+    throw new Error("当前角色无权导出数据");
+  }
   let rows = [];
   let page = 1;
   let pageCount = 1;
@@ -1480,6 +1483,7 @@ async function fetchExportRows({ action, rowsKey, label, payload = {} }) {
     const result = await callFunction("manageOperations", {
       action,
       ...payload,
+      exportAll: true,
       page,
       pageSize: EXPORT_PAGE_SIZE
     });
@@ -1516,6 +1520,32 @@ async function exportOrders() {
       { label: "创建时间", value: (item) => formatDate(item.createdAt) }
     ], rows);
     showToast(`已导出 ${numberText(rows.length)} 条订单`);
+  });
+}
+
+async function exportAfterSales() {
+  await withLoading("导出售后", async () => {
+    const rows = await fetchExportRows({
+      action: "listAfterSales",
+      rowsKey: "orders",
+      label: "售后",
+      payload: {
+        status: filters.afterSaleStatus,
+        keyword: filters.afterSaleKeyword
+      }
+    });
+    downloadCsv(csvFilename("after-sales"), [
+      { label: "订单号", value: (item) => item.orderNo || item._id },
+      { label: "售后状态", value: (item) => item.afterSaleStatus || item.afterSale?.status || "" },
+      { label: "订单状态", value: (item) => item.status || "" },
+      { label: "退款金额", value: (item) => money(item.refundAmount || item.afterSale?.refundAmount || 0) },
+      { label: "订单金额", value: (item) => money(item.total) },
+      { label: "客户", value: (item) => item.name || item.contactName || item.consignee || "" },
+      { label: "手机号", value: (item) => item.phone || item.mobile || "" },
+      { label: "原因", value: (item) => item.afterSaleReason || item.afterSale?.reason || item.afterSaleNote || "" },
+      { label: "创建时间", value: (item) => formatDate(item.createdAt) }
+    ], rows);
+    showToast(`已导出 ${numberText(rows.length)} 条售后`);
   });
 }
 
@@ -2217,7 +2247,7 @@ onMounted(async () => {
                 <option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
               <input v-model="filters.orderKeyword" class="line-input" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
-              <button class="secondary-action small" type="button" @click="exportOrders">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">导出全部 CSV</button>
             </div>
             <div class="record-list">
               <button v-for="order in state.orders" :key="order._id" :class="{ selected: state.selectedOrderId === order._id }" type="button" @click="state.selectedOrderId = order._id">
@@ -2286,6 +2316,7 @@ onMounted(async () => {
                 <option>申请售后</option><option>审核中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option>
               </select>
               <input v-model="filters.afterSaleKeyword" class="line-input" placeholder="订单号、姓名、手机号、原因" @keydown.enter="resetPageAndLoad('afterSales', loadAfterSales)">
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportAfterSales">导出全部 CSV</button>
             </div>
             <div class="record-list">
               <button
@@ -2339,7 +2370,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.inventoryKeyword" class="line-input" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('inventory', loadInventoryLogs)">筛选</button>
-              <button class="secondary-action small" type="button" @click="exportInventoryLogs">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportInventoryLogs">导出全部 CSV</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -2391,8 +2422,8 @@ onMounted(async () => {
               </select>
               <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" placeholder="茶室、姓名、手机号" @keydown.enter="resetPageAndLoad('reservations', loadReservations)">
               <input v-else v-model="filters.signupKeyword" class="line-input" placeholder="活动、姓名、手机号" @keydown.enter="resetPageAndLoad('signups', loadSignups)">
-              <button v-if="state.activeTab === 'reservations'" class="secondary-action small" type="button" @click="exportReservations">导出全部 CSV</button>
-              <button v-else class="secondary-action small" type="button" @click="exportSignups">导出全部 CSV</button>
+              <button v-if="state.activeTab === 'reservations' && hasPermission('export.read')" class="secondary-action small" type="button" @click="exportReservations">导出全部 CSV</button>
+              <button v-else-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportSignups">导出全部 CSV</button>
             </div>
             <div v-if="state.activeTab === 'reservations'" class="calendar-strip">
               <button type="button" @click="shiftReservationCalendar(-1)">‹</button>
@@ -2493,7 +2524,7 @@ onMounted(async () => {
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
-              <button class="secondary-action small" type="button" @click="exportCustomers">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportCustomers">导出全部 CSV</button>
             </div>
             <div class="record-list">
               <button v-for="customer in state.customers" :key="customer.id" :class="{ selected: state.selectedCustomerId === customer.id }" type="button" @click="state.selectedCustomerId = customer.id">
@@ -2651,7 +2682,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="resetPageAndLoad('audit', loadAuditLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('audit', loadAuditLogs)">筛选</button>
-              <button class="secondary-action small" type="button" @click="exportAuditLogs">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportAuditLogs">导出全部 CSV</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -2703,7 +2734,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.notificationKeyword" class="line-input" placeholder="类型、OpenID、模板、原因" @keydown.enter="resetPageAndLoad('notifications', loadNotificationLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('notifications', loadNotificationLogs)">筛选</button>
-              <button class="secondary-action small" type="button" @click="exportNotificationLogs">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportNotificationLogs">导出全部 CSV</button>
             </div>
             <div class="table-wrap">
               <table>
