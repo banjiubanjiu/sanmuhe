@@ -175,6 +175,25 @@ async function releaseInventory(locks) {
   }
 }
 
+async function releaseUserCoupon(coupon) {
+  if (!coupon || !coupon.userCouponId) {
+    return;
+  }
+  try {
+    await db.collection("user_coupons").doc(coupon.userCouponId).update({
+      data: {
+        status: "可使用",
+        lockedOrderNo: "",
+        lockedUntil: null,
+        discount: 0,
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    // Continue expiring the order even if the coupon state needs manual repair.
+  }
+}
+
 function isExpired(order) {
   if (!order || !order.lockedUntil) {
     return false;
@@ -223,6 +242,7 @@ exports.main = async (event = {}) => {
     }
     if (isExpired(order)) {
       await releaseInventory(order.inventoryLocks);
+      await releaseUserCoupon(order.coupon);
       await db.collection("orders").doc(order._id).update({
         data: {
           status: "已取消",

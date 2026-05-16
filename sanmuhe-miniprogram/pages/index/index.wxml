@@ -46,9 +46,9 @@
     <view class="member-copy">
       <view>
         <text class="member-name">三木合会员</text>
-        <text class="growth-pill">成长值 1280</text>
+        <text class="growth-pill">积分自动累计</text>
       </view>
-      <view class="member-meta">再积 720 成长值可升级为 臻享会员</view>
+      <view class="member-meta">支付成功后更新等级、积分与可用优惠券</view>
     </view>
     <view class="member-link">查看权益 ›</view>
   </view>

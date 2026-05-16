@@ -28,30 +28,38 @@ async function getMine(collection, openid) {
   }
 }
 
-async function getActiveCoupons() {
-  await ensureCollection("coupons");
+async function getMyCoupons(openid) {
+  await ensureCollection("user_coupons");
   try {
-    const result = await db.collection("coupons")
-      .where({
-        visible: true,
-        status: "领取中"
-      })
-      .orderBy("createdAt", "desc")
+    const result = await db.collection("user_coupons")
+      .where({ _openid: openid })
+      .orderBy("claimedAt", "desc")
       .limit(20)
       .get();
-    return result.data || [];
+    return (result.data || []).map((item) => Object.assign({ id: item._id }, item));
   } catch (error) {
     return [];
   }
 }
 
+async function getMember(openid) {
+  await ensureCollection("members");
+  try {
+    const result = await db.collection("members").where({ _openid: openid }).limit(1).get();
+    return result.data && result.data[0] ? result.data[0] : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 exports.main = async () => {
   const { OPENID } = cloud.getWXContext();
-  const [orders, reservations, signups, coupons] = await Promise.all([
+  const [orders, reservations, signups, coupons, member] = await Promise.all([
     getMine("orders", OPENID),
     getMine("reservations", OPENID),
     getMine("event_signups", OPENID),
-    getActiveCoupons()
+    getMyCoupons(OPENID),
+    getMember(OPENID)
   ]);
 
   return {
@@ -59,6 +67,7 @@ exports.main = async () => {
     orders: orders.map((item) => Object.assign({ id: item.orderNo || item._id }, item)),
     reservations: reservations.map((item) => Object.assign({ id: item._id }, item)),
     signups: signups.map((item) => Object.assign({ id: item._id }, item)),
-    coupons
+    coupons,
+    member
   };
 };

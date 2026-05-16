@@ -10,6 +10,11 @@ const _ = db.command;
 const LOCK_MINUTES = Math.max(1, Number(process.env.ORDER_LOCK_MINUTES || 15));
 const FREE_SHIPPING_AMOUNT = Math.max(0, Number(process.env.FREE_SHIPPING_AMOUNT || 0));
 const SHIPPING_FEE = Math.max(0, Number(process.env.SHIPPING_FEE || 0));
+const DEFAULT_MEMBER_LEVELS = [
+  { tier: "雅客会员", minSpend: 0, discountRate: 0.98 },
+  { tier: "臻享会员", minSpend: 1600, discountRate: 0.95 },
+  { tier: "山房会员", minSpend: 5000, discountRate: 0.92 }
+];
 
 const specMultipliers = {
   "50g": 1,
@@ -270,9 +275,174 @@ function calculateShippingFee(deliveryMethod, subtotal) {
   return SHIPPING_FEE;
 }
 
+function number(value) {
+  return Math.max(0, Number(value) || 0);
+}
+
+function toDate(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (value.$date) {
+    return toDate(value.$date);
+  }
+  if (value.seconds) {
+    return new Date(value.seconds * 1000);
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isDateActive(startAt, endAt) {
+  const now = Date.now();
+  const start = toDate(startAt);
+  const end = toDate(endAt);
+  return (!start || start.getTime() <= now) && (!end || end.getTime() + 86400000 > now);
+}
+
+async function readSettings() {
+  await ensureCollection("store_settings");
+  try {
+    const result = await db.collection("store_settings").where({ key: "store" }).limit(1).get();
+    return result.data && result.data[0] ? result.data[0] : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function getLevelRules(settings = {}) {
+  return [
+    {
+      tier: cleanText(settings.levelOneName, 20) || DEFAULT_MEMBER_LEVELS[0].tier,
+      minSpend: number(settings.levelOneMinSpend),
+      discountRate: Number(settings.levelOneDiscountRate || DEFAULT_MEMBER_LEVELS[0].discountRate)
+    },
+    {
+      tier: cleanText(settings.levelTwoName, 20) || DEFAULT_MEMBER_LEVELS[1].tier,
+      minSpend: number(settings.levelTwoMinSpend || DEFAULT_MEMBER_LEVELS[1].minSpend),
+      discountRate: Number(settings.levelTwoDiscountRate || DEFAULT_MEMBER_LEVELS[1].discountRate)
+    },
+    {
+      tier: cleanText(settings.levelThreeName, 20) || DEFAULT_MEMBER_LEVELS[2].tier,
+      minSpend: number(settings.levelThreeMinSpend || DEFAULT_MEMBER_LEVELS[2].minSpend),
+      discountRate: Number(settings.levelThreeDiscountRate || DEFAULT_MEMBER_LEVELS[2].discountRate)
+    }
+  ].map((level, index) => ({
+    tier: level.tier,
+    minSpend: level.minSpend,
+    discountRate: level.discountRate > 0 && level.discountRate <= 1 ? level.discountRate : DEFAULT_MEMBER_LEVELS[index].discountRate
+  })).sort((a, b) => a.minSpend - b.minSpend);
+}
+
+function getLevelBySpend(totalSpend, levels) {
+  return levels.reduce((current, level) => totalSpend >= level.minSpend ? level : current, levels[0]);
+}
+
+async function getMemberDiscount(openid, settings, cleanItems) {
+  await ensureCollection("members");
+  const levels = getLevelRules(settings);
+  let totalSpend = 0;
+  try {
+    const existing = await db.collection("members").where({ _openid: openid }).limit(1).get();
+    const member = existing.data && existing.data[0];
+    totalSpend = number(member && member.totalSpend);
+  } catch (error) {
+    totalSpend = 0;
+  }
+
+  const level = getLevelBySpend(totalSpend, levels);
+  const eligibleSubtotal = cleanItems
+    .filter((item) => item.type === "tea")
+    .reduce((sum, item) => sum + number(item.lineTotal), 0);
+  const discountRate = level.discountRate;
+  const discount = discountRate < 1 ? Math.round(eligibleSubtotal * (1 - discountRate)) : 0;
+
+  return {
+    tier: level.tier,
+    discountRate,
+    eligibleSubtotal,
+    discount
+  };
+}
+
+async function lockUserCoupon(openid, couponUserId, orderNo, lockedUntil, payableSubtotal) {
+  const id = cleanText(couponUserId, 80);
+  if (!id) {
+    return null;
+  }
+
+  await ensureCollection("user_coupons");
+  const result = await db.collection("user_coupons").doc(id).get();
+  const coupon = result.data;
+  if (!coupon || coupon._openid !== openid || coupon.status !== "可使用") {
+    throw new Error("优惠券不可用");
+  }
+  if (!isDateActive(coupon.startAt, coupon.endAt)) {
+    throw new Error("优惠券已过期");
+  }
+  if (number(coupon.threshold) > payableSubtotal) {
+    throw new Error(`订单满 ${coupon.threshold} 元可用该优惠券`);
+  }
+
+  const discount = Math.min(number(coupon.amount), payableSubtotal);
+  if (discount <= 0) {
+    throw new Error("优惠券金额无效");
+  }
+
+  const claim = await db.collection("user_coupons").where({
+    _id: id,
+    _openid: openid,
+    status: "可使用"
+  }).update({
+    data: {
+      status: "已锁定",
+      lockedOrderNo: orderNo,
+      lockedUntil,
+      discount,
+      updatedAt: db.serverDate()
+    }
+  });
+
+  if (!claim.updated) {
+    throw new Error("优惠券已被使用或锁定");
+  }
+
+  return {
+    userCouponId: id,
+    couponId: coupon.couponId,
+    name: coupon.couponName,
+    amount: number(coupon.amount),
+    threshold: number(coupon.threshold),
+    discount
+  };
+}
+
+async function releaseUserCoupon(coupon) {
+  if (!coupon || !coupon.userCouponId) {
+    return;
+  }
+  try {
+    await db.collection("user_coupons").doc(coupon.userCouponId).update({
+      data: {
+        status: "可使用",
+        lockedOrderNo: "",
+        lockedUntil: null,
+        discount: 0,
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    // Continue returning the order error; coupon state can be repaired from admin logs.
+  }
+}
+
 exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
   let appliedLocks = [];
+  let appliedCoupon = null;
 
   try {
     const { cleanItems, inventoryLocks, subtotal } = await sanitizeItems(event.items);
@@ -289,13 +459,23 @@ exports.main = async (event = {}) => {
       return { ok: false, message: "请选择或填写收货地址" };
     }
 
+    const orderNo = `SMH${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
+    const lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
+    const settings = await readSettings();
+    const member = await getMemberDiscount(OPENID, settings, cleanItems);
+    const memberDiscount = Math.min(subtotal, member.discount);
+    const discountedSubtotal = Math.max(0, subtotal - memberDiscount);
+    const shippingFee = calculateShippingFee(deliveryMethod, discountedSubtotal);
+    appliedCoupon = await lockUserCoupon(OPENID, event.couponUserId || event.userCouponId, orderNo, lockedUntil, discountedSubtotal);
+    const couponDiscount = appliedCoupon ? appliedCoupon.discount : 0;
+    const total = Math.max(0, discountedSubtotal - couponDiscount) + shippingFee;
+    if (total <= 0) {
+      throw new Error("订单金额需大于 0 元");
+    }
+
     await ensureCollection("orders");
     appliedLocks = await lockInventory(inventoryLocks);
 
-    const orderNo = `SMH${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
-    const shippingFee = calculateShippingFee(deliveryMethod, subtotal);
-    const total = subtotal + shippingFee;
-    const lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
     const addResult = await db.collection("orders").add({
       data: {
         _openid: OPENID,
@@ -303,6 +483,12 @@ exports.main = async (event = {}) => {
         items: cleanItems,
         inventoryLocks: appliedLocks,
         subtotal,
+        memberTier: member.tier,
+        memberDiscountRate: member.discountRate,
+        memberDiscount,
+        discountedSubtotal,
+        coupon: appliedCoupon,
+        couponDiscount,
         shippingFee,
         total,
         deliveryMethod,
@@ -326,6 +512,8 @@ exports.main = async (event = {}) => {
       id: addResult._id,
       orderNo,
       subtotal,
+      memberDiscount,
+      couponDiscount,
       shippingFee,
       total,
       deliveryMethod,
@@ -335,6 +523,9 @@ exports.main = async (event = {}) => {
   } catch (error) {
     if (appliedLocks.length) {
       await releaseInventory(appliedLocks);
+    }
+    if (appliedCoupon) {
+      await releaseUserCoupon(appliedCoupon);
     }
     return {
       ok: false,

@@ -8,6 +8,19 @@ cloud.init({
 
 const db = cloud.database();
 const _ = db.command;
+const DEFAULT_MEMBER_LEVELS = [
+  { tier: "雅客会员", minSpend: 0, discountRate: 0.98 },
+  { tier: "臻享会员", minSpend: 1600, discountRate: 0.95 },
+  { tier: "山房会员", minSpend: 5000, discountRate: 0.92 }
+];
+
+async function ensureCollection(name) {
+  try {
+    await db.createCollection(name);
+  } catch (error) {
+    // Existing collections are expected.
+  }
+}
 
 function normalizePem(value) {
   const text = String(value || "").replace(/\\n/g, "\n").trim();
@@ -120,6 +133,127 @@ function cents(value) {
   return Math.round((Number(value) || 0) * 100);
 }
 
+function number(value) {
+  return Math.max(0, Number(value) || 0);
+}
+
+async function readSettings() {
+  await ensureCollection("store_settings");
+  try {
+    const result = await db.collection("store_settings").where({ key: "store" }).limit(1).get();
+    return result.data && result.data[0] ? result.data[0] : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function getLevelRules(settings = {}) {
+  return [
+    {
+      tier: String(settings.levelOneName || DEFAULT_MEMBER_LEVELS[0].tier),
+      minSpend: number(settings.levelOneMinSpend),
+      discountRate: Number(settings.levelOneDiscountRate || DEFAULT_MEMBER_LEVELS[0].discountRate)
+    },
+    {
+      tier: String(settings.levelTwoName || DEFAULT_MEMBER_LEVELS[1].tier),
+      minSpend: number(settings.levelTwoMinSpend || DEFAULT_MEMBER_LEVELS[1].minSpend),
+      discountRate: Number(settings.levelTwoDiscountRate || DEFAULT_MEMBER_LEVELS[1].discountRate)
+    },
+    {
+      tier: String(settings.levelThreeName || DEFAULT_MEMBER_LEVELS[2].tier),
+      minSpend: number(settings.levelThreeMinSpend || DEFAULT_MEMBER_LEVELS[2].minSpend),
+      discountRate: Number(settings.levelThreeDiscountRate || DEFAULT_MEMBER_LEVELS[2].discountRate)
+    }
+  ].sort((a, b) => a.minSpend - b.minSpend);
+}
+
+function getLevelBySpend(totalSpend, levels) {
+  return levels.reduce((current, level) => totalSpend >= level.minSpend ? level : current, levels[0]);
+}
+
+async function markCouponUsed(order) {
+  if (!order.coupon || !order.coupon.userCouponId) {
+    return;
+  }
+  await ensureCollection("user_coupons");
+  await db.collection("user_coupons").doc(order.coupon.userCouponId).update({
+    data: {
+      status: "已使用",
+      usedOrderId: order._id,
+      usedOrderNo: order.orderNo,
+      usedAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    }
+  });
+  if (order.coupon.couponId) {
+    try {
+      const couponResult = await db.collection("coupons").where({ id: order.coupon.couponId }).limit(1).get();
+      const coupon = couponResult.data && couponResult.data[0];
+      if (coupon) {
+        await db.collection("coupons").doc(coupon._id).update({
+          data: {
+            redeemed: _.inc(1),
+            updatedAt: db.serverDate()
+          }
+        });
+      }
+    } catch (error) {
+      // Coupon template statistics are non-critical after the user coupon is consumed.
+    }
+  }
+}
+
+async function updateMemberAfterPaid(order) {
+  const openid = order._openid;
+  if (!openid) {
+    return { pointsEarned: 0, tier: "" };
+  }
+
+  await ensureCollection("members");
+  const settings = await readSettings();
+  const pointRate = Math.max(0, Number(settings.memberPointRate || 1));
+  const pointsEarned = Math.floor(number(order.total) * pointRate);
+  const existingResult = await db.collection("members").where({ _openid: openid }).limit(1).get();
+  const existing = existingResult.data && existingResult.data[0];
+  const nextTotalSpend = number(existing && existing.totalSpend) + number(order.total);
+  const nextPaidOrders = number(existing && existing.paidOrders) + 1;
+  const nextPoints = number(existing && existing.points) + pointsEarned;
+  const level = getLevelBySpend(nextTotalSpend, getLevelRules(settings));
+  const data = {
+    _openid: openid,
+    name: existing && existing.name || order.consignee || "三木合会员",
+    phone: existing && existing.phone || order.phone || "",
+    cardNo: existing && existing.cardNo || `SMH ${String(openid).slice(-6).toUpperCase()}`,
+    tier: level.tier,
+    discountRate: level.discountRate,
+    points: nextPoints,
+    totalSpend: nextTotalSpend,
+    paidOrders: nextPaidOrders,
+    lastPaidAt: db.serverDate(),
+    updatedAt: db.serverDate()
+  };
+
+  if (existing && existing._id) {
+    await db.collection("members").doc(existing._id).update({ data });
+  } else {
+    await db.collection("members").add({
+      data: Object.assign({}, data, { createdAt: db.serverDate() })
+    });
+  }
+
+  return { pointsEarned, tier: level.tier };
+}
+
+function sendServiceNotice(kind, openid, payload) {
+  if (!openid || !cloud.callFunction) {
+    return Promise.resolve();
+  }
+  return cloud.callFunction({
+    name: "serviceNotify",
+    data: { kind, openid, payload }
+  }).catch(() => null);
+}
+
 async function handleTransactionSuccess(transaction) {
   const order = await findOrder(transaction.out_trade_no);
   if (!order) {
@@ -172,16 +306,26 @@ async function handleTransactionSuccess(transaction) {
   }
 
   await confirmInventory(order.inventoryLocks);
+  await markCouponUsed(order);
+  const memberUpdate = await updateMemberAfterPaid(order);
   await db.collection("orders").doc(order._id).update({
     data: {
       status: getPaidStatus(order),
       payStatus: "paid",
+      pointsEarned: memberUpdate.pointsEarned,
+      memberTierAfterPaid: memberUpdate.tier,
       transactionId: transaction.transaction_id || "",
       tradeType: transaction.trade_type || "JSAPI",
       paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
       paymentRaw: transaction,
       updatedAt: db.serverDate()
     }
+  });
+  await sendServiceNotice("orderPaid", order._openid, {
+    orderNo: order.orderNo,
+    total: order.total,
+    status: getPaidStatus(order),
+    time: transaction.success_time || ""
   });
 }
 

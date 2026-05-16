@@ -33,6 +33,25 @@ async function releaseInventory(locks) {
   }
 }
 
+async function releaseUserCoupon(coupon) {
+  if (!coupon || !coupon.userCouponId) {
+    return;
+  }
+  try {
+    await db.collection("user_coupons").doc(coupon.userCouponId).update({
+      data: {
+        status: "可使用",
+        lockedOrderNo: "",
+        lockedUntil: null,
+        discount: 0,
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    // Continue releasing other order resources.
+  }
+}
+
 exports.main = async () => {
   await ensureCollection("orders");
 
@@ -67,6 +86,7 @@ exports.main = async () => {
     }
 
     await releaseInventory(order.inventoryLocks);
+    await releaseUserCoupon(order.coupon);
     released += 1;
   }
 

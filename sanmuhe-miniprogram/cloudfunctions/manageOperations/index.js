@@ -212,6 +212,35 @@ async function releaseInventory(locks) {
   }
 }
 
+async function releaseUserCoupon(coupon) {
+  if (!coupon || !coupon.userCouponId) {
+    return;
+  }
+  try {
+    await db.collection("user_coupons").doc(coupon.userCouponId).update({
+      data: {
+        status: "可使用",
+        lockedOrderNo: "",
+        lockedUntil: null,
+        discount: 0,
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    // Continue the management action; coupon state can be repaired from logs.
+  }
+}
+
+function sendServiceNotice(kind, openid, payload) {
+  if (!openid || !cloud.callFunction) {
+    return Promise.resolve();
+  }
+  return cloud.callFunction({
+    name: "serviceNotify",
+    data: { kind, openid, payload }
+  }).catch(() => null);
+}
+
 function normalizeRecordId(value) {
   return cleanText(value, 80);
 }
@@ -286,6 +315,7 @@ async function cancelOrder(event) {
 
   if (order.payStatus === "pending" && order.lockReleased !== true) {
     await releaseInventory(order.inventoryLocks);
+    await releaseUserCoupon(order.coupon);
   }
 
   await db.collection("orders").doc(order._id).update({
@@ -317,6 +347,12 @@ async function markShipped(event) {
       updatedAt: db.serverDate()
     }
   });
+  await sendServiceNotice("orderShipped", order._openid, {
+    orderNo: order.orderNo,
+    trackingCompany: cleanText(event.trackingCompany, 80),
+    trackingNo: cleanText(event.trackingNo, 80),
+    status: "已发货"
+  });
   return { ok: true };
 }
 
@@ -343,12 +379,24 @@ async function updateReservation(event) {
   if (!id || !status) {
     return { ok: false, message: "缺少预约 ID 或状态" };
   }
+  const existing = await getByDocId("reservations", id);
+  if (!existing) {
+    return { ok: false, message: "预约记录不存在" };
+  }
   await db.collection("reservations").doc(id).update({
     data: {
       status,
       adminNote: cleanText(event.adminNote, 300),
       updatedAt: db.serverDate()
     }
+  });
+  const updated = Object.assign({}, existing || {}, { status, adminNote: cleanText(event.adminNote, 300) });
+  await sendServiceNotice("reservationStatus", updated._openid, {
+    room: updated.room,
+    day: updated.day,
+    time: updated.time,
+    status,
+    note: updated.adminNote || updated.note || "预约状态已更新"
   });
   return { ok: true };
 }
@@ -381,18 +429,24 @@ async function updateSignup(event) {
         const delta = shouldRelease
           ? (Number(eventDoc.signed || 0) > 0 ? -1 : 0)
           : 1;
-        if (delta === 0) {
-          return { ok: true };
+        if (delta !== 0) {
+          await db.collection("events").doc(eventDoc._id).update({
+            data: {
+              signed: _.inc(delta),
+              updatedAt: db.serverDate()
+            }
+          });
         }
-        await db.collection("events").doc(eventDoc._id).update({
-          data: {
-            signed: _.inc(delta),
-            updatedAt: db.serverDate()
-          }
-        });
       }
     }
   }
+  await sendServiceNotice("eventStatus", existing._openid, {
+    title: existing.title,
+    date: existing.date,
+    time: existing.time,
+    place: existing.place,
+    status
+  });
   return { ok: true };
 }
 
@@ -702,10 +756,13 @@ function normalizeCoupon(data = {}) {
   return {
     id: cleanId(data.id, "coupon"),
     name: cleanText(data.name, 80),
+    description: cleanText(data.description, 160),
     amount: Math.max(0, Number(data.amount) || 0),
     threshold: Math.max(0, Number(data.threshold) || 0),
     stock: Math.max(0, Number(data.stock) || 0),
     issued: Math.max(0, Number(data.issued) || 0),
+    redeemed: Math.max(0, Number(data.redeemed) || 0),
+    claimLimit: Math.max(1, Number(data.claimLimit) || 1),
     startAt: cleanText(data.startAt, 30),
     endAt: cleanText(data.endAt, 30),
     status: cleanText(data.status, 20) || "领取中",
@@ -777,6 +834,24 @@ function normalizeSettings(data = {}) {
     phone: cleanText(data.phone, 40),
     businessHours: cleanText(data.businessHours, 160),
     reservationRule: cleanText(data.reservationRule, 300),
+    memberPointRate: Math.max(0, Number(data.memberPointRate) || 1),
+    levelOneName: cleanText(data.levelOneName, 20) || "雅客会员",
+    levelOneMinSpend: Math.max(0, Number(data.levelOneMinSpend) || 0),
+    levelOneDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelOneDiscountRate) || 0.98)),
+    levelTwoName: cleanText(data.levelTwoName, 20) || "臻享会员",
+    levelTwoMinSpend: Math.max(0, Number(data.levelTwoMinSpend) || 1600),
+    levelTwoDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelTwoDiscountRate) || 0.95)),
+    levelThreeName: cleanText(data.levelThreeName, 20) || "山房会员",
+    levelThreeMinSpend: Math.max(0, Number(data.levelThreeMinSpend) || 5000),
+    levelThreeDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelThreeDiscountRate) || 0.92)),
+    orderPaidTemplateId: cleanText(data.orderPaidTemplateId, 80),
+    orderPaidPage: cleanText(data.orderPaidPage, 120) || "pages/profile/index",
+    orderShippedTemplateId: cleanText(data.orderShippedTemplateId, 80),
+    orderShippedPage: cleanText(data.orderShippedPage, 120) || "pages/profile/index",
+    reservationTemplateId: cleanText(data.reservationTemplateId, 80),
+    reservationNoticePage: cleanText(data.reservationNoticePage, 120) || "pages/reservation/index",
+    eventTemplateId: cleanText(data.eventTemplateId, 80),
+    eventNoticePage: cleanText(data.eventNoticePage, 120) || "pages/events/index",
     paymentEnabled: data.paymentEnabled !== false,
     pickupEnabled: data.pickupEnabled !== false,
     shippingEnabled: data.shippingEnabled !== false,

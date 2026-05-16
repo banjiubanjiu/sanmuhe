@@ -1404,12 +1404,12 @@ function renderSimpleMarketingTable(items, type) {
   }
   return `
     <table class="data-table embedded-table">
-      <thead><tr><th>名称</th><th>状态</th><th>${type === "coupon" ? "面额/门槛" : "类型"}</th><th>操作</th></tr></thead>
+      <thead><tr><th>名称</th><th>状态</th><th>${type === "coupon" ? "面额/门槛/核销" : "类型"}</th><th>操作</th></tr></thead>
       <tbody>${items.map((item) => `
         <tr>
           <td><div class="cell-title"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.id)}</span></div></td>
           <td>${statusBadge(item.visible === false ? "已停用" : item.status)}</td>
-          <td>${type === "coupon" ? `¥${money(item.amount)} / 满 ${money(item.threshold)}` : escapeHtml(item.type || "-")}</td>
+          <td>${type === "coupon" ? `¥${money(item.amount)} / 满 ${money(item.threshold)} / ${Number(item.redeemed || 0)} 核销` : escapeHtml(item.type || "-")}</td>
           <td><button class="btn btn-small btn-secondary" data-marketing-type="${type}" data-id="${escapeHtml(item.id)}" type="button">编辑</button></td>
         </tr>
       `).join("")}</tbody>
@@ -1466,6 +1466,9 @@ function resetMarketingForm(type) {
   form.reset();
   if (form.elements.visible) {
     form.elements.visible.checked = true;
+  }
+  if (form.elements.claimLimit) {
+    form.elements.claimLimit.value = 1;
   }
 }
 

@@ -1,5 +1,5 @@
 const { addToCart, getCart, getTotal, setCart, updateQuantity } = require("../../utils/cart");
-const { createOrder, payOrder } = require("../../utils/cloudApi");
+const { createOrder, getMemberCenter, payOrder } = require("../../utils/cloudApi");
 const { teaProducts } = require("../../data/catalog");
 const { syncTabBar } = require("../../utils/tabbar");
 
@@ -32,6 +32,24 @@ function enrichCart(cart, selectedKeys) {
     tagText: getItemTag(item),
     lineTotal: Number(item.price || 0) * Number(item.quantity || 1)
   }));
+}
+
+function money(value) {
+  return Math.max(0, Math.round(Number(value) || 0));
+}
+
+function getTeaSubtotal(items) {
+  return items
+    .filter((item) => item.type === "tea")
+    .reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+}
+
+function getAvailableUserCoupons(coupons, subtotal) {
+  return (coupons || []).filter((coupon) => (
+    coupon.status === "可使用" &&
+    Number(coupon.amount || 0) > 0 &&
+    Number(coupon.threshold || 0) <= subtotal
+  ));
 }
 
 function buildRecommendations(cart) {
@@ -71,7 +89,15 @@ Page({
     consignee: "",
     phone: "",
     address: "",
-    submitting: false
+    submitting: false,
+    member: null,
+    userCoupons: [],
+    selectedCouponId: "",
+    selectedCoupon: null,
+    usableCoupons: [],
+    memberDiscount: 0,
+    couponDiscount: 0,
+    checkoutTotal: 0
   },
 
   onLoad() {
@@ -82,6 +108,7 @@ Page({
     syncTabBar(this);
     this.refresh();
     this.loadContact();
+    this.loadMemberCenter();
   },
 
   refresh() {
@@ -94,6 +121,12 @@ Page({
     const selectedItems = enriched.filter((item) => item.selected);
     const selectedTotal = getTotal(selectedItems);
     const selectedCount = selectedItems.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+    const memberDiscount = this.calculateMemberDiscount(selectedItems);
+    const discountedSubtotal = Math.max(0, selectedTotal - memberDiscount);
+    const usableCoupons = getAvailableUserCoupons(this.data.userCoupons, discountedSubtotal);
+    const selectedCoupon = usableCoupons.find((item) => item.id === this.data.selectedCouponId || item._id === this.data.selectedCouponId) || null;
+    const couponDiscount = selectedCoupon ? Math.min(money(selectedCoupon.amount), discountedSubtotal) : 0;
+    const checkoutTotal = Math.max(0, discountedSubtotal - couponDiscount);
     this.setData({
       cart,
       total: getTotal(cart),
@@ -104,8 +137,32 @@ Page({
       allSelected: cart.length > 0 && selectedKeys.length === cart.length,
       teaItems: enriched.filter((item) => item.type !== "drink"),
       drinkItems: enriched.filter((item) => item.type === "drink"),
-      recommendations: buildRecommendations(cart)
+      recommendations: buildRecommendations(cart),
+      usableCoupons,
+      selectedCoupon,
+      selectedCouponId: selectedCoupon ? (selectedCoupon.id || selectedCoupon._id) : "",
+      memberDiscount,
+      couponDiscount,
+      checkoutTotal
     });
+  },
+
+  loadMemberCenter() {
+    getMemberCenter().then((result) => {
+      this.setData({
+        member: result.member || null,
+        userCoupons: result.userCoupons || []
+      }, () => this.refresh());
+    });
+  },
+
+  calculateMemberDiscount(selectedItems) {
+    const member = this.data.member || {};
+    const discountRate = Number(member.discountRate || 1);
+    if (discountRate <= 0 || discountRate >= 1) {
+      return 0;
+    }
+    return money(getTeaSubtotal(selectedItems) * (1 - discountRate));
   },
 
   loadContact() {
@@ -207,6 +264,25 @@ Page({
     this.setData({ deliveryMethod: event.currentTarget.dataset.value });
   },
 
+  chooseCoupon() {
+    const coupons = this.data.usableCoupons;
+    if (!coupons.length) {
+      wx.showToast({ title: "暂无可用优惠券", icon: "none" });
+      return;
+    }
+    wx.showActionSheet({
+      itemList: coupons.map((item) => `${item.couponName || item.name}｜减 ${money(item.amount)} 元`),
+      success: (res) => {
+        const coupon = coupons[res.tapIndex];
+        this.setData({ selectedCouponId: coupon.id || coupon._id }, () => this.refresh());
+      }
+    });
+  },
+
+  clearCoupon() {
+    this.setData({ selectedCouponId: "", selectedCoupon: null }, () => this.refresh());
+  },
+
   goOrder() {
     wx.setStorageSync(SHOP_CATEGORY_KEY, "全部");
     wx.switchTab({ url: "/pages/shop/index" });
@@ -233,7 +309,7 @@ Page({
   },
 
   submitOrder() {
-    const { cart, selectedKeys, selectedTotal, deliveryMethod, consignee, phone, address, remark, submitting } = this.data;
+    const { cart, selectedKeys, selectedTotal, deliveryMethod, consignee, phone, address, remark, submitting, selectedCouponId } = this.data;
     const selectedCart = cart.filter((item) => selectedKeys.indexOf(item.key) >= 0);
     if (submitting) {
       return;
@@ -264,7 +340,8 @@ Page({
       consignee,
       phone,
       address,
-      remark
+      remark,
+      couponUserId: selectedCouponId
     };
 
     this.saveContact();

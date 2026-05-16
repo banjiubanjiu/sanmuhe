@@ -123,8 +123,30 @@ function listMyRecords() {
     orders: [],
     reservations: [],
     signups: [],
-    coupons: []
+    coupons: [],
+    member: null
   }));
+}
+
+function getMemberCenter() {
+  return callCloud("memberCenter", { action: "getMemberCenter" }).catch(() => ({
+    member: null,
+    userCoupons: [],
+    availableCoupons: [],
+    subscriptionTemplates: []
+  }));
+}
+
+function claimCoupon(couponId) {
+  return callCloud("memberCenter", { action: "claimCoupon", couponId });
+}
+
+function saveSubscription(subscriptions, templates) {
+  return callCloud("memberCenter", {
+    action: "saveSubscription",
+    subscriptions,
+    templates
+  });
 }
 
 module.exports = {
@@ -133,9 +155,12 @@ module.exports = {
   createPayment,
   createReservation,
   getCatalog,
+  getMemberCenter,
   isCloudReady,
   joinEvent,
+  claimCoupon,
   listEvents,
   listMyRecords,
-  payOrder
+  payOrder,
+  saveSubscription
 };

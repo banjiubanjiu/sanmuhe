@@ -9,8 +9,8 @@ const defaultUser = {
 
 const defaultMember = {
   tier: "雅客会员",
-  points: 1280,
-  coupons: 5,
+  points: 0,
+  coupons: 0,
   orders: 0
 };
 
@@ -102,6 +102,10 @@ function getRecentOrders(orders) {
   }));
 }
 
+function getUsableCouponCount(coupons) {
+  return (coupons || []).filter((item) => item.status === "可使用").length;
+}
+
 Page({
   data: {
     user: defaultUser,
@@ -132,8 +136,10 @@ Page({
         reservations,
         signups,
         member: Object.assign({}, defaultMember, {
+          tier: records.member && records.member.tier || defaultMember.tier,
+          points: records.member && records.member.points !== undefined ? records.member.points : defaultMember.points,
           orders: orders.length,
-          coupons: Array.isArray(records.coupons) ? records.coupons.length : defaultMember.coupons
+          coupons: Array.isArray(records.coupons) ? getUsableCouponCount(records.coupons) : defaultMember.coupons
         }),
         orderShortcuts: buildOrderShortcuts(orders),
         recentOrders: getRecentOrders(orders),

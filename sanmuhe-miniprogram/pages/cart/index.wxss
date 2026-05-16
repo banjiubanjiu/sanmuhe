@@ -474,6 +474,12 @@
   border-top: 1rpx solid #eeeae1;
 }
 
+.quick-row.muted .quick-label,
+.quick-row.muted .quick-value {
+  color: #a15a39;
+  font-size: 25rpx;
+}
+
 .quick-label {
   color: #222;
   font-size: 28rpx;
@@ -694,6 +700,12 @@
   font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
   font-size: 38rpx;
   font-weight: 600;
+}
+
+.checkout-total .saved-text {
+  margin-top: 2rpx;
+  color: #a15a39;
+  font-size: 22rpx;
 }
 
 .checkout-action {

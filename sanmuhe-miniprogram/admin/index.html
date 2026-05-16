@@ -332,7 +332,8 @@
                 <strong>优惠券编辑</strong>
                 <div class="two-col"><label><span>ID</span><input name="id"></label><label><span>名称</span><input name="name"></label></div>
                 <div class="two-col"><label><span>面额</span><input name="amount" type="number" min="0"></label><label><span>门槛</span><input name="threshold" type="number" min="0"></label></div>
-                <div class="two-col"><label><span>库存</span><input name="stock" type="number" min="0"></label><label><span>状态</span><input name="status" placeholder="领取中"></label></div>
+                <div class="two-col"><label><span>库存</span><input name="stock" type="number" min="0"></label><label><span>每人限领</span><input name="claimLimit" type="number" min="1" value="1"></label></div>
+                <div class="two-col"><label><span>状态</span><input name="status" placeholder="领取中"></label><label><span>说明</span><input name="description"></label></div>
                 <div class="two-col"><label><span>开始</span><input name="startAt"></label><label><span>结束</span><input name="endAt"></label></div>
                 <label class="check-line"><input name="visible" type="checkbox" checked> 可见</label>
                 <button class="btn btn-primary" type="submit">保存优惠券</button>
@@ -374,6 +375,23 @@
                 <label class="check-line"><input name="eventNoticeEnabled" type="checkbox"> 活动通知</label>
                 <button class="btn btn-primary" type="submit">保存设置</button>
               </section>
+              <section class="board-card editor-form">
+                <strong>会员规则</strong>
+                <label><span>积分倍率（每实付 1 元）</span><input name="memberPointRate" type="number" min="0" step="0.1"></label>
+                <div class="two-col"><label><span>等级一</span><input name="levelOneName"></label><label><span>折扣</span><input name="levelOneDiscountRate" type="number" min="0.01" max="1" step="0.01"></label></div>
+                <div class="two-col"><label><span>等级二</span><input name="levelTwoName"></label><label><span>消费门槛</span><input name="levelTwoMinSpend" type="number" min="0"></label></div>
+                <div class="two-col"><label><span>等级二折扣</span><input name="levelTwoDiscountRate" type="number" min="0.01" max="1" step="0.01"></label><label><span>等级三</span><input name="levelThreeName"></label></div>
+                <div class="two-col"><label><span>等级三门槛</span><input name="levelThreeMinSpend" type="number" min="0"></label><label><span>等级三折扣</span><input name="levelThreeDiscountRate" type="number" min="0.01" max="1" step="0.01"></label></div>
+              </section>
+              <section class="board-card editor-form">
+                <strong>订阅消息模板</strong>
+                <label><span>支付成功模板 ID</span><input name="orderPaidTemplateId"></label>
+                <label><span>发货模板 ID</span><input name="orderShippedTemplateId"></label>
+                <label><span>预约状态模板 ID</span><input name="reservationTemplateId"></label>
+                <label><span>活动状态模板 ID</span><input name="eventTemplateId"></label>
+                <label><span>订单通知页面</span><input name="orderPaidPage" placeholder="pages/profile/index"></label>
+                <label><span>预约通知页面</span><input name="reservationNoticePage" placeholder="pages/reservation/index"></label>
+              </section>
             </form>
           </section>
         </section>
@@ -381,6 +399,6 @@
 
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </main>
-    <script src="./app.js?v=20260516-ops3"></script>
+    <script src="./app.js?v=20260516-member1"></script>
   </body>
 </html>
