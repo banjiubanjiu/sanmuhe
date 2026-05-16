@@ -1470,6 +1470,20 @@ async function writeAdminAuditLog(caller, action, detail) {
   });
 }
 
+async function writeExportAuditLog(caller, event, sourceAction, label, page = {}) {
+  if (!event.exportAll || pageOptions(event).page !== 1) {
+    return;
+  }
+  await writeAdminAuditLog(caller, "exportCsv", {
+    sourceAction,
+    label,
+    status: cleanText(event.status, 30),
+    hasKeyword: Boolean(cleanText(event.keyword, 80)),
+    total: Number(page.total || 0),
+    pageSize: Number(page.pageSize || event.pageSize || 0)
+  });
+}
+
 async function deleteCustomerData(event, caller) {
   const identity = normalizeIdentity(event);
   if (!identity.openid && !identity.phone) {
@@ -2063,6 +2077,7 @@ exports.main = async (event = {}) => {
     }
     if (action === "listOrders") {
       const result = await listCollection("orders", status, keyword, event, ["orderNo", "name", "contactName", "consignee", "phone", "mobile", "status"]);
+      await writeExportAuditLog(caller, event, action, "订单", result.page);
       return { ok: true, orders: result.items, page: result.page };
     }
     if (action === "cancelOrder") {
@@ -2076,6 +2091,7 @@ exports.main = async (event = {}) => {
     }
     if (action === "listReservations") {
       const result = await listCollection("reservations", status, keyword, event, ["room", "roomName", "name", "customerName", "phone", "mobile", "status"]);
+      await writeExportAuditLog(caller, event, action, "预约", result.page);
       return { ok: true, reservations: result.items, page: result.page };
     }
     if (action === "updateReservation") {
@@ -2083,6 +2099,7 @@ exports.main = async (event = {}) => {
     }
     if (action === "listSignups") {
       const result = await listCollection("event_signups", status, keyword, event, ["eventTitle", "title", "name", "customerName", "phone", "mobile", "status"]);
+      await writeExportAuditLog(caller, event, action, "活动报名", result.page);
       return { ok: true, signups: result.items, page: result.page };
     }
     if (action === "updateSignup") {
@@ -2092,7 +2109,9 @@ exports.main = async (event = {}) => {
       return await checkInSignup(event, caller);
     }
     if (action === "listCustomers") {
-      return await listCustomers(event);
+      const response = await listCustomers(event);
+      await writeExportAuditLog(caller, event, action, "用户", response.page);
+      return response;
     }
     if (action === "deleteCustomerData") {
       return await deleteCustomerData(event, caller);
@@ -2101,16 +2120,22 @@ exports.main = async (event = {}) => {
       return await exportCustomerData(event, caller);
     }
     if (action === "listAuditLogs") {
-      return await listAuditLogs(event);
+      const response = await listAuditLogs(event);
+      await writeExportAuditLog(caller, event, action, "审计日志", response.page);
+      return response;
     }
     if (action === "listInventoryLogs") {
-      return await listInventoryLogs(event);
+      const response = await listInventoryLogs(event);
+      await writeExportAuditLog(caller, event, action, "库存流水", response.page);
+      return response;
     }
     if (action === "adjustInventory") {
       return await adjustInventory(event, caller);
     }
     if (action === "listAfterSales") {
-      return await listAfterSales(event);
+      const response = await listAfterSales(event);
+      await writeExportAuditLog(caller, event, action, "售后", response.page);
+      return response;
     }
     if (action === "updateAfterSale") {
       return await updateAfterSale(event, caller);
@@ -2152,7 +2177,9 @@ exports.main = async (event = {}) => {
       return await getSystemStatus(event);
     }
     if (action === "listNotificationLogs") {
-      return await listNotificationLogs(event);
+      const response = await listNotificationLogs(event);
+      await writeExportAuditLog(caller, event, action, "通知日志", response.page);
+      return response;
     }
     if (action === "sendTestNotice") {
       return await sendTestNotice(event, caller);
