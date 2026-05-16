@@ -11,6 +11,72 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
+function assertSafeTextRef(value, label) {
+  const text = cleanText(value, 300);
+  if (!text) {
+    return;
+  }
+  if (/[\r\n]/.test(text) || /^(javascript|data|vbscript):/i.test(text)) {
+    const error = new Error(`${label}格式不安全`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+}
+
+function assertImageRef(value, label) {
+  const text = cleanText(value, 300);
+  if (!text) {
+    return;
+  }
+  assertSafeTextRef(text, label);
+  if (!/^(cloud:\/\/|https?:\/\/|\/|\.\/|\.\.\/|[A-Za-z0-9_./-]+\.(png|jpe?g|webp|gif|svg))/.test(text)) {
+    const error = new Error(`${label}需填写云存储 fileID、HTTP(S) 地址或小程序本地图片路径`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+}
+
+function assertDateText(value, label) {
+  const text = cleanText(value, 30);
+  if (!text) {
+    return null;
+  }
+  const date = toDate(text);
+  if (!date) {
+    const error = new Error(`${label}日期格式不正确`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text) && dateKey(date) !== text) {
+    const error = new Error(`${label}日期不存在`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  return date;
+}
+
+function assertDateRange(startAt, endAt, label) {
+  const startDate = assertDateText(startAt, `${label}开始`);
+  const endDate = assertDateText(endAt, `${label}结束`);
+  if (startDate && endDate && endDate.getTime() < startDate.getTime()) {
+    const error = new Error(`${label}结束时间不能早于开始时间`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+}
+
+function assertPhoneText(value, label) {
+  const text = cleanText(value, 40);
+  if (!text) {
+    return;
+  }
+  if (!/^[0-9+\-\s()]{6,30}$/.test(text)) {
+    const error = new Error(`${label}格式不正确`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+}
+
 function cleanId(value, prefix) {
   const raw = cleanText(value, 80)
     .replace(/[^\w-]/g, "-")
@@ -1832,6 +1898,8 @@ async function listContent(event) {
 
 async function saveContent(event, caller) {
   const payload = normalizeContent(event.data || {});
+  assertImageRef(payload.image, "内容图片");
+  assertSafeTextRef(payload.linkTarget, "内容跳转目标");
   const existing = await findRecord("content_blocks", "key", payload.key);
   await upsertRecord("content_blocks", "key", payload.key, payload);
   await writeAdminAuditLog(caller, "saveContent", {
@@ -1929,6 +1997,10 @@ async function saveCoupon(event, caller) {
   if (!payload.name || !payload.amount) {
     return { ok: false, message: "请填写优惠券名称和面额" };
   }
+  if (payload.threshold > 0 && payload.amount > payload.threshold) {
+    return { ok: false, message: "优惠金额不能大于使用门槛" };
+  }
+  assertDateRange(payload.startAt, payload.endAt, "优惠券");
   const existing = await findRecord("coupons", "id", payload.id);
   await upsertRecord("coupons", "id", payload.id, payload);
   await writeAdminAuditLog(caller, "saveCoupon", {
@@ -1946,6 +2018,7 @@ async function saveCampaign(event, caller) {
   if (!payload.name) {
     return { ok: false, message: "请填写营销计划名称" };
   }
+  assertDateRange(payload.startAt, payload.endAt, "营销计划");
   const existing = await findRecord("marketing_campaigns", "id", payload.id);
   await upsertRecord("marketing_campaigns", "id", payload.id, payload);
   await writeAdminAuditLog(caller, "saveCampaign", {
@@ -2026,6 +2099,7 @@ async function getSettings() {
 async function updateSettings(event, caller) {
   const existing = await findRecord("store_settings", "key", "store");
   const payload = normalizeSettings(event.data || {});
+  assertPhoneText(payload.phone, "门店电话");
   await upsertRecord("store_settings", "key", "store", payload);
   await writeAdminAuditLog(caller, "updateSettings", {
     brandName: payload.brandName,
