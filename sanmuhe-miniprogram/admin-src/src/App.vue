@@ -562,6 +562,7 @@ const hasClearableFilters = computed(() => {
   if (state.activeTab === "notifications") return !!filters.notificationKeyword.trim();
   return false;
 });
+const exportScopeLabel = computed(() => hasClearableFilters.value ? "按筛选导出 CSV" : "导出全部 CSV");
 const currentRecordCount = computed(() => {
   const counts = {
     dashboard: state.summary.length,
@@ -2221,7 +2222,7 @@ onMounted(async () => {
         </div>
       </div>
       <form class="login-card" @submit.prevent="signIn">
-        <span class="section-kicker">Admin Access</span>
+        <span class="section-kicker">经营后台</span>
         <h2>管理员登录</h2>
         <label>
           <span>账号</span>
@@ -2271,7 +2272,7 @@ onMounted(async () => {
       <section class="workspace">
         <header class="topbar">
           <div>
-            <span class="section-kicker">Hexi Operations</span>
+            <span class="section-kicker">禾熙运营中枢</span>
             <h1>{{ currentTitle[0] }}</h1>
             <p>{{ currentTitle[1] }}</p>
           </div>
@@ -2573,12 +2574,15 @@ onMounted(async () => {
                 <option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
               <input v-model="filters.orderKeyword" class="line-input" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
-              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
-              <button v-for="order in state.orders" :key="order._id" :class="{ selected: state.selectedOrderId === order._id }" type="button" @click="state.selectedOrderId = order._id">
-                <strong>{{ order.orderNo || order._id }} <em>¥{{ money(order.total) }}</em></strong>
-                <span>{{ maskName(order.name || order.contactName) || "访客" }} · {{ order.status }} · {{ formatDate(order.createdAt) }}</span>
+              <button v-for="order in state.orders" :key="order._id" :class="['record-row', { selected: state.selectedOrderId === order._id }]" type="button" @click="state.selectedOrderId = order._id">
+                <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
+                <span class="record-meta">
+                  <span>{{ maskName(order.name || order.contactName) || "访客" }} · {{ formatDate(order.createdAt) }}</span>
+                  <i class="record-status">{{ order.status }}</i>
+                </span>
               </button>
               <div v-if="state.orders.length === 0" class="empty-state rich-empty">
                 <strong>{{ emptyTitle('orders') }}</strong>
@@ -2632,6 +2636,13 @@ onMounted(async () => {
               <div v-if="!hasPermission('order.write') && !hasPermission('afterSale.write')" class="permission-note">当前角色仅可查看订单。</div>
             </div>
           </aside>
+          <aside v-else class="panel-card detail-panel quiet-detail">
+            <div class="detail-empty">
+              <span><ClipboardList :size="22" :stroke-width="1.8" /></span>
+              <strong>选择一笔订单</strong>
+              <p>订单号、支付、配送、商品明细和处理时间线会在这里集中核对。</p>
+            </div>
+          </aside>
         </section>
 
         <section v-if="state.activeTab === 'afterSales'" class="split-panel">
@@ -2642,18 +2653,21 @@ onMounted(async () => {
                 <option>申请售后</option><option>审核中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option>
               </select>
               <input v-model="filters.afterSaleKeyword" class="line-input" placeholder="订单号、姓名、手机号、原因" @keydown.enter="resetPageAndLoad('afterSales', loadAfterSales)">
-              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportAfterSales">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportAfterSales">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
               <button
                 v-for="order in state.afterSales"
                 :key="order._id"
-                :class="{ selected: state.selectedAfterSaleId === order._id }"
+                :class="['record-row', { selected: state.selectedAfterSaleId === order._id }]"
                 type="button"
                 @click="state.selectedAfterSaleId = order._id; fillAfterSaleForm(order)"
               >
-                <strong>{{ order.orderNo || order._id }} <em>{{ order.afterSaleStatus || order.status }}</em></strong>
-                <span>{{ maskName(order.name || order.contactName || order.consignee) || "访客" }} · ¥{{ money(order.total) }} · {{ formatDate(order.afterSaleUpdatedAt || order.updatedAt) }}</span>
+                <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
+                <span class="record-meta">
+                  <span>{{ maskName(order.name || order.contactName || order.consignee) || "访客" }} · {{ formatDate(order.afterSaleUpdatedAt || order.updatedAt) }}</span>
+                  <i class="record-status warn">{{ order.afterSaleStatus || order.status }}</i>
+                </span>
               </button>
               <div v-if="state.afterSales.length === 0" class="empty-state rich-empty">
                 <strong>{{ emptyTitle('afterSales') }}</strong>
@@ -2689,6 +2703,13 @@ onMounted(async () => {
               <div v-else class="permission-note wide">当前角色仅可查看售后记录。</div>
             </form>
           </aside>
+          <aside v-else class="panel-card detail-panel quiet-detail">
+            <div class="detail-empty">
+              <span><BadgeDollarSign :size="22" :stroke-width="1.8" /></span>
+              <strong>选择一笔售后</strong>
+              <p>退款金额、处理备注、售后状态和审计原因会在这里完成闭环。</p>
+            </div>
+          </aside>
         </section>
 
         <section v-if="state.activeTab === 'inventory'" class="split-panel">
@@ -2696,7 +2717,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.inventoryKeyword" class="line-input" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('inventory', loadInventoryLogs)">筛选</button>
-              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportInventoryLogs">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportInventoryLogs">{{ exportScopeLabel }}</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -2748,8 +2769,8 @@ onMounted(async () => {
               </select>
               <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" placeholder="茶室、姓名、手机号" @keydown.enter="resetPageAndLoad('reservations', loadReservations)">
               <input v-else v-model="filters.signupKeyword" class="line-input" placeholder="活动、姓名、手机号" @keydown.enter="resetPageAndLoad('signups', loadSignups)">
-              <button v-if="state.activeTab === 'reservations' && hasPermission('export.read')" class="secondary-action small" type="button" @click="exportReservations">导出全部 CSV</button>
-              <button v-else-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportSignups">导出全部 CSV</button>
+              <button v-if="state.activeTab === 'reservations' && hasPermission('export.read')" class="secondary-action small" type="button" @click="exportReservations">{{ exportScopeLabel }}</button>
+              <button v-else-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportSignups">{{ exportScopeLabel }}</button>
             </div>
             <div v-if="state.activeTab === 'reservations'" class="calendar-strip">
               <button type="button" @click="shiftReservationCalendar(-1)">‹</button>
@@ -2773,12 +2794,15 @@ onMounted(async () => {
               <button
                 v-for="record in (state.activeTab === 'reservations' ? state.reservations : state.signups)"
                 :key="record._id"
-                :class="{ selected: (state.activeTab === 'reservations' ? state.selectedReservationId : state.selectedSignupId) === record._id }"
+                :class="['record-row', { selected: (state.activeTab === 'reservations' ? state.selectedReservationId : state.selectedSignupId) === record._id }]"
                 type="button"
                 @click="state.activeTab === 'reservations' ? state.selectedReservationId = record._id : state.selectedSignupId = record._id"
               >
-                <strong>{{ record.roomName || record.eventTitle || record.title || record.name || "记录" }} <em>{{ record.status }}</em></strong>
-                <span>{{ maskName(record.name || record.customerName) || "访客" }} · {{ record.day || record.date || formatDate(record.createdAt) }}</span>
+                <strong><span>{{ record.roomName || record.eventTitle || record.title || record.name || "记录" }}</span><em>{{ record.day || record.date || formatDate(record.createdAt) }}</em></strong>
+                <span class="record-meta">
+                  <span>{{ maskName(record.name || record.customerName) || "访客" }}</span>
+                  <i class="record-status">{{ record.status }}</i>
+                </span>
               </button>
               <div v-if="(state.activeTab === 'reservations' ? state.reservations : state.signups).length === 0" class="empty-state rich-empty">
                 <strong>{{ emptyTitle(state.activeTab) }}</strong>
@@ -2844,18 +2868,28 @@ onMounted(async () => {
               <div v-else class="permission-note">当前角色仅可查看报名。</div>
             </template>
           </aside>
+          <aside v-else class="panel-card detail-panel quiet-detail">
+            <div class="detail-empty">
+              <span><CalendarCheck :size="22" :stroke-width="1.8" /></span>
+              <strong>{{ state.activeTab === 'reservations' ? "选择一条预约" : "选择一条报名" }}</strong>
+              <p>{{ state.activeTab === 'reservations' ? "茶室、时段、人数和处理动作会在这里显示。" : "报名人、电话、状态流转和到场核销会在这里显示。" }}</p>
+            </div>
+          </aside>
         </section>
 
         <section v-if="state.activeTab === 'customers'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
-              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportCustomers">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportCustomers">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
-              <button v-for="customer in state.customers" :key="customer.id" :class="{ selected: state.selectedCustomerId === customer.id }" type="button" @click="state.selectedCustomerId = customer.id">
-                <strong>{{ customerDisplayName(customer) }} <em>{{ customerLevel(customer) }}</em></strong>
-                <span>消费 ¥{{ money(customerSpend(customer)) }} · 订单 {{ customer.orders || 0 }} · 预约 {{ customer.reservations || 0 }}</span>
+              <button v-for="customer in state.customers" :key="customer.id" :class="['record-row', { selected: state.selectedCustomerId === customer.id }]" type="button" @click="state.selectedCustomerId = customer.id">
+                <strong><span>{{ customerDisplayName(customer) }}</span><em>{{ customerLevel(customer) }}</em></strong>
+                <span class="record-meta">
+                  <span>消费 ¥{{ money(customerSpend(customer)) }} · 订单 {{ customer.orders || 0 }}</span>
+                  <i class="record-status neutral">预约 {{ customer.reservations || 0 }}</i>
+                </span>
               </button>
               <div v-if="state.customers.length === 0" class="empty-state rich-empty">
                 <strong>{{ emptyTitle('customers') }}</strong>
@@ -2880,6 +2914,13 @@ onMounted(async () => {
               <button v-if="hasPermission('export.read')" class="secondary-action" type="button" @click="exportCustomerData(selectedCustomer)">导出该用户数据</button>
               <button v-if="hasPermission('privacy.delete')" class="danger-action" type="button" @click="deleteCustomerData(selectedCustomer)">删除个人数据</button>
               <div v-if="!hasPermission('export.read') && !hasPermission('privacy.delete')" class="permission-note">当前角色仅可查看用户画像。</div>
+            </div>
+          </aside>
+          <aside v-else class="panel-card detail-panel quiet-detail">
+            <div class="detail-empty">
+              <span><UserRound :size="22" :stroke-width="1.8" /></span>
+              <strong>选择一位用户</strong>
+              <p>脱敏联系方式、累计消费、积分、最近访问和隐私动作会在这里显示。</p>
             </div>
           </aside>
         </section>
@@ -3008,7 +3049,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="resetPageAndLoad('audit', loadAuditLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('audit', loadAuditLogs)">筛选</button>
-              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportAuditLogs">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportAuditLogs">{{ exportScopeLabel }}</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -3060,7 +3101,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.notificationKeyword" class="line-input" placeholder="类型、OpenID、模板、原因" @keydown.enter="resetPageAndLoad('notifications', loadNotificationLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('notifications', loadNotificationLogs)">筛选</button>
-              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportNotificationLogs">导出全部 CSV</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportNotificationLogs">{{ exportScopeLabel }}</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -3211,40 +3252,76 @@ onMounted(async () => {
         </section>
 
         <section v-if="state.activeTab === 'settings'" class="panel-card settings-panel">
-          <form class="settings-grid" @submit.prevent="saveSettings">
-            <label><span>品牌名</span><input v-model="state.settings.brandName"></label>
-            <label><span>门店名</span><input v-model="state.settings.storeName"></label>
-            <label class="wide"><span>品牌标语</span><input v-model="state.settings.slogan"></label>
-            <label><span>电话</span><input v-model="state.settings.phone"></label>
-            <label><span>营业时间</span><input v-model="state.settings.businessHours"></label>
-            <label class="wide"><span>地址</span><input v-model="state.settings.address"></label>
-            <label class="wide"><span>预约规则</span><textarea v-model="state.settings.reservationRule" rows="4"></textarea></label>
-            <label><span>积分倍率</span><input v-model.number="state.settings.memberPointRate" type="number" min="0"></label>
-            <label><span>一档会员</span><input v-model="state.settings.levelOneName"></label>
-            <label><span>一档门槛</span><input v-model.number="state.settings.levelOneMinSpend" type="number" min="0"></label>
-            <label><span>一档折扣</span><input v-model.number="state.settings.levelOneDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
-            <label><span>二档会员</span><input v-model="state.settings.levelTwoName"></label>
-            <label><span>二档门槛</span><input v-model.number="state.settings.levelTwoMinSpend" type="number" min="0"></label>
-            <label><span>二档折扣</span><input v-model.number="state.settings.levelTwoDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
-            <label><span>三档会员</span><input v-model="state.settings.levelThreeName"></label>
-            <label><span>三档门槛</span><input v-model.number="state.settings.levelThreeMinSpend" type="number" min="0"></label>
-            <label><span>三档折扣</span><input v-model.number="state.settings.levelThreeDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
-            <label class="switch"><input v-model="state.settings.paymentEnabled" type="checkbox"> 启用微信支付</label>
-            <label class="switch"><input v-model="state.settings.pickupEnabled" type="checkbox"> 启用自提</label>
-            <label class="switch"><input v-model="state.settings.shippingEnabled" type="checkbox"> 启用配送</label>
-            <label class="switch"><input v-model="state.settings.orderNoticeEnabled" type="checkbox"> 订单通知</label>
-            <label class="switch"><input v-model="state.settings.reservationNoticeEnabled" type="checkbox"> 预约通知</label>
-            <label class="switch"><input v-model="state.settings.eventNoticeEnabled" type="checkbox"> 活动通知</label>
-            <label class="wide"><span>支付成功模板 ID</span><input v-model="state.settings.orderPaidTemplateId"></label>
-            <label class="wide"><span>支付成功跳转页</span><input v-model="state.settings.orderPaidPage"></label>
-            <label class="wide"><span>发货通知模板 ID</span><input v-model="state.settings.orderShippedTemplateId"></label>
-            <label class="wide"><span>发货通知跳转页</span><input v-model="state.settings.orderShippedPage"></label>
-            <label class="wide"><span>预约通知模板 ID</span><input v-model="state.settings.reservationTemplateId"></label>
-            <label class="wide"><span>预约通知跳转页</span><input v-model="state.settings.reservationNoticePage"></label>
-            <label class="wide"><span>活动通知模板 ID</span><input v-model="state.settings.eventTemplateId"></label>
-            <label class="wide"><span>活动通知跳转页</span><input v-model="state.settings.eventNoticePage"></label>
-            <button v-if="hasPermission('settings.write')" class="primary-action" type="submit">保存设置</button>
-            <div v-else class="permission-note wide">当前角色仅可查看设置。</div>
+          <form class="settings-stack" @submit.prevent="saveSettings">
+            <div class="settings-section">
+              <div class="settings-section-head">
+                <span>01</span>
+                <h2>门店与品牌</h2>
+              </div>
+              <div class="settings-fields">
+                <label><span>品牌名</span><input v-model="state.settings.brandName"></label>
+                <label><span>门店名</span><input v-model="state.settings.storeName"></label>
+                <label class="wide"><span>品牌标语</span><input v-model="state.settings.slogan"></label>
+                <label><span>电话</span><input v-model="state.settings.phone"></label>
+                <label><span>营业时间</span><input v-model="state.settings.businessHours"></label>
+                <label class="wide"><span>地址</span><input v-model="state.settings.address"></label>
+                <label class="wide"><span>预约规则</span><textarea v-model="state.settings.reservationRule" rows="4"></textarea></label>
+              </div>
+            </div>
+            <div class="settings-section">
+              <div class="settings-section-head">
+                <span>02</span>
+                <h2>会员与积分</h2>
+              </div>
+              <div class="settings-fields">
+                <label><span>积分倍率</span><input v-model.number="state.settings.memberPointRate" type="number" min="0"></label>
+                <label><span>一档会员</span><input v-model="state.settings.levelOneName"></label>
+                <label><span>一档门槛</span><input v-model.number="state.settings.levelOneMinSpend" type="number" min="0"></label>
+                <label><span>一档折扣</span><input v-model.number="state.settings.levelOneDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
+                <label><span>二档会员</span><input v-model="state.settings.levelTwoName"></label>
+                <label><span>二档门槛</span><input v-model.number="state.settings.levelTwoMinSpend" type="number" min="0"></label>
+                <label><span>二档折扣</span><input v-model.number="state.settings.levelTwoDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
+                <label><span>三档会员</span><input v-model="state.settings.levelThreeName"></label>
+                <label><span>三档门槛</span><input v-model.number="state.settings.levelThreeMinSpend" type="number" min="0"></label>
+                <label><span>三档折扣</span><input v-model.number="state.settings.levelThreeDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
+              </div>
+            </div>
+            <div class="settings-section">
+              <div class="settings-section-head">
+                <span>03</span>
+                <h2>订单与履约</h2>
+              </div>
+              <div class="settings-switches">
+                <label class="switch"><input v-model="state.settings.paymentEnabled" type="checkbox"> 启用微信支付</label>
+                <label class="switch"><input v-model="state.settings.pickupEnabled" type="checkbox"> 启用自提</label>
+                <label class="switch"><input v-model="state.settings.shippingEnabled" type="checkbox"> 启用配送</label>
+              </div>
+            </div>
+            <div class="settings-section">
+              <div class="settings-section-head">
+                <span>04</span>
+                <h2>订阅消息</h2>
+              </div>
+              <div class="settings-switches">
+                <label class="switch"><input v-model="state.settings.orderNoticeEnabled" type="checkbox"> 订单通知</label>
+                <label class="switch"><input v-model="state.settings.reservationNoticeEnabled" type="checkbox"> 预约通知</label>
+                <label class="switch"><input v-model="state.settings.eventNoticeEnabled" type="checkbox"> 活动通知</label>
+              </div>
+              <div class="settings-fields">
+                <label class="wide"><span>支付成功模板 ID</span><input v-model="state.settings.orderPaidTemplateId"></label>
+                <label class="wide"><span>支付成功跳转页</span><input v-model="state.settings.orderPaidPage"></label>
+                <label class="wide"><span>发货通知模板 ID</span><input v-model="state.settings.orderShippedTemplateId"></label>
+                <label class="wide"><span>发货通知跳转页</span><input v-model="state.settings.orderShippedPage"></label>
+                <label class="wide"><span>预约通知模板 ID</span><input v-model="state.settings.reservationTemplateId"></label>
+                <label class="wide"><span>预约通知跳转页</span><input v-model="state.settings.reservationNoticePage"></label>
+                <label class="wide"><span>活动通知模板 ID</span><input v-model="state.settings.eventTemplateId"></label>
+                <label class="wide"><span>活动通知跳转页</span><input v-model="state.settings.eventNoticePage"></label>
+              </div>
+            </div>
+            <div class="settings-footer">
+              <button v-if="hasPermission('settings.write')" class="primary-action" type="submit">保存设置</button>
+              <div v-else class="permission-note">当前角色仅可查看设置。</div>
+            </div>
           </form>
         </section>
       </section>

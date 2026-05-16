@@ -1367,6 +1367,66 @@ textarea:focus {
   font-style: normal;
 }
 
+.record-row strong {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.record-row strong > span,
+.record-row .record-meta > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-row strong > span {
+  color: var(--admin-ink);
+}
+
+.record-row em {
+  float: none;
+  max-width: 138px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--admin-green-dark);
+}
+
+.record-row .record-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.record-status {
+  flex: 0 0 auto;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 8px;
+  color: var(--admin-green-dark);
+  background: rgba(222, 235, 217, 0.84);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.record-status.warn {
+  color: #8a682b;
+  background: rgba(235, 221, 188, 0.86);
+}
+
+.record-status.neutral {
+  color: #827763;
+  background: rgba(231, 224, 212, 0.9);
+}
+
 .split-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(362px, 0.38fr);
@@ -1421,6 +1481,7 @@ textarea:focus {
 
 .table-wrap {
   overflow: auto;
+  border-radius: 10px;
 }
 
 table {
@@ -1446,6 +1507,9 @@ td {
 }
 
 th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   color: #585b51;
   font-size: 13px;
   font-weight: 500;
@@ -1538,6 +1602,43 @@ tr.selected td:first-child {
 .editor-panel,
 .detail-panel {
   align-self: start;
+}
+
+.quiet-detail {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+}
+
+.detail-empty {
+  max-width: 280px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  color: var(--admin-muted);
+  text-align: center;
+}
+
+.detail-empty > span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--admin-green-dark);
+  background: rgba(222, 235, 217, 0.82);
+}
+
+.detail-empty strong {
+  color: var(--admin-ink);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.detail-empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .editor-grid,
@@ -1972,6 +2073,81 @@ tr.selected td:first-child {
 
 .settings-panel {
   max-width: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-stack {
+  display: grid;
+}
+
+.settings-section {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 22px;
+  padding: 22px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.settings-section-head {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.settings-section-head span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--admin-green-dark);
+  background: rgba(222, 235, 217, 0.82);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+}
+
+.settings-section-head h2 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.settings-fields .wide {
+  grid-column: 1 / -1;
+}
+
+.settings-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.settings-switches .switch {
+  min-height: 38px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--admin-ink);
+  background: rgba(255, 253, 247, 0.66);
+}
+
+.settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 18px 22px 22px;
+}
+
+.settings-footer .primary-action {
+  width: auto;
+  margin-top: 0;
 }
 
 .action-dialog-backdrop {
@@ -2261,8 +2437,26 @@ tr.selected td:first-child {
 
   .quick-grid,
   .editor-grid,
-  .settings-grid,
   .ship-box {
     grid-template-columns: 1fr;
+  }
+
+  .settings-section,
+  .settings-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-section {
+    gap: 14px;
+    padding: 18px;
+  }
+
+  .settings-footer {
+    justify-content: stretch;
+    padding: 16px 18px 18px;
+  }
+
+  .settings-footer .primary-action {
+    width: 100%;
   }
 }
