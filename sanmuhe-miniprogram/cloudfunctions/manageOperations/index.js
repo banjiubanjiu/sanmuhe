@@ -207,6 +207,8 @@ const rolePermissionMap = {
     "signup.read",
     "signup.write",
     "customer.read",
+    "catalog.read",
+    "catalog.write",
     "content.read",
     "content.write",
     "marketing.read",
@@ -231,6 +233,7 @@ const rolePermissionMap = {
     "signup.read",
     "signup.write",
     "customer.read",
+    "catalog.read",
     "inventory.read",
     "notification.read",
     "system.read"
