@@ -1,6 +1,7 @@
 const { drinks, teaProducts } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
+const { syncTabBar } = require("../../utils/tabbar");
 
 const categoryOrder = ["全部", "绿茶", "红茶", "乌龙茶", "白茶", "黄茶", "黑茶", "花茶", "茶具", "茶饮", "茶点"];
 const TARGET_CATEGORY_KEY = "sanmuhe_shop_category";
@@ -67,6 +68,7 @@ Page({
   },
 
   onShow() {
+    syncTabBar(this);
     this.refreshCart();
     this.applyPendingCategory();
   },

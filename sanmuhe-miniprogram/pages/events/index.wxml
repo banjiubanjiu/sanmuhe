@@ -11,15 +11,18 @@
   </view>
 
   <view class="event-intro">
-    <view class="event-place">三木合 ・ 佛山</view>
+    <view class="event-place">
+      <text>三木合</text>
+      <view></view>
+      <text>佛山</text>
+    </view>
+    <view class="event-lead">以茶养心</view>
     <view class="event-slogan">
-      <text></text>
-      <view>以茶养心，四时清雅</view>
-      <text></text>
+      四时清雅，择一席茶会安放心绪
     </view>
   </view>
 
-  <image class="event-hero" src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-page-hero.jpg" mode="aspectFill"></image>
+  <image class="event-hero" src="/assets/images/event-yangxin-tea.jpg" mode="aspectFill"></image>
 
   <scroll-view scroll-x class="event-tabs" enhanced show-scrollbar="{{false}}">
     <view
@@ -59,17 +62,7 @@
   </view>
 
   <view class="event-note">
-    <view class="note-mark">
-      <image src="/assets/icons/leaf-active.png" mode="aspectFit"></image>
-    </view>
-    <view class="note-title">活动说明</view>
-    <view class="note-divider"></view>
-    <view class="note-copy">
-      <view>活动需提前报名，名额有限，先到先得。</view>
-      <view>如需取消报名，请至少提前24小时告知。</view>
-      <view>请准时到场，开启一段安静而美好的茶时光。</view>
-    </view>
-    <view class="note-bamboo">竹</view>
+    <image class="event-note-image" src="/assets/images/event-note.jpg" mode="widthFix"></image>
   </view>
 
   <view wx:if="{{signupOpen}}" class="signup-mask" bindtap="closeSignup">

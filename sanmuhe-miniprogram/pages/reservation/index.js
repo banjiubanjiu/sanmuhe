@@ -12,14 +12,15 @@ const timeOptions = [
 const timeSlots = timeOptions.map((item) => item.value);
 const CONTACT_KEY = "sanmuhe_contact";
 
-const roomCities = ["佛山", "杭州", "苏州", "广州", "上海"];
-const roomAddresses = [
-  "广东省佛山市",
-  "浙江省杭州市西湖区",
-  "江苏省苏州市姑苏区",
-  "广东省广州市越秀区",
-  "上海市徐汇区"
-];
+const storeRoom = {
+  id: "room-001",
+  name: "三木合茶室",
+  displayName: "三木合茶室",
+  city: "佛山",
+  address: "广东省佛山市",
+  price: 168,
+  status: "可预定"
+};
 
 function getDayText(days, value) {
   const day = days.find((item) => item.value === value);
@@ -32,25 +33,23 @@ function decorateDays(days) {
   }));
 }
 
-function decorateRooms(roomList) {
-  return (roomList || []).map((room, index) => Object.assign({}, room, {
-    displayName: "三木合茶室",
-    city: roomCities[index % roomCities.length],
-    address: roomAddresses[index % roomAddresses.length],
-    heroImage: room.image || "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-guanshan.jpg"
-  }));
+function buildStoreRoom(room = {}) {
+  return Object.assign({}, room, storeRoom, {
+    id: room.id || storeRoom.id,
+    price: room.price || storeRoom.price,
+    status: room.status || storeRoom.status
+  });
 }
 
-const defaultRooms = decorateRooms(rooms);
+const defaultRoom = buildStoreRoom(rooms[0]);
 
 Page({
   data: {
-    rooms: defaultRooms,
     days: [],
     visibleDays: [],
     timeSlots,
     timeOptions,
-    selectedRoom: defaultRooms[0],
+    selectedRoom: defaultRoom,
     selectedDay: "",
     selectedDayText: "",
     selectedTime: "15:00",
@@ -58,8 +57,7 @@ Page({
     name: "",
     phone: "",
     note: "",
-    bookingOpen: false,
-    roomSelectorOpen: false
+    bookingOpen: false
   },
 
   onLoad() {
@@ -78,29 +76,9 @@ Page({
 
   loadCatalog() {
     getCatalog().then((catalog) => {
-      const nextRooms = decorateRooms(catalog.rooms && catalog.rooms.length ? catalog.rooms : rooms);
-      const selectedRoom = nextRooms.find((item) => item.id === this.data.selectedRoom.id) || nextRooms[0];
-      this.setData({
-        rooms: nextRooms,
-        selectedRoom
-      });
+      const sourceRoom = catalog.rooms && catalog.rooms.length ? catalog.rooms[0] : rooms[0];
+      this.setData({ selectedRoom: buildStoreRoom(sourceRoom) });
     });
-  },
-
-  chooseRoom(event) {
-    const room = this.data.rooms.find((item) => item.id === event.currentTarget.dataset.id);
-    this.setData({
-      selectedRoom: room,
-      roomSelectorOpen: false
-    });
-  },
-
-  openRoomPicker() {
-    this.setData({ roomSelectorOpen: true });
-  },
-
-  closeRoomPicker() {
-    this.setData({ roomSelectorOpen: false });
   },
 
   openBooking() {

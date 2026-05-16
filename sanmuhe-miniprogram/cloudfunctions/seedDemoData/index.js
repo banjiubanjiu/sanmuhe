@@ -32,9 +32,9 @@ const seed = {
     { id: "room-005", name: "三木合・竹韵店", capacity: "2-4人", price: 138, floor: "竹影摇曳 ｜ 清雅怡人", image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-zhuyun.jpg", features: ["竹影摇曳", "清雅怡人"], color: "#617b4b", status: "可预定", visible: true, sort: 50 }
   ],
   events: [
-    { id: "event-001", title: "春日茶会・品新茶", category: "茶会", date: "05.25 周六", time: "14:00", place: "三木合・双山店", quota: 30, signed: 28, price: 68, image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-spring.jpg", summary: "一起品鉴春日的新茶，感受茶香与自然的交融。", status: "报名中", deleted: false, visible: true, sort: 10 },
-    { id: "event-002", title: "茶文化讲座", category: "讲座", date: "06.01 周六", time: "10:00", place: "三木合・听雨店", quota: 50, signed: 45, price: 0, image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-culture.jpg", summary: "茶文化的历史与审美哲学分享。", status: "报名中", deleted: false, visible: true, sort: 20 },
-    { id: "event-003", title: "手作茶器体验", category: "体验", date: "06.08 周六", time: "14:00", place: "三木合・柏阳毛尖", quota: 20, signed: 16, price: 128, image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-handmade.jpg", summary: "亲手制作一只茶器，体验茶生活之美。", status: "报名中", deleted: false, visible: true, sort: 30 }
+    { id: "event-001", title: "养心茶会", category: "养心茶会", date: "05.25 周六", time: "14:00", place: "三木合・双山店", quota: 30, signed: 28, price: 68, image: "/assets/images/event-yangxin-tea.jpg", summary: "在茶香与静心中，慢慢安住自己", status: "报名中", deleted: false, visible: true, sort: 10 },
+    { id: "event-002", title: "学茶入门", category: "学茶", date: "06.01 周六", time: "10:00", place: "三木合・听雨店", quota: 50, signed: 45, price: 0, image: "/assets/images/event-tea-class.jpg", summary: "从识香、泡茶到品饮，轻松了解基础茶知识", status: "报名中", deleted: false, visible: true, sort: 20 },
+    { id: "event-003", title: "时令茶会", category: "时令茶会", date: "06.08 周六", time: "14:00", place: "三木合・柏阳毛尖", quota: 20, signed: 16, price: 128, image: "/assets/images/event-seasonal-tea.jpg", summary: "顺时品茶，感受节气与日常之美", status: "报名中", deleted: false, visible: true, sort: 30 }
   ]
 };
 

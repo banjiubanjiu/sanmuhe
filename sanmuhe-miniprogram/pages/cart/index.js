@@ -1,6 +1,7 @@
 const { addToCart, getCart, getTotal, setCart, updateQuantity } = require("../../utils/cart");
 const { createOrder, payOrder } = require("../../utils/cloudApi");
 const { teaProducts } = require("../../data/catalog");
+const { syncTabBar } = require("../../utils/tabbar");
 
 const deliveryMethods = [
   { value: "pickup", label: "到店自提", hint: "门店确认后自提" },
@@ -78,6 +79,7 @@ Page({
   },
 
   onShow() {
+    syncTabBar(this);
     this.refresh();
     this.loadContact();
   },

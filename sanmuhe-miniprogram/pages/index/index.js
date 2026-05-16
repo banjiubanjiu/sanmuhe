@@ -1,6 +1,7 @@
 const { drinks, teaProducts, rooms, events } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, listEvents } = require("../../utils/cloudApi");
+const { syncTabBar } = require("../../utils/tabbar");
 
 function normalizeCatalog(catalog, eventList) {
   return {
@@ -146,6 +147,7 @@ Page({
   },
 
   onShow() {
+    syncTabBar(this);
     this.refreshCart();
   },
 
@@ -297,19 +299,6 @@ Page({
   goProduct(event) {
     wx.navigateTo({
       url: `/pages/product/index?id=${event.currentTarget.dataset.id}`
-    });
-  },
-
-  scanTable() {
-    wx.scanCode({
-      onlyFromCamera: false,
-      success: (res) => {
-        const table = encodeURIComponent(res.result || "");
-        wx.navigateTo({ url: `/pages/order/index?scene=${table}` });
-      },
-      fail: () => {
-        wx.showToast({ title: "未完成扫码", icon: "none" });
-      }
     });
   }
 });

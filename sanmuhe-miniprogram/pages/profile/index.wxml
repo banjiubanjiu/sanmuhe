@@ -21,7 +21,7 @@
   </view>
 
   <view class="member-card" bindtap="showMemberBenefits">
-    <image class="member-bg" src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg" mode="aspectFill"></image>
+    <image class="member-bg" src="/assets/images/profile-member-card.jpg" mode="aspectFill"></image>
     <view class="member-shade"></view>
     <view class="member-content">
       <view class="member-copy">

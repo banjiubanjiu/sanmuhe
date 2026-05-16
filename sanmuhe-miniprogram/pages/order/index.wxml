@@ -38,9 +38,7 @@
             <view class="drink-price">¥{{item.price}}</view>
           </view>
         </view>
-        <view class="round-add" data-id="{{item.id}}" bindtap="quickAddDrink">
-          <image class="plus-icon" src="/assets/icons/plus-white.png" mode="aspectFit"></image>
-        </view>
+        <view class="round-add" data-id="{{item.id}}" bindtap="quickAddDrink">+</view>
       </view>
       <view wx:if="{{filteredDrinks.length === 0}}" class="empty-list">暂无商品</view>
     </scroll-view>

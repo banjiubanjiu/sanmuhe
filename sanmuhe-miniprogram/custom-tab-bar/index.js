@@ -7,7 +7,7 @@ Component({
   },
 
   data: {
-    selected: 0,
+    selected: -1,
     list: [
       { pagePath: "pages/index/index", text: "首页", icon: "/assets/icons/home-line.png", activeIcon: "/assets/icons/home-active.png" },
       { pagePath: "pages/shop/index", text: "分类", icon: "/assets/icons/category-line.png", activeIcon: "/assets/icons/category-active.png" },
@@ -30,24 +30,39 @@ Component({
   },
 
   methods: {
+    setSelected(selected) {
+      const nextSelected = Number(selected);
+      if (Number.isNaN(nextSelected) || nextSelected < 0 || nextSelected >= this.data.list.length) {
+        return;
+      }
+      if (nextSelected !== this.data.selected) {
+        this.setData({ selected: nextSelected });
+      }
+    },
+
+    setSelectedByPath(path) {
+      const selected = this.data.list.findIndex((item) => item.pagePath === path);
+      this.setSelected(selected);
+    },
+
     syncSelected() {
       const forced = Number(this.data.forceSelected);
-      if (forced >= 0 && forced !== this.data.selected) {
-        this.setData({ selected: forced });
+      if (forced >= 0) {
+        this.setSelected(forced);
         return;
       }
       const pages = getCurrentPages();
       const current = pages.length ? pages[pages.length - 1].route : "";
-      const selected = this.data.list.findIndex((item) => item.pagePath === current);
-      if (selected >= 0 && selected !== this.data.selected) {
-        this.setData({ selected });
-      }
+      this.setSelectedByPath(current);
     },
 
     switchTab(event) {
-      const index = Number(event.currentTarget.dataset.index);
       const path = event.currentTarget.dataset.path;
-      this.setData({ selected: index });
+      const pages = getCurrentPages();
+      const current = pages.length ? pages[pages.length - 1].route : "";
+      if (current === path) {
+        return;
+      }
       wx.switchTab({ url: `/${path}` });
     }
   }

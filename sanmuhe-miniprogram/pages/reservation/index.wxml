@@ -14,38 +14,20 @@
   </view>
 
   <view class="hero-section">
-    <image class="hero-image" src="{{selectedRoom.heroImage}}" mode="aspectFill"></image>
-    <view class="hero-shade"></view>
-    <view class="hero-copy">
-      <view class="hero-title">
-        <view>一席茶室</view>
-        <view>静享时光</view>
-      </view>
-      <view class="hero-desc">
-        <text>在茶香与静愉中</text>
-        <text>遇见内心的安然</text>
-      </view>
-      <view class="hero-line"></view>
-      <view class="hero-en">
-        <text>TEA ROOM</text>
-        <text>RESERVATION</text>
-      </view>
-    </view>
+    <image class="hero-image" src="/assets/images/reservation-hero.jpg" mode="widthFix"></image>
   </view>
 
   <view class="booking-panel">
     <view class="panel-art">
-      <view class="sun-dot"></view>
-      <view class="mountain-line">∿∿∿</view>
+      <image src="/assets/images/reservation-mountain.jpg" mode="aspectFit"></image>
     </view>
 
     <view class="room-name">{{selectedRoom.displayName}}</view>
     <view class="room-city">{{selectedRoom.city}}</view>
 
-    <view class="address-row" bindtap="openRoomPicker">
+    <view class="address-row">
       <image src="/assets/icons/home-location.png" mode="aspectFit"></image>
       <view>{{selectedRoom.address}}</view>
-      <text>›</text>
     </view>
 
     <view class="block-title">选择日期</view>
@@ -85,34 +67,6 @@
     </view>
 
     <button class="next-btn" bindtap="openBooking">下一步 <text>→</text></button>
-  </view>
-
-  <view wx:if="{{roomSelectorOpen}}" class="booking-mask" bindtap="closeRoomPicker">
-    <view class="room-sheet" catchtap="noop">
-      <view class="sheet-head">
-        <view>
-          <view class="sheet-title">选择茶室</view>
-          <view class="muted">切换门店后可继续选择日期与时间</view>
-        </view>
-        <view class="sheet-close" bindtap="closeRoomPicker">×</view>
-      </view>
-      <view class="room-options">
-        <view
-          wx:for="{{rooms}}"
-          wx:key="id"
-          class="room-option {{selectedRoom.id === item.id ? 'active' : ''}}"
-          data-id="{{item.id}}"
-          bindtap="chooseRoom"
-        >
-          <image src="{{item.image}}" mode="aspectFill"></image>
-          <view>
-            <view class="room-option-title">{{item.name}}</view>
-            <text>{{item.address}} · ¥{{item.price}}/小时</text>
-          </view>
-          <view class="room-option-status {{item.status === '已订满' ? 'full' : ''}}">{{item.status}}</view>
-        </view>
-      </view>
-    </view>
   </view>
 
   <view wx:if="{{bookingOpen}}" class="booking-mask" bindtap="closeBooking">

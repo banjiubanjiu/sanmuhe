@@ -1,7 +1,8 @@
 const { events } = require("../../data/catalog");
 const { joinEvent: joinEventRequest, listEvents } = require("../../utils/cloudApi");
+const { syncTabBar } = require("../../utils/tabbar");
 
-const categories = ["全部", "养心茶会", "学茶"];
+const categories = ["全部", "养心茶会", "学茶", "时令茶会"];
 const CONTACT_KEY = "sanmuhe_contact";
 
 const eventDisplay = {
@@ -12,7 +13,7 @@ const eventDisplay = {
     time: "14:00",
     place: "三木合・佛山",
     quota: 12,
-    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-spring.jpg",
+    image: "/assets/images/event-yangxin-tea.jpg",
     summary: "在茶香与静心中，慢慢安住自己",
     joinText: "报名中",
     actionClass: "primary"
@@ -24,21 +25,21 @@ const eventDisplay = {
     time: "10:00",
     place: "三木合・佛山",
     quota: 10,
-    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-handmade.jpg",
+    image: "/assets/images/event-tea-class.jpg",
     summary: "从识香、泡茶到品饮，轻松了解基础茶知识",
     joinText: "可预约",
     actionClass: "outline"
   },
   "event-003": {
     title: "时令茶会",
-    category: "养心茶会",
+    category: "时令茶会",
     date: "6月8日 周六",
     time: "15:00",
     place: "三木合・佛山",
     quota: 8,
-    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-culture.jpg",
+    image: "/assets/images/event-seasonal-tea.jpg",
     summary: "顺时品茶，感受节气与日常之美",
-    joinText: "少量名额",
+    joinText: "可预约",
     actionClass: "outline"
   }
 };
@@ -66,7 +67,7 @@ function normalizeEvents(items) {
     const joinText = isFull ? "已满" : (display.joinText || item.status || "报名中");
     return Object.assign({
       category: "养心茶会",
-      image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-spring.jpg",
+      image: "/assets/images/event-yangxin-tea.jpg",
       signed,
       quota,
       canJoin: !isFull,
@@ -101,6 +102,7 @@ Page({
   },
 
   onShow() {
+    syncTabBar(this);
     listEvents().then((nextEvents) => {
       const allEvents = normalizeEvents(nextEvents && nextEvents.length ? nextEvents : events);
       this.setData({ allEvents }, () => this.applyFilter());

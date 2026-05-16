@@ -70,71 +70,19 @@
 
 .hero-section {
   position: relative;
-  height: 666rpx;
   overflow: hidden;
   background: #d8d0bf;
 }
 
-.hero-image,
-.hero-shade {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
+.hero-image {
   width: 100%;
-  height: 100%;
-}
-
-.hero-shade {
-  background: linear-gradient(90deg, rgba(72, 52, 34, 0.72) 0%, rgba(72, 52, 34, 0.42) 42%, rgba(72, 52, 34, 0.04) 100%);
-}
-
-.hero-copy {
-  position: relative;
-  z-index: 1;
-  width: 380rpx;
-  padding: 74rpx 0 0 64rpx;
-  color: #f8eddb;
-}
-
-.hero-title {
-  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
-  font-size: 58rpx;
-  font-weight: 500;
-  line-height: 1.42;
-}
-
-.hero-desc {
-  margin-top: 40rpx;
-  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
-  font-size: 28rpx;
-  line-height: 1.65;
-}
-
-.hero-desc text,
-.hero-en text {
   display: block;
-}
-
-.hero-line {
-  width: 62rpx;
-  height: 2rpx;
-  margin-top: 76rpx;
-  background: #f8eddb;
-}
-
-.hero-en {
-  margin-top: 36rpx;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 22rpx;
-  line-height: 1.6;
 }
 
 .booking-panel {
   position: relative;
   z-index: 2;
-  margin: -72rpx 34rpx 0;
+  margin: -52rpx 34rpx 0;
   padding: 44rpx 52rpx 40rpx;
   overflow: hidden;
   border-radius: 30rpx 30rpx 0 0;
@@ -144,33 +92,23 @@
 
 .panel-art {
   position: absolute;
-  top: 46rpx;
-  right: 56rpx;
-  width: 220rpx;
-  height: 96rpx;
+  top: 18rpx;
+  right: 18rpx;
+  width: 250rpx;
+  height: 250rpx;
+  opacity: 0.72;
   pointer-events: none;
 }
 
-.sun-dot {
-  position: absolute;
-  top: 0;
-  right: 36rpx;
-  width: 28rpx;
-  height: 28rpx;
-  border-radius: 50%;
-  background: rgba(216, 181, 123, 0.5);
-}
-
-.mountain-line {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  color: rgba(71, 81, 72, 0.13);
-  font-size: 88rpx;
-  line-height: 1;
+.panel-art image {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .room-name {
+  position: relative;
+  z-index: 1;
   color: #28231d;
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 44rpx;
@@ -179,6 +117,8 @@
 }
 
 .room-city {
+  position: relative;
+  z-index: 1;
   margin-top: 16rpx;
   color: #28231d;
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
@@ -187,9 +127,11 @@
 }
 
 .address-row {
+  position: relative;
+  z-index: 1;
   min-height: 86rpx;
   display: grid;
-  grid-template-columns: 38rpx 1fr 34rpx;
+  grid-template-columns: 38rpx 1fr;
   gap: 14rpx;
   align-items: center;
   margin-top: 26rpx;
@@ -209,14 +151,9 @@
   font-size: 29rpx;
 }
 
-.address-row text {
-  color: #2e302a;
-  font-size: 48rpx;
-  line-height: 1;
-  text-align: right;
-}
-
 .block-title {
+  position: relative;
+  z-index: 1;
   margin-top: 34rpx;
   color: #1e1b17;
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
@@ -226,6 +163,8 @@
 }
 
 .date-scroll {
+  position: relative;
+  z-index: 1;
   width: 100%;
   margin-top: 18rpx;
   white-space: nowrap;
@@ -280,6 +219,8 @@
 }
 
 .time-head {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-end;
   gap: 26rpx;
@@ -292,6 +233,8 @@
 }
 
 .time-grid {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 14rpx;
@@ -327,6 +270,8 @@
 }
 
 .next-btn {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 86rpx;
   margin-top: 42rpx;
@@ -355,8 +300,7 @@
   background: rgba(17, 24, 19, 0.36);
 }
 
-.booking-sheet,
-.room-sheet {
+.booking-sheet {
   width: 100%;
   max-height: 82vh;
   overflow-y: auto;
@@ -389,65 +333,6 @@
   border-radius: 50%;
   background: #f4f4f0;
   font-size: 40rpx;
-}
-
-.room-options {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-top: 26rpx;
-}
-
-.room-option {
-  display: grid;
-  grid-template-columns: 150rpx 1fr auto;
-  gap: 18rpx;
-  align-items: center;
-  padding: 14rpx;
-  border: 1rpx solid #eee9df;
-  border-radius: 16rpx;
-  background: #fffaf1;
-}
-
-.room-option.active {
-  border-color: #3f5834;
-  background: #f3f7ef;
-}
-
-.room-option image {
-  width: 150rpx;
-  height: 104rpx;
-  border-radius: 12rpx;
-  background: #eee9df;
-}
-
-.room-option-title {
-  overflow: hidden;
-  color: #111;
-  font-size: 29rpx;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.room-option text {
-  display: block;
-  margin-top: 8rpx;
-  overflow: hidden;
-  color: #77716a;
-  font-size: 23rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.room-option-status {
-  color: #3f5834;
-  font-size: 24rpx;
-  font-weight: 500;
-}
-
-.room-option-status.full {
-  color: #888;
 }
 
 .sheet-section {

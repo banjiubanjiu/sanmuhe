@@ -1,17 +1,6 @@
 <view class="page home">
   <view class="home-nav">
     <view class="brand-title">三木合</view>
-    <view class="location-pill">
-      <image src="/assets/icons/home-location.png" mode="aspectFit"></image>
-      <text>杭州 · 西湖店</text>
-      <view class="caret"></view>
-    </view>
-    <view class="nav-capsule" bindtap="scanTable">
-      <text></text>
-      <text></text>
-      <text></text>
-      <view></view>
-    </view>
   </view>
 
   <swiper

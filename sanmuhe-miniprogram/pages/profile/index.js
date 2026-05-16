@@ -1,9 +1,10 @@
 const { listMyRecords } = require("../../utils/cloudApi");
+const { syncTabBar } = require("../../utils/tabbar");
 
 const defaultUser = {
   name: "木木",
   title: "三木合雅客 · 茶生活会员",
-  avatar: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg"
+  avatar: "/assets/images/profile-avatar.jpg"
 };
 
 const defaultMember = {
@@ -40,7 +41,7 @@ function normalizeRecords(records, type) {
       canPay: item.status === "待支付" || item.payStatus === "pending",
       dateText: item.day && item.time ? `${item.day} ${item.time}` : (item.date && item.time ? `${item.date} ${item.time}` : ""),
       recordMeta: item.day && item.time ? `${item.day} ${item.time}` : (item.date && item.time ? `${item.date} ${item.time}` : (item.place || "待确认")),
-      image: item.image || (type === "reservation" ? "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-guanshan.jpg" : "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-spring.jpg")
+      image: item.image || (type === "reservation" ? "/assets/images/reservation-hero.jpg" : "/assets/images/event-yangxin-tea.jpg")
     });
   });
 }
@@ -72,7 +73,7 @@ function getRecentReservation(reservations) {
     dateText: item.day && item.time ? `${item.day} ${item.time}` : item.dateText,
     people: item.people || 2,
     status: item.status || "待确认",
-    image: item.image || "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-guanshan.jpg"
+    image: item.image || "/assets/images/reservation-hero.jpg"
   };
 }
 
@@ -87,7 +88,7 @@ function getRecentSignup(signups) {
     dateText: item.date && item.time ? `${item.date} ${item.time}` : item.dateText,
     place: item.place || "三木合",
     status: item.status || "待确认",
-    image: item.image || "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-spring.jpg"
+    image: item.image || "/assets/images/event-yangxin-tea.jpg"
   };
 }
 
@@ -106,6 +107,7 @@ Page({
   },
 
   onShow() {
+    syncTabBar(this);
     this.loadRecords();
   },
 
