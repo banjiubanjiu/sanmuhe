@@ -159,6 +159,26 @@ const pageTitles = {
   settings: ["设置管理", "门店、会员和通知配置"]
 };
 
+const moduleProfiles = {
+  dashboard: { group: "经营工作台", subject: "今日经营", countLabel: "项经营指标", note: "预约、订单、报名和营业额集中查看。" },
+  reservations: { group: "门店服务", subject: "预约队列", countLabel: "条预约", note: "按日期、茶室和时段确认履约。" },
+  signups: { group: "门店服务", subject: "报名队列", countLabel: "条报名", note: "到场、未到场和取消都会留在活动记录里。" },
+  orders: { group: "经营工作台", subject: "订单队列", countLabel: "笔订单", note: "发货、自提、取消和售后会写入审计日志。" },
+  afterSales: { group: "经营工作台", subject: "售后队列", countLabel: "笔售后", note: "先完成状态闭环，真实微信退款等待商户配置。" },
+  inventory: { group: "经营工作台", subject: "库存流水", countLabel: "条流水", note: "每次锁定、扣减、释放和人工调整都保留来源。" },
+  customers: { group: "门店服务", subject: "用户画像", countLabel: "位用户", note: "默认脱敏展示，导出和删除个人数据需要权限。" },
+  catalog: { group: "内容与增长", subject: "商品资料", countLabel: "条资料", note: "本地图片会优先上传到云存储后再写入前台数据。" },
+  content: { group: "内容与增长", subject: "运营内容", countLabel: "条内容", note: "首页轮播、卡片和公告统一在云端维护。" },
+  analytics: { group: "内容与增长", subject: "经营统计", countLabel: "项统计", note: "只展示可直接用于经营判断的数据。" },
+  marketing: { group: "内容与增长", subject: "营销配置", countLabel: "项营销记录", note: "优惠券、计划和核销率在同一处核对。" },
+  audit: { group: "系统治理", subject: "操作留痕", countLabel: "条日志", note: "关键改动保留操作人、时间、对象和字段差异。" },
+  notifications: { group: "系统治理", subject: "通知投递", countLabel: "条日志", note: "模板缺失、跳过和发送失败都可回查。" },
+  system: { group: "系统治理", subject: "上线体检", countLabel: "项检查", note: "包体、支付、通知、权限和备份状态集中检查。" },
+  roles: { group: "系统治理", subject: "权限边界", countLabel: "个角色", note: "管理员、运营和店员按操作风险拆分权限。" },
+  backups: { group: "系统治理", subject: "数据备份", countLabel: "条备份", note: "备份写入云存储，下载链接为临时链接。" },
+  settings: { group: "系统治理", subject: "门店配置", countLabel: "项配置", note: "涉及支付和通知模板的配置会影响生产链路。" }
+};
+
 const state = reactive({
   user: null,
   ready: false,
@@ -194,6 +214,7 @@ const state = reactive({
   selectedCatalogId: "",
   selectedOrderId: "",
   selectedAfterSaleId: "",
+  selectedAuditLogId: "",
   selectedReservationId: "",
   selectedSignupId: "",
   selectedCustomerId: "",
@@ -330,10 +351,16 @@ const forms = reactive({
 });
 
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
+const currentModuleProfile = computed(() => moduleProfiles[state.activeTab] || moduleProfiles.dashboard);
 const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾熙管理员");
 const currentRoleName = computed(() => state.adminProfile?.roleName || "管理员");
+const headerSignalCount = computed(() => {
+  const summary = state.systemStatus?.summary || {};
+  return Number(summary.warn || 0) + Number(summary.error || 0);
+});
 const selectedOrder = computed(() => state.orders.find((item) => item._id === state.selectedOrderId) || state.orders[0] || null);
 const selectedAfterSale = computed(() => state.afterSales.find((item) => item._id === state.selectedAfterSaleId) || state.afterSales[0] || null);
+const selectedAuditLog = computed(() => state.auditLogs.find((item) => item._id === state.selectedAuditLogId) || state.auditLogs[0] || null);
 const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || state.reservations[0] || null);
 const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || state.signups[0] || null);
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || state.customers[0] || null);
@@ -396,6 +423,72 @@ const dashboardDonutStyle = computed(() => {
     "--first-stop": `${first}%`,
     "--second-stop": `${Math.min(second, 100)}%`
   };
+});
+const activeFilterLabels = computed(() => {
+  const items = [];
+  const add = (label, value) => {
+    const text = String(value || "").trim();
+    if (text) items.push({ label, value: text });
+  };
+  if (state.activeTab === "catalog") add("资料", filters.catalog);
+  if (state.activeTab === "orders") {
+    add("状态", filters.orderStatus);
+    add("关键词", filters.orderKeyword);
+  }
+  if (state.activeTab === "afterSales") {
+    add("售后", filters.afterSaleStatus);
+    add("关键词", filters.afterSaleKeyword);
+  }
+  if (state.activeTab === "inventory") add("关键词", filters.inventoryKeyword);
+  if (state.activeTab === "reservations") {
+    add("日期", state.reservationCalendarDate);
+    add("状态", filters.reservationStatus);
+    add("关键词", filters.reservationKeyword);
+  }
+  if (state.activeTab === "signups") {
+    add("状态", filters.signupStatus);
+    add("关键词", filters.signupKeyword);
+  }
+  if (state.activeTab === "customers") add("关键词", filters.customerKeyword);
+  if (state.activeTab === "content") add("类型", contentTabs.find((item) => item.key === state.contentType)?.label || state.contentType);
+  if (state.activeTab === "audit") add("关键词", filters.auditKeyword);
+  if (state.activeTab === "notifications") add("关键词", filters.notificationKeyword);
+  return items;
+});
+const hasClearableFilters = computed(() => {
+  if (state.activeTab === "catalog") return !!filters.catalog.trim();
+  if (state.activeTab === "orders") return !!(filters.orderStatus || filters.orderKeyword.trim());
+  if (state.activeTab === "afterSales") return !!(filters.afterSaleStatus || filters.afterSaleKeyword.trim());
+  if (state.activeTab === "inventory") return !!filters.inventoryKeyword.trim();
+  if (state.activeTab === "reservations") return !!(filters.reservationStatus || filters.reservationKeyword.trim());
+  if (state.activeTab === "signups") return !!(filters.signupStatus || filters.signupKeyword.trim());
+  if (state.activeTab === "customers") return !!filters.customerKeyword.trim();
+  if (state.activeTab === "content") return state.contentType !== "home_carousel";
+  if (state.activeTab === "audit") return !!filters.auditKeyword.trim();
+  if (state.activeTab === "notifications") return !!filters.notificationKeyword.trim();
+  return false;
+});
+const currentRecordCount = computed(() => {
+  const counts = {
+    dashboard: state.summary.length,
+    catalog: filteredCatalog.value.length,
+    orders: state.orders.length,
+    afterSales: state.afterSales.length,
+    inventory: state.inventoryLogs.length,
+    reservations: state.reservations.length,
+    signups: state.signups.length,
+    customers: state.customers.length,
+    content: state.contentItems.length,
+    analytics: state.analytics?.topItems?.length || 0,
+    marketing: state.coupons.length + state.campaigns.length + state.couponStats.length,
+    audit: state.auditLogs.length,
+    notifications: state.notificationLogs.length,
+    system: state.systemStatus?.checks?.length || 0,
+    roles: state.adminRoles.length,
+    backups: state.backupLogs.length,
+    settings: Object.keys(state.settings || {}).length
+  };
+  return counts[state.activeTab] || 0;
 });
 
 const filteredCatalog = computed(() => {
@@ -578,6 +671,39 @@ function recordTimeline(record) {
   addTimeline(items, record.updatedAt, "状态更新", record.status || "已更新", "good");
   addTimeline(items, record.privacyDeletedAt, "隐私删除", "个人信息已匿名化", "warn");
   return items.sort((a, b) => new Date(a.time?.$date || a.time?.seconds * 1000 || a.time || 0) - new Date(b.time?.$date || b.time?.seconds * 1000 || b.time || 0));
+}
+
+function auditText(value) {
+  if (value === undefined || value === null || value === "") return "-";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function auditChangeEntries(log) {
+  const changes = log?.detail?.changes || {};
+  return Object.keys(changes).map((field) => ({
+    field,
+    before: auditText(changes[field]?.before),
+    after: auditText(changes[field]?.after)
+  }));
+}
+
+function auditSummary(log) {
+  const detail = log?.detail || {};
+  const subject = [
+    detail.orderNo,
+    detail.collection && detail.id ? `${detail.collection}/${detail.id}` : "",
+    detail.key,
+    detail.subject,
+    detail.cloudPath,
+    detail.title || detail.name
+  ].filter(Boolean)[0];
+  const changes = auditChangeEntries(log).length;
+  const pieces = [];
+  if (subject) pieces.push(subject);
+  if (detail.status || detail.afterSaleStatus) pieces.push(detail.status || detail.afterSaleStatus);
+  if (changes) pieces.push(`${changes} 项变更`);
+  return pieces.join(" · ") || "已记录操作详情";
 }
 
 function normalizeAuth(app) {
@@ -975,6 +1101,7 @@ async function loadAuditLogs() {
       keyword: filters.auditKeyword
     });
     state.auditLogs = result.logs || [];
+    state.selectedAuditLogId = state.auditLogs[0]?._id || "";
   });
 }
 
@@ -1093,6 +1220,20 @@ async function createDataBackup() {
     });
     showToast(result.cloudPath ? "备份已写入云存储" : "备份已完成");
     await loadBackupLogs();
+  });
+}
+
+async function downloadBackup(log) {
+  if (!log) return;
+  await withLoading("获取备份链接", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "getBackupDownloadUrl",
+      id: log._id,
+      cloudPath: log.cloudPath
+    });
+    if (!result.url) throw new Error("未返回备份下载链接");
+    window.open(result.url, "_blank", "noopener,noreferrer");
+    showToast("临时备份下载链接已打开");
   });
 }
 
@@ -1290,6 +1431,43 @@ function exportCustomers() {
   ], state.customers);
 }
 
+function exportInventoryLogs() {
+  downloadCsv("hexi-inventory-logs.csv", [
+    { label: "时间", value: (item) => formatDate(item.createdAt) },
+    { label: "商品", value: (item) => item.itemName || item.itemId || "" },
+    { label: "集合", value: (item) => item.collection || "" },
+    { label: "类型", value: (item) => item.type || "" },
+    { label: "数量", value: (item) => item.quantity || 0 },
+    { label: "库存前", value: (item) => item.beforeStock ?? "" },
+    { label: "库存后", value: (item) => item.afterStock ?? "" },
+    { label: "订单号", value: (item) => item.orderNo || "" },
+    { label: "操作人", value: (item) => item.operator || "" },
+    { label: "备注", value: (item) => item.note || "" }
+  ], state.inventoryLogs);
+}
+
+function exportAuditLogs() {
+  downloadCsv("hexi-audit-logs.csv", [
+    { label: "时间", value: (item) => formatDate(item.createdAt) },
+    { label: "动作", value: (item) => item.action || "" },
+    { label: "管理员", value: (item) => item.adminUid || item.adminOpenid || "" },
+    { label: "摘要", value: (item) => auditSummary(item) },
+    { label: "变更", value: (item) => auditChangeEntries(item).map((change) => `${change.field}: ${change.before} -> ${change.after}`).join("; ") },
+    { label: "详情", value: (item) => JSON.stringify(item.detail || {}) }
+  ], state.auditLogs);
+}
+
+function exportNotificationLogs() {
+  downloadCsv("hexi-notification-logs.csv", [
+    { label: "时间", value: (item) => formatDate(item.createdAt) },
+    { label: "类型", value: (item) => item.kind || "" },
+    { label: "状态", value: (item) => item.status || "" },
+    { label: "模板", value: (item) => item.templateId || "" },
+    { label: "OpenID", value: (item) => item.openid || "" },
+    { label: "原因", value: (item) => item.reason || item.error || "" }
+  ], state.notificationLogs);
+}
+
 async function loadContent() {
   await withLoading("读取内容", async () => {
     const result = await callFunction("manageOperations", {
@@ -1440,6 +1618,70 @@ function globalSearch() {
   loadActiveTab();
 }
 
+function clearActiveFilters() {
+  if (state.activeTab === "catalog") filters.catalog = "";
+  if (state.activeTab === "orders") {
+    filters.orderStatus = "";
+    filters.orderKeyword = "";
+  }
+  if (state.activeTab === "afterSales") {
+    filters.afterSaleStatus = "";
+    filters.afterSaleKeyword = "";
+  }
+  if (state.activeTab === "inventory") filters.inventoryKeyword = "";
+  if (state.activeTab === "reservations") {
+    filters.reservationStatus = "";
+    filters.reservationKeyword = "";
+  }
+  if (state.activeTab === "signups") {
+    filters.signupStatus = "";
+    filters.signupKeyword = "";
+  }
+  if (state.activeTab === "customers") filters.customerKeyword = "";
+  if (state.activeTab === "content") state.contentType = "home_carousel";
+  if (state.activeTab === "audit") filters.auditKeyword = "";
+  if (state.activeTab === "notifications") filters.notificationKeyword = "";
+  loadActiveTab();
+}
+
+function emptyTitle(tab = state.activeTab) {
+  if (hasClearableFilters.value) return "没有匹配当前筛选";
+  return {
+    catalog: "暂无商品资料",
+    orders: "暂无订单",
+    afterSales: "暂无售后记录",
+    inventory: "暂无库存流水",
+    reservations: "当天暂无预约",
+    signups: "暂无活动报名",
+    customers: "暂无用户记录",
+    content: "暂无运营内容",
+    marketing: "暂无营销记录",
+    audit: "暂无审计日志",
+    notifications: "暂无订阅消息日志",
+    roles: "暂无角色记录",
+    backups: "暂无备份记录"
+  }[tab] || "暂无数据";
+}
+
+function emptyHint(tab = state.activeTab) {
+  if (hasClearableFilters.value) return "当前条件过窄，可以清除筛选后重新查看。";
+  return {
+    catalog: "在右侧保存资料后会同步写入前台可用数据。",
+    orders: "新订单支付或提交后会出现在这里。",
+    afterSales: "订单转入售后后，可在这里处理退款状态闭环。",
+    inventory: "订单锁定、支付扣减、取消释放和人工调整会自动沉淀流水。",
+    reservations: "选择其他日期，或等待小程序端提交预约。",
+    signups: "活动报名、到场和未到场核销会集中展示。",
+    customers: "有订单、预约或报名后会自动形成用户画像。",
+    content: "新建轮播、卡片或公告后会同步给小程序端。",
+    marketing: "创建优惠券或营销计划后可查看领取与核销表现。",
+    audit: "后台关键操作会自动记录到这里。",
+    notifications: "订阅消息发送、跳过和失败都会写入日志。",
+    roles: "没有角色时，白名单账号按管理员处理。",
+    backups: "可以先创建一次云端备份，之后定时任务会每日执行。"
+  }[tab] || "暂无可展示记录。";
+}
+
 onMounted(async () => {
   try {
     initCloud();
@@ -1497,6 +1739,7 @@ onMounted(async () => {
               v-for="item in group.items"
               :key="item.key"
               :class="{ active: state.activeTab === item.key }"
+              :aria-current="state.activeTab === item.key ? 'page' : undefined"
               type="button"
               @click="switchTab(item.key)"
             >
@@ -1523,14 +1766,14 @@ onMounted(async () => {
           <div class="top-actions">
             <label class="search-box">
               <Search :size="17" :stroke-width="1.8" />
-              <input v-model="filters.global" placeholder="搜索当前模块" @keydown.enter="globalSearch">
+              <input v-model="filters.global" aria-label="搜索当前模块" placeholder="搜索当前模块" @keydown.enter="globalSearch">
             </label>
-            <button class="secondary-action icon-action" type="button" @click="loadActiveTab">
+            <button class="secondary-action icon-action" aria-label="刷新当前模块" type="button" @click="loadActiveTab">
               <RefreshCw :size="16" :stroke-width="1.8" />
               刷新
             </button>
             <div class="admin-chip">
-              <span class="bell"><Bell :size="18" :stroke-width="1.9" /><em>12</em></span>
+              <span class="bell"><Bell :size="18" :stroke-width="1.9" /><em v-if="headerSignalCount">{{ headerSignalCount }}</em></span>
               <span class="avatar"></span>
               <span class="admin-name">{{ currentUser }}</span>
               <span class="role-badge">{{ currentRoleName }}</span>
@@ -1544,6 +1787,27 @@ onMounted(async () => {
           <strong>{{ state.moduleError }}</strong>
           <button type="button" @click="loadActiveTab">重试</button>
         </div>
+
+        <section class="work-context" aria-live="polite">
+          <div class="context-main">
+            <span>{{ currentModuleProfile.group }}</span>
+            <strong>{{ currentModuleProfile.subject }}</strong>
+            <p>{{ currentModuleProfile.note }}</p>
+          </div>
+          <div class="context-count">
+            <strong>{{ numberText(currentRecordCount) }}</strong>
+            <span>{{ currentModuleProfile.countLabel }}</span>
+          </div>
+          <div class="filter-strip">
+            <template v-if="activeFilterLabels.length">
+              <span v-for="item in activeFilterLabels" :key="`${item.label}-${item.value}`" class="filter-chip">
+                {{ item.label }}：{{ item.value }}
+              </span>
+            </template>
+            <span v-else class="filter-chip muted">未设置筛选</span>
+            <button v-if="hasClearableFilters" class="clear-filter" type="button" @click="clearActiveFilters">清除筛选</button>
+          </div>
+        </section>
 
         <section class="metric-row">
           <article v-for="(card, index) in state.summary" :key="card.label" class="metric-card" :data-tone="card.tone">
@@ -1688,6 +1952,7 @@ onMounted(async () => {
             </div>
             <div class="table-wrap">
               <table>
+                <caption>商品、茶饮、茶室和活动资料列表</caption>
                 <thead><tr><th>资料</th><th>分类</th><th>价格</th><th>库存/名额</th><th>状态</th><th></th></tr></thead>
                 <tbody>
                   <tr v-for="item in filteredCatalog" :key="item.id" :class="{ selected: state.selectedCatalogId === item.id }" @click="editCatalog(item)">
@@ -1700,6 +1965,10 @@ onMounted(async () => {
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <div v-if="filteredCatalog.length === 0" class="empty-state rich-empty">
+              <strong>{{ emptyTitle('catalog') }}</strong>
+              <span>{{ emptyHint('catalog') }}</span>
             </div>
           </article>
           <aside class="panel-card editor-panel">
@@ -1760,6 +2029,10 @@ onMounted(async () => {
                 <strong>{{ order.orderNo || order._id }} <em>¥{{ money(order.total) }}</em></strong>
                 <span>{{ maskName(order.name || order.contactName) || "访客" }} · {{ order.status }} · {{ formatDate(order.createdAt) }}</span>
               </button>
+              <div v-if="state.orders.length === 0" class="empty-state rich-empty">
+                <strong>{{ emptyTitle('orders') }}</strong>
+                <span>{{ emptyHint('orders') }}</span>
+              </div>
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="selectedOrder">
@@ -1825,7 +2098,10 @@ onMounted(async () => {
                 <strong>{{ order.orderNo || order._id }} <em>{{ order.afterSaleStatus || order.status }}</em></strong>
                 <span>{{ maskName(order.name || order.contactName || order.consignee) || "访客" }} · ¥{{ money(order.total) }} · {{ formatDate(order.afterSaleUpdatedAt || order.updatedAt) }}</span>
               </button>
-              <div v-if="state.afterSales.length === 0" class="empty-state">暂无售后记录</div>
+              <div v-if="state.afterSales.length === 0" class="empty-state rich-empty">
+                <strong>{{ emptyTitle('afterSales') }}</strong>
+                <span>{{ emptyHint('afterSales') }}</span>
+              </div>
             </div>
           </article>
           <aside class="panel-card editor-panel" v-if="selectedAfterSale">
@@ -1858,9 +2134,11 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.inventoryKeyword" class="line-input" placeholder="商品、订单号、类型、备注" @keydown.enter="loadInventoryLogs">
               <button class="secondary-action small" type="button" @click="loadInventoryLogs">筛选</button>
+              <button class="secondary-action small" type="button" @click="exportInventoryLogs">导出 CSV</button>
             </div>
             <div class="table-wrap">
               <table>
+                <caption>库存变化流水</caption>
                 <thead><tr><th>时间</th><th>商品</th><th>类型</th><th>数量</th><th>库存变化</th><th>订单/备注</th></tr></thead>
                 <tbody>
                   <tr v-for="log in state.inventoryLogs" :key="log._id">
@@ -1873,6 +2151,10 @@ onMounted(async () => {
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <div v-if="state.inventoryLogs.length === 0" class="empty-state rich-empty">
+              <strong>{{ emptyTitle('inventory') }}</strong>
+              <span>{{ emptyHint('inventory') }}</span>
             </div>
           </article>
           <aside class="panel-card editor-panel">
@@ -1915,7 +2197,10 @@ onMounted(async () => {
                   <small>{{ slot.record ? `${maskName(slot.record.name || slot.record.customerName) || '访客'} · ${slot.record.people || 1}人` : "可预约" }}</small>
                 </span>
               </div>
-              <div v-if="reservationCalendarRows.length === 0" class="empty-state">当天暂无预约</div>
+              <div v-if="reservationCalendarRows.length === 0" class="empty-state rich-empty">
+                <strong>{{ emptyTitle('reservations') }}</strong>
+                <span>{{ emptyHint('reservations') }}</span>
+              </div>
             </div>
             <div class="record-list">
               <button
@@ -1928,6 +2213,10 @@ onMounted(async () => {
                 <strong>{{ record.roomName || record.eventTitle || record.title || record.name || "记录" }} <em>{{ record.status }}</em></strong>
                 <span>{{ maskName(record.name || record.customerName) || "访客" }} · {{ record.day || record.date || formatDate(record.createdAt) }}</span>
               </button>
+              <div v-if="(state.activeTab === 'reservations' ? state.reservations : state.signups).length === 0" class="empty-state rich-empty">
+                <strong>{{ emptyTitle(state.activeTab) }}</strong>
+                <span>{{ emptyHint(state.activeTab) }}</span>
+              </div>
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="state.activeTab === 'reservations' ? selectedReservation : selectedSignup">
@@ -1991,6 +2280,10 @@ onMounted(async () => {
                 <strong>{{ customerDisplayName(customer) }} <em>{{ customerLevel(customer) }}</em></strong>
                 <span>消费 ¥{{ money(customerSpend(customer)) }} · 订单 {{ customer.orders || 0 }} · 预约 {{ customer.reservations || 0 }}</span>
               </button>
+              <div v-if="state.customers.length === 0" class="empty-state rich-empty">
+                <strong>{{ emptyTitle('customers') }}</strong>
+                <span>{{ emptyHint('customers') }}</span>
+              </div>
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="selectedCustomer">
@@ -2024,6 +2317,10 @@ onMounted(async () => {
                 <img v-if="displayImage(item.image)" :src="displayImage(item.image)" alt="">
                 <span><strong>{{ item.title || item.key }} <em>{{ item.visible === false ? "停用" : "启用" }}</em></strong><small>{{ item.subtitle || item.type }}</small></span>
               </button>
+              <div v-if="state.contentItems.length === 0" class="empty-state rich-empty">
+                <strong>{{ emptyTitle('content') }}</strong>
+                <span>{{ emptyHint('content') }}</span>
+              </div>
             </div>
           </article>
           <aside class="panel-card editor-panel">
@@ -2070,22 +2367,27 @@ onMounted(async () => {
           </article>
           <article class="panel-card wide-table">
             <div class="panel-title"><h2>热销项目</h2></div>
-            <table><thead><tr><th>名称</th><th>类型</th><th>销售额</th><th>数量</th></tr></thead><tbody><tr v-for="item in (state.analytics?.topItems || [])" :key="item.name"><td>{{ item.name }}</td><td>{{ item.type }}</td><td>¥{{ money(item.amount) }}</td><td>{{ item.count }}</td></tr></tbody></table>
+            <table><caption>热销项目统计</caption><thead><tr><th>名称</th><th>类型</th><th>销售额</th><th>数量</th></tr></thead><tbody><tr v-for="item in (state.analytics?.topItems || [])" :key="item.name"><td>{{ item.name }}</td><td>{{ item.type }}</td><td>¥{{ money(item.amount) }}</td><td>{{ item.count }}</td></tr></tbody></table>
+            <div v-if="(state.analytics?.topItems || []).length === 0" class="empty-state rich-empty">
+              <strong>暂无热销项目</strong>
+              <span>有已支付订单后会自动生成销售排行。</span>
+            </div>
           </article>
         </section>
 
         <section v-if="state.activeTab === 'marketing'" class="marketing-grid">
           <article class="panel-card">
             <div class="panel-title"><h2>优惠券</h2></div>
-            <div class="flow-list"><button v-for="item in state.coupons" :key="item.id" type="button"><strong>{{ item.name }} <em>¥{{ money(item.amount) }}</em></strong><span>{{ item.status }} · 库存 {{ item.stock }}</span></button></div>
+            <div class="flow-list"><button v-for="item in state.coupons" :key="item.id" type="button"><strong>{{ item.name }} <em>¥{{ money(item.amount) }}</em></strong><span>{{ item.status }} · 库存 {{ item.stock }}</span></button><div v-if="state.coupons.length === 0" class="empty-state rich-empty"><strong>暂无优惠券</strong><span>{{ emptyHint('marketing') }}</span></div></div>
           </article>
           <article class="panel-card">
             <div class="panel-title"><h2>营销计划</h2></div>
-            <div class="flow-list"><button v-for="item in state.campaigns" :key="item.id" type="button"><strong>{{ item.name }} <em>{{ item.status }}</em></strong><span>{{ item.type }} · {{ item.summary }}</span></button></div>
+            <div class="flow-list"><button v-for="item in state.campaigns" :key="item.id" type="button"><strong>{{ item.name }} <em>{{ item.status }}</em></strong><span>{{ item.type }} · {{ item.summary }}</span></button><div v-if="state.campaigns.length === 0" class="empty-state rich-empty"><strong>暂无营销计划</strong><span>{{ emptyHint('marketing') }}</span></div></div>
           </article>
           <article class="panel-card wide-table">
             <div class="panel-title"><h2>优惠券核销看板</h2></div>
             <table>
+              <caption>优惠券领取与核销统计</caption>
               <thead><tr><th>优惠券</th><th>领取</th><th>使用</th><th>核销率</th><th>带来订单金额</th></tr></thead>
               <tbody>
                 <tr v-for="item in state.couponStats" :key="item.id">
@@ -2097,7 +2399,10 @@ onMounted(async () => {
                 </tr>
               </tbody>
             </table>
-            <div v-if="state.couponStats.length === 0" class="empty-state">暂无优惠券领取记录</div>
+            <div v-if="state.couponStats.length === 0" class="empty-state rich-empty">
+              <strong>暂无优惠券领取记录</strong>
+              <span>领取和核销后会自动形成转化统计。</span>
+            </div>
           </article>
           <form v-if="hasPermission('marketing.write')" class="panel-card editor-form" @submit.prevent="saveCoupon">
             <h2>新建优惠券</h2>
@@ -2116,23 +2421,51 @@ onMounted(async () => {
           </form>
         </section>
 
-        <section v-if="state.activeTab === 'audit'" class="panel-card wide-table audit-panel">
-          <div class="panel-toolbar">
-            <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="loadAuditLogs">
-            <button class="secondary-action small" type="button" @click="loadAuditLogs">筛选</button>
-          </div>
-          <table>
-            <thead><tr><th>时间</th><th>动作</th><th>管理员</th><th>详情</th></tr></thead>
-            <tbody>
-              <tr v-for="log in state.auditLogs" :key="log._id">
-                <td>{{ formatDate(log.createdAt) }}</td>
-                <td>{{ log.action }}</td>
-                <td>{{ log.adminUid || log.adminOpenid || "-" }}</td>
-                <td><small>{{ JSON.stringify(log.detail || {}) }}</small></td>
-              </tr>
-            </tbody>
-          </table>
-          <div v-if="state.auditLogs.length === 0" class="empty-state">暂无审计日志</div>
+        <section v-if="state.activeTab === 'audit'" class="split-panel">
+          <article class="panel-card data-panel audit-panel">
+            <div class="panel-toolbar">
+              <input v-model="filters.auditKeyword" class="line-input" placeholder="动作、管理员、详情" @keydown.enter="loadAuditLogs">
+              <button class="secondary-action small" type="button" @click="loadAuditLogs">筛选</button>
+              <button class="secondary-action small" type="button" @click="exportAuditLogs">导出 CSV</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <caption>后台关键操作审计日志</caption>
+                <thead><tr><th>时间</th><th>动作</th><th>管理员</th><th>摘要</th></tr></thead>
+                <tbody>
+                  <tr v-for="log in state.auditLogs" :key="log._id" :class="{ selected: state.selectedAuditLogId === log._id }" @click="state.selectedAuditLogId = log._id">
+                    <td>{{ formatDate(log.createdAt) }}</td>
+                    <td>{{ log.action }}</td>
+                    <td>{{ log.adminUid || log.adminOpenid || "-" }}</td>
+                    <td><small>{{ auditSummary(log) }}</small></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-if="state.auditLogs.length === 0" class="empty-state rich-empty">
+              <strong>{{ emptyTitle('audit') }}</strong>
+              <span>{{ emptyHint('audit') }}</span>
+            </div>
+          </article>
+          <aside class="panel-card detail-panel" v-if="selectedAuditLog">
+            <div class="panel-title"><h2>审计详情</h2><span class="status-pill neutral">{{ selectedAuditLog.action }}</span></div>
+            <DetailRow label="时间" :value="formatDate(selectedAuditLog.createdAt)" />
+            <DetailRow label="管理员" :value="selectedAuditLog.adminUid || selectedAuditLog.adminOpenid || '-'" />
+            <DetailRow label="摘要" :value="auditSummary(selectedAuditLog)" />
+            <div class="change-list" v-if="auditChangeEntries(selectedAuditLog).length">
+              <h3>字段变更</h3>
+              <div v-for="change in auditChangeEntries(selectedAuditLog)" :key="change.field" class="change-row">
+                <strong>{{ change.field }}</strong>
+                <span>{{ change.before }}</span>
+                <em>→</em>
+                <span>{{ change.after }}</span>
+              </div>
+            </div>
+            <div class="raw-detail">
+              <h3>原始详情</h3>
+              <code>{{ JSON.stringify(selectedAuditLog.detail || {}, null, 2) }}</code>
+            </div>
+          </aside>
         </section>
 
         <section v-if="state.activeTab === 'notifications'" class="split-panel">
@@ -2140,9 +2473,11 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <input v-model="filters.notificationKeyword" class="line-input" placeholder="类型、OpenID、模板、原因" @keydown.enter="loadNotificationLogs">
               <button class="secondary-action small" type="button" @click="loadNotificationLogs">筛选</button>
+              <button class="secondary-action small" type="button" @click="exportNotificationLogs">导出 CSV</button>
             </div>
             <div class="table-wrap">
               <table>
+                <caption>订阅消息投递日志</caption>
                 <thead><tr><th>时间</th><th>类型</th><th>状态</th><th>模板/OpenID</th><th>原因</th></tr></thead>
                 <tbody>
                   <tr v-for="log in state.notificationLogs" :key="log._id">
@@ -2155,7 +2490,10 @@ onMounted(async () => {
                 </tbody>
               </table>
             </div>
-            <div v-if="state.notificationLogs.length === 0" class="empty-state">暂无订阅消息日志</div>
+            <div v-if="state.notificationLogs.length === 0" class="empty-state rich-empty">
+              <strong>{{ emptyTitle('notifications') }}</strong>
+              <span>{{ emptyHint('notifications') }}</span>
+            </div>
           </article>
           <aside v-if="hasPermission('notification.write')" class="panel-card editor-panel">
             <div class="panel-title"><h2>测试通知</h2></div>
@@ -2193,6 +2531,10 @@ onMounted(async () => {
                 <small>{{ item.detail }}</small>
               </div>
             </div>
+            <div v-if="(state.systemStatus?.checks || []).length === 0" class="empty-state rich-empty">
+              <strong>暂无系统检查结果</strong>
+              <span>点击重新检查后会读取当前云端配置和包体规则。</span>
+            </div>
           </article>
         </section>
 
@@ -2206,7 +2548,10 @@ onMounted(async () => {
                 <strong>{{ role.displayName || role.subject }} <em>{{ role.roleName || role.roleKey }}</em></strong>
                 <span>{{ role.subjectType || "username" }} · {{ role.disabled ? "已停用" : "启用" }}</span>
               </button>
-              <div v-if="state.adminRoles.length === 0" class="empty-state">暂无角色，白名单账号默认管理员</div>
+              <div v-if="state.adminRoles.length === 0" class="empty-state rich-empty">
+                <strong>{{ emptyTitle('roles') }}</strong>
+                <span>{{ emptyHint('roles') }}</span>
+              </div>
             </div>
           </article>
           <aside class="panel-card editor-panel">
@@ -2230,18 +2575,23 @@ onMounted(async () => {
             <div class="panel-title"><h2>备份记录</h2><button class="secondary-action small" type="button" @click="loadBackupLogs">刷新</button></div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>时间</th><th>状态</th><th>文件</th><th>大小</th></tr></thead>
+                <caption>云端备份记录</caption>
+                <thead><tr><th>时间</th><th>状态</th><th>文件</th><th>大小</th><th></th></tr></thead>
                 <tbody>
                   <tr v-for="log in state.backupLogs" :key="log._id">
                     <td>{{ formatDate(log.createdAt) }}</td>
                     <td><span :class="['status-pill', log.status === 'success' ? 'good' : 'neutral']">{{ log.status }}</span></td>
                     <td><strong>{{ log.cloudPath || "-" }}</strong><small>{{ log.error || log.fileId || "" }}</small></td>
                     <td>{{ numberText(log.size || 0) }} B</td>
+                    <td><button v-if="log.status === 'success' && log.fileId" class="ghost-button" type="button" @click="downloadBackup(log)">下载</button></td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <div v-if="state.backupLogs.length === 0" class="empty-state">暂无备份记录</div>
+            <div v-if="state.backupLogs.length === 0" class="empty-state rich-empty">
+              <strong>{{ emptyTitle('backups') }}</strong>
+              <span>{{ emptyHint('backups') }}</span>
+            </div>
           </article>
           <aside class="panel-card editor-panel">
             <div class="panel-title"><h2>创建备份</h2></div>

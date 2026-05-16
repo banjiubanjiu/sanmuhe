@@ -183,6 +183,7 @@ const actionPermissions = {
   listAdminRoles: "roles.manage",
   saveAdminRole: "roles.manage",
   listBackupLogs: "backup.read",
+  getBackupDownloadUrl: "backup.read",
   createDataBackup: "backup.create"
 };
 
@@ -1138,12 +1139,14 @@ async function getSystemStatus(event = {}) {
   const ignored = Array.isArray(packageInfo.ignored) ? packageInfo.ignored : [];
   const ignoreExpected = ["admin", "admin-src", "node_modules", "package-lock.json", "package.json"];
   const ignoreMissing = ignoreExpected.filter((item) => !ignored.includes(item));
-  const [auditCount, notificationCount, backupCount, roleCount] = await Promise.all([
+  const [auditCount, notificationCount, backupCount, roleCount, latestBackupResult] = await Promise.all([
     countCollection("admin_audit_logs"),
     countCollection("notification_logs"),
     countCollection("data_backup_logs"),
-    countCollection("admin_roles")
+    countCollection("admin_roles"),
+    readCollection("data_backup_logs", { orderBy: "createdAt", limit: 1 })
   ]);
+  const latestBackup = latestBackupResult[0] || null;
 
   const checks = [
     statusItem(
@@ -1183,6 +1186,16 @@ async function getSystemStatus(event = {}) {
       "关键日志集合",
       "ok",
       `审计 ${auditCount} 条；通知 ${notificationCount} 条；备份 ${backupCount} 条`
+    ),
+    statusItem(
+      "backupRecovery",
+      "最近备份可恢复",
+      latestBackup && latestBackup.status === "success" && latestBackup.fileId ? "ok" : "warn",
+      latestBackup
+        ? latestBackup.status === "success" && latestBackup.fileId
+          ? `最近备份：${latestBackup.cloudPath || latestBackup.fileId}`
+          : `最近备份不可直接下载：${latestBackup.error || "缺少云文件 ID"}`
+        : "暂无成功备份，建议上线前先创建一次云端备份"
     ),
     statusItem(
       "adminRoles",
@@ -1540,6 +1553,48 @@ async function listBackupLogs() {
     limit: 100
   });
   return { ok: true, logs };
+}
+
+async function getBackupDownloadUrl(event, caller) {
+  const id = cleanText(event.id, 120);
+  const cloudPath = cleanText(event.cloudPath, 240);
+  let record = null;
+  if (id) {
+    try {
+      record = await getByDocId("data_backup_logs", id);
+    } catch (error) {
+      record = null;
+    }
+  }
+  if (!record && cloudPath) {
+    record = await findRecord("data_backup_logs", "cloudPath", cloudPath);
+  }
+  if (!record) {
+    return { ok: false, message: "备份记录不存在" };
+  }
+  const fileId = record.fileId || record.fileID || "";
+  if (record.status !== "success" || !fileId) {
+    return { ok: false, message: "该备份没有可下载的云文件" };
+  }
+  const result = await cloud.getTempFileURL({
+    fileList: [fileId]
+  });
+  const item = result.fileList && result.fileList[0] || {};
+  const url = item.tempFileURL || item.download_url || "";
+  if (!url || item.status && item.status !== 0) {
+    return { ok: false, message: item.errMsg || "获取备份下载链接失败" };
+  }
+  await writeAdminAuditLog(caller, "getBackupDownloadUrl", {
+    cloudPath: record.cloudPath || "",
+    size: record.size || 0
+  });
+  return {
+    ok: true,
+    url,
+    cloudPath: record.cloudPath || "",
+    size: record.size || 0,
+    expireIn: 7200
+  };
 }
 
 function adminProfile(role) {
@@ -2042,6 +2097,9 @@ exports.main = async (event = {}) => {
     }
     if (action === "listBackupLogs") {
       return await listBackupLogs();
+    }
+    if (action === "getBackupDownloadUrl") {
+      return await getBackupDownloadUrl(event, caller);
     }
     if (action === "createDataBackup") {
       return await createDataBackup(event, caller);

@@ -60,6 +60,14 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(77, 101, 66, 0.52);
+  outline-offset: 2px;
+}
+
 button:disabled,
 input:disabled,
 select:disabled,
@@ -438,9 +446,16 @@ textarea:focus {
   line-height: 1.25;
 }
 
-.topbar p,
+.topbar p {
+  max-width: 640px;
+  margin: 7px 0 0;
+  color: var(--admin-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .topbar .section-kicker {
-  display: none;
+  margin-bottom: 6px;
 }
 
 .top-actions {
@@ -567,6 +582,101 @@ textarea:focus {
   padding: 0 11px;
   color: #8e4b3c;
   background: rgba(255, 253, 248, 0.72);
+}
+
+.work-context {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(260px, 0.72fr);
+  align-items: center;
+  gap: 18px;
+  margin: -8px 0 20px;
+  border: 1px solid rgba(72, 68, 56, 0.12);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background:
+    linear-gradient(90deg, rgba(255, 253, 248, 0.9), rgba(245, 241, 232, 0.78));
+}
+
+.context-main {
+  min-width: 0;
+}
+
+.context-main span {
+  display: block;
+  color: var(--admin-green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.context-main strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--admin-ink);
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.context-main p {
+  margin: 5px 0 0;
+  color: var(--admin-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.context-count {
+  min-width: 112px;
+  border-left: 1px solid var(--admin-line);
+  border-right: 1px solid var(--admin-line);
+  padding: 0 18px;
+  text-align: center;
+}
+
+.context-count strong {
+  display: block;
+  color: var(--admin-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.context-count span {
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.filter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.filter-chip,
+.clear-filter {
+  min-height: 27px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.filter-chip {
+  color: var(--admin-green-dark);
+  background: rgba(222, 235, 217, 0.72);
+}
+
+.filter-chip.muted {
+  color: var(--admin-muted);
+  background: rgba(235, 230, 220, 0.7);
+}
+
+.clear-filter {
+  border: 1px solid rgba(77, 101, 66, 0.18);
+  color: var(--admin-green-dark);
+  background: rgba(255, 253, 247, 0.72);
 }
 
 .metric-card,
@@ -1169,6 +1279,15 @@ table {
   border-collapse: collapse;
 }
 
+caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 th,
 td {
   border-bottom: 1px solid var(--admin-line);
@@ -1190,6 +1309,10 @@ td {
   font-size: 14px;
 }
 
+tbody tr:hover td {
+  background: rgba(246, 242, 232, 0.58);
+}
+
 td small {
   display: block;
   margin-top: 5px;
@@ -1206,8 +1329,36 @@ td small {
   text-align: center;
 }
 
+.rich-empty {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.rich-empty strong {
+  color: var(--admin-ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.rich-empty span {
+  max-width: 360px;
+  color: var(--admin-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 tr.selected td {
   background: rgba(229, 229, 215, 0.72);
+}
+
+tr.selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--admin-green-dark);
+}
+
+.audit-panel tr {
+  cursor: pointer;
 }
 
 .status-pill {
@@ -1417,6 +1568,67 @@ tr.selected td {
   line-height: 1.5;
 }
 
+.change-list,
+.raw-detail {
+  margin-top: 18px;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  padding: 14px;
+  background: rgba(250, 247, 239, 0.58);
+}
+
+.change-list h3,
+.raw-detail h3 {
+  margin: 0 0 12px;
+  color: var(--admin-ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.change-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  border-top: 1px solid var(--admin-line);
+  padding: 10px 0;
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.change-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.change-row strong {
+  color: var(--admin-ink);
+  font-weight: 500;
+}
+
+.change-row span,
+.raw-detail code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.change-row em {
+  color: var(--admin-faint);
+  font-style: normal;
+}
+
+.raw-detail code {
+  display: block;
+  max-height: 240px;
+  overflow: auto;
+  color: #4d5148;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .line-items,
 .ship-box,
 .cancel-box {
@@ -1605,8 +1817,24 @@ tr.selected td {
   .analytics-layout,
   .marketing-grid,
   .system-grid,
+  .work-context,
   .status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .context-count {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border: 0;
+    border-top: 1px solid var(--admin-line);
+    border-bottom: 1px solid var(--admin-line);
+    padding: 12px 0;
+    text-align: left;
+  }
+
+  .filter-strip {
+    justify-content: flex-start;
   }
 
   .hero-panel {
@@ -1636,6 +1864,48 @@ tr.selected td {
     position: relative;
     height: auto;
     min-height: auto;
+    padding: 22px 16px 14px;
+  }
+
+  .logo-stack {
+    padding: 0 8px 16px;
+  }
+
+  .logo-stack span {
+    font-size: 26px;
+  }
+
+  .nav-list {
+    max-height: 292px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 0;
+  }
+
+  .nav-group {
+    align-content: start;
+  }
+
+  .nav-group + .nav-group {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .nav-group-title {
+    margin: 0 4px 2px;
+  }
+
+  .nav-list button {
+    min-height: 38px;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 8px;
+    padding: 0 9px;
+    font-size: 14px;
+  }
+
+  .sidebar-user {
+    margin-top: 12px;
   }
 
   .sidebar-scene {
