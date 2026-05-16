@@ -5,11 +5,14 @@ import {
   Bell,
   CalendarCheck,
   CalendarDays,
+  CheckCircle2,
   ChartNoAxesColumnIncreasing,
   ChevronDown,
   CircleDollarSign,
   ClipboardList,
+  Database,
   FileText,
+  HardDrive,
   Home,
   Megaphone,
   Package,
@@ -19,6 +22,7 @@ import {
   Search,
   Send,
   Settings,
+  ShieldCheck,
   TicketPercent,
   Upload,
   UserPlus,
@@ -30,6 +34,12 @@ const CONFIG = {
   envId: "sanmuhe-env-d3g1nt3jsa1be67e3",
   region: "ap-shanghai",
   accessKey: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkMWRjMzFlLWI0ZDAtNDQ4Yi1hNzZmLWIwY2M2M2Q4MTQ5OCJ9.eyJpc3MiOiJodHRwczovL3Nhbm11aGUtZW52LWQzZzFudDNqc2ExYmU2N2UzLmFwLXNoYW5naGFpLnRjYi1hcGkudGVuY2VudGNsb3VkYXBpLmNvbSIsInN1YiI6ImFub24iLCJhdWQiOiJzYW5tdWhlLWVudi1kM2cxbnQzanNhMWJlNjdlMyIsImV4cCI6NDA4MjUxODk5NiwiaWF0IjoxNzc4ODM1Nzk2LCJub25jZSI6Im8xbE9LR053VGs2U2I4WGgyTUpfbmciLCJhdF9oYXNoIjoibzFsT0tHTndUazZTYjhYaDJNSl9uZyIsIm5hbWUiOiJBbm9ueW1vdXMiLCJzY29wZSI6ImFub255bW91cyIsInByb2plY3RfaWQiOiJzYW5tdWhlLWVudi1kM2cxbnQzanNhMWJlNjdlMyIsIm1ldGEiOnsicGxhdGZvcm0iOiJQdWJsaXNoYWJsZUtleSJ9LCJ1c2VyX3R5cGUiOiIiLCJjbGllbnRfdHlwZSI6ImNsaWVudF91c2VyIiwiaXNfc3lzdGVtX2FkbWluIjpmYWxzZX0.OEuP69P5I_7iZiARFAcqBTO3jbhUwe2uruyIIlqLQPyqkikfnbuNS2AtPjy1zZqU0IFKU_QZH3HAG_oOvTPwH8n1WNWRcLNsetLvPM0pgCYvt5FcbaC6w8-zMxqSr2bCm1C0qLzz1Hu69LwD4YV86yhUUgsHiYsrrtIiRfdhX22sZgV6z57dlhidaCIFQCsr8bNdvEe_5tWPkDYqfernkqYHSZNfds2ILxAR-DYgt7j22zh2LUxzxLagIZ4SwTiea_UmNe7eUDdtjci-lqdLMDev7jbeVxndLnKq6cfBQvZANgjcI_57NxtQmDvSB7jVGuITgBCpPXBLGvNbjcUd9A"
+};
+
+const PACKAGE_INFO = {
+  appid: "wxaf9aedf1f6343786",
+  sourceSizeLimit: "2MB",
+  ignored: ["admin", "admin-src", "node_modules", "package-lock.json", "package.json", "vite.config.mjs"]
 };
 
 let cloudApp = null;
@@ -61,6 +71,10 @@ const navItems = [
   { key: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing },
   { key: "marketing", label: "营销中心", icon: Megaphone },
   { key: "audit", label: "审计日志", icon: FileText },
+  { key: "notifications", label: "通知日志", icon: Bell },
+  { key: "system", label: "系统状态", icon: ShieldCheck },
+  { key: "roles", label: "角色权限", icon: Users },
+  { key: "backups", label: "数据备份", icon: HardDrive },
   { key: "settings", label: "设置管理", icon: Settings }
 ];
 
@@ -85,6 +99,8 @@ const quickActions = [
   { tab: "orders", label: "订单管理", icon: ClipboardList },
   { tab: "afterSales", label: "售后处理", icon: BadgeDollarSign },
   { tab: "inventory", label: "库存流水", icon: Package },
+  { tab: "system", label: "系统体检", icon: ShieldCheck },
+  { tab: "notifications", label: "通知日志", icon: Bell },
   { tab: "customers", label: "用户管理", icon: Users },
   { tab: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing }
 ];
@@ -104,6 +120,10 @@ const pageTitles = {
   analytics: ["数据统计", "经营走势、转化和热销项目"],
   marketing: ["营销中心", "优惠券和活动计划"],
   audit: ["审计日志", "关键后台操作和隐私动作留痕"],
+  notifications: ["通知日志", "订阅消息发送、跳过和失败原因"],
+  system: ["系统状态", "配置缺项、包体规则和关键后台健康检查"],
+  roles: ["角色权限", "管理员、店员和运营的后台权限边界"],
+  backups: ["数据备份", "关键集合一键导出到云存储"],
   settings: ["设置管理", "门店、会员和通知配置"]
 };
 
@@ -123,12 +143,18 @@ const state = reactive({
   afterSales: [],
   inventoryLogs: [],
   auditLogs: [],
+  notificationLogs: [],
+  systemStatus: null,
+  adminRoles: [],
+  rolePresets: [],
+  backupLogs: [],
   reservations: [],
   signups: [],
   customers: [],
   contentItems: [],
   analytics: null,
   coupons: [],
+  couponStats: [],
   campaigns: [],
   settings: {},
   selectedCatalogId: "",
@@ -138,6 +164,7 @@ const state = reactive({
   selectedSignupId: "",
   selectedCustomerId: "",
   selectedContentKey: "",
+  selectedRoleId: "",
   reservationCalendarDate: new Date().toISOString().slice(0, 10)
 });
 
@@ -158,7 +185,8 @@ const filters = reactive({
   signupStatus: "",
   signupKeyword: "",
   customerKeyword: "",
-  auditKeyword: ""
+  auditKeyword: "",
+  notificationKeyword: ""
 });
 
 const loginForm = reactive({ username: "", password: "" });
@@ -169,7 +197,7 @@ const orderForm = reactive({
   cancelReason: "管理员取消"
 });
 const afterSaleForm = reactive({
-  status: "处理中",
+  status: "审核中",
   refundAmount: 0,
   reason: "",
   note: ""
@@ -179,6 +207,22 @@ const inventoryForm = reactive({
   id: "",
   delta: 0,
   note: ""
+});
+const noticeTestForm = reactive({
+  kind: "reservationStatus",
+  openid: "",
+  note: "后台测试发送"
+});
+const roleForm = reactive({
+  id: "",
+  subjectType: "username",
+  subject: "",
+  displayName: "",
+  roleKey: "clerk",
+  disabled: false
+});
+const backupForm = reactive({
+  limit: 500
 });
 const toast = reactive({ show: false, text: "" });
 let toastTimer = null;
@@ -258,6 +302,8 @@ const selectedAfterSale = computed(() => state.afterSales.find((item) => item._i
 const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || state.reservations[0] || null);
 const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || state.signups[0] || null);
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || state.customers[0] || null);
+const selectedRole = computed(() => state.adminRoles.find((item) => item.id === state.selectedRoleId) || state.adminRoles[0] || null);
+const currentRolePreset = computed(() => state.rolePresets.find((item) => item.key === roleForm.roleKey) || state.rolePresets[0] || null);
 const reservationCalendarRows = computed(() => {
   const day = state.reservationCalendarDate;
   const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
@@ -356,6 +402,32 @@ function maskName(value) {
   if (!text) return "";
   if (text === "已匿名") return text;
   return text.length <= 1 ? "*" : `${text.slice(0, 1)}*`;
+}
+
+function isPhone(value) {
+  const text = String(value || "").trim();
+  return !text || /^1\d{10}$/.test(text) || /^[\d\s\-+()]{6,24}$/.test(text);
+}
+
+function isUrlish(value) {
+  const text = String(value || "").trim();
+  return !text || text.startsWith("cloud://") || text.startsWith("http://") || text.startsWith("https://") || text.startsWith("/assets/");
+}
+
+function assertText(value, message) {
+  if (!String(value || "").trim()) throw new Error(message);
+}
+
+function assertNonNegative(value, message) {
+  if (!Number.isFinite(Number(value)) || Number(value) < 0) throw new Error(message);
+}
+
+function requireTypedConfirm(label, expected) {
+  const text = String(expected || "").trim();
+  if (!text) {
+    return window.confirm(label);
+  }
+  return window.prompt(`${label}\n请输入「${text}」确认。`) === text;
 }
 
 function customerDisplayName(customer) {
@@ -571,6 +643,10 @@ async function loadActiveTab() {
     analytics: loadAnalytics,
     marketing: loadMarketing,
     audit: loadAuditLogs,
+    notifications: loadNotificationLogs,
+    system: loadSystemStatus,
+    roles: loadAdminRoles,
+    backups: loadBackupLogs,
     settings: loadSettings
   };
   return map[state.activeTab]?.();
@@ -634,6 +710,20 @@ function editCatalog(item) {
 }
 
 async function saveCatalog() {
+  try {
+    assertText(forms.catalog.id, "请填写资料 ID");
+    if (state.collection !== "events") assertText(forms.catalog.name || forms.catalog.title, "请填写名称");
+    assertNonNegative(forms.catalog.price, "价格不能为负数");
+    assertNonNegative(forms.catalog.stock, "库存不能为负数");
+    if (!isUrlish(forms.catalog.image) || !isUrlish(forms.catalog.thumb)) throw new Error("图片地址必须是 cloud://、http(s) 或 /assets/");
+    if (state.collection === "events") {
+      assertText(forms.catalog.title || forms.catalog.name, "请填写活动标题");
+      if (Number(forms.catalog.signed || 0) > Number(forms.catalog.quota || 0)) throw new Error("已报名不能大于名额");
+    }
+  } catch (error) {
+    showToast(error.message);
+    return;
+  }
   const action = state.catalogItems.some((item) => item.id === forms.catalog.id) ? "update" : "create";
   await withLoading("保存资料", async () => {
     await callFunction("manageCatalog", {
@@ -649,6 +739,7 @@ async function saveCatalog() {
 
 async function toggleCatalog(item) {
   const restore = item.visible === false || item.deleted;
+  if (!restore && !requireTypedConfirm(`确认下架 ${displayName(item)}？`, item.id || displayName(item))) return;
   await withLoading(restore ? "恢复资料" : "下架资料", async () => {
     await callFunction("manageCatalog", {
       action: restore ? "restore" : "delete",
@@ -687,7 +778,7 @@ async function loadAfterSales() {
 
 function fillAfterSaleForm(order) {
   Object.assign(afterSaleForm, {
-    status: order?.afterSaleStatus || "处理中",
+    status: order?.afterSaleStatus || "审核中",
     refundAmount: Number(order?.refundAmount || 0),
     reason: order?.afterSaleReason || "",
     note: order?.afterSaleNote || ""
@@ -696,6 +787,14 @@ function fillAfterSaleForm(order) {
 
 async function saveAfterSale(order) {
   if (!order) return;
+  if (!["申请售后", "审核中", "已退款", "已拒绝", "已关闭", "处理中"].includes(afterSaleForm.status)) {
+    showToast("请选择有效售后状态");
+    return;
+  }
+  if (Number(afterSaleForm.refundAmount || 0) > Number(order.total || 0)) {
+    showToast("退款金额不能大于订单金额");
+    return;
+  }
   await withLoading("保存售后", async () => {
     await callFunction("manageOperations", {
       action: "updateAfterSale",
@@ -718,7 +817,7 @@ async function startAfterSale(order) {
       action: "updateAfterSale",
       orderId: order._id,
       orderNo: order.orderNo,
-      afterSaleStatus: "处理中",
+      afterSaleStatus: "审核中",
       refundAmount: Number(order.refundAmount || 0),
       reason: order.afterSaleReason || "后台发起售后处理",
       note: order.afterSaleNote || ""
@@ -742,6 +841,18 @@ async function loadInventoryLogs() {
 }
 
 async function adjustInventory() {
+  if (!inventoryForm.id.trim()) {
+    showToast("请填写商品 ID");
+    return;
+  }
+  if (!Number.isFinite(Number(inventoryForm.delta)) || Number(inventoryForm.delta) === 0) {
+    showToast("调整数量不能为 0");
+    return;
+  }
+  if (!inventoryForm.note.trim()) {
+    showToast("请填写库存调整原因");
+    return;
+  }
   await withLoading("调整库存", async () => {
     await callFunction("manageOperations", {
       action: "adjustInventory",
@@ -764,6 +875,124 @@ async function loadAuditLogs() {
       keyword: filters.auditKeyword
     });
     state.auditLogs = result.logs || [];
+  });
+}
+
+async function loadNotificationLogs() {
+  await withLoading("读取通知日志", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "listNotificationLogs",
+      keyword: filters.notificationKeyword
+    });
+    state.notificationLogs = result.logs || [];
+  });
+}
+
+async function sendTestNotice() {
+  if (!noticeTestForm.openid.trim()) {
+    showToast("请填写 OpenID");
+    return;
+  }
+  await withLoading("发送测试通知", async () => {
+    await callFunction("manageOperations", {
+      action: "sendTestNotice",
+      kind: noticeTestForm.kind,
+      openid: noticeTestForm.openid,
+      payload: {
+        room: "禾熙书茶空间",
+        day: new Date().toISOString().slice(0, 10),
+        time: "15:00",
+        status: "测试通知",
+        note: noticeTestForm.note
+      }
+    });
+    showToast("测试通知已提交");
+    await loadNotificationLogs();
+  });
+}
+
+async function loadSystemStatus() {
+  await withLoading("系统体检", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "getSystemStatus",
+      packageInfo: PACKAGE_INFO
+    });
+    state.systemStatus = result;
+  });
+}
+
+async function loadAdminRoles() {
+  await withLoading("读取角色", async () => {
+    const result = await callFunction("manageOperations", { action: "listAdminRoles" });
+    state.adminRoles = result.roles || [];
+    state.rolePresets = result.presets || [];
+    state.selectedRoleId = state.adminRoles[0]?.id || "";
+    editRole(selectedRole.value);
+  });
+}
+
+function resetRole() {
+  Object.assign(roleForm, {
+    id: "",
+    subjectType: "username",
+    subject: "",
+    displayName: "",
+    roleKey: "clerk",
+    disabled: false
+  });
+  state.selectedRoleId = "";
+}
+
+function editRole(role) {
+  if (!role) {
+    resetRole();
+    return;
+  }
+  state.selectedRoleId = role.id;
+  Object.assign(roleForm, {
+    id: role.id || "",
+    subjectType: role.subjectType || "username",
+    subject: role.subject || "",
+    displayName: role.displayName || "",
+    roleKey: role.roleKey || "clerk",
+    disabled: role.disabled === true
+  });
+}
+
+async function saveAdminRole() {
+  if (!roleForm.subject.trim()) {
+    showToast("请填写账号标识");
+    return;
+  }
+  await withLoading("保存角色", async () => {
+    await callFunction("manageOperations", {
+      action: "saveAdminRole",
+      data: {
+        ...roleForm,
+        id: roleForm.id || roleForm.subject,
+        permissions: currentRolePreset.value?.permissions || []
+      }
+    });
+    showToast("角色已保存");
+    await loadAdminRoles();
+  });
+}
+
+async function loadBackupLogs() {
+  await withLoading("读取备份", async () => {
+    const result = await callFunction("manageOperations", { action: "listBackupLogs" });
+    state.backupLogs = result.logs || [];
+  });
+}
+
+async function createDataBackup() {
+  await withLoading("创建备份", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "createDataBackup",
+      limit: Number(backupForm.limit || 500)
+    });
+    showToast(result.cloudPath ? "备份已写入云存储" : "备份已完成");
+    await loadBackupLogs();
   });
 }
 
@@ -811,7 +1040,7 @@ async function loadCustomers() {
 async function deleteCustomerData(customer) {
   if (!customer) return;
   const name = customerDisplayName(customer);
-  const confirmed = window.confirm(`确认删除/匿名化 ${name} 的个人信息？订单、预约、报名会保留经营记录，但姓名、手机号、地址、备注和用户关联会被清空。`);
+  const confirmed = requireTypedConfirm(`确认删除/匿名化 ${name} 的个人信息？订单、预约、报名会保留经营记录，但姓名、手机号、地址、备注和用户关联会被清空。`, customer.phone || customer.id);
   if (!confirmed) return;
   await withLoading("删除用户数据", async () => {
     const result = await callFunction("manageOperations", {
@@ -827,7 +1056,29 @@ async function deleteCustomerData(customer) {
   });
 }
 
+async function exportCustomerData(customer) {
+  if (!customer) return;
+  await withLoading("导出用户数据", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "exportCustomerData",
+      customerId: customer.id,
+      openid: customer.openid,
+      phone: customer.phone
+    });
+    const data = result.data || {};
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hexi-customer-${customer.phone || customer.id || Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("用户数据已导出");
+  });
+}
+
 async function updateRecord(type, id, status) {
+  if (status === "已取消" && !requireTypedConfirm(`确认取消这条${type === "reservation" ? "预约" : "报名"}？`, id)) return;
   await withLoading("更新状态", async () => {
     await callFunction("manageOperations", {
       action: type === "reservation" ? "updateReservation" : "updateSignup",
@@ -839,7 +1090,21 @@ async function updateRecord(type, id, status) {
   });
 }
 
+async function checkInSignup(signup, status) {
+  if (!signup) return;
+  await withLoading("核销报名", async () => {
+    await callFunction("manageOperations", {
+      action: "checkInSignup",
+      id: signup._id,
+      status
+    });
+    showToast(status === "已到场" ? "已标记到场" : "已标记未到场");
+    await loadSignups();
+  });
+}
+
 async function orderAction(action, order) {
+  if (action === "cancel" && !requireTypedConfirm(`确认取消订单 ${order.orderNo || order._id}？`, order.orderNo || order._id)) return;
   await withLoading("处理订单", async () => {
     const payload = { orderId: order._id, orderNo: order.orderNo };
     if (action === "ship") {
@@ -968,6 +1233,14 @@ function editContent(item) {
 }
 
 async function saveContent() {
+  try {
+    assertText(forms.content.key, "请填写内容 Key");
+    assertText(forms.content.title, "请填写内容标题");
+    if (!isUrlish(forms.content.image)) throw new Error("图片地址必须是 cloud://、http(s) 或 /assets/");
+  } catch (error) {
+    showToast(error.message);
+    return;
+  }
   await withLoading("保存内容", async () => {
     await callFunction("manageOperations", { action: "saveContent", data: { ...forms.content } });
     showToast("内容已保存");
@@ -976,6 +1249,7 @@ async function saveContent() {
 }
 
 async function deleteContent(item) {
+  if (!requireTypedConfirm(`确认停用内容 ${item.title || item.key}？`, item.key)) return;
   await withLoading("停用内容", async () => {
     await callFunction("manageOperations", { action: "deleteContent", key: item.key });
     showToast("内容已停用");
@@ -994,11 +1268,21 @@ async function loadMarketing() {
   await withLoading("读取营销", async () => {
     const result = await callFunction("manageOperations", { action: "listMarketing" });
     state.coupons = result.coupons || [];
+    state.couponStats = result.couponStats || [];
     state.campaigns = result.campaigns || [];
   });
 }
 
 async function saveCoupon() {
+  try {
+    assertText(forms.coupon.name, "请填写优惠券名称");
+    assertNonNegative(forms.coupon.amount, "优惠券面额不能为负数");
+    assertNonNegative(forms.coupon.threshold, "使用门槛不能为负数");
+    assertNonNegative(forms.coupon.stock, "库存不能为负数");
+  } catch (error) {
+    showToast(error.message);
+    return;
+  }
   await withLoading("保存优惠券", async () => {
     await callFunction("manageOperations", { action: "saveCoupon", data: forms.coupon });
     showToast("优惠券已保存");
@@ -1007,6 +1291,15 @@ async function saveCoupon() {
 }
 
 async function saveCampaign() {
+  try {
+    assertText(forms.campaign.name, "请填写营销计划名称");
+    if (forms.campaign.startAt && forms.campaign.endAt && forms.campaign.startAt > forms.campaign.endAt) {
+      throw new Error("结束时间不能早于开始时间");
+    }
+  } catch (error) {
+    showToast(error.message);
+    return;
+  }
   await withLoading("保存计划", async () => {
     await callFunction("manageOperations", { action: "saveCampaign", data: forms.campaign });
     showToast("营销计划已保存");
@@ -1022,6 +1315,10 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
+  if (!isPhone(state.settings.phone)) {
+    showToast("电话格式不正确");
+    return;
+  }
   await withLoading("保存设置", async () => {
     await callFunction("manageOperations", { action: "updateSettings", data: state.settings });
     showToast("设置已保存");
@@ -1039,6 +1336,7 @@ function globalSearch() {
   if (state.activeTab === "customers") filters.customerKeyword = keyword;
   if (state.activeTab === "catalog") filters.catalog = keyword;
   if (state.activeTab === "audit") filters.auditKeyword = keyword;
+  if (state.activeTab === "notifications") filters.notificationKeyword = keyword;
   loadActiveTab();
 }
 
@@ -1389,7 +1687,7 @@ onMounted(async () => {
             <div class="panel-toolbar">
               <select v-model="filters.afterSaleStatus" class="line-input" @change="loadAfterSales">
                 <option value="">全部售后</option>
-                <option>处理中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option>
+                <option>申请售后</option><option>审核中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option>
               </select>
               <input v-model="filters.afterSaleKeyword" class="line-input" placeholder="订单号、姓名、手机号、原因" @keydown.enter="loadAfterSales">
             </div>
@@ -1413,7 +1711,7 @@ onMounted(async () => {
             <DetailRow label="金额" :value="`¥${money(selectedAfterSale.total)}`" />
             <DetailRow label="客户" :value="maskName(selectedAfterSale.name || selectedAfterSale.contactName || selectedAfterSale.consignee) || '-'" />
             <form class="editor-grid" @submit.prevent="saveAfterSale(selectedAfterSale)">
-              <label><span>售后状态</span><select v-model="afterSaleForm.status"><option>处理中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option></select></label>
+              <label><span>售后状态</span><select v-model="afterSaleForm.status"><option>申请售后</option><option>审核中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option></select></label>
               <label><span>退款金额</span><input v-model.number="afterSaleForm.refundAmount" type="number" min="0"></label>
               <label class="wide"><span>售后原因</span><input v-model="afterSaleForm.reason" placeholder="如用户申请退款、商品异常"></label>
               <label class="wide"><span>处理备注</span><textarea v-model="afterSaleForm.note" rows="4"></textarea></label>
@@ -1463,7 +1761,7 @@ onMounted(async () => {
                 <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已完成</option><option>已取消</option>
               </select>
               <select v-else v-model="filters.signupStatus" class="line-input" @change="loadSignups">
-                <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已完成</option><option>已取消</option>
+                <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已到场</option><option>未到场</option><option>已完成</option><option>已取消</option>
               </select>
               <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" placeholder="茶室、姓名、手机号" @keydown.enter="loadReservations">
               <input v-else v-model="filters.signupKeyword" class="line-input" placeholder="活动、姓名、手机号" @keydown.enter="loadSignups">
@@ -1519,6 +1817,8 @@ onMounted(async () => {
               <DetailRow label="状态" :value="selectedSignup.status || '-'" />
               <div class="action-row">
                 <button class="secondary-action" type="button" @click="updateRecord('signup', selectedSignup._id, '已确认')">确认</button>
+                <button class="secondary-action" type="button" @click="checkInSignup(selectedSignup, '已到场')">到场核销</button>
+                <button class="secondary-action" type="button" @click="checkInSignup(selectedSignup, '未到场')">未到场</button>
                 <button class="secondary-action" type="button" @click="updateRecord('signup', selectedSignup._id, '已完成')">完成</button>
                 <button class="danger-action" type="button" @click="updateRecord('signup', selectedSignup._id, '已取消')">取消</button>
               </div>
@@ -1548,6 +1848,7 @@ onMounted(async () => {
             <DetailRow label="最近访问" :value="formatDate(customerLatestAt(selectedCustomer))" />
             <div class="privacy-note">默认脱敏展示；删除个人数据会清空联系方式、地址、备注、订阅偏好和未使用优惠券。</div>
             <div class="action-row">
+              <button class="secondary-action" type="button" @click="exportCustomerData(selectedCustomer)">导出该用户数据</button>
               <button class="danger-action" type="button" @click="deleteCustomerData(selectedCustomer)">删除个人数据</button>
             </div>
           </aside>
@@ -1626,6 +1927,22 @@ onMounted(async () => {
             <div class="panel-title"><h2>营销计划</h2></div>
             <div class="flow-list"><button v-for="item in state.campaigns" :key="item.id" type="button"><strong>{{ item.name }} <em>{{ item.status }}</em></strong><span>{{ item.type }} · {{ item.summary }}</span></button></div>
           </article>
+          <article class="panel-card wide-table">
+            <div class="panel-title"><h2>优惠券核销看板</h2></div>
+            <table>
+              <thead><tr><th>优惠券</th><th>领取</th><th>使用</th><th>核销率</th><th>带来订单金额</th></tr></thead>
+              <tbody>
+                <tr v-for="item in state.couponStats" :key="item.id">
+                  <td>{{ item.name || item.id }}</td>
+                  <td>{{ item.claimed }}</td>
+                  <td>{{ item.redeemed }}</td>
+                  <td>{{ item.redeemRate }}%</td>
+                  <td>¥{{ money(item.orderAmount) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="state.couponStats.length === 0" class="empty-state">暂无优惠券领取记录</div>
+          </article>
           <form class="panel-card editor-form" @submit.prevent="saveCoupon">
             <h2>新建优惠券</h2>
             <label><span>名称</span><input v-model="forms.coupon.name"></label>
@@ -1662,6 +1979,124 @@ onMounted(async () => {
           <div v-if="state.auditLogs.length === 0" class="empty-state">暂无审计日志</div>
         </section>
 
+        <section v-if="state.activeTab === 'notifications'" class="split-panel">
+          <article class="panel-card data-panel">
+            <div class="panel-toolbar">
+              <input v-model="filters.notificationKeyword" class="line-input" placeholder="类型、OpenID、模板、原因" @keydown.enter="loadNotificationLogs">
+              <button class="secondary-action small" type="button" @click="loadNotificationLogs">筛选</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>时间</th><th>类型</th><th>状态</th><th>模板/OpenID</th><th>原因</th></tr></thead>
+                <tbody>
+                  <tr v-for="log in state.notificationLogs" :key="log._id">
+                    <td>{{ formatDate(log.createdAt) }}</td>
+                    <td>{{ log.kind || "-" }}</td>
+                    <td><span :class="['status-pill', log.status === 'sent' ? 'good' : 'neutral']">{{ log.status || "-" }}</span></td>
+                    <td><strong>{{ log.templateId || "-" }}</strong><small>{{ maskOpenid(log.openid) }}</small></td>
+                    <td><small>{{ log.reason || log.error || "-" }}</small></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-if="state.notificationLogs.length === 0" class="empty-state">暂无订阅消息日志</div>
+          </article>
+          <aside class="panel-card editor-panel">
+            <div class="panel-title"><h2>测试通知</h2></div>
+            <form class="editor-grid" @submit.prevent="sendTestNotice">
+              <label><span>类型</span><select v-model="noticeTestForm.kind"><option value="reservationStatus">预约状态</option><option value="eventStatus">活动报名</option><option value="orderShipped">订单发货</option><option value="orderPaid">订单支付</option></select></label>
+              <label><span>OpenID</span><input v-model="noticeTestForm.openid" placeholder="用户 OpenID"></label>
+              <label class="wide"><span>备注</span><textarea v-model="noticeTestForm.note" rows="3"></textarea></label>
+              <button class="primary-action wide" type="submit">发送测试通知</button>
+            </form>
+          </aside>
+        </section>
+
+        <section v-if="state.activeTab === 'system'" class="system-grid">
+          <article class="panel-card metric-card large">
+            <span>正常</span>
+            <strong>{{ state.systemStatus?.summary?.ok || 0 }}</strong>
+            <p>已通过检查</p>
+          </article>
+          <article class="panel-card metric-card large">
+            <span>提醒</span>
+            <strong>{{ state.systemStatus?.summary?.warn || 0 }}</strong>
+            <p>需要补配置</p>
+          </article>
+          <article class="panel-card metric-card large">
+            <span>错误</span>
+            <strong>{{ state.systemStatus?.summary?.error || 0 }}</strong>
+            <p>会影响生产</p>
+          </article>
+          <article class="panel-card wide-table">
+            <div class="panel-title"><h2>系统检查</h2><button class="secondary-action small" type="button" @click="loadSystemStatus">重新检查</button></div>
+            <div class="status-grid">
+              <div v-for="item in (state.systemStatus?.checks || [])" :key="item.key" :class="['status-check', item.status]">
+                <span><CheckCircle2 :size="17" :stroke-width="1.8" /></span>
+                <strong>{{ item.label }}</strong>
+                <small>{{ item.detail }}</small>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section v-if="state.activeTab === 'roles'" class="split-panel">
+          <article class="panel-card data-panel">
+            <div class="panel-toolbar">
+              <button class="secondary-action small icon-action" type="button" @click="resetRole"><Plus :size="15" :stroke-width="1.8" /> 新建角色</button>
+            </div>
+            <div class="record-list">
+              <button v-for="role in state.adminRoles" :key="role.id" :class="{ selected: state.selectedRoleId === role.id }" type="button" @click="editRole(role)">
+                <strong>{{ role.displayName || role.subject }} <em>{{ role.roleName || role.roleKey }}</em></strong>
+                <span>{{ role.subjectType || "username" }} · {{ role.disabled ? "已停用" : "启用" }}</span>
+              </button>
+              <div v-if="state.adminRoles.length === 0" class="empty-state">暂无角色，白名单账号默认管理员</div>
+            </div>
+          </article>
+          <aside class="panel-card editor-panel">
+            <div class="panel-title"><h2>角色编辑</h2></div>
+            <form class="editor-grid" @submit.prevent="saveAdminRole">
+              <label><span>标识类型</span><select v-model="roleForm.subjectType"><option value="username">用户名</option><option value="uid">UID</option><option value="openid">OpenID</option></select></label>
+              <label><span>角色</span><select v-model="roleForm.roleKey"><option value="admin">管理员</option><option value="operator">运营</option><option value="clerk">店员</option></select></label>
+              <label class="wide"><span>账号标识</span><input v-model="roleForm.subject" required placeholder="用户名、UID 或 OpenID"></label>
+              <label class="wide"><span>显示名</span><input v-model="roleForm.displayName" placeholder="如 前台店员"></label>
+              <label class="switch wide"><input v-model="roleForm.disabled" type="checkbox"> 停用该角色</label>
+              <div class="permission-preview wide">
+                <span v-for="permission in (currentRolePreset?.permissions || [])" :key="permission">{{ permission }}</span>
+              </div>
+              <button class="primary-action wide" type="submit">保存角色</button>
+            </form>
+          </aside>
+        </section>
+
+        <section v-if="state.activeTab === 'backups'" class="split-panel">
+          <article class="panel-card data-panel">
+            <div class="panel-title"><h2>备份记录</h2><button class="secondary-action small" type="button" @click="loadBackupLogs">刷新</button></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>时间</th><th>状态</th><th>文件</th><th>大小</th></tr></thead>
+                <tbody>
+                  <tr v-for="log in state.backupLogs" :key="log._id">
+                    <td>{{ formatDate(log.createdAt) }}</td>
+                    <td><span :class="['status-pill', log.status === 'success' ? 'good' : 'neutral']">{{ log.status }}</span></td>
+                    <td><strong>{{ log.cloudPath || "-" }}</strong><small>{{ log.error || log.fileId || "" }}</small></td>
+                    <td>{{ numberText(log.size || 0) }} B</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-if="state.backupLogs.length === 0" class="empty-state">暂无备份记录</div>
+          </article>
+          <aside class="panel-card editor-panel">
+            <div class="panel-title"><h2>创建备份</h2></div>
+            <form class="editor-grid" @submit.prevent="createDataBackup">
+              <label><span>每个集合上限</span><input v-model.number="backupForm.limit" type="number" min="50" max="1000"></label>
+              <div class="privacy-note wide">备份会导出订单、预约、报名、会员、商品、内容、优惠券、审计、通知和库存日志，并写入云存储 admin-backups/。</div>
+              <button class="primary-action wide icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建云端备份</button>
+            </form>
+          </aside>
+        </section>
+
         <section v-if="state.activeTab === 'settings'" class="panel-card settings-panel">
           <form class="settings-grid" @submit.prevent="saveSettings">
             <label><span>品牌名</span><input v-model="state.settings.brandName"></label>
@@ -1674,6 +2109,14 @@ onMounted(async () => {
             <label><span>一档会员</span><input v-model="state.settings.levelOneName"></label>
             <label><span>二档会员</span><input v-model="state.settings.levelTwoName"></label>
             <label><span>三档会员</span><input v-model="state.settings.levelThreeName"></label>
+            <label class="switch"><input v-model="state.settings.paymentEnabled" type="checkbox"> 启用微信支付</label>
+            <label class="switch"><input v-model="state.settings.orderNoticeEnabled" type="checkbox"> 订单通知</label>
+            <label class="switch"><input v-model="state.settings.reservationNoticeEnabled" type="checkbox"> 预约通知</label>
+            <label class="switch"><input v-model="state.settings.eventNoticeEnabled" type="checkbox"> 活动通知</label>
+            <label class="wide"><span>支付成功模板 ID</span><input v-model="state.settings.orderPaidTemplateId"></label>
+            <label class="wide"><span>发货通知模板 ID</span><input v-model="state.settings.orderShippedTemplateId"></label>
+            <label class="wide"><span>预约通知模板 ID</span><input v-model="state.settings.reservationTemplateId"></label>
+            <label class="wide"><span>活动通知模板 ID</span><input v-model="state.settings.eventTemplateId"></label>
             <button class="primary-action" type="submit">保存设置</button>
           </form>
         </section>

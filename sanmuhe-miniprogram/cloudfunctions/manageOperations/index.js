@@ -93,6 +93,98 @@ function callerLabel(caller = {}) {
   return caller.username || caller.uid || caller.openid || "admin";
 }
 
+const rolePermissionMap = {
+  admin: ["*"],
+  operator: [
+    "dashboard.read",
+    "order.read",
+    "order.write",
+    "afterSale.read",
+    "afterSale.write",
+    "inventory.read",
+    "inventory.write",
+    "reservation.read",
+    "reservation.write",
+    "signup.read",
+    "signup.write",
+    "customer.read",
+    "content.read",
+    "content.write",
+    "marketing.read",
+    "marketing.write",
+    "analytics.read",
+    "audit.read",
+    "settings.read",
+    "notification.read",
+    "notification.write",
+    "system.read",
+    "backup.read",
+    "backup.create",
+    "export.read"
+  ],
+  clerk: [
+    "dashboard.read",
+    "order.read",
+    "order.write",
+    "afterSale.read",
+    "reservation.read",
+    "reservation.write",
+    "signup.read",
+    "signup.write",
+    "customer.read",
+    "inventory.read",
+    "notification.read",
+    "system.read",
+    "export.read"
+  ]
+};
+
+const roleLabels = {
+  admin: "管理员",
+  operator: "运营",
+  clerk: "店员"
+};
+
+const actionPermissions = {
+  getSummary: "dashboard.read",
+  getDashboard: "dashboard.read",
+  listOrders: "order.read",
+  cancelOrder: "order.write",
+  markShipped: "order.write",
+  markPickupDone: "order.write",
+  listReservations: "reservation.read",
+  updateReservation: "reservation.write",
+  listSignups: "signup.read",
+  updateSignup: "signup.write",
+  checkInSignup: "signup.write",
+  listCustomers: "customer.read",
+  exportCustomerData: "export.read",
+  deleteCustomerData: "privacy.delete",
+  listAuditLogs: "audit.read",
+  listInventoryLogs: "inventory.read",
+  adjustInventory: "inventory.write",
+  listAfterSales: "afterSale.read",
+  updateAfterSale: "afterSale.write",
+  getAnalytics: "analytics.read",
+  listContent: "content.read",
+  saveContent: "content.write",
+  deleteContent: "content.write",
+  listMarketing: "marketing.read",
+  saveCoupon: "marketing.write",
+  saveCampaign: "marketing.write",
+  disableCoupon: "marketing.write",
+  disableCampaign: "marketing.write",
+  getSettings: "settings.read",
+  updateSettings: "settings.write",
+  getSystemStatus: "system.read",
+  listNotificationLogs: "notification.read",
+  sendTestNotice: "notification.write",
+  listAdminRoles: "roles.manage",
+  saveAdminRole: "roles.manage",
+  listBackupLogs: "backup.read",
+  createDataBackup: "backup.create"
+};
+
 function getAuthObject() {
   try {
     const cloudbase = require("@cloudbase/js-sdk");
@@ -167,6 +259,65 @@ function assertAdmin(caller) {
 
   const error = new Error("无权访问经营后台");
   error.code = "NO_PERMISSION";
+  throw error;
+}
+
+function roleSubjectMatches(role, caller) {
+  const subject = cleanText(role.subject, 120);
+  if (!subject) {
+    return false;
+  }
+  return subject === caller.uid || subject === caller.username || subject === caller.openid;
+}
+
+function normalizeRoleKey(value) {
+  const key = cleanText(value, 30) || "clerk";
+  return rolePermissionMap[key] ? key : "clerk";
+}
+
+function normalizePermissionList(value, roleKey) {
+  const defaults = rolePermissionMap[roleKey] || rolePermissionMap.clerk;
+  const source = Array.isArray(value) && value.length ? value : defaults;
+  return source.map((item) => cleanText(item, 80)).filter(Boolean);
+}
+
+async function getAdminRole(caller) {
+  await ensureCollection("admin_roles");
+  const result = await db.collection("admin_roles")
+    .where({
+      disabled: _.neq(true)
+    })
+    .limit(100)
+    .get();
+  const role = (result.data || []).find((item) => roleSubjectMatches(item, caller));
+  if (!role) {
+    return {
+      roleKey: "admin",
+      roleName: roleLabels.admin,
+      permissions: rolePermissionMap.admin,
+      source: "whitelist"
+    };
+  }
+  const roleKey = normalizeRoleKey(role.roleKey);
+  return {
+    roleKey,
+    roleName: role.roleName || roleLabels[roleKey],
+    permissions: normalizePermissionList(role.permissions, roleKey),
+    source: "admin_roles",
+    raw: role
+  };
+}
+
+function requirePermission(role, permission) {
+  if (!permission) {
+    return;
+  }
+  const permissions = role && Array.isArray(role.permissions) ? role.permissions : [];
+  if (permissions.includes("*") || permissions.includes(permission)) {
+    return;
+  }
+  const error = new Error("当前后台角色无权执行该操作");
+  error.code = "ROLE_PERMISSION_DENIED";
   throw error;
 }
 
@@ -378,7 +529,7 @@ async function getOrder(event) {
   return result.data && result.data[0] ? result.data[0] : null;
 }
 
-async function cancelOrder(event) {
+async function cancelOrder(event, caller) {
   const order = await getOrder(event);
   if (!order) {
     return { ok: false, message: "订单不存在" };
@@ -404,13 +555,19 @@ async function cancelOrder(event) {
       lockReleased: order.payStatus === "pending" ? true : order.lockReleased,
       cancelReason: cleanText(event.reason, 160) || "管理员取消",
       adminNote: cleanText(event.adminNote, 300),
+      cancelledBy: callerLabel(caller),
       updatedAt: db.serverDate()
     }
+  });
+  await writeAdminAuditLog(caller, "cancelOrder", {
+    orderNo: order.orderNo,
+    payStatus: order.payStatus,
+    reason: cleanText(event.reason, 160) || "管理员取消"
   });
   return { ok: true };
 }
 
-async function markShipped(event) {
+async function markShipped(event, caller) {
   const order = await getOrder(event);
   if (!order) {
     return { ok: false, message: "订单不存在" };
@@ -422,6 +579,7 @@ async function markShipped(event) {
       trackingCompany: cleanText(event.trackingCompany, 80),
       trackingNo: cleanText(event.trackingNo, 80),
       shippedAt: db.serverDate(),
+      shippedBy: callerLabel(caller),
       adminNote: cleanText(event.adminNote, 300),
       updatedAt: db.serverDate()
     }
@@ -432,10 +590,15 @@ async function markShipped(event) {
     trackingNo: cleanText(event.trackingNo, 80),
     status: "已发货"
   });
+  await writeAdminAuditLog(caller, "markShipped", {
+    orderNo: order.orderNo,
+    trackingCompany: cleanText(event.trackingCompany, 80),
+    trackingNo: cleanText(event.trackingNo, 80)
+  });
   return { ok: true };
 }
 
-async function markPickupDone(event) {
+async function markPickupDone(event, caller) {
   const order = await getOrder(event);
   if (!order) {
     return { ok: false, message: "订单不存在" };
@@ -445,14 +608,18 @@ async function markPickupDone(event) {
       status: "已完成",
       fulfillmentStatus: "picked_up",
       completedAt: db.serverDate(),
+      completedBy: callerLabel(caller),
       adminNote: cleanText(event.adminNote, 300),
       updatedAt: db.serverDate()
     }
   });
+  await writeAdminAuditLog(caller, "markPickupDone", {
+    orderNo: order.orderNo
+  });
   return { ok: true };
 }
 
-async function updateReservation(event) {
+async function updateReservation(event, caller) {
   const id = normalizeRecordId(event.reservationId || event.id);
   const status = cleanText(event.status, 20);
   if (!id || !status) {
@@ -466,6 +633,7 @@ async function updateReservation(event) {
     data: {
       status,
       adminNote: cleanText(event.adminNote, 300),
+      updatedBy: callerLabel(caller),
       updatedAt: db.serverDate()
     }
   });
@@ -477,10 +645,15 @@ async function updateReservation(event) {
     status,
     note: updated.adminNote || updated.note || "预约状态已更新"
   });
+  await writeAdminAuditLog(caller, "updateReservation", {
+    reservationId: id,
+    status,
+    previousStatus: existing.status
+  });
   return { ok: true };
 }
 
-async function updateSignup(event) {
+async function updateSignup(event, caller) {
   const id = normalizeRecordId(event.signupId || event.id);
   const status = cleanText(event.status, 20);
   if (!id || !status) {
@@ -494,6 +667,7 @@ async function updateSignup(event) {
     data: {
       status,
       adminNote: cleanText(event.adminNote, 300),
+      updatedBy: callerLabel(caller),
       updatedAt: db.serverDate()
     }
   });
@@ -526,7 +700,18 @@ async function updateSignup(event) {
     place: existing.place,
     status
   });
+  await writeAdminAuditLog(caller, "updateSignup", {
+    signupId: id,
+    eventId: existing.eventId || "",
+    status,
+    previousStatus: existing.status
+  });
   return { ok: true };
+}
+
+async function checkInSignup(event, caller) {
+  const status = event.status === "未到场" ? "未到场" : "已到场";
+  return await updateSignup(Object.assign({}, event, { status }), caller);
 }
 
 async function getSummary() {
@@ -767,6 +952,201 @@ async function listInventoryLogs(event) {
         item.note
       ].join(" ").includes(keyword);
     })
+  };
+}
+
+async function listNotificationLogs(event) {
+  const keyword = cleanText(event.keyword, 80);
+  const logs = await readCollection("notification_logs", {
+    orderBy: "createdAt",
+    limit: 300
+  });
+  return {
+    ok: true,
+    logs: logs.filter((item) => {
+      if (!keyword) return true;
+      return [
+        item.kind,
+        item.openid,
+        item.templateId,
+        item.status,
+        item.reason,
+        item.error
+      ].join(" ").includes(keyword);
+    })
+  };
+}
+
+async function sendTestNotice(event, caller) {
+  const kind = cleanText(event.kind, 40) || "reservationStatus";
+  const openid = cleanText(event.openid, 80);
+  if (!openid) {
+    return { ok: false, message: "请填写接收通知的 OpenID" };
+  }
+  const payload = event.payload && typeof event.payload === "object" ? event.payload : {
+    room: "禾熙书茶空间",
+    day: todayKey(),
+    time: "15:00",
+    status: "测试通知",
+    note: "后台测试发送"
+  };
+  const result = await cloud.callFunction({
+    name: "serviceNotify",
+    data: { kind, openid, payload }
+  });
+  await writeAdminAuditLog(caller, "sendTestNotice", {
+    kind,
+    openid: maskOpenid(openid),
+    ok: result.result && result.result.ok !== false
+  });
+  return result.result || { ok: true };
+}
+
+async function listAdminRoles() {
+  await ensureCollection("admin_roles");
+  const roles = await readCollection("admin_roles", { orderBy: "createdAt", limit: 100 });
+  return {
+    ok: true,
+    roles,
+    presets: Object.keys(rolePermissionMap).map((key) => ({
+      key,
+      label: roleLabels[key],
+      permissions: rolePermissionMap[key]
+    }))
+  };
+}
+
+async function saveAdminRole(event, caller) {
+  const data = event.data && typeof event.data === "object" ? event.data : {};
+  const roleKey = normalizeRoleKey(data.roleKey);
+  const payload = {
+    id: cleanId(data.id || data.subject || data.username || data.uid || data.openid, "role"),
+    subject: cleanText(data.subject || data.username || data.uid || data.openid, 120),
+    subjectType: cleanText(data.subjectType, 20) || "username",
+    displayName: cleanText(data.displayName, 80),
+    roleKey,
+    roleName: roleLabels[roleKey],
+    permissions: normalizePermissionList(data.permissions, roleKey),
+    disabled: data.disabled === true
+  };
+  if (!payload.subject) {
+    return { ok: false, message: "请填写角色账号标识" };
+  }
+  await upsertRecord("admin_roles", "id", payload.id, payload);
+  await writeAdminAuditLog(caller, "saveAdminRole", {
+    subject: payload.subject,
+    roleKey: payload.roleKey,
+    disabled: payload.disabled
+  });
+  return { ok: true, role: payload };
+}
+
+function statusItem(key, label, status, detail, action) {
+  return { key, label, status, detail, action: action || "" };
+}
+
+function envMissing(keys) {
+  return keys.filter((key) => !process.env[key]);
+}
+
+async function countCollection(name) {
+  await ensureCollection(name);
+  try {
+    const result = await db.collection(name).count();
+    return result.total || 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+async function getSystemStatus(event = {}) {
+  const settingsResult = await getSettings();
+  const settings = settingsResult.settings || {};
+  const packageInfo = event.packageInfo || {};
+  const payKeys = [
+    "WECHAT_PAY_APPID",
+    "WECHAT_PAY_MCH_ID",
+    "WECHAT_PAY_CERT_SERIAL_NO",
+    "WECHAT_PAY_PRIVATE_KEY",
+    "WECHAT_PAY_API_V3_KEY",
+    "WECHAT_PAY_NOTIFY_URL"
+  ];
+  const templateItems = [
+    ["orderPaidTemplateId", "订单支付通知", settings.orderNoticeEnabled !== false],
+    ["orderShippedTemplateId", "订单发货通知", settings.orderNoticeEnabled !== false],
+    ["reservationTemplateId", "预约状态通知", settings.reservationNoticeEnabled !== false],
+    ["eventTemplateId", "活动报名通知", settings.eventNoticeEnabled !== false]
+  ];
+  const templateMissing = templateItems
+    .filter((item) => item[2] && !settings[item[0]])
+    .map((item) => item[1]);
+  const payMissing = envMissing(payKeys);
+  const requiredStoreFields = ["brandName", "storeName", "phone", "address", "businessHours"];
+  const missingStoreFields = requiredStoreFields.filter((field) => !settings[field]);
+  const ignored = Array.isArray(packageInfo.ignored) ? packageInfo.ignored : [];
+  const ignoreExpected = ["admin", "admin-src", "node_modules", "package-lock.json", "package.json"];
+  const ignoreMissing = ignoreExpected.filter((item) => !ignored.includes(item));
+  const [auditCount, notificationCount, backupCount, roleCount] = await Promise.all([
+    countCollection("admin_audit_logs"),
+    countCollection("notification_logs"),
+    countCollection("data_backup_logs"),
+    countCollection("admin_roles")
+  ]);
+
+  const checks = [
+    statusItem(
+      "adminWhitelist",
+      "管理员白名单",
+      parseList(process.env.ADMIN_OPENIDS).length + parseList(process.env.ADMIN_UIDS).length + parseList(process.env.ADMIN_USERNAMES).length > 0 ? "ok" : "error",
+      "ADMIN_OPENIDS / ADMIN_UIDS / ADMIN_USERNAMES 至少配置一项"
+    ),
+    statusItem(
+      "paymentConfig",
+      "微信支付配置",
+      settings.paymentEnabled === false ? "ok" : payMissing.length ? "warn" : "ok",
+      settings.paymentEnabled === false
+        ? "后台已关闭支付"
+        : payMissing.length ? `管理函数未检测到：${payMissing.join("、")}。如变量仅配置在 createPayment，请以支付函数环境为准。` : "支付相关环境变量完整"
+    ),
+    statusItem(
+      "noticeTemplates",
+      "订阅消息模板",
+      templateMissing.length ? "warn" : "ok",
+      templateMissing.length ? `缺少：${templateMissing.join("、")}` : "启用的订阅消息模板已配置"
+    ),
+    statusItem(
+      "packageSize",
+      "小程序包体配置",
+      ignoreMissing.length ? "warn" : "ok",
+      ignoreMissing.length ? `project.config.json 需忽略：${ignoreMissing.join("、")}` : `后台、依赖和构建工具已排除；预览包体上限 ${packageInfo.sourceSizeLimit || "2MB"}`
+    ),
+    statusItem(
+      "storeCompleteness",
+      "后台配置完整度",
+      missingStoreFields.length ? "warn" : "ok",
+      missingStoreFields.length ? `缺少门店字段：${missingStoreFields.join("、")}` : "门店基础资料完整"
+    ),
+    statusItem(
+      "operationLogs",
+      "关键日志集合",
+      "ok",
+      `审计 ${auditCount} 条；通知 ${notificationCount} 条；备份 ${backupCount} 条`
+    ),
+    statusItem(
+      "adminRoles",
+      "角色权限",
+      roleCount ? "ok" : "warn",
+      roleCount ? `已配置 ${roleCount} 个角色` : "未配置角色时，白名单账号默认按管理员处理"
+    )
+  ];
+  return {
+    ok: true,
+    checks,
+    summary: {
+      ok: checks.filter((item) => item.status === "ok").length,
+      warn: checks.filter((item) => item.status === "warn").length,
+      error: checks.filter((item) => item.status === "error").length
+    }
   };
 }
 
@@ -1026,6 +1406,148 @@ async function deleteCustomerData(event, caller) {
   return { ok: true, counts };
 }
 
+async function exportCustomerData(event, caller) {
+  const identity = normalizeIdentity(event);
+  if (!identity.openid && !identity.phone) {
+    return { ok: false, message: "缺少可定位用户的 OpenID 或手机号" };
+  }
+
+  const recordFields = {
+    openid: ["_openid", "openid"],
+    phone: ["phone", "mobile"]
+  };
+  const [orders, reservations, signups, members, subscriptionPreferences, userCoupons] = await Promise.all([
+    findDocsByIdentity("orders", identity, recordFields),
+    findDocsByIdentity("reservations", identity, recordFields),
+    findDocsByIdentity("event_signups", identity, recordFields),
+    findDocsByIdentity("members", identity, recordFields),
+    findDocsByIdentity("subscription_preferences", identity, recordFields),
+    findDocsByIdentity("user_coupons", identity, recordFields)
+  ]);
+  const data = {
+    exportedAt: new Date().toISOString(),
+    identity: {
+      openid: identity.openid,
+      phone: identity.phone
+    },
+    orders,
+    reservations,
+    signups,
+    members,
+    subscriptionPreferences,
+    userCoupons
+  };
+  await writeAdminAuditLog(caller, "exportCustomerData", {
+    openid: maskOpenid(identity.openid),
+    phone: maskPhone(identity.phone),
+    counts: {
+      orders: orders.length,
+      reservations: reservations.length,
+      signups: signups.length,
+      members: members.length,
+      subscriptionPreferences: subscriptionPreferences.length,
+      userCoupons: userCoupons.length
+    }
+  });
+  return { ok: true, data };
+}
+
+const backupCollections = [
+  "orders",
+  "reservations",
+  "event_signups",
+  "members",
+  "tea_products",
+  "drinks",
+  "rooms",
+  "events",
+  "content_blocks",
+  "coupons",
+  "user_coupons",
+  "store_settings",
+  "admin_audit_logs",
+  "notification_logs",
+  "inventory_logs"
+];
+
+async function readBackupCollection(collection, limit) {
+  await ensureCollection(collection);
+  const result = await db.collection(collection).limit(limit).get();
+  return result.data || [];
+}
+
+async function listBackupLogs() {
+  const logs = await readCollection("data_backup_logs", {
+    orderBy: "createdAt",
+    limit: 100
+  });
+  return { ok: true, logs };
+}
+
+async function createDataBackup(event, caller) {
+  const limit = Math.min(1000, Math.max(50, Number(event.limit) || 500));
+  const selected = Array.isArray(event.collections) && event.collections.length
+    ? event.collections.map((item) => cleanText(item, 60)).filter((item) => backupCollections.includes(item))
+    : backupCollections;
+  const exported = {};
+  const counts = {};
+  for (const collection of selected) {
+    exported[collection] = await readBackupCollection(collection, limit);
+    counts[collection] = exported[collection].length;
+  }
+  const fileName = `backup-${Date.now()}.json`;
+  const cloudPath = `admin-backups/${fileName}`;
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    operator: callerLabel(caller),
+    limit,
+    counts,
+    data: exported
+  };
+  const fileContent = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
+  try {
+    const upload = await cloud.uploadFile({ cloudPath, fileContent });
+    await ensureCollection("data_backup_logs");
+    await db.collection("data_backup_logs").add({
+      data: {
+        cloudPath,
+        fileId: upload.fileID || upload.fileId || "",
+        size: fileContent.length,
+        counts,
+        operator: callerLabel(caller),
+        status: "success",
+        createdAt: db.serverDate()
+      }
+    });
+    await writeAdminAuditLog(caller, "createDataBackup", {
+      cloudPath,
+      size: fileContent.length,
+      counts
+    });
+    return {
+      ok: true,
+      cloudPath,
+      fileId: upload.fileID || upload.fileId || "",
+      size: fileContent.length,
+      counts
+    };
+  } catch (error) {
+    await ensureCollection("data_backup_logs");
+    await db.collection("data_backup_logs").add({
+      data: {
+        cloudPath,
+        size: fileContent.length,
+        counts,
+        operator: callerLabel(caller),
+        status: "failed",
+        error: error.message || String(error),
+        createdAt: db.serverDate()
+      }
+    });
+    return { ok: false, message: error.message || "备份上传失败" };
+  }
+}
+
 function addTrend(bucket, key, amount) {
   if (!bucket[key]) {
     bucket[key] = 0;
@@ -1105,13 +1627,18 @@ async function listContent(event) {
   return { ok: true, items };
 }
 
-async function saveContent(event) {
+async function saveContent(event, caller) {
   const payload = normalizeContent(event.data || {});
   await upsertRecord("content_blocks", "key", payload.key, payload);
+  await writeAdminAuditLog(caller, "saveContent", {
+    key: payload.key,
+    type: payload.type,
+    title: payload.title
+  });
   return { ok: true, key: payload.key };
 }
 
-async function deleteContent(event) {
+async function deleteContent(event, caller) {
   const key = cleanText(event.key || event.id, 80);
   if (!key) {
     return { ok: false, message: "缺少内容 key" };
@@ -1125,6 +1652,10 @@ async function deleteContent(event) {
       visible: false,
       updatedAt: db.serverDate()
     }
+  });
+  await writeAdminAuditLog(caller, "deleteContent", {
+    key,
+    title: existing.title || ""
   });
   return { ok: true };
 }
@@ -1161,32 +1692,62 @@ function normalizeCampaign(data = {}) {
 }
 
 async function listMarketing() {
-  const [coupons, campaigns] = await Promise.all([
+  const [coupons, campaigns, userCoupons, orders] = await Promise.all([
     readCollection("coupons", { orderBy: "createdAt", limit: 100 }),
-    readCollection("marketing_campaigns", { orderBy: "createdAt", limit: 100 })
+    readCollection("marketing_campaigns", { orderBy: "createdAt", limit: 100 }),
+    readCollection("user_coupons", { orderBy: "createdAt", limit: 500 }),
+    readCollection("orders", { orderBy: "createdAt", limit: 500 })
   ]);
-  return { ok: true, coupons, campaigns };
+  const couponStats = coupons.map((coupon) => {
+    const claims = userCoupons.filter((item) => item.couponId === coupon.id);
+    const redeemed = claims.filter((item) => item.status === "已使用");
+    const couponOrders = orders.filter((order) => order.coupon && order.coupon.couponId === coupon.id && isRevenueOrder(order));
+    const orderAmount = couponOrders.reduce((sum, order) => sum + number(order.total), 0);
+    return {
+      id: coupon.id,
+      name: coupon.name,
+      claimed: claims.length,
+      redeemed: redeemed.length,
+      available: claims.filter((item) => item.status === "可使用").length,
+      locked: claims.filter((item) => item.status === "锁定中").length,
+      redeemRate: claims.length ? Math.round((redeemed.length / claims.length) * 1000) / 10 : 0,
+      orderAmount,
+      discountAmount: couponOrders.reduce((sum, order) => sum + number(order.couponDiscount || order.coupon && order.coupon.discount), 0)
+    };
+  });
+  return { ok: true, coupons, campaigns, couponStats };
 }
 
-async function saveCoupon(event) {
+async function saveCoupon(event, caller) {
   const payload = normalizeCoupon(event.data || {});
   if (!payload.name || !payload.amount) {
     return { ok: false, message: "请填写优惠券名称和面额" };
   }
   await upsertRecord("coupons", "id", payload.id, payload);
+  await writeAdminAuditLog(caller, "saveCoupon", {
+    id: payload.id,
+    name: payload.name,
+    amount: payload.amount,
+    stock: payload.stock
+  });
   return { ok: true, id: payload.id };
 }
 
-async function saveCampaign(event) {
+async function saveCampaign(event, caller) {
   const payload = normalizeCampaign(event.data || {});
   if (!payload.name) {
     return { ok: false, message: "请填写营销计划名称" };
   }
   await upsertRecord("marketing_campaigns", "id", payload.id, payload);
+  await writeAdminAuditLog(caller, "saveCampaign", {
+    id: payload.id,
+    name: payload.name,
+    status: payload.status
+  });
   return { ok: true, id: payload.id };
 }
 
-async function disableRecord(collection, id) {
+async function disableRecord(collection, id, caller) {
   const existing = await findRecord(collection, "id", cleanText(id, 80));
   if (!existing) {
     return { ok: false, message: "数据不存在" };
@@ -1197,6 +1758,11 @@ async function disableRecord(collection, id) {
       status: "已停用",
       updatedAt: db.serverDate()
     }
+  });
+  await writeAdminAuditLog(caller, "disableRecord", {
+    collection,
+    id: cleanText(id, 80),
+    name: existing.name || existing.title || ""
   });
   return { ok: true };
 }
@@ -1246,9 +1812,17 @@ async function getSettings() {
   };
 }
 
-async function updateSettings(event) {
+async function updateSettings(event, caller) {
   const payload = normalizeSettings(event.data || {});
   await upsertRecord("store_settings", "key", "store", payload);
+  await writeAdminAuditLog(caller, "updateSettings", {
+    brandName: payload.brandName,
+    storeName: payload.storeName,
+    paymentEnabled: payload.paymentEnabled,
+    orderNoticeEnabled: payload.orderNoticeEnabled,
+    reservationNoticeEnabled: payload.reservationNoticeEnabled,
+    eventNoticeEnabled: payload.eventNoticeEnabled
+  });
   return { ok: true, settings: payload };
 }
 
@@ -1256,8 +1830,10 @@ exports.main = async (event = {}) => {
   try {
     const caller = await getCaller();
     assertAdmin(caller);
+    const role = await getAdminRole(caller);
 
     const action = cleanText(event.action, 40) || "getSummary";
+    requirePermission(role, actionPermissions[action]);
     const status = cleanText(event.status, 30);
     const keyword = cleanText(event.keyword, 80);
 
@@ -1272,33 +1848,39 @@ exports.main = async (event = {}) => {
       return { ok: true, orders };
     }
     if (action === "cancelOrder") {
-      return await cancelOrder(event);
+      return await cancelOrder(event, caller);
     }
     if (action === "markShipped") {
-      return await markShipped(event);
+      return await markShipped(event, caller);
     }
     if (action === "markPickupDone") {
-      return await markPickupDone(event);
+      return await markPickupDone(event, caller);
     }
     if (action === "listReservations") {
       const reservations = await listCollection("reservations", status, keyword);
       return { ok: true, reservations };
     }
     if (action === "updateReservation") {
-      return await updateReservation(event);
+      return await updateReservation(event, caller);
     }
     if (action === "listSignups") {
       const signups = await listCollection("event_signups", status, keyword);
       return { ok: true, signups };
     }
     if (action === "updateSignup") {
-      return await updateSignup(event);
+      return await updateSignup(event, caller);
+    }
+    if (action === "checkInSignup") {
+      return await checkInSignup(event, caller);
     }
     if (action === "listCustomers") {
       return await listCustomers(event);
     }
     if (action === "deleteCustomerData") {
       return await deleteCustomerData(event, caller);
+    }
+    if (action === "exportCustomerData") {
+      return await exportCustomerData(event, caller);
     }
     if (action === "listAuditLogs") {
       return await listAuditLogs(event);
@@ -1322,31 +1904,52 @@ exports.main = async (event = {}) => {
       return await listContent(event);
     }
     if (action === "saveContent") {
-      return await saveContent(event);
+      return await saveContent(event, caller);
     }
     if (action === "deleteContent") {
-      return await deleteContent(event);
+      return await deleteContent(event, caller);
     }
     if (action === "listMarketing") {
       return await listMarketing();
     }
     if (action === "saveCoupon") {
-      return await saveCoupon(event);
+      return await saveCoupon(event, caller);
     }
     if (action === "saveCampaign") {
-      return await saveCampaign(event);
+      return await saveCampaign(event, caller);
     }
     if (action === "disableCoupon") {
-      return await disableRecord("coupons", event.id);
+      return await disableRecord("coupons", event.id, caller);
     }
     if (action === "disableCampaign") {
-      return await disableRecord("marketing_campaigns", event.id);
+      return await disableRecord("marketing_campaigns", event.id, caller);
     }
     if (action === "getSettings") {
       return await getSettings();
     }
     if (action === "updateSettings") {
-      return await updateSettings(event);
+      return await updateSettings(event, caller);
+    }
+    if (action === "getSystemStatus") {
+      return await getSystemStatus(event);
+    }
+    if (action === "listNotificationLogs") {
+      return await listNotificationLogs(event);
+    }
+    if (action === "sendTestNotice") {
+      return await sendTestNotice(event, caller);
+    }
+    if (action === "listAdminRoles") {
+      return await listAdminRoles();
+    }
+    if (action === "saveAdminRole") {
+      return await saveAdminRole(event, caller);
+    }
+    if (action === "listBackupLogs") {
+      return await listBackupLogs();
+    }
+    if (action === "createDataBackup") {
+      return await createDataBackup(event, caller);
     }
 
     return { ok: false, message: "未知后台操作" };

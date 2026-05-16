@@ -5,6 +5,7 @@ cloud.init({
 });
 
 const db = cloud.database();
+const _ = db.command;
 
 const allowedCollections = {
   drinks: "drinks",
@@ -14,6 +15,16 @@ const allowedCollections = {
 };
 
 const writeActions = new Set(["create", "update", "delete", "restore"]);
+const rolePermissionMap = {
+  admin: ["*"],
+  operator: ["catalog.read", "catalog.write"],
+  clerk: ["catalog.read"]
+};
+const roleLabels = {
+  admin: "管理员",
+  operator: "运营",
+  clerk: "店员"
+};
 
 function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
@@ -33,6 +44,18 @@ function parseList(value) {
     .split(/[\s,;]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function callerLabel(caller = {}) {
+  return caller.username || caller.uid || caller.openid || "admin";
+}
+
+function maskOpenid(value) {
+  const text = cleanText(value, 80);
+  if (!text) {
+    return "";
+  }
+  return text.length > 12 ? `${text.slice(0, 6)}...${text.slice(-4)}` : `${text.slice(0, 3)}...`;
 }
 
 function getAuthObject() {
@@ -112,12 +135,63 @@ function assertCanWrite(caller) {
   throw error;
 }
 
+function roleSubjectMatches(role, caller) {
+  const subject = cleanText(role.subject, 120);
+  return subject && (subject === caller.uid || subject === caller.username || subject === caller.openid);
+}
+
+function normalizeRoleKey(value) {
+  const key = cleanText(value, 30) || "clerk";
+  return rolePermissionMap[key] ? key : "clerk";
+}
+
+async function getAdminRole(caller) {
+  await ensureCollection("admin_roles");
+  const result = await db.collection("admin_roles")
+    .where({ disabled: _.neq(true) })
+    .limit(100)
+    .get();
+  const role = (result.data || []).find((item) => roleSubjectMatches(item, caller));
+  if (!role) {
+    return { roleKey: "admin", roleName: roleLabels.admin, permissions: rolePermissionMap.admin };
+  }
+  const roleKey = normalizeRoleKey(role.roleKey);
+  return {
+    roleKey,
+    roleName: role.roleName || roleLabels[roleKey],
+    permissions: Array.isArray(role.permissions) && role.permissions.length ? role.permissions : rolePermissionMap[roleKey]
+  };
+}
+
+function requirePermission(role, permission) {
+  const permissions = role && Array.isArray(role.permissions) ? role.permissions : [];
+  if (permissions.includes("*") || permissions.includes(permission)) {
+    return;
+  }
+  const error = new Error("当前后台角色无权修改商品和活动数据");
+  error.code = "ROLE_PERMISSION_DENIED";
+  throw error;
+}
+
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
   } catch (error) {
     // Existing collections are expected after the first setup.
   }
+}
+
+async function writeAdminAuditLog(caller, action, detail) {
+  await ensureCollection("admin_audit_logs");
+  await db.collection("admin_audit_logs").add({
+    data: {
+      action,
+      adminOpenid: maskOpenid(caller.openid),
+      adminUid: caller.uid ? maskOpenid(caller.uid) : "",
+      detail,
+      createdAt: db.serverDate()
+    }
+  });
 }
 
 async function findByBusinessId(collection, id) {
@@ -271,6 +345,8 @@ exports.main = async (event = {}) => {
     if (writeActions.has(action) || includeHidden) {
       assertCanWrite(caller);
     }
+    const role = await getAdminRole(caller);
+    requirePermission(role, writeActions.has(action) ? "catalog.write" : "catalog.read");
 
     if (action === "list") {
       const items = await listItems(collection, { includeHidden });
@@ -309,6 +385,12 @@ exports.main = async (event = {}) => {
       }
 
       const addResult = await db.collection(collection).add({ data: payload });
+      await writeAdminAuditLog(caller, "catalog.create", {
+        collection,
+        id: payload.id,
+        name: payload.name || payload.title || "",
+        operator: callerLabel(caller)
+      });
       return { ok: true, collection, id: payload.id, _id: addResult._id };
     }
 
@@ -329,6 +411,12 @@ exports.main = async (event = {}) => {
       }
       payload.updatedAt = db.serverDate();
       await db.collection(collection).doc(existing._id).update({ data: payload });
+      await writeAdminAuditLog(caller, "catalog.update", {
+        collection,
+        id,
+        name: existing.name || existing.title || "",
+        fields: Object.keys(payload).filter((field) => field !== "updatedAt")
+      });
       return { ok: true, collection, id };
     }
 
@@ -337,6 +425,11 @@ exports.main = async (event = {}) => {
         ? { deleted: true, visible: false, updatedAt: db.serverDate() }
         : { visible: false, updatedAt: db.serverDate() };
       await db.collection(collection).doc(existing._id).update({ data });
+      await writeAdminAuditLog(caller, "catalog.delete", {
+        collection,
+        id,
+        name: existing.name || existing.title || ""
+      });
       return { ok: true, collection, id };
     }
 
@@ -345,6 +438,11 @@ exports.main = async (event = {}) => {
         ? { deleted: false, visible: true, updatedAt: db.serverDate() }
         : { visible: true, updatedAt: db.serverDate() };
       await db.collection(collection).doc(existing._id).update({ data });
+      await writeAdminAuditLog(caller, "catalog.restore", {
+        collection,
+        id,
+        name: existing.name || existing.title || ""
+      });
       return { ok: true, collection, id };
     }
 
