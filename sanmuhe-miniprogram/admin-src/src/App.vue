@@ -298,7 +298,21 @@ const backupForm = reactive({
   limit: 500
 });
 const toast = reactive({ show: false, text: "" });
+const actionDialog = reactive({
+  open: false,
+  mode: "confirm",
+  title: "",
+  message: "",
+  expected: "",
+  input: "",
+  reason: "",
+  confirmText: "确认",
+  cancelText: "取消",
+  danger: false,
+  error: ""
+});
 let toastTimer = null;
+let actionDialogResolve = null;
 
 const emptyCatalog = () => ({
   id: "",
@@ -591,21 +605,80 @@ function assertNonNegative(value, message) {
   if (!Number.isFinite(Number(value)) || Number(value) < 0) throw new Error(message);
 }
 
+function openActionDialog(options) {
+  if (actionDialogResolve) {
+    actionDialogResolve(false);
+  }
+  Object.assign(actionDialog, {
+    open: true,
+    mode: options.mode || "confirm",
+    title: options.title || "确认操作",
+    message: options.message || "",
+    expected: String(options.expected || "").trim(),
+    input: "",
+    reason: "",
+    confirmText: options.confirmText || "确认",
+    cancelText: options.cancelText || "取消",
+    danger: options.danger === true,
+    error: ""
+  });
+  return new Promise((resolve) => {
+    actionDialogResolve = resolve;
+    window.setTimeout(() => {
+      document.querySelector(".action-dialog input, .action-dialog textarea")?.focus();
+    }, 30);
+  });
+}
+
+function closeActionDialog(value) {
+  const resolve = actionDialogResolve;
+  actionDialogResolve = null;
+  actionDialog.open = false;
+  if (resolve) resolve(value);
+}
+
+function submitActionDialog() {
+  actionDialog.error = "";
+  if (actionDialog.mode === "typed" && actionDialog.expected && actionDialog.input.trim() !== actionDialog.expected) {
+    actionDialog.error = "输入内容与确认值不一致";
+    return;
+  }
+  if (actionDialog.mode === "reason") {
+    const reason = actionDialog.reason.trim();
+    if (!reason) {
+      actionDialog.error = "请填写操作原因";
+      return;
+    }
+    closeActionDialog(reason);
+    return;
+  }
+  closeActionDialog(true);
+}
+
+function cancelActionDialog() {
+  closeActionDialog(actionDialog.mode === "reason" ? "" : false);
+}
+
 function requireTypedConfirm(label, expected) {
   const text = String(expected || "").trim();
-  if (!text) {
-    return window.confirm(label);
-  }
-  return window.prompt(`${label}\n请输入「${text}」确认。`) === text;
+  return openActionDialog({
+    mode: text ? "typed" : "confirm",
+    title: "确认高风险操作",
+    message: label,
+    expected: text,
+    confirmText: text ? "我已输入，继续" : "确认继续",
+    danger: true
+  });
 }
 
 function promptActionReason(label) {
-  const reason = String(window.prompt(`${label}\n请输入操作原因，审计日志会记录。`) || "").trim();
-  if (!reason) {
-    showToast("请填写操作原因");
-    return "";
-  }
-  return reason;
+  return openActionDialog({
+    mode: "reason",
+    title: "填写操作原因",
+    message: `${label}。该原因会写入审计日志。`,
+    confirmText: "记录并继续",
+    danger: true
+  });
 }
 
 function hasPermission(permission) {
@@ -1058,7 +1131,7 @@ async function saveCatalog() {
 
 async function toggleCatalog(item) {
   const restore = item.visible === false || item.deleted;
-  if (!restore && !requireTypedConfirm(`确认下架 ${displayName(item)}？`, item.id || displayName(item))) return;
+  if (!restore && !(await requireTypedConfirm(`确认下架 ${displayName(item)}？`, item.id || displayName(item)))) return;
   await withLoading(restore ? "恢复资料" : "下架资料", async () => {
     await callFunction("manageCatalog", {
       action: restore ? "restore" : "delete",
@@ -1394,9 +1467,9 @@ async function loadCustomers() {
 async function deleteCustomerData(customer) {
   if (!customer) return;
   const name = customerDisplayName(customer);
-  const confirmed = requireTypedConfirm(`确认删除/匿名化 ${name} 的个人信息？订单、预约、报名会保留经营记录，但姓名、手机号、地址、备注和用户关联会被清空。`, customer.phone || customer.id);
+  const confirmed = await requireTypedConfirm(`确认删除/匿名化 ${name} 的个人信息？订单、预约、报名会保留经营记录，但姓名、手机号、地址、备注和用户关联会被清空。`, customer.phone || customer.id);
   if (!confirmed) return;
-  const reason = promptActionReason(`删除/匿名化 ${name} 的个人数据`);
+  const reason = await promptActionReason(`删除/匿名化 ${name} 的个人数据`);
   if (!reason) return;
   await withLoading("删除用户数据", async () => {
     const result = await callFunction("manageOperations", {
@@ -1416,7 +1489,7 @@ async function deleteCustomerData(customer) {
 async function exportCustomerData(customer) {
   if (!customer) return;
   const name = customerDisplayName(customer);
-  const reason = promptActionReason(`导出 ${name} 的个人数据`);
+  const reason = await promptActionReason(`导出 ${name} 的个人数据`);
   if (!reason) return;
   await withLoading("导出用户数据", async () => {
     const result = await callFunction("manageOperations", {
@@ -1441,8 +1514,8 @@ async function exportCustomerData(customer) {
 async function updateRecord(type, id, status) {
   let adminNote = "";
   if (status === "已取消") {
-    if (!requireTypedConfirm(`确认取消这条${type === "reservation" ? "预约" : "报名"}？`, id)) return;
-    adminNote = promptActionReason(`取消${type === "reservation" ? "预约" : "报名"}`);
+    if (!(await requireTypedConfirm(`确认取消这条${type === "reservation" ? "预约" : "报名"}？`, id))) return;
+    adminNote = await promptActionReason(`取消${type === "reservation" ? "预约" : "报名"}`);
     if (!adminNote) return;
   }
   await withLoading("更新状态", async () => {
@@ -1471,7 +1544,7 @@ async function checkInSignup(signup, status) {
 }
 
 async function orderAction(action, order) {
-  if (action === "cancel" && !requireTypedConfirm(`确认取消订单 ${order.orderNo || order._id}？`, order.orderNo || order._id)) return;
+  if (action === "cancel" && !(await requireTypedConfirm(`确认取消订单 ${order.orderNo || order._id}？`, order.orderNo || order._id))) return;
   if (action === "cancel" && !orderForm.cancelReason.trim()) {
     showToast("请填写取消订单原因");
     return;
@@ -1796,7 +1869,7 @@ async function saveContent() {
 }
 
 async function deleteContent(item) {
-  if (!requireTypedConfirm(`确认停用内容 ${item.title || item.key}？`, item.key)) return;
+  if (!(await requireTypedConfirm(`确认停用内容 ${item.title || item.key}？`, item.key))) return;
   await withLoading("停用内容", async () => {
     await callFunction("manageOperations", { action: "deleteContent", key: item.key });
     showToast("内容已停用");
@@ -3094,6 +3167,30 @@ onMounted(async () => {
         </section>
       </section>
 
+      <div v-if="actionDialog.open" class="action-dialog-backdrop" @click.self="cancelActionDialog">
+        <form class="action-dialog" role="dialog" aria-modal="true" :aria-label="actionDialog.title" @submit.prevent="submitActionDialog" @keydown.esc.prevent="cancelActionDialog">
+          <span class="dialog-kicker">{{ actionDialog.mode === "reason" ? "Audit Required" : "Risk Control" }}</span>
+          <h2>{{ actionDialog.title }}</h2>
+          <p>{{ actionDialog.message }}</p>
+          <div v-if="actionDialog.expected" class="confirm-target">
+            <span>确认值</span>
+            <strong>{{ actionDialog.expected }}</strong>
+          </div>
+          <label v-if="actionDialog.mode === 'typed'" class="wide">
+            <span>输入确认值</span>
+            <input v-model="actionDialog.input" autocomplete="off" :placeholder="actionDialog.expected">
+          </label>
+          <label v-if="actionDialog.mode === 'reason'" class="wide">
+            <span>操作原因</span>
+            <textarea v-model="actionDialog.reason" rows="4" placeholder="写清楚业务原因，后续会进入审计日志"></textarea>
+          </label>
+          <p v-if="actionDialog.error" class="dialog-error" role="alert">{{ actionDialog.error }}</p>
+          <div class="dialog-actions">
+            <button class="secondary-action" type="button" @click="cancelActionDialog">{{ actionDialog.cancelText }}</button>
+            <button :class="[actionDialog.danger ? 'danger-action' : 'primary-action']" type="submit">{{ actionDialog.confirmText }}</button>
+          </div>
+        </form>
+      </div>
       <div v-if="state.loading" class="loading-mask">{{ state.loading }}</div>
       <div :class="['toast', { show: toast.show }]">{{ toast.text }}</div>
     </section>

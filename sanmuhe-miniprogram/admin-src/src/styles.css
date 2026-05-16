@@ -1931,6 +1931,94 @@ tr.selected td:first-child {
   max-width: none;
 }
 
+.action-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(31, 36, 27, 0.26);
+  backdrop-filter: blur(3px);
+}
+
+.action-dialog {
+  width: min(100%, 460px);
+  border: 1px solid rgba(72, 68, 56, 0.2);
+  border-radius: 14px;
+  padding: 24px;
+  color: var(--admin-text);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 247, 0.97), rgba(250, 247, 239, 0.97)),
+    url("./assets/mountain-ornament.png") right -120px bottom -160px / 300px auto no-repeat;
+  box-shadow: 0 24px 70px rgba(31, 36, 27, 0.22);
+}
+
+.dialog-kicker {
+  color: var(--admin-danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.action-dialog h2 {
+  margin: 8px 0 10px;
+  color: var(--admin-ink);
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.action-dialog p {
+  margin: 0;
+  color: var(--admin-muted);
+  line-height: 1.65;
+}
+
+.confirm-target {
+  display: grid;
+  gap: 6px;
+  margin: 18px 0;
+  border: 1px solid rgba(182, 90, 70, 0.22);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(248, 234, 230, 0.58);
+}
+
+.confirm-target span {
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.confirm-target strong {
+  color: var(--admin-danger);
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.action-dialog label {
+  margin-top: 16px;
+}
+
+.dialog-error {
+  margin-top: 12px !important;
+  color: var(--admin-danger) !important;
+  font-size: 13px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.dialog-actions .primary-action,
+.dialog-actions .danger-action {
+  width: auto;
+  margin-top: 0;
+  padding: 0 18px;
+}
+
 .loading-mask {
   position: fixed;
   right: 34px;
