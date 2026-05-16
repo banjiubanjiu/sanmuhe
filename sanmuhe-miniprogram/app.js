@@ -24,12 +24,5 @@ App({
       console.warn("当前基础库不支持 wx.cloud，当前使用本地演示数据。");
     }
 
-    const seeded = wx.getStorageSync("sanmuhe_seeded");
-    if (!seeded) {
-      wx.setStorageSync("sanmuhe_orders", []);
-      wx.setStorageSync("sanmuhe_reservations", []);
-      wx.setStorageSync("sanmuhe_custom_events", []);
-      wx.setStorageSync("sanmuhe_seeded", true);
-    }
   }
 });
