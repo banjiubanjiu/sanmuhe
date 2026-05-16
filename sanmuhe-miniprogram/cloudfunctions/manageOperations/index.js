@@ -146,6 +146,7 @@ const roleLabels = {
 };
 
 const actionPermissions = {
+  getAdminProfile: "dashboard.read",
   getSummary: "dashboard.read",
   getDashboard: "dashboard.read",
   listOrders: "order.read",
@@ -319,6 +320,34 @@ function requirePermission(role, permission) {
   const error = new Error("当前后台角色无权执行该操作");
   error.code = "ROLE_PERMISSION_DENIED";
   throw error;
+}
+
+function auditValue(value) {
+  if (value && typeof value === "object") {
+    if (value.$date || value.seconds) {
+      const date = toDate(value);
+      return date ? date.toISOString() : "";
+    }
+    if (Array.isArray(value)) {
+      return value.map(auditValue);
+    }
+    return Object.keys(value).sort().reduce((result, key) => {
+      result[key] = auditValue(value[key]);
+      return result;
+    }, {});
+  }
+  return value === undefined ? null : value;
+}
+
+function auditDiff(before = {}, after = {}, keys = []) {
+  return keys.reduce((changes, key) => {
+    const oldValue = auditValue(before[key]);
+    const newValue = auditValue(after[key]);
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      changes[key] = { before: oldValue, after: newValue };
+    }
+    return changes;
+  }, {});
 }
 
 async function ensureCollection(name) {
@@ -562,7 +591,12 @@ async function cancelOrder(event, caller) {
   await writeAdminAuditLog(caller, "cancelOrder", {
     orderNo: order.orderNo,
     payStatus: order.payStatus,
-    reason: cleanText(event.reason, 160) || "管理员取消"
+    reason: cleanText(event.reason, 160) || "管理员取消",
+    changes: auditDiff(order, {
+      status: "已取消",
+      payStatus: order.payStatus === "pending" ? "cancelled" : order.payStatus,
+      lockReleased: order.payStatus === "pending" ? true : order.lockReleased
+    }, ["status", "payStatus", "lockReleased"])
   });
   return { ok: true };
 }
@@ -593,7 +627,13 @@ async function markShipped(event, caller) {
   await writeAdminAuditLog(caller, "markShipped", {
     orderNo: order.orderNo,
     trackingCompany: cleanText(event.trackingCompany, 80),
-    trackingNo: cleanText(event.trackingNo, 80)
+    trackingNo: cleanText(event.trackingNo, 80),
+    changes: auditDiff(order, {
+      status: "已发货",
+      fulfillmentStatus: "shipped",
+      trackingCompany: cleanText(event.trackingCompany, 80),
+      trackingNo: cleanText(event.trackingNo, 80)
+    }, ["status", "fulfillmentStatus", "trackingCompany", "trackingNo"])
   });
   return { ok: true };
 }
@@ -614,7 +654,11 @@ async function markPickupDone(event, caller) {
     }
   });
   await writeAdminAuditLog(caller, "markPickupDone", {
-    orderNo: order.orderNo
+    orderNo: order.orderNo,
+    changes: auditDiff(order, {
+      status: "已完成",
+      fulfillmentStatus: "picked_up"
+    }, ["status", "fulfillmentStatus"])
   });
   return { ok: true };
 }
@@ -648,7 +692,11 @@ async function updateReservation(event, caller) {
   await writeAdminAuditLog(caller, "updateReservation", {
     reservationId: id,
     status,
-    previousStatus: existing.status
+    previousStatus: existing.status,
+    changes: auditDiff(existing, {
+      status,
+      adminNote: cleanText(event.adminNote, 300)
+    }, ["status", "adminNote"])
   });
   return { ok: true };
 }
@@ -704,7 +752,11 @@ async function updateSignup(event, caller) {
     signupId: id,
     eventId: existing.eventId || "",
     status,
-    previousStatus: existing.status
+    previousStatus: existing.status,
+    changes: auditDiff(existing, {
+      status,
+      adminNote: cleanText(event.adminNote, 300)
+    }, ["status", "adminNote"])
   });
   return { ok: true };
 }
@@ -1255,7 +1307,13 @@ async function updateAfterSale(event, caller) {
     orderNo: order.orderNo,
     afterSaleStatus,
     refundAmount,
-    afterSaleReason
+    afterSaleReason,
+    changes: auditDiff(order, {
+      afterSaleStatus,
+      afterSaleReason,
+      afterSaleNote,
+      refundAmount
+    }, ["afterSaleStatus", "afterSaleReason", "afterSaleNote", "refundAmount"])
   });
   return { ok: true };
 }
@@ -1484,6 +1542,15 @@ async function listBackupLogs() {
   return { ok: true, logs };
 }
 
+function adminProfile(role) {
+  return {
+    roleKey: role.roleKey,
+    roleName: role.roleName,
+    permissions: role.permissions || [],
+    source: role.source || "admin_roles"
+  };
+}
+
 async function createDataBackup(event, caller) {
   const limit = Math.min(1000, Math.max(50, Number(event.limit) || 500));
   const selected = Array.isArray(event.collections) && event.collections.length
@@ -1629,11 +1696,13 @@ async function listContent(event) {
 
 async function saveContent(event, caller) {
   const payload = normalizeContent(event.data || {});
+  const existing = await findRecord("content_blocks", "key", payload.key);
   await upsertRecord("content_blocks", "key", payload.key, payload);
   await writeAdminAuditLog(caller, "saveContent", {
     key: payload.key,
     type: payload.type,
-    title: payload.title
+    title: payload.title,
+    changes: auditDiff(existing || {}, payload, ["type", "title", "subtitle", "summary", "image", "linkType", "linkTarget", "visible", "sort"])
   });
   return { ok: true, key: payload.key };
 }
@@ -1655,7 +1724,8 @@ async function deleteContent(event, caller) {
   });
   await writeAdminAuditLog(caller, "deleteContent", {
     key,
-    title: existing.title || ""
+    title: existing.title || "",
+    changes: auditDiff(existing, { visible: false }, ["visible"])
   });
   return { ok: true };
 }
@@ -1723,12 +1793,14 @@ async function saveCoupon(event, caller) {
   if (!payload.name || !payload.amount) {
     return { ok: false, message: "请填写优惠券名称和面额" };
   }
+  const existing = await findRecord("coupons", "id", payload.id);
   await upsertRecord("coupons", "id", payload.id, payload);
   await writeAdminAuditLog(caller, "saveCoupon", {
     id: payload.id,
     name: payload.name,
     amount: payload.amount,
-    stock: payload.stock
+    stock: payload.stock,
+    changes: auditDiff(existing || {}, payload, ["name", "description", "amount", "threshold", "stock", "claimLimit", "startAt", "endAt", "status", "visible"])
   });
   return { ok: true, id: payload.id };
 }
@@ -1738,11 +1810,13 @@ async function saveCampaign(event, caller) {
   if (!payload.name) {
     return { ok: false, message: "请填写营销计划名称" };
   }
+  const existing = await findRecord("marketing_campaigns", "id", payload.id);
   await upsertRecord("marketing_campaigns", "id", payload.id, payload);
   await writeAdminAuditLog(caller, "saveCampaign", {
     id: payload.id,
     name: payload.name,
-    status: payload.status
+    status: payload.status,
+    changes: auditDiff(existing || {}, payload, ["name", "type", "summary", "startAt", "endAt", "status", "visible"])
   });
   return { ok: true, id: payload.id };
 }
@@ -1762,7 +1836,8 @@ async function disableRecord(collection, id, caller) {
   await writeAdminAuditLog(caller, "disableRecord", {
     collection,
     id: cleanText(id, 80),
-    name: existing.name || existing.title || ""
+    name: existing.name || existing.title || "",
+    changes: auditDiff(existing, { visible: false, status: "已停用" }, ["visible", "status"])
   });
   return { ok: true };
 }
@@ -1813,6 +1888,7 @@ async function getSettings() {
 }
 
 async function updateSettings(event, caller) {
+  const existing = await findRecord("store_settings", "key", "store");
   const payload = normalizeSettings(event.data || {});
   await upsertRecord("store_settings", "key", "store", payload);
   await writeAdminAuditLog(caller, "updateSettings", {
@@ -1821,7 +1897,20 @@ async function updateSettings(event, caller) {
     paymentEnabled: payload.paymentEnabled,
     orderNoticeEnabled: payload.orderNoticeEnabled,
     reservationNoticeEnabled: payload.reservationNoticeEnabled,
-    eventNoticeEnabled: payload.eventNoticeEnabled
+    eventNoticeEnabled: payload.eventNoticeEnabled,
+    changes: auditDiff(existing || {}, payload, [
+      "brandName",
+      "storeName",
+      "address",
+      "phone",
+      "businessHours",
+      "reservationRule",
+      "memberPointRate",
+      "paymentEnabled",
+      "orderNoticeEnabled",
+      "reservationNoticeEnabled",
+      "eventNoticeEnabled"
+    ])
   });
   return { ok: true, settings: payload };
 }
@@ -1837,6 +1926,12 @@ exports.main = async (event = {}) => {
     const status = cleanText(event.status, 30);
     const keyword = cleanText(event.keyword, 80);
 
+    if (action === "getAdminProfile") {
+      return {
+        ok: true,
+        admin: adminProfile(role)
+      };
+    }
     if (action === "getSummary") {
       return await getSummary();
     }

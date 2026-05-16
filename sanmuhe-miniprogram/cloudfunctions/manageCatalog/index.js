@@ -173,6 +173,33 @@ function requirePermission(role, permission) {
   throw error;
 }
 
+function auditValue(value) {
+  if (value && typeof value === "object") {
+    if (value.$date || value.seconds) {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value.map(auditValue);
+    }
+    return Object.keys(value).sort().reduce((result, key) => {
+      result[key] = auditValue(value[key]);
+      return result;
+    }, {});
+  }
+  return value === undefined ? null : value;
+}
+
+function auditDiff(before = {}, after = {}, keys = []) {
+  return keys.reduce((changes, key) => {
+    const oldValue = auditValue(before[key]);
+    const newValue = auditValue(after[key]);
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      changes[key] = { before: oldValue, after: newValue };
+    }
+    return changes;
+  }, {});
+}
+
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
@@ -389,7 +416,8 @@ exports.main = async (event = {}) => {
         collection,
         id: payload.id,
         name: payload.name || payload.title || "",
-        operator: callerLabel(caller)
+        operator: callerLabel(caller),
+        changes: auditDiff({}, payload, Object.keys(payload).filter((field) => !["createdAt", "updatedAt"].includes(field)))
       });
       return { ok: true, collection, id: payload.id, _id: addResult._id };
     }
@@ -415,7 +443,8 @@ exports.main = async (event = {}) => {
         collection,
         id,
         name: existing.name || existing.title || "",
-        fields: Object.keys(payload).filter((field) => field !== "updatedAt")
+        fields: Object.keys(payload).filter((field) => field !== "updatedAt"),
+        changes: auditDiff(existing, Object.assign({}, existing, payload), Object.keys(payload).filter((field) => field !== "updatedAt"))
       });
       return { ok: true, collection, id };
     }
@@ -428,7 +457,8 @@ exports.main = async (event = {}) => {
       await writeAdminAuditLog(caller, "catalog.delete", {
         collection,
         id,
-        name: existing.name || existing.title || ""
+        name: existing.name || existing.title || "",
+        changes: auditDiff(existing, Object.assign({}, existing, data), Object.keys(data).filter((field) => field !== "updatedAt"))
       });
       return { ok: true, collection, id };
     }
@@ -441,7 +471,8 @@ exports.main = async (event = {}) => {
       await writeAdminAuditLog(caller, "catalog.restore", {
         collection,
         id,
-        name: existing.name || existing.title || ""
+        name: existing.name || existing.title || "",
+        changes: auditDiff(existing, Object.assign({}, existing, data), Object.keys(data).filter((field) => field !== "updatedAt"))
       });
       return { ok: true, collection, id };
     }

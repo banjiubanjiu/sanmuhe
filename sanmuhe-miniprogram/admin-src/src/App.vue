@@ -78,6 +78,38 @@ const navItems = [
   { key: "settings", label: "设置管理", icon: Settings }
 ];
 
+const navGroups = [
+  { label: "经营工作台", items: ["dashboard", "orders", "afterSales", "inventory"] },
+  { label: "门店服务", items: ["reservations", "signups", "customers"] },
+  { label: "内容与增长", items: ["catalog", "content", "analytics", "marketing"] },
+  { label: "系统治理", items: ["audit", "notifications", "system", "roles", "backups", "settings"] }
+];
+
+const navItemMap = navItems.reduce((map, item) => {
+  map[item.key] = item;
+  return map;
+}, {});
+
+const tabPermissions = {
+  dashboard: "dashboard.read",
+  reservations: "reservation.read",
+  signups: "signup.read",
+  orders: "order.read",
+  afterSales: "afterSale.read",
+  inventory: "inventory.read",
+  customers: "customer.read",
+  catalog: "catalog.read",
+  content: "content.read",
+  analytics: "analytics.read",
+  marketing: "marketing.read",
+  audit: "audit.read",
+  notifications: "notification.read",
+  system: "system.read",
+  roles: "roles.manage",
+  backups: "backup.read",
+  settings: "settings.read"
+};
+
 const collectionTabs = [
   { key: "tea_products", label: "茶叶" },
   { key: "drinks", label: "茶饮" },
@@ -136,6 +168,8 @@ const state = reactive({
   contentType: "home_carousel",
   loading: "",
   loginError: "",
+  moduleError: "",
+  adminProfile: null,
   summary: [],
   dashboard: null,
   catalogItems: [],
@@ -297,6 +331,7 @@ const forms = reactive({
 
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
 const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾熙管理员");
+const currentRoleName = computed(() => state.adminProfile?.roleName || "管理员");
 const selectedOrder = computed(() => state.orders.find((item) => item._id === state.selectedOrderId) || state.orders[0] || null);
 const selectedAfterSale = computed(() => state.afterSales.find((item) => item._id === state.selectedAfterSaleId) || state.afterSales[0] || null);
 const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || state.reservations[0] || null);
@@ -304,6 +339,13 @@ const selectedSignup = computed(() => state.signups.find((item) => item._id === 
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || state.customers[0] || null);
 const selectedRole = computed(() => state.adminRoles.find((item) => item.id === state.selectedRoleId) || state.adminRoles[0] || null);
 const currentRolePreset = computed(() => state.rolePresets.find((item) => item.key === roleForm.roleKey) || state.rolePresets[0] || null);
+const visibleNavGroups = computed(() => navGroups
+  .map((group) => ({
+    ...group,
+    items: group.items.map((key) => navItemMap[key]).filter((item) => item && canAccessTab(item.key))
+  }))
+  .filter((group) => group.items.length));
+const visibleQuickActions = computed(() => quickActions.filter((action) => canAccessTab(action.tab)));
 const reservationCalendarRows = computed(() => {
   const day = state.reservationCalendarDate;
   const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
@@ -430,6 +472,18 @@ function requireTypedConfirm(label, expected) {
   return window.prompt(`${label}\n请输入「${text}」确认。`) === text;
 }
 
+function hasPermission(permission) {
+  if (!permission || !state.adminProfile) {
+    return true;
+  }
+  const permissions = state.adminProfile.permissions || [];
+  return permissions.includes("*") || permissions.includes(permission);
+}
+
+function canAccessTab(tab) {
+  return hasPermission(tabPermissions[tab]);
+}
+
 function customerDisplayName(customer) {
   return maskName(customer?.name) || maskPhone(customer?.phone) || maskOpenid(customer?.openid || customer?.id) || "访客";
 }
@@ -498,6 +552,32 @@ function formatDate(value) {
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function addTimeline(items, time, title, detail, tone = "") {
+  if (!time) return;
+  items.push({ time, title, detail, tone });
+}
+
+function orderTimeline(order) {
+  if (!order) return [];
+  const items = [];
+  addTimeline(items, order.createdAt, "订单创建", order.orderNo || order._id, "neutral");
+  addTimeline(items, order.paidAt || order.payAt || order.paymentAt, "支付确认", order.payStatus || "paid", "good");
+  addTimeline(items, order.shippedAt, "已发货", [order.trackingCompany, order.trackingNo].filter(Boolean).join(" · ") || "后台标记发货", "good");
+  addTimeline(items, order.completedAt, "履约完成", order.fulfillmentStatus || order.status, "good");
+  addTimeline(items, order.afterSaleUpdatedAt, "售后更新", `${order.afterSaleStatus || ""}${order.refundAmount ? ` · ¥${money(order.refundAmount)}` : ""}`, "warn");
+  addTimeline(items, order.updatedAt, "最近更新", order.status || "状态已更新", "neutral");
+  return items.sort((a, b) => new Date(a.time?.$date || a.time?.seconds * 1000 || a.time || 0) - new Date(b.time?.$date || b.time?.seconds * 1000 || b.time || 0));
+}
+
+function recordTimeline(record) {
+  if (!record) return [];
+  const items = [];
+  addTimeline(items, record.createdAt, "记录创建", record.status || "已提交", "neutral");
+  addTimeline(items, record.updatedAt, "状态更新", record.status || "已更新", "good");
+  addTimeline(items, record.privacyDeletedAt, "隐私删除", "个人信息已匿名化", "warn");
+  return items.sort((a, b) => new Date(a.time?.$date || a.time?.seconds * 1000 || a.time || 0) - new Date(b.time?.$date || b.time?.seconds * 1000 || b.time || 0));
 }
 
 function normalizeAuth(app) {
@@ -604,11 +684,19 @@ async function callFunction(name, data = {}) {
 
 async function enterDashboard() {
   state.view = "dashboard";
+  await loadAdminProfile();
+  if (!canAccessTab(state.activeTab)) {
+    state.activeTab = "dashboard";
+  }
   await loadActiveTab();
   if (state.activeTab !== "dashboard") await refreshSummary();
 }
 
 async function switchTab(tab) {
+  if (!canAccessTab(tab)) {
+    showToast("当前角色无权访问该模块");
+    return;
+  }
   state.activeTab = tab;
   await loadActiveTab();
 }
@@ -654,12 +742,24 @@ async function loadActiveTab() {
 
 async function withLoading(label, task) {
   state.loading = label;
+  state.moduleError = "";
   try {
     await task();
   } catch (error) {
-    showToast(error.message || `${label}失败`);
+    const message = error.message || `${label}失败`;
+    state.moduleError = message;
+    showToast(message);
   } finally {
     state.loading = "";
+  }
+}
+
+async function loadAdminProfile() {
+  try {
+    const result = await callFunction("manageOperations", { action: "getAdminProfile" });
+    state.adminProfile = result.admin || null;
+  } catch (error) {
+    state.adminProfile = null;
   }
 }
 
@@ -1391,20 +1491,24 @@ onMounted(async () => {
           <strong>HEXI TEA</strong>
         </div>
         <nav class="nav-list">
-          <button
-            v-for="item in navItems"
-            :key="item.key"
-            :class="{ active: state.activeTab === item.key }"
-            type="button"
-            @click="switchTab(item.key)"
-          >
-            <span><component :is="item.icon" :size="18" :stroke-width="1.8" /></span>
-            {{ item.label }}
-          </button>
+          <div v-for="group in visibleNavGroups" :key="group.label" class="nav-group">
+            <p class="nav-group-title">{{ group.label }}</p>
+            <button
+              v-for="item in group.items"
+              :key="item.key"
+              :class="{ active: state.activeTab === item.key }"
+              type="button"
+              @click="switchTab(item.key)"
+            >
+              <span><component :is="item.icon" :size="18" :stroke-width="1.8" /></span>
+              {{ item.label }}
+            </button>
+          </div>
         </nav>
         <div class="sidebar-scene" aria-hidden="true"></div>
         <div class="sidebar-user">
           <span>{{ currentUser }}</span>
+          <em>{{ currentRoleName }}</em>
           <button type="button" @click="logout">退出</button>
         </div>
       </aside>
@@ -1428,11 +1532,18 @@ onMounted(async () => {
             <div class="admin-chip">
               <span class="bell"><Bell :size="18" :stroke-width="1.9" /><em>12</em></span>
               <span class="avatar"></span>
-              {{ currentUser }}
+              <span class="admin-name">{{ currentUser }}</span>
+              <span class="role-badge">{{ currentRoleName }}</span>
               <ChevronDown :size="14" :stroke-width="1.8" />
             </div>
           </div>
         </header>
+
+        <div v-if="state.moduleError" class="error-banner" role="alert">
+          <span>当前模块加载失败</span>
+          <strong>{{ state.moduleError }}</strong>
+          <button type="button" @click="loadActiveTab">重试</button>
+        </div>
 
         <section class="metric-row">
           <article v-for="(card, index) in state.summary" :key="card.label" class="metric-card" :data-tone="card.tone">
@@ -1492,10 +1603,11 @@ onMounted(async () => {
           <article class="panel-card action-panel">
             <div class="panel-title"><h2>快捷操作</h2></div>
             <div class="quick-grid">
-              <button v-for="action in quickActions" :key="action.label" type="button" @click="switchTab(action.tab)">
+              <button v-for="action in visibleQuickActions" :key="action.label" type="button" @click="switchTab(action.tab)">
                 <span><component :is="action.icon" :size="24" :stroke-width="1.7" /></span>
                 {{ action.label }}
               </button>
+              <div v-if="visibleQuickActions.length === 0" class="empty-state">当前角色暂无快捷操作</div>
             </div>
           </article>
           <article class="panel-card list-panel">
@@ -1584,7 +1696,7 @@ onMounted(async () => {
                     <td>{{ item.price !== undefined ? `¥${money(item.price)}` : "-" }}</td>
                     <td>{{ displayInventory(item) }}</td>
                     <td><span :class="['status-pill', item.visible === false || item.deleted ? 'neutral' : 'good']">{{ item.visible === false || item.deleted ? "已下架" : (item.status || "上架") }}</span></td>
-                    <td><button class="ghost-button" type="button" @click.stop="toggleCatalog(item)">{{ item.visible === false || item.deleted ? "恢复" : "下架" }}</button></td>
+                    <td><button v-if="hasPermission('catalog.write')" class="ghost-button" type="button" @click.stop="toggleCatalog(item)">{{ item.visible === false || item.deleted ? "恢复" : "下架" }}</button></td>
                   </tr>
                 </tbody>
               </table>
@@ -1593,7 +1705,7 @@ onMounted(async () => {
           <aside class="panel-card editor-panel">
             <div class="panel-title">
               <h2>{{ forms.catalog.id ? "编辑资料" : "新建资料" }}</h2>
-              <button class="ghost-button icon-action" type="button" @click="resetCatalog"><Plus :size="15" :stroke-width="1.8" /> 新建</button>
+              <button v-if="hasPermission('catalog.write')" class="ghost-button icon-action" type="button" @click="resetCatalog"><Plus :size="15" :stroke-width="1.8" /> 新建</button>
             </div>
             <form class="editor-grid" @submit.prevent="saveCatalog">
               <label><span>ID</span><input v-model="forms.catalog.id" required></label>
@@ -1627,7 +1739,8 @@ onMounted(async () => {
               <label class="wide"><span>口感</span><textarea v-model="forms.catalog.taste" rows="3"></textarea></label>
               <label class="wide"><span>说明</span><textarea v-model="forms.catalog.notes" rows="3"></textarea></label>
               <label class="switch"><input v-model="forms.catalog.visible" type="checkbox"> 前台可见</label>
-              <button class="primary-action wide" type="submit">保存到云端</button>
+              <button v-if="hasPermission('catalog.write')" class="primary-action wide" type="submit">保存到云端</button>
+              <div v-else class="permission-note wide">当前角色仅可查看商品资料。</div>
             </form>
           </aside>
         </section>
@@ -1665,6 +1778,15 @@ onMounted(async () => {
                 <strong>x{{ item.quantity || 1 }}</strong>
               </div>
             </div>
+            <div class="record-timeline" v-if="orderTimeline(selectedOrder).length">
+              <h3>处理时间线</h3>
+              <div v-for="step in orderTimeline(selectedOrder)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
+                <span></span>
+                <strong>{{ step.title }}</strong>
+                <small>{{ formatDate(step.time) }}</small>
+                <p>{{ step.detail || "-" }}</p>
+              </div>
+            </div>
             <div class="ship-box" v-if="selectedOrder.status === '待发货'">
               <label><span>快递公司</span><input v-model="orderForm.trackingCompany" placeholder="如 顺丰"></label>
               <label><span>快递单号</span><input v-model="orderForm.trackingNo" placeholder="填写后标记发货"></label>
@@ -1674,10 +1796,11 @@ onMounted(async () => {
               <input v-model="orderForm.cancelReason" placeholder="管理员取消">
             </label>
             <div class="action-row">
-              <button v-if="selectedOrder.status === '待发货'" class="secondary-action" type="button" @click="orderAction('ship', selectedOrder)">标记发货</button>
-              <button v-if="selectedOrder.status === '待自提'" class="secondary-action" type="button" @click="orderAction('pickup', selectedOrder)">完成自提</button>
-              <button v-if="selectedOrder.status === '待支付'" class="danger-action" type="button" @click="orderAction('cancel', selectedOrder)">取消订单</button>
-              <button class="secondary-action" type="button" @click="startAfterSale(selectedOrder)">转售后处理</button>
+              <button v-if="selectedOrder.status === '待发货' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('ship', selectedOrder)">标记发货</button>
+              <button v-if="selectedOrder.status === '待自提' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('pickup', selectedOrder)">完成自提</button>
+              <button v-if="selectedOrder.status === '待支付' && hasPermission('order.write')" class="danger-action" type="button" @click="orderAction('cancel', selectedOrder)">取消订单</button>
+              <button v-if="hasPermission('afterSale.write')" class="secondary-action" type="button" @click="startAfterSale(selectedOrder)">转售后处理</button>
+              <div v-if="!hasPermission('order.write') && !hasPermission('afterSale.write')" class="permission-note">当前角色仅可查看订单。</div>
             </div>
           </aside>
         </section>
@@ -1710,12 +1833,22 @@ onMounted(async () => {
             <DetailRow label="订单号" :value="selectedAfterSale.orderNo || selectedAfterSale._id" />
             <DetailRow label="金额" :value="`¥${money(selectedAfterSale.total)}`" />
             <DetailRow label="客户" :value="maskName(selectedAfterSale.name || selectedAfterSale.contactName || selectedAfterSale.consignee) || '-'" />
+            <div class="record-timeline" v-if="orderTimeline(selectedAfterSale).length">
+              <h3>售后时间线</h3>
+              <div v-for="step in orderTimeline(selectedAfterSale)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
+                <span></span>
+                <strong>{{ step.title }}</strong>
+                <small>{{ formatDate(step.time) }}</small>
+                <p>{{ step.detail || "-" }}</p>
+              </div>
+            </div>
             <form class="editor-grid" @submit.prevent="saveAfterSale(selectedAfterSale)">
               <label><span>售后状态</span><select v-model="afterSaleForm.status"><option>申请售后</option><option>审核中</option><option>已退款</option><option>已拒绝</option><option>已关闭</option></select></label>
               <label><span>退款金额</span><input v-model.number="afterSaleForm.refundAmount" type="number" min="0"></label>
               <label class="wide"><span>售后原因</span><input v-model="afterSaleForm.reason" placeholder="如用户申请退款、商品异常"></label>
               <label class="wide"><span>处理备注</span><textarea v-model="afterSaleForm.note" rows="4"></textarea></label>
-              <button class="primary-action wide" type="submit">保存售后状态</button>
+              <button v-if="hasPermission('afterSale.write')" class="primary-action wide" type="submit">保存售后状态</button>
+              <div v-else class="permission-note wide">当前角色仅可查看售后记录。</div>
             </form>
           </aside>
         </section>
@@ -1749,7 +1882,8 @@ onMounted(async () => {
               <label><span>商品 ID</span><input v-model="inventoryForm.id" required placeholder="如 tea-001"></label>
               <label><span>调整数量</span><input v-model.number="inventoryForm.delta" type="number" required placeholder="正数增加，负数减少"></label>
               <label class="wide"><span>原因</span><textarea v-model="inventoryForm.note" rows="4" placeholder="盘点、损耗、补货等"></textarea></label>
-              <button class="primary-action wide" type="submit">写入库存流水</button>
+              <button v-if="hasPermission('inventory.write')" class="primary-action wide" type="submit">写入库存流水</button>
+              <div v-else class="permission-note wide">当前角色仅可查看库存流水。</div>
             </form>
           </aside>
         </section>
@@ -1804,24 +1938,44 @@ onMounted(async () => {
               <DetailRow label="日期" :value="selectedReservation.day || selectedReservation.date || '-'" />
               <DetailRow label="时段" :value="selectedReservation.time || selectedReservation.slot || '-'" />
               <DetailRow label="人数" :value="selectedReservation.people || selectedReservation.count || '-'" />
-              <div class="action-row">
+              <div class="record-timeline" v-if="recordTimeline(selectedReservation).length">
+                <h3>预约时间线</h3>
+                <div v-for="step in recordTimeline(selectedReservation)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
+                  <span></span>
+                  <strong>{{ step.title }}</strong>
+                  <small>{{ formatDate(step.time) }}</small>
+                  <p>{{ step.detail || "-" }}</p>
+                </div>
+              </div>
+              <div v-if="hasPermission('reservation.write')" class="action-row">
                 <button class="secondary-action" type="button" @click="updateRecord('reservation', selectedReservation._id, '已确认')">确认</button>
                 <button class="secondary-action" type="button" @click="updateRecord('reservation', selectedReservation._id, '已完成')">完成</button>
                 <button class="danger-action" type="button" @click="updateRecord('reservation', selectedReservation._id, '已取消')">取消</button>
               </div>
+              <div v-else class="permission-note">当前角色仅可查看预约。</div>
             </template>
             <template v-else>
               <DetailRow label="活动" :value="selectedSignup.eventTitle || selectedSignup.title || '-'" />
               <DetailRow label="客户" :value="maskName(selectedSignup.name || selectedSignup.customerName) || '-'" />
               <DetailRow label="电话" :value="maskPhone(selectedSignup.phone || selectedSignup.mobile) || '-'" />
               <DetailRow label="状态" :value="selectedSignup.status || '-'" />
-              <div class="action-row">
+              <div class="record-timeline" v-if="recordTimeline(selectedSignup).length">
+                <h3>报名时间线</h3>
+                <div v-for="step in recordTimeline(selectedSignup)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
+                  <span></span>
+                  <strong>{{ step.title }}</strong>
+                  <small>{{ formatDate(step.time) }}</small>
+                  <p>{{ step.detail || "-" }}</p>
+                </div>
+              </div>
+              <div v-if="hasPermission('signup.write')" class="action-row">
                 <button class="secondary-action" type="button" @click="updateRecord('signup', selectedSignup._id, '已确认')">确认</button>
                 <button class="secondary-action" type="button" @click="checkInSignup(selectedSignup, '已到场')">到场核销</button>
                 <button class="secondary-action" type="button" @click="checkInSignup(selectedSignup, '未到场')">未到场</button>
                 <button class="secondary-action" type="button" @click="updateRecord('signup', selectedSignup._id, '已完成')">完成</button>
                 <button class="danger-action" type="button" @click="updateRecord('signup', selectedSignup._id, '已取消')">取消</button>
               </div>
+              <div v-else class="permission-note">当前角色仅可查看报名。</div>
             </template>
           </aside>
         </section>
@@ -1848,8 +2002,9 @@ onMounted(async () => {
             <DetailRow label="最近访问" :value="formatDate(customerLatestAt(selectedCustomer))" />
             <div class="privacy-note">默认脱敏展示；删除个人数据会清空联系方式、地址、备注、订阅偏好和未使用优惠券。</div>
             <div class="action-row">
-              <button class="secondary-action" type="button" @click="exportCustomerData(selectedCustomer)">导出该用户数据</button>
-              <button class="danger-action" type="button" @click="deleteCustomerData(selectedCustomer)">删除个人数据</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action" type="button" @click="exportCustomerData(selectedCustomer)">导出该用户数据</button>
+              <button v-if="hasPermission('privacy.delete')" class="danger-action" type="button" @click="deleteCustomerData(selectedCustomer)">删除个人数据</button>
+              <div v-if="!hasPermission('export.read') && !hasPermission('privacy.delete')" class="permission-note">当前角色仅可查看用户画像。</div>
             </div>
           </aside>
         </section>
@@ -1862,7 +2017,7 @@ onMounted(async () => {
                   {{ item.label }}
                 </button>
               </div>
-              <button class="secondary-action small icon-action" type="button" @click="resetContent"><Plus :size="15" :stroke-width="1.8" /> 新建内容</button>
+              <button v-if="hasPermission('content.write')" class="secondary-action small icon-action" type="button" @click="resetContent"><Plus :size="15" :stroke-width="1.8" /> 新建内容</button>
             </div>
             <div class="record-list with-images">
               <button v-for="item in state.contentItems" :key="item.key" :class="{ selected: state.selectedContentKey === item.key }" type="button" @click="editContent(item)">
@@ -1890,8 +2045,9 @@ onMounted(async () => {
               <label><span>链接目标</span><input v-model="forms.content.linkTarget"></label>
               <label><span>排序</span><input v-model.number="forms.content.sort" type="number" min="0"></label>
               <label class="switch"><input v-model="forms.content.visible" type="checkbox"> 启用</label>
-              <button class="primary-action" type="submit">保存内容</button>
-              <button class="danger-action" type="button" @click="deleteContent(forms.content)">停用内容</button>
+              <button v-if="hasPermission('content.write')" class="primary-action" type="submit">保存内容</button>
+              <button v-if="hasPermission('content.write')" class="danger-action" type="button" @click="deleteContent(forms.content)">停用内容</button>
+              <div v-else class="permission-note wide">当前角色仅可查看内容。</div>
             </form>
           </aside>
         </section>
@@ -1943,7 +2099,7 @@ onMounted(async () => {
             </table>
             <div v-if="state.couponStats.length === 0" class="empty-state">暂无优惠券领取记录</div>
           </article>
-          <form class="panel-card editor-form" @submit.prevent="saveCoupon">
+          <form v-if="hasPermission('marketing.write')" class="panel-card editor-form" @submit.prevent="saveCoupon">
             <h2>新建优惠券</h2>
             <label><span>名称</span><input v-model="forms.coupon.name"></label>
             <label><span>面额</span><input v-model.number="forms.coupon.amount" type="number"></label>
@@ -1951,7 +2107,7 @@ onMounted(async () => {
             <label><span>库存</span><input v-model.number="forms.coupon.stock" type="number"></label>
             <button class="primary-action icon-action" type="submit"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 保存优惠券</button>
           </form>
-          <form class="panel-card editor-form" @submit.prevent="saveCampaign">
+          <form v-if="hasPermission('marketing.write')" class="panel-card editor-form" @submit.prevent="saveCampaign">
             <h2>新建营销计划</h2>
             <label><span>名称</span><input v-model="forms.campaign.name"></label>
             <label><span>类型</span><input v-model="forms.campaign.type"></label>
@@ -2001,7 +2157,7 @@ onMounted(async () => {
             </div>
             <div v-if="state.notificationLogs.length === 0" class="empty-state">暂无订阅消息日志</div>
           </article>
-          <aside class="panel-card editor-panel">
+          <aside v-if="hasPermission('notification.write')" class="panel-card editor-panel">
             <div class="panel-title"><h2>测试通知</h2></div>
             <form class="editor-grid" @submit.prevent="sendTestNotice">
               <label><span>类型</span><select v-model="noticeTestForm.kind"><option value="reservationStatus">预约状态</option><option value="eventStatus">活动报名</option><option value="orderShipped">订单发货</option><option value="orderPaid">订单支付</option></select></label>
@@ -2043,7 +2199,7 @@ onMounted(async () => {
         <section v-if="state.activeTab === 'roles'" class="split-panel">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <button class="secondary-action small icon-action" type="button" @click="resetRole"><Plus :size="15" :stroke-width="1.8" /> 新建角色</button>
+              <button v-if="hasPermission('roles.manage')" class="secondary-action small icon-action" type="button" @click="resetRole"><Plus :size="15" :stroke-width="1.8" /> 新建角色</button>
             </div>
             <div class="record-list">
               <button v-for="role in state.adminRoles" :key="role.id" :class="{ selected: state.selectedRoleId === role.id }" type="button" @click="editRole(role)">
@@ -2064,7 +2220,7 @@ onMounted(async () => {
               <div class="permission-preview wide">
                 <span v-for="permission in (currentRolePreset?.permissions || [])" :key="permission">{{ permission }}</span>
               </div>
-              <button class="primary-action wide" type="submit">保存角色</button>
+              <button v-if="hasPermission('roles.manage')" class="primary-action wide" type="submit">保存角色</button>
             </form>
           </aside>
         </section>
@@ -2092,7 +2248,8 @@ onMounted(async () => {
             <form class="editor-grid" @submit.prevent="createDataBackup">
               <label><span>每个集合上限</span><input v-model.number="backupForm.limit" type="number" min="50" max="1000"></label>
               <div class="privacy-note wide">备份会导出订单、预约、报名、会员、商品、内容、优惠券、审计、通知和库存日志，并写入云存储 admin-backups/。</div>
-              <button class="primary-action wide icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建云端备份</button>
+              <button v-if="hasPermission('backup.create')" class="primary-action wide icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建云端备份</button>
+              <div v-else class="permission-note wide">当前角色仅可查看备份记录。</div>
             </form>
           </aside>
         </section>
@@ -2117,7 +2274,8 @@ onMounted(async () => {
             <label class="wide"><span>发货通知模板 ID</span><input v-model="state.settings.orderShippedTemplateId"></label>
             <label class="wide"><span>预约通知模板 ID</span><input v-model="state.settings.reservationTemplateId"></label>
             <label class="wide"><span>活动通知模板 ID</span><input v-model="state.settings.eventTemplateId"></label>
-            <button class="primary-action" type="submit">保存设置</button>
+            <button v-if="hasPermission('settings.write')" class="primary-action" type="submit">保存设置</button>
+            <div v-else class="permission-note wide">当前角色仅可查看设置。</div>
           </form>
         </section>
       </section>
