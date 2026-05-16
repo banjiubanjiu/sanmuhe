@@ -1910,21 +1910,64 @@ tr.selected td:first-child {
 }
 
 .permission-preview {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
   border: 1px solid var(--admin-line);
   border-radius: 8px;
-  padding: 10px;
+  padding: 12px;
   background: rgba(246, 242, 232, 0.58);
 }
 
-.permission-preview span {
+.permission-summary {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.permission-summary span,
+.permission-group em {
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.permission-summary strong,
+.permission-group > strong {
+  color: var(--admin-ink);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.permission-group {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.permission-group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.permission-group span {
   border-radius: 999px;
   padding: 4px 8px;
   color: var(--admin-green-dark);
   background: rgba(222, 235, 217, 0.8);
   font-size: 12px;
+}
+
+.permission-group span.risk-medium {
+  color: #8a682b;
+  background: rgba(235, 221, 188, 0.82);
+}
+
+.permission-group span.risk-high {
+  color: #9f4636;
+  background: rgba(239, 207, 199, 0.86);
 }
 
 .settings-panel {

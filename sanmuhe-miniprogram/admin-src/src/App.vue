@@ -137,6 +137,44 @@ const quickActions = [
   { tab: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing }
 ];
 
+const permissionCatalog = [
+  { key: "dashboard.read", group: "经营首页", label: "查看首页与全局搜索", risk: "low" },
+  { key: "order.read", group: "订单售后", label: "查看订单", risk: "low" },
+  { key: "order.write", group: "订单售后", label: "发货、自提、取消订单", risk: "medium" },
+  { key: "afterSale.read", group: "订单售后", label: "查看售后", risk: "low" },
+  { key: "afterSale.write", group: "订单售后", label: "处理售后状态", risk: "medium" },
+  { key: "inventory.read", group: "库存", label: "查看库存流水", risk: "low" },
+  { key: "inventory.write", group: "库存", label: "人工调整库存", risk: "medium" },
+  { key: "reservation.read", group: "门店服务", label: "查看茶室预约", risk: "low" },
+  { key: "reservation.write", group: "门店服务", label: "确认、完成、取消预约", risk: "medium" },
+  { key: "signup.read", group: "门店服务", label: "查看活动报名", risk: "low" },
+  { key: "signup.write", group: "门店服务", label: "报名确认与核销", risk: "medium" },
+  { key: "customer.read", group: "用户数据", label: "查看用户画像", risk: "low" },
+  { key: "export.read", group: "用户数据", label: "导出经营数据", risk: "high" },
+  { key: "privacy.delete", group: "用户数据", label: "删除/匿名化个人数据", risk: "high" },
+  { key: "catalog.read", group: "内容商品", label: "查看商品资料", risk: "low" },
+  { key: "catalog.write", group: "内容商品", label: "编辑商品与活动资料", risk: "medium" },
+  { key: "content.read", group: "内容商品", label: "查看运营内容", risk: "low" },
+  { key: "content.write", group: "内容商品", label: "编辑轮播、卡片、公告", risk: "medium" },
+  { key: "marketing.read", group: "营销", label: "查看营销配置", risk: "low" },
+  { key: "marketing.write", group: "营销", label: "编辑优惠券和计划", risk: "medium" },
+  { key: "analytics.read", group: "数据统计", label: "查看经营统计", risk: "low" },
+  { key: "audit.read", group: "系统治理", label: "查看审计日志", risk: "high" },
+  { key: "settings.read", group: "系统治理", label: "查看系统设置", risk: "low" },
+  { key: "settings.write", group: "系统治理", label: "修改门店、支付、通知配置", risk: "high" },
+  { key: "notification.read", group: "系统治理", label: "查看通知日志", risk: "low" },
+  { key: "notification.write", group: "系统治理", label: "发送测试通知", risk: "medium" },
+  { key: "system.read", group: "系统治理", label: "查看系统状态", risk: "low" },
+  { key: "roles.manage", group: "系统治理", label: "管理后台角色", risk: "high" },
+  { key: "backup.read", group: "系统治理", label: "查看备份记录", risk: "low" },
+  { key: "backup.create", group: "系统治理", label: "创建云端备份", risk: "high" }
+];
+const permissionGroupOrder = ["经营首页", "订单售后", "库存", "门店服务", "用户数据", "内容商品", "营销", "数据统计", "系统治理", "未归类"];
+const permissionMap = permissionCatalog.reduce((map, item) => {
+  map[item.key] = item;
+  return map;
+}, {});
+
 const fallbackMetricIcons = [CalendarCheck, TicketPercent, BadgeDollarSign, UserPlus, CircleDollarSign];
 const createPageState = () => ({ page: 1, pageSize: 20, total: 0, pageCount: 1 });
 const EXPORT_PAGE_SIZE = 100;
@@ -398,6 +436,30 @@ const selectedSignup = computed(() => state.signups.find((item) => item._id === 
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || state.customers[0] || null);
 const selectedRole = computed(() => state.adminRoles.find((item) => item.id === state.selectedRoleId) || state.adminRoles[0] || null);
 const currentRolePreset = computed(() => state.rolePresets.find((item) => item.key === roleForm.roleKey) || state.rolePresets[0] || null);
+const currentPermissionGroups = computed(() => {
+  const permissions = currentRolePreset.value?.permissions || [];
+  if (permissions.includes("*")) {
+    return [{
+      group: "全部后台",
+      items: [{ key: "*", label: "全部模块与高风险操作", risk: "high" }]
+    }];
+  }
+  const groups = permissions.reduce((result, permission) => {
+    const meta = permissionMap[permission] || { key: permission, group: "未归类", label: permission, risk: "low" };
+    if (!result[meta.group]) result[meta.group] = [];
+    result[meta.group].push(meta);
+    return result;
+  }, {});
+  return permissionGroupOrder
+    .filter((group) => groups[group]?.length)
+    .map((group) => ({ group, items: groups[group] }));
+});
+const currentPermissionSummary = computed(() => {
+  const permissions = currentRolePreset.value?.permissions || [];
+  if (permissions.includes("*")) return "拥有全部权限，适合实际负责人或超级管理员。";
+  const highRiskCount = currentPermissionGroups.value.reduce((sum, group) => sum + group.items.filter((item) => item.risk === "high").length, 0);
+  return `${permissions.length} 项权限，其中 ${highRiskCount} 项高风险权限。`;
+});
 const visibleNavGroups = computed(() => navGroups
   .map((group) => ({
     ...group,
@@ -3082,7 +3144,16 @@ onMounted(async () => {
               <label class="wide"><span>显示名</span><input v-model="roleForm.displayName" placeholder="如 前台店员"></label>
               <label class="switch wide"><input v-model="roleForm.disabled" type="checkbox"> 停用该角色</label>
               <div class="permission-preview wide">
-                <span v-for="permission in (currentRolePreset?.permissions || [])" :key="permission">{{ permission }}</span>
+                <div class="permission-summary">
+                  <span>{{ currentRolePreset?.label || "角色" }}</span>
+                  <strong>{{ currentPermissionSummary }}</strong>
+                </div>
+                <div v-for="group in currentPermissionGroups" :key="group.group" class="permission-group">
+                  <strong>{{ group.group }} <em>{{ group.items.length }} 项</em></strong>
+                  <div>
+                    <span v-for="permission in group.items" :key="permission.key" :class="`risk-${permission.risk}`">{{ permission.label }}</span>
+                  </div>
+                </div>
               </div>
               <button v-if="hasPermission('roles.manage')" class="primary-action wide" type="submit">保存角色</button>
             </form>
