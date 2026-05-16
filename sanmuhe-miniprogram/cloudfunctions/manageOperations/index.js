@@ -1675,9 +1675,26 @@ async function updateAfterSale(event, caller) {
     return { ok: false, message: "订单不存在" };
   }
   const afterSaleStatus = cleanText(event.afterSaleStatus || event.status, 30) || "处理中";
+  const allowedStatuses = ["申请售后", "审核中", "处理中", "已退款", "已拒绝", "已关闭"];
+  if (!allowedStatuses.includes(afterSaleStatus)) {
+    return { ok: false, message: "售后状态不支持" };
+  }
+  if (event.refundAmount !== undefined && event.refundAmount !== "" && !Number.isFinite(Number(event.refundAmount))) {
+    return { ok: false, message: "退款金额必须是数字" };
+  }
   const refundAmount = Math.max(0, Number(event.refundAmount) || 0);
+  const orderTotal = Math.max(0, Number(order.total) || 0);
+  if (refundAmount > orderTotal) {
+    return { ok: false, message: "退款金额不能大于订单金额" };
+  }
   const afterSaleReason = cleanText(event.reason || event.afterSaleReason, 160);
   const afterSaleNote = cleanText(event.note || event.afterSaleNote, 300);
+  if (afterSaleStatus === "已退款" && refundAmount <= 0) {
+    return { ok: false, message: "标记已退款时需填写退款金额" };
+  }
+  if (["已退款", "已拒绝"].includes(afterSaleStatus) && !afterSaleReason && !afterSaleNote) {
+    return { ok: false, message: "退款或拒绝售后需填写处理原因" };
+  }
   await db.collection("orders").doc(order._id).update({
     data: {
       afterSaleStatus,
@@ -2248,6 +2265,7 @@ async function listMarketing() {
 }
 
 async function saveCoupon(event, caller) {
+  const data = event.data || {};
   const payload = normalizeCoupon(event.data || {});
   if (!payload.name || !payload.amount) {
     return { ok: false, message: "请填写优惠券名称和面额" };
@@ -2257,6 +2275,20 @@ async function saveCoupon(event, caller) {
   }
   assertDateRange(payload.startAt, payload.endAt, "优惠券");
   const existing = await findRecord("coupons", "id", payload.id);
+  if (existing) {
+    if (data.issued === undefined) {
+      payload.issued = number(existing.issued);
+    }
+    if (data.redeemed === undefined) {
+      payload.redeemed = number(existing.redeemed);
+    }
+  }
+  if (payload.redeemed > payload.issued) {
+    return { ok: false, message: "优惠券核销数不能大于领取数" };
+  }
+  if (payload.stock > 0 && payload.issued > payload.stock) {
+    return { ok: false, message: "优惠券库存不能小于已领取数量，0 表示不限量" };
+  }
   await upsertRecord("coupons", "id", payload.id, payload);
   await writeAdminAuditLog(caller, "saveCoupon", {
     id: payload.id,

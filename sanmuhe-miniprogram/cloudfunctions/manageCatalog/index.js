@@ -30,6 +30,49 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
+function invalidInput(message) {
+  const error = new Error(message);
+  error.code = "INVALID_INPUT";
+  throw error;
+}
+
+function assertSafeTextRef(value, label) {
+  const text = cleanText(value, 300);
+  if (!text) {
+    return;
+  }
+  if (/[\r\n]/.test(text) || /^(javascript|data|vbscript):/i.test(text)) {
+    invalidInput(`${label}格式不安全`);
+  }
+}
+
+function assertImageRef(value, label) {
+  const text = cleanText(value, 300);
+  if (!text) {
+    return;
+  }
+  assertSafeTextRef(text, label);
+  if (!/^(cloud:\/\/|https?:\/\/|\/assets\/)/.test(text)) {
+    invalidInput(`${label}需填写云存储 fileID、HTTP(S) 地址或 /assets/ 本地图片路径`);
+  }
+}
+
+function assertOptionalNumber(value, label, options = {}) {
+  if (value === undefined || value === null || value === "") {
+    return;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    invalidInput(`${label}必须是数字`);
+  }
+  if (options.min !== undefined && number < options.min) {
+    invalidInput(`${label}不能小于 ${options.min}`);
+  }
+  if (options.max !== undefined && number > options.max) {
+    invalidInput(`${label}不能大于 ${options.max}`);
+  }
+}
+
 function normalizeAction(action) {
   const value = cleanText(action, 20) || "list";
   return ["list", "get", "create", "update", "delete", "restore"].includes(value) ? value : "";
@@ -312,6 +355,42 @@ function normalizePayload(collection, payload) {
   return data;
 }
 
+function validateCatalogPayload(collection, payload, source = {}, options = {}) {
+  const isCreate = options.isCreate === true;
+  const existing = options.existing || {};
+  const hasNameField = source.name !== undefined || source.title !== undefined;
+
+  if ((isCreate || hasNameField) && !cleanText(payload.name || payload.title, 120)) {
+    invalidInput(collection === "events" ? "请填写活动标题" : "请填写名称");
+  }
+
+  [
+    ["price", "价格", 0, undefined],
+    ["stock", "库存", 0, undefined],
+    ["lockedStock", "锁定库存", 0, undefined],
+    ["soldStock", "已售库存", 0, undefined],
+    ["quota", "活动名额", 1, 999],
+    ["signed", "已报名人数", 0, 999],
+    ["sort", "排序", 0, undefined]
+  ].forEach(([field, label, min, max]) => {
+    assertOptionalNumber(source[field], label, { min, max });
+  });
+
+  ["image", "thumb", "detailImage"].forEach((field) => {
+    if (source[field] !== undefined) {
+      assertImageRef(payload[field], field === "detailImage" ? "详情图片" : "图片地址");
+    }
+  });
+
+  if (collection === "events") {
+    const quota = payload.quota !== undefined ? payload.quota : Number(existing.quota || 1);
+    const signed = payload.signed !== undefined ? payload.signed : Number(existing.signed || 0);
+    if (signed > quota) {
+      invalidInput("已报名不能大于名额");
+    }
+  }
+}
+
 function withInventory(item) {
   if (!item || item.stock === undefined || item.stock === null || item.stock === "") {
     return item;
@@ -398,6 +477,7 @@ exports.main = async (event = {}) => {
     if (action === "create") {
       const payload = normalizePayload(collection, event.data || {});
       payload.id = payload.id || `${collection}-${Date.now()}`;
+      validateCatalogPayload(collection, payload, event.data || {}, { isCreate: true });
       payload._openid = caller.openid || caller.uid || "";
       if ((collection === "drinks" || collection === "tea_products") && payload.stock !== undefined) {
         payload.lockedStock = payload.lockedStock || 0;
@@ -430,6 +510,7 @@ exports.main = async (event = {}) => {
     if (action === "update") {
       const payload = normalizePayload(collection, event.data || {});
       delete payload.id;
+      validateCatalogPayload(collection, payload, event.data || {}, { existing });
       if ((collection === "drinks" || collection === "tea_products") && payload.stock !== undefined) {
         const lockedStock = Math.max(0, Number(existing.lockedStock) || 0);
         const soldStock = Math.max(0, Number(existing.soldStock) || 0);
