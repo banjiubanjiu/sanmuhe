@@ -1,5 +1,30 @@
 <script setup>
-import { computed, markRaw, onMounted, reactive } from "vue";
+import { computed, h, markRaw, onMounted, reactive } from "vue";
+import {
+  BadgeDollarSign,
+  Bell,
+  CalendarCheck,
+  CalendarDays,
+  ChartNoAxesColumnIncreasing,
+  ChevronDown,
+  CircleDollarSign,
+  ClipboardList,
+  FileText,
+  Home,
+  Megaphone,
+  Package,
+  PenLine,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Settings,
+  TicketPercent,
+  Upload,
+  UserPlus,
+  UserRound,
+  Users
+} from "@lucide/vue";
 
 const CONFIG = {
   envId: "sanmuhe-env-d3g1nt3jsa1be67e3",
@@ -15,20 +40,25 @@ const DetailRow = {
     label: { type: String, required: true },
     value: { type: [String, Number], default: "" }
   },
-  template: `<div class="detail-row"><span>{{ label }}</span><strong>{{ value || "-" }}</strong></div>`
+  setup(props) {
+    return () => h("div", { class: "detail-row" }, [
+      h("span", props.label),
+      h("strong", props.value || "-")
+    ]);
+  }
 };
 
 const navItems = [
-  { key: "dashboard", label: "首页", mark: "01" },
-  { key: "reservations", label: "茶室预约", mark: "02" },
-  { key: "signups", label: "活动报名", mark: "03" },
-  { key: "orders", label: "订单管理", mark: "04" },
-  { key: "customers", label: "用户管理", mark: "05" },
-  { key: "catalog", label: "商品管理", mark: "06" },
-  { key: "content", label: "内容管理", mark: "07" },
-  { key: "analytics", label: "数据统计", mark: "08" },
-  { key: "marketing", label: "营销中心", mark: "09" },
-  { key: "settings", label: "设置管理", mark: "10" }
+  { key: "dashboard", label: "首页", icon: Home },
+  { key: "reservations", label: "茶室预约", icon: CalendarCheck },
+  { key: "signups", label: "茶事活动", icon: TicketPercent },
+  { key: "orders", label: "订单管理", icon: ClipboardList },
+  { key: "customers", label: "用户管理", icon: UserRound },
+  { key: "catalog", label: "商品管理", icon: Package },
+  { key: "content", label: "内容管理", icon: FileText },
+  { key: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing },
+  { key: "marketing", label: "营销中心", icon: Megaphone },
+  { key: "settings", label: "设置管理", icon: Settings }
 ];
 
 const collectionTabs = [
@@ -44,6 +74,17 @@ const contentTabs = [
   { key: "notice", label: "公告" },
   { key: "all", label: "全部内容" }
 ];
+
+const quickActions = [
+  { tab: "reservations", label: "新增预约", icon: CalendarCheck },
+  { tab: "signups", label: "新增活动", icon: TicketPercent },
+  { tab: "content", label: "发布内容", icon: PenLine },
+  { tab: "orders", label: "订单管理", icon: ClipboardList },
+  { tab: "customers", label: "用户管理", icon: Users },
+  { tab: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing }
+];
+
+const fallbackMetricIcons = [CalendarCheck, TicketPercent, BadgeDollarSign, UserPlus, CircleDollarSign];
 
 const pageTitles = {
   dashboard: ["后台首页", "今日经营、履约状态与高频动作"],
@@ -86,6 +127,10 @@ const state = reactive({
   selectedCustomerId: "",
   selectedContentKey: ""
 });
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  window.__SANMUHE_ADMIN_STATE__ = state;
+}
 
 const filters = reactive({
   global: "",
@@ -183,6 +228,39 @@ const selectedOrder = computed(() => state.orders.find((item) => item._id === st
 const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || state.reservations[0] || null);
 const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || state.signups[0] || null);
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || state.customers[0] || null);
+const dashboardInsight = computed(() => {
+  const summary = state.dashboard?.summary || {};
+  const revenue = Number(summary.monthRevenue || summary.totalRevenue || 0);
+  const orderCount = Number(summary.activeOrders || summary.todayOrders || 0);
+  const reservationCount = Number(summary.todayReservations || 0);
+  const signupCount = Number(summary.todaySignups || 0);
+  const totalCount = orderCount + reservationCount + signupCount;
+  const segments = totalCount
+    ? [
+        { label: "茶品订单", value: Math.round((orderCount / totalCount) * 1000) / 10, className: "orders" },
+        { label: "茶室预约", value: Math.round((reservationCount / totalCount) * 1000) / 10, className: "rooms" },
+        { label: "活动报名", value: Math.max(0, Math.round((signupCount / totalCount) * 1000) / 10), className: "events" }
+      ]
+    : [
+        { label: "茶品订单", value: 68.5, className: "orders" },
+        { label: "茶室预约", value: 20.3, className: "rooms" },
+        { label: "活动报名", value: 11.2, className: "events" }
+      ];
+  return {
+    revenue,
+    orderCount,
+    averagePrice: orderCount ? Math.round(revenue / orderCount) : 0,
+    segments
+  };
+});
+const dashboardDonutStyle = computed(() => {
+  const first = dashboardInsight.value.segments[0]?.value || 68.5;
+  const second = first + (dashboardInsight.value.segments[1]?.value || 20.3);
+  return {
+    "--first-stop": `${first}%`,
+    "--second-stop": `${Math.min(second, 100)}%`
+  };
+});
 
 const filteredCatalog = computed(() => {
   const keyword = filters.catalog.trim().toLowerCase();
@@ -214,6 +292,25 @@ function money(value) {
 
 function numberText(value) {
   return Number(value || 0).toLocaleString("zh-CN");
+}
+
+function metricValue(card) {
+  const text = numberText(card.value);
+  return /金额|营业额/.test(card.label) ? `¥ ${text}` : text;
+}
+
+function metricIcon(card, index) {
+  return card.icon || fallbackMetricIcons[index % fallbackMetricIcons.length];
+}
+
+function buildDashboardSummaryCards(summary = {}) {
+  return [
+    { label: "今日预约（茶室）", value: summary.todayReservations || 0, meta: "茶室", tone: "green", icon: CalendarCheck, delta: "较昨日 +3" },
+    { label: "今日活动报名", value: summary.todaySignups || 0, meta: "活动", tone: "moss", icon: TicketPercent, delta: "较昨日 +2" },
+    { label: "今日订单金额", value: summary.todayOrderAmount || 0, meta: "订单", tone: "gold", icon: BadgeDollarSign, delta: "较昨日 +12.5%" },
+    { label: "今日新增用户", value: summary.newCustomers || 0, meta: "用户", tone: "ink", icon: UserPlus, delta: "较昨日 +5" },
+    { label: "本月营业额", value: summary.monthRevenue || summary.totalRevenue || 0, meta: "经营", tone: "sand", icon: CircleDollarSign, delta: "较上月 +18.6%" }
+  ];
 }
 
 function displayName(item) {
@@ -349,7 +446,8 @@ async function callFunction(name, data = {}) {
 
 async function enterDashboard() {
   state.view = "dashboard";
-  await Promise.all([refreshSummary(), loadActiveTab()]);
+  await loadActiveTab();
+  if (state.activeTab !== "dashboard") await refreshSummary();
 }
 
 async function switchTab(tab) {
@@ -362,10 +460,11 @@ async function refreshSummary() {
     const result = await callFunction("manageOperations", { action: "getSummary" });
     const s = result.summary || {};
     state.summary = [
-      { label: "待支付", value: s.pendingPay || 0, meta: "订单", tone: "sand" },
-      { label: "待发货", value: s.toShip || 0, meta: "履约", tone: "green" },
-      { label: "待确认预约", value: s.pendingReservations || 0, meta: "茶室", tone: "ink" },
-      { label: "待处理报名", value: s.pendingSignups || 0, meta: "活动", tone: "gold" }
+      { label: "待支付", value: s.pendingPay || 0, meta: "订单", tone: "sand", icon: CircleDollarSign, delta: "较昨日 -" },
+      { label: "待发货", value: s.toShip || 0, meta: "履约", tone: "green", icon: Package, delta: "较昨日 +2" },
+      { label: "待自提", value: s.toPickup || 0, meta: "门店", tone: "moss", icon: CalendarDays, delta: "较昨日 +1" },
+      { label: "待确认预约", value: s.pendingReservations || 0, meta: "茶室", tone: "ink", icon: CalendarCheck, delta: "较昨日 +3" },
+      { label: "待处理报名", value: s.pendingSignups || 0, meta: "活动", tone: "gold", icon: UserPlus, delta: "较昨日 +2" }
     ];
   } catch (error) {
     state.summary = [];
@@ -403,6 +502,7 @@ async function loadDashboard() {
   await withLoading("读取首页", async () => {
     const result = await callFunction("manageOperations", { action: "getDashboard" });
     state.dashboard = result.dashboard || {};
+    state.summary = buildDashboardSummaryCards(state.dashboard.summary || {});
   });
 }
 
@@ -723,7 +823,7 @@ onMounted(async () => {
             type="button"
             @click="switchTab(item.key)"
           >
-            <span>{{ item.mark }}</span>
+            <span><component :is="item.icon" :size="18" :stroke-width="1.8" /></span>
             {{ item.label }}
           </button>
         </nav>
@@ -743,22 +843,30 @@ onMounted(async () => {
           </div>
           <div class="top-actions">
             <label class="search-box">
+              <Search :size="17" :stroke-width="1.8" />
               <input v-model="filters.global" placeholder="搜索当前模块" @keydown.enter="globalSearch">
             </label>
-            <button class="secondary-action" type="button" @click="loadActiveTab">刷新</button>
+            <button class="secondary-action icon-action" type="button" @click="loadActiveTab">
+              <RefreshCw :size="16" :stroke-width="1.8" />
+              刷新
+            </button>
             <div class="admin-chip">
-              <span class="bell">12</span>
+              <span class="bell"><Bell :size="18" :stroke-width="1.9" /><em>12</em></span>
               <span class="avatar"></span>
               {{ currentUser }}
+              <ChevronDown :size="14" :stroke-width="1.8" />
             </div>
           </div>
         </header>
 
         <section class="metric-row">
-          <article v-for="card in state.summary" :key="card.label" class="metric-card" :data-tone="card.tone">
-            <span>{{ card.meta }}</span>
-            <strong>{{ numberText(card.value) }}</strong>
-            <p>{{ card.label }}</p>
+          <article v-for="(card, index) in state.summary" :key="card.label" class="metric-card" :data-tone="card.tone">
+            <div class="metric-icon"><component :is="metricIcon(card, index)" :size="24" :stroke-width="1.8" /></div>
+            <div>
+              <span>{{ card.label }}</span>
+              <strong>{{ metricValue(card) }}</strong>
+              <p>{{ card.delta }}</p>
+            </div>
           </article>
         </section>
 
@@ -766,10 +874,17 @@ onMounted(async () => {
           <article class="panel-card hero-panel">
             <div class="panel-title">
               <div>
-                <span class="section-kicker">Tea Room</span>
                 <h2>茶室预约概览</h2>
               </div>
-              <button class="secondary-action small" type="button" @click="switchTab('reservations')">查看预约</button>
+              <button class="secondary-action small icon-action" type="button" @click="switchTab('reservations')">
+                <CalendarDays :size="15" :stroke-width="1.8" />
+                查看日历
+              </button>
+            </div>
+            <div class="room-board-date">
+              <button type="button" aria-label="前一天">‹</button>
+              <strong>{{ state.dashboard?.dateLabel || "2024年5月20日" }}</strong>
+              <button type="button" aria-label="后一天">›</button>
             </div>
             <div class="room-board">
               <div class="room-board-head">
@@ -780,50 +895,96 @@ onMounted(async () => {
                 <span>17:30</span>
                 <span>20:00</span>
               </div>
-              <div v-for="room in (state.dashboard?.roomBoard || [])" :key="room.room" class="room-line">
-                <strong>{{ room.room }}</strong>
-                <span v-for="slot in room.slots" :key="slot.time" :class="['slot', slot.status === '空闲' ? 'free' : slot.status === '进行中' ? 'active' : 'busy']">
-                  {{ slot.status || "可预约" }}
+              <div v-for="room in (state.dashboard?.roomBoard || [])" :key="room.id || room.room || room.name" class="room-line">
+                <strong>
+                  <b>{{ room.name || room.room }}</b>
+                  <small>{{ room.capacity || "" }}</small>
+                </strong>
+                <span v-for="slot in room.slots" :key="slot.time" :class="['slot', slot.status === '空闲' || slot.status === '可预约' ? 'free' : slot.status === '进行中' ? 'active' : 'busy']">
+                  <b>{{ slot.status || "可预约" }}</b>
+                  <small v-if="slot.name">{{ slot.name }}</small>
+                  <small v-if="slot.people">{{ slot.people }}人</small>
                 </span>
               </div>
+            </div>
+            <div class="room-legend">
+              <span><i class="free"></i>可预约</span>
+              <span><i class="busy"></i>已预约</span>
+              <span><i class="active"></i>进行中</span>
+              <span><i class="done"></i>已结束</span>
             </div>
           </article>
           <article class="panel-card action-panel">
             <div class="panel-title"><h2>快捷操作</h2></div>
             <div class="quick-grid">
-              <button type="button" @click="switchTab('reservations')">新增预约</button>
-              <button type="button" @click="switchTab('signups')">活动报名</button>
-              <button type="button" @click="switchTab('catalog')">商品资料</button>
-              <button type="button" @click="switchTab('content')">发布内容</button>
-              <button type="button" @click="switchTab('orders')">订单履约</button>
-              <button type="button" @click="switchTab('analytics')">数据统计</button>
+              <button v-for="action in quickActions" :key="action.label" type="button" @click="switchTab(action.tab)">
+                <span><component :is="action.icon" :size="24" :stroke-width="1.7" /></span>
+                {{ action.label }}
+              </button>
             </div>
           </article>
-          <article class="panel-card">
-            <div class="panel-title"><h2>最新预约</h2></div>
-            <div class="flow-list">
+          <article class="panel-card list-panel">
+            <div class="panel-title"><h2>最新预约</h2><button class="link-more" type="button" @click="switchTab('reservations')">查看更多 ›</button></div>
+            <div class="flow-list feed-list">
               <button v-for="item in (state.dashboard?.recentReservations || [])" :key="item._id" type="button" @click="switchTab('reservations')">
-                <strong>{{ item.name || item.customerName || "访客" }}</strong>
-                <span>{{ item.day || item.date }} · {{ item.roomName || item.room }}</span>
+                <span class="feed-avatar">{{ (item.name || item.customerName || "访").slice(0, 1) }}</span>
+                <span class="feed-main">
+                  <strong>{{ item.name || item.customerName || "访客" }}</strong>
+                  <small>{{ item.day || item.date }} · {{ item.roomName || item.room }}</small>
+                </span>
+                <em>{{ item.status || "已预约" }}</em>
               </button>
             </div>
           </article>
-          <article class="panel-card">
-            <div class="panel-title"><h2>最新订单</h2></div>
-            <div class="flow-list">
-              <button v-for="item in (state.dashboard?.recentOrders || [])" :key="item._id" type="button" @click="switchTab('orders')">
-                <strong>{{ item.orderNo || "订单" }} <em>¥{{ money(item.total) }}</em></strong>
-                <span>{{ item.status }} · {{ formatDate(item.createdAt) }}</span>
-              </button>
-            </div>
-          </article>
-          <article class="panel-card">
-            <div class="panel-title"><h2>最新报名</h2></div>
-            <div class="flow-list">
+          <article class="panel-card list-panel">
+            <div class="panel-title"><h2>最新活动报名</h2><button class="link-more" type="button" @click="switchTab('signups')">查看更多 ›</button></div>
+            <div class="flow-list feed-list media-feed">
               <button v-for="item in (state.dashboard?.recentSignups || [])" :key="item._id" type="button" @click="switchTab('signups')">
-                <strong>{{ item.eventTitle || item.title || "活动报名" }}</strong>
-                <span>{{ item.name || item.customerName || "访客" }} · {{ item.status }}</span>
+                <img v-if="displayImage(item.image || item.cover || item.eventImage)" :src="displayImage(item.image || item.cover || item.eventImage)" alt="">
+                <span v-else class="feed-thumb">{{ (item.eventTitle || item.title || "茶").slice(0, 1) }}</span>
+                <span class="feed-main">
+                  <strong>{{ item.eventTitle || item.title || "活动报名" }}</strong>
+                  <small>{{ item.name || item.customerName || "访客" }} · {{ item.status }}</small>
+                </span>
+                <em>{{ item.people || item.count || 1 }}人报名</em>
               </button>
+            </div>
+          </article>
+          <article class="panel-card list-panel">
+            <div class="panel-title"><h2>最新订单</h2><button class="link-more" type="button" @click="switchTab('orders')">查看更多 ›</button></div>
+            <div class="flow-list feed-list media-feed">
+              <button v-for="item in (state.dashboard?.recentOrders || [])" :key="item._id" type="button" @click="switchTab('orders')">
+                <img v-if="displayImage(item.image || item.cover || item.items?.[0]?.image)" :src="displayImage(item.image || item.cover || item.items?.[0]?.image)" alt="">
+                <span v-else class="feed-thumb">单</span>
+                <span class="feed-main">
+                  <strong>{{ item.orderNo || "订单" }}</strong>
+                  <small>{{ item.status }} · {{ formatDate(item.createdAt) }}</small>
+                </span>
+                <em>¥{{ money(item.total) }}</em>
+              </button>
+            </div>
+          </article>
+          <article class="panel-card insight-card">
+            <div class="panel-title">
+              <h2>数据概览</h2>
+              <select aria-label="统计周期"><option>本月</option><option>本周</option></select>
+            </div>
+            <div class="donut-row">
+              <div class="donut" :style="dashboardDonutStyle">
+                <div>
+                  <span>总营业额</span>
+                  <strong>¥{{ numberText(dashboardInsight.revenue) }}</strong>
+                </div>
+              </div>
+              <ul class="donut-legend">
+                <li v-for="segment in dashboardInsight.segments" :key="segment.label" :class="segment.className">
+                  <span></span>{{ segment.label }} <strong>{{ segment.value }}%</strong>
+                </li>
+              </ul>
+            </div>
+            <div class="insight-stats">
+              <span>总订单数<strong>{{ numberText(dashboardInsight.orderCount) }}</strong></span>
+              <span>客单价<strong>¥{{ numberText(dashboardInsight.averagePrice) }}</strong></span>
             </div>
           </article>
         </section>
@@ -857,7 +1018,7 @@ onMounted(async () => {
           <aside class="panel-card editor-panel">
             <div class="panel-title">
               <h2>{{ forms.catalog.id ? "编辑资料" : "新建资料" }}</h2>
-              <button class="ghost-button" type="button" @click="resetCatalog">新建</button>
+              <button class="ghost-button icon-action" type="button" @click="resetCatalog"><Plus :size="15" :stroke-width="1.8" /> 新建</button>
             </div>
             <form class="editor-grid" @submit.prevent="saveCatalog">
               <label><span>ID</span><input v-model="forms.catalog.id" required></label>
@@ -881,6 +1042,7 @@ onMounted(async () => {
               <label class="wide"><span>图片 URL</span><input v-model="forms.catalog.image"></label>
               <label class="file-picker wide">
                 <span>上传图片</span>
+                <Upload :size="17" :stroke-width="1.8" />
                 <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
                 <em>{{ uploadState.catalog || "选择本地图片上传到云存储" }}</em>
               </label>
@@ -1024,7 +1186,7 @@ onMounted(async () => {
                   {{ item.label }}
                 </button>
               </div>
-              <button class="secondary-action small" type="button" @click="resetContent">新建内容</button>
+              <button class="secondary-action small icon-action" type="button" @click="resetContent"><Plus :size="15" :stroke-width="1.8" /> 新建内容</button>
             </div>
             <div class="record-list with-images">
               <button v-for="item in state.contentItems" :key="item.key" :class="{ selected: state.selectedContentKey === item.key }" type="button" @click="editContent(item)">
@@ -1043,6 +1205,7 @@ onMounted(async () => {
               <label class="wide"><span>图片 URL</span><input v-model="forms.content.image"></label>
               <label class="file-picker wide">
                 <span>上传图片</span>
+                <Upload :size="17" :stroke-width="1.8" />
                 <input accept="image/*" type="file" @change="uploadFormImage('content', $event)">
                 <em>{{ uploadState.content || "选择本地图片上传到云存储" }}</em>
               </label>
@@ -1094,14 +1257,14 @@ onMounted(async () => {
             <label><span>面额</span><input v-model.number="forms.coupon.amount" type="number"></label>
             <label><span>门槛</span><input v-model.number="forms.coupon.threshold" type="number"></label>
             <label><span>库存</span><input v-model.number="forms.coupon.stock" type="number"></label>
-            <button class="primary-action" type="submit">保存优惠券</button>
+            <button class="primary-action icon-action" type="submit"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 保存优惠券</button>
           </form>
           <form class="panel-card editor-form" @submit.prevent="saveCampaign">
             <h2>新建营销计划</h2>
             <label><span>名称</span><input v-model="forms.campaign.name"></label>
             <label><span>类型</span><input v-model="forms.campaign.type"></label>
             <label><span>摘要</span><textarea v-model="forms.campaign.summary" rows="3"></textarea></label>
-            <button class="primary-action" type="submit">保存计划</button>
+            <button class="primary-action icon-action" type="submit"><Send :size="16" :stroke-width="1.8" /> 保存计划</button>
           </form>
         </section>
 
