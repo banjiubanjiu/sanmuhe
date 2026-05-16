@@ -1786,6 +1786,7 @@ async function writeExportAuditLog(caller, event, sourceAction, label, page = {}
   await writeAdminAuditLog(caller, "exportCsv", {
     sourceAction,
     label,
+    reason: cleanText(event.exportReason || event.reason, 200),
     status: cleanText(event.status, 30),
     hasKeyword: Boolean(cleanText(event.keyword, 80)),
     total: Number(page.total || 0),
@@ -2418,6 +2419,11 @@ exports.main = async (event = {}) => {
     requirePermission(role, actionPermissions[action]);
     if (event.exportAll) {
       requirePermission(role, "export.read");
+      const exportReason = cleanText(event.exportReason || event.reason, 200);
+      if (!exportReason) {
+        return { ok: false, message: "导出 CSV 需填写原因" };
+      }
+      event.exportReason = exportReason;
     }
     const status = cleanText(event.status, 30);
     const keyword = cleanText(event.keyword, 80);

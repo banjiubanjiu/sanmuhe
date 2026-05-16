@@ -1658,6 +1658,8 @@ async function fetchExportRows({ action, rowsKey, label, payload = {} }) {
   if (!hasPermission("export.read")) {
     throw new Error("当前角色无权导出数据");
   }
+  const exportReason = await promptActionReason(`导出${label} CSV`);
+  if (!exportReason) return null;
   let rows = [];
   let page = 1;
   let pageCount = 1;
@@ -1666,6 +1668,7 @@ async function fetchExportRows({ action, rowsKey, label, payload = {} }) {
       action,
       ...payload,
       exportAll: true,
+      exportReason,
       page,
       pageSize: EXPORT_PAGE_SIZE
     });
@@ -1692,6 +1695,7 @@ async function exportOrders() {
         keyword: filters.orderKeyword
       }
     });
+    if (!rows) return;
     downloadCsv(csvFilename("orders"), [
       { label: "订单号", value: (item) => item.orderNo || item._id },
       { label: "状态", value: (item) => item.status || "" },
@@ -1716,6 +1720,7 @@ async function exportAfterSales() {
         keyword: filters.afterSaleKeyword
       }
     });
+    if (!rows) return;
     downloadCsv(csvFilename("after-sales"), [
       { label: "订单号", value: (item) => item.orderNo || item._id },
       { label: "售后状态", value: (item) => item.afterSaleStatus || item.afterSale?.status || "" },
@@ -1742,6 +1747,7 @@ async function exportReservations() {
         keyword: filters.reservationKeyword
       }
     });
+    if (!rows) return;
     downloadCsv(csvFilename("reservations"), [
       { label: "茶室", value: (item) => item.roomName || item.room || "" },
       { label: "客户", value: (item) => item.name || item.customerName || "" },
@@ -1766,6 +1772,7 @@ async function exportSignups() {
         keyword: filters.signupKeyword
       }
     });
+    if (!rows) return;
     downloadCsv(csvFilename("signups"), [
       { label: "活动", value: (item) => item.eventTitle || item.title || "" },
       { label: "客户", value: (item) => item.name || item.customerName || "" },
@@ -1788,6 +1795,7 @@ async function exportCustomers() {
         keyword: filters.customerKeyword
       }
     });
+    if (!rows) return;
     downloadCsv(csvFilename("customers"), [
       { label: "标识", value: (item) => item.openid || item.id || "" },
       { label: "姓名", value: (item) => item.name || "" },
@@ -1812,6 +1820,7 @@ async function exportInventoryLogs() {
         keyword: filters.inventoryKeyword
       }
     });
+    if (!rows) return;
     downloadCsv(csvFilename("inventory-logs"), [
       { label: "时间", value: (item) => formatDate(item.createdAt) },
       { label: "商品", value: (item) => item.itemName || item.itemId || "" },
@@ -1838,6 +1847,7 @@ async function exportAuditLogs() {
         keyword: filters.auditKeyword
       }
     });
+    if (!rows) return;
     downloadCsv(csvFilename("audit-logs"), [
       { label: "时间", value: (item) => formatDate(item.createdAt) },
       { label: "动作", value: (item) => item.action || "" },
@@ -1860,6 +1870,7 @@ async function exportNotificationLogs() {
         keyword: filters.notificationKeyword
       }
     });
+    if (!rows) return;
     downloadCsv(csvFilename("notification-logs"), [
       { label: "时间", value: (item) => formatDate(item.createdAt) },
       { label: "类型", value: (item) => item.kind || "" },
