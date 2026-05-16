@@ -11,6 +11,58 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
+function cleanId(value, prefix) {
+  const raw = cleanText(value, 80)
+    .replace(/[^\w-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return raw || `${prefix}-${Date.now()}`;
+}
+
+function toDate(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (value.$date) {
+    return toDate(value.$date);
+  }
+  if (value.seconds) {
+    return new Date(value.seconds * 1000);
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dateKey(value) {
+  const date = toDate(value);
+  if (!date) {
+    return "";
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function todayKey() {
+  return dateKey(new Date());
+}
+
+function isActiveOrder(order) {
+  return order && order.status !== "已取消" && order.payStatus !== "cancelled" && order.payStatus !== "expired";
+}
+
+function isRevenueOrder(order) {
+  return isActiveOrder(order) && (order.payStatus === "paid" || ["待发货", "待自提", "已发货", "已完成"].includes(order.status));
+}
+
+function number(value) {
+  return Math.max(0, Number(value) || 0);
+}
+
 function parseList(value) {
   return String(value || "")
     .split(/[\s,;]+/)
@@ -103,6 +155,45 @@ async function ensureCollection(name) {
   }
 }
 
+async function readCollection(collection, options = {}) {
+  await ensureCollection(collection);
+  let query = db.collection(collection);
+  if (options.where) {
+    query = query.where(options.where);
+  }
+  if (options.orderBy) {
+    query = query.orderBy(options.orderBy, options.order || "desc");
+  }
+  const result = await query.limit(options.limit || 100).get();
+  return result.data || [];
+}
+
+async function findRecord(collection, field, value) {
+  await ensureCollection(collection);
+  const result = await db.collection(collection).where({ [field]: value }).limit(1).get();
+  return result.data && result.data[0] ? result.data[0] : null;
+}
+
+async function upsertRecord(collection, identityField, identityValue, data) {
+  await ensureCollection(collection);
+  const existing = await findRecord(collection, identityField, identityValue);
+  if (existing) {
+    await db.collection(collection).doc(existing._id).update({
+      data: Object.assign({}, data, {
+        updatedAt: db.serverDate()
+      })
+    });
+    return { created: false, _id: existing._id };
+  }
+  const addResult = await db.collection(collection).add({
+    data: Object.assign({}, data, {
+      createdAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    })
+  });
+  return { created: true, _id: addResult._id };
+}
+
 async function releaseInventory(locks) {
   for (const lock of locks || []) {
     if (!lock.docId || lock.quantity <= 0) {
@@ -136,6 +227,8 @@ function matchesKeyword(item, keyword) {
     item.consignee,
     item.room,
     item.title,
+    item.eventTitle,
+    item.openid,
     item.status
   ].join(" ");
   return haystack.indexOf(keyword) >= 0;
@@ -151,7 +244,7 @@ async function listCollection(collection, status, keyword) {
   const result = await db.collection(collection)
     .where(where)
     .orderBy("createdAt", "desc")
-    .limit(100)
+    .limit(200)
     .get();
 
   return (result.data || []).filter((item) => matchesKeyword(item, keyword));
@@ -330,6 +423,383 @@ async function getSummary() {
   };
 }
 
+function summarizeOrders(orders) {
+  const today = todayKey();
+  const month = today.slice(0, 7);
+  const activeOrders = orders.filter(isActiveOrder);
+  const revenueOrders = orders.filter(isRevenueOrder);
+  return {
+    todayOrders: orders.filter((order) => dateKey(order.createdAt) === today).length,
+    pendingPay: orders.filter((order) => order.status === "待支付").length,
+    toShip: orders.filter((order) => order.status === "待发货").length,
+    toPickup: orders.filter((order) => order.status === "待自提").length,
+    afterSale: orders.filter((order) => /退款|售后|异常/.test(String(order.status || ""))).length,
+    activeOrders: activeOrders.length,
+    todayOrderAmount: revenueOrders
+      .filter((order) => dateKey(order.createdAt) === today)
+      .reduce((sum, order) => sum + number(order.total), 0),
+    monthRevenue: revenueOrders
+      .filter((order) => dateKey(order.createdAt).slice(0, 7) === month)
+      .reduce((sum, order) => sum + number(order.total), 0),
+    totalRevenue: revenueOrders.reduce((sum, order) => sum + number(order.total), 0)
+  };
+}
+
+function summarizeCustomers(orders, reservations, signups) {
+  const customers = {};
+
+  function keyFor(record) {
+    return record._openid || record.openid || record.phone || record.name || record._id;
+  }
+
+  function ensureCustomer(record) {
+    const key = keyFor(record);
+    if (!customers[key]) {
+      customers[key] = {
+        id: key,
+        openid: record._openid || record.openid || "",
+        name: record.consignee || record.name || "",
+        phone: record.phone || "",
+        orders: 0,
+        reservations: 0,
+        signups: 0,
+        spend: 0,
+        lastSeenAt: record.createdAt || null,
+        tags: []
+      };
+    }
+    const customer = customers[key];
+    if (!customer.name && (record.consignee || record.name)) {
+      customer.name = record.consignee || record.name;
+    }
+    if (!customer.phone && record.phone) {
+      customer.phone = record.phone;
+    }
+    const last = toDate(customer.lastSeenAt);
+    const next = toDate(record.createdAt);
+    if (next && (!last || next > last)) {
+      customer.lastSeenAt = record.createdAt;
+    }
+    return customer;
+  }
+
+  orders.forEach((order) => {
+    const customer = ensureCustomer(order);
+    customer.orders += 1;
+    if (isRevenueOrder(order)) {
+      customer.spend += number(order.total);
+    }
+  });
+  reservations.forEach((reservation) => {
+    ensureCustomer(reservation).reservations += 1;
+  });
+  signups.forEach((signup) => {
+    ensureCustomer(signup).signups += 1;
+  });
+
+  return Object.values(customers).map((customer) => {
+    const tags = [];
+    if (customer.spend >= 3000) {
+      tags.push("高价值");
+    }
+    if (customer.reservations > 0) {
+      tags.push("茶室");
+    }
+    if (customer.signups > 0) {
+      tags.push("活动");
+    }
+    if (!tags.length) {
+      tags.push("新客");
+    }
+    return Object.assign({}, customer, { tags });
+  }).sort((a, b) => b.spend - a.spend || String(b.lastSeenAt || "").localeCompare(String(a.lastSeenAt || "")));
+}
+
+function buildRoomBoard(rooms, reservations) {
+  const today = todayKey();
+  const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
+  const todayReservations = reservations.filter((item) => item.day === today && item.status !== "已取消");
+  return (rooms.length ? rooms : [{ id: "room-001", name: "三木合茶室", capacity: "2-6人" }]).slice(0, 5).map((room) => ({
+    id: room.id,
+    name: room.name,
+    capacity: room.capacity || "",
+    slots: slots.map((slot) => {
+      const booked = todayReservations.find((item) => item.roomId === room.id && item.time === slot);
+      return booked ? {
+        time: slot,
+        status: booked.status || "已预约",
+        name: booked.name || "",
+        people: booked.people || 1
+      } : {
+        time: slot,
+        status: "可预约"
+      };
+    })
+  }));
+}
+
+async function getDashboard() {
+  const [orders, reservations, signups, events, rooms] = await Promise.all([
+    readCollection("orders", { orderBy: "createdAt", limit: 100 }),
+    readCollection("reservations", { orderBy: "createdAt", limit: 100 }),
+    readCollection("event_signups", { orderBy: "createdAt", limit: 100 }),
+    readCollection("events", { orderBy: "sort", order: "asc", limit: 50 }),
+    readCollection("rooms", { orderBy: "sort", order: "asc", limit: 50 })
+  ]);
+  const orderSummary = summarizeOrders(orders);
+  const today = todayKey();
+  const customers = summarizeCustomers(orders, reservations, signups);
+
+  return {
+    ok: true,
+    dashboard: {
+      summary: Object.assign({}, orderSummary, {
+        todayReservations: reservations.filter((item) => item.day === today && item.status !== "已取消").length,
+        todaySignups: signups.filter((item) => dateKey(item.createdAt) === today && item.status !== "已取消").length,
+        newCustomers: customers.filter((item) => dateKey(item.lastSeenAt) === today).length,
+        pendingReservations: reservations.filter((item) => item.status === "待确认").length,
+        pendingSignups: signups.filter((item) => item.status === "待确认").length
+      }),
+      roomBoard: buildRoomBoard(rooms, reservations),
+      recentReservations: reservations.slice(0, 6),
+      recentSignups: signups.slice(0, 6),
+      recentOrders: orders.slice(0, 6),
+      events: events.slice(0, 5).filter((item) => item.deleted !== true && item.visible !== false)
+    }
+  };
+}
+
+async function listCustomers(event) {
+  const keyword = cleanText(event.keyword, 80);
+  const [orders, reservations, signups] = await Promise.all([
+    readCollection("orders", { orderBy: "createdAt", limit: 200 }),
+    readCollection("reservations", { orderBy: "createdAt", limit: 200 }),
+    readCollection("event_signups", { orderBy: "createdAt", limit: 200 })
+  ]);
+  const customers = summarizeCustomers(orders, reservations, signups).filter((customer) => {
+    if (!keyword) {
+      return true;
+    }
+    return [customer.name, customer.phone, customer.openid, customer.tags.join(" ")]
+      .join(" ")
+      .includes(keyword);
+  });
+  return {
+    ok: true,
+    customers,
+    summary: {
+      totalCustomers: customers.length,
+      activeCustomers: customers.filter((item) => item.orders + item.reservations + item.signups > 0).length,
+      totalSpend: customers.reduce((sum, item) => sum + item.spend, 0)
+    }
+  };
+}
+
+function addTrend(bucket, key, amount) {
+  if (!bucket[key]) {
+    bucket[key] = 0;
+  }
+  bucket[key] += amount;
+}
+
+async function getAnalytics() {
+  const [orders, reservations, signups] = await Promise.all([
+    readCollection("orders", { orderBy: "createdAt", limit: 300 }),
+    readCollection("reservations", { orderBy: "createdAt", limit: 300 }),
+    readCollection("event_signups", { orderBy: "createdAt", limit: 300 })
+  ]);
+  const revenueOrders = orders.filter(isRevenueOrder);
+  const byDay = {};
+  const byCategory = {};
+  const topItems = {};
+
+  revenueOrders.forEach((order) => {
+    addTrend(byDay, dateKey(order.createdAt), number(order.total));
+    (order.items || []).forEach((item) => {
+      const category = item.type === "drink" ? "茶饮" : "茶品";
+      addTrend(byCategory, category, number(item.lineTotal || item.price * item.quantity));
+      if (!topItems[item.name]) {
+        topItems[item.name] = { name: item.name, type: category, amount: 0, count: 0 };
+      }
+      topItems[item.name].amount += number(item.lineTotal || item.price * item.quantity);
+      topItems[item.name].count += number(item.quantity);
+    });
+  });
+
+  const trend = Object.keys(byDay).sort().slice(-14).map((key) => ({ date: key, amount: byDay[key] }));
+  const categories = Object.keys(byCategory).map((name) => ({ name, amount: byCategory[name] }))
+    .sort((a, b) => b.amount - a.amount);
+
+  return {
+    ok: true,
+    analytics: {
+      summary: {
+        revenue: revenueOrders.reduce((sum, order) => sum + number(order.total), 0),
+        reservations: reservations.filter((item) => item.status !== "已取消").length,
+        signups: signups.filter((item) => item.status !== "已取消").length,
+        averageOrder: revenueOrders.length
+          ? Math.round(revenueOrders.reduce((sum, order) => sum + number(order.total), 0) / revenueOrders.length)
+          : 0
+      },
+      trend,
+      categories,
+      topItems: Object.values(topItems).sort((a, b) => b.amount - a.amount).slice(0, 10)
+    }
+  };
+}
+
+function normalizeContent(data = {}) {
+  return {
+    key: cleanId(data.key, "content"),
+    type: cleanText(data.type, 30) || "home_carousel",
+    title: cleanText(data.title, 80),
+    subtitle: cleanText(data.subtitle, 100),
+    summary: cleanText(data.summary, 300),
+    image: cleanText(data.image, 240),
+    linkType: cleanText(data.linkType, 30),
+    linkTarget: cleanText(data.linkTarget, 120),
+    visible: data.visible !== false,
+    sort: Math.max(0, Number(data.sort) || 0)
+  };
+}
+
+async function listContent(event) {
+  const type = cleanText(event.type, 30);
+  const items = await readCollection("content_blocks", {
+    where: type && type !== "all" ? { type } : undefined,
+    orderBy: "sort",
+    order: "asc",
+    limit: 100
+  });
+  return { ok: true, items };
+}
+
+async function saveContent(event) {
+  const payload = normalizeContent(event.data || {});
+  await upsertRecord("content_blocks", "key", payload.key, payload);
+  return { ok: true, key: payload.key };
+}
+
+async function deleteContent(event) {
+  const key = cleanText(event.key || event.id, 80);
+  if (!key) {
+    return { ok: false, message: "缺少内容 key" };
+  }
+  const existing = await findRecord("content_blocks", "key", key);
+  if (!existing) {
+    return { ok: false, message: "内容不存在" };
+  }
+  await db.collection("content_blocks").doc(existing._id).update({
+    data: {
+      visible: false,
+      updatedAt: db.serverDate()
+    }
+  });
+  return { ok: true };
+}
+
+function normalizeCoupon(data = {}) {
+  return {
+    id: cleanId(data.id, "coupon"),
+    name: cleanText(data.name, 80),
+    amount: Math.max(0, Number(data.amount) || 0),
+    threshold: Math.max(0, Number(data.threshold) || 0),
+    stock: Math.max(0, Number(data.stock) || 0),
+    issued: Math.max(0, Number(data.issued) || 0),
+    startAt: cleanText(data.startAt, 30),
+    endAt: cleanText(data.endAt, 30),
+    status: cleanText(data.status, 20) || "领取中",
+    visible: data.visible !== false
+  };
+}
+
+function normalizeCampaign(data = {}) {
+  return {
+    id: cleanId(data.id, "campaign"),
+    name: cleanText(data.name, 80),
+    type: cleanText(data.type, 30) || "banner",
+    summary: cleanText(data.summary, 200),
+    startAt: cleanText(data.startAt, 30),
+    endAt: cleanText(data.endAt, 30),
+    status: cleanText(data.status, 20) || "进行中",
+    visible: data.visible !== false
+  };
+}
+
+async function listMarketing() {
+  const [coupons, campaigns] = await Promise.all([
+    readCollection("coupons", { orderBy: "createdAt", limit: 100 }),
+    readCollection("marketing_campaigns", { orderBy: "createdAt", limit: 100 })
+  ]);
+  return { ok: true, coupons, campaigns };
+}
+
+async function saveCoupon(event) {
+  const payload = normalizeCoupon(event.data || {});
+  if (!payload.name || !payload.amount) {
+    return { ok: false, message: "请填写优惠券名称和面额" };
+  }
+  await upsertRecord("coupons", "id", payload.id, payload);
+  return { ok: true, id: payload.id };
+}
+
+async function saveCampaign(event) {
+  const payload = normalizeCampaign(event.data || {});
+  if (!payload.name) {
+    return { ok: false, message: "请填写营销计划名称" };
+  }
+  await upsertRecord("marketing_campaigns", "id", payload.id, payload);
+  return { ok: true, id: payload.id };
+}
+
+async function disableRecord(collection, id) {
+  const existing = await findRecord(collection, "id", cleanText(id, 80));
+  if (!existing) {
+    return { ok: false, message: "数据不存在" };
+  }
+  await db.collection(collection).doc(existing._id).update({
+    data: {
+      visible: false,
+      status: "已停用",
+      updatedAt: db.serverDate()
+    }
+  });
+  return { ok: true };
+}
+
+function normalizeSettings(data = {}) {
+  return {
+    key: "store",
+    brandName: cleanText(data.brandName, 80) || "三木合 SANMUHE TEA",
+    slogan: cleanText(data.slogan, 120),
+    storeName: cleanText(data.storeName, 80),
+    address: cleanText(data.address, 160),
+    phone: cleanText(data.phone, 40),
+    businessHours: cleanText(data.businessHours, 160),
+    reservationRule: cleanText(data.reservationRule, 300),
+    paymentEnabled: data.paymentEnabled !== false,
+    pickupEnabled: data.pickupEnabled !== false,
+    shippingEnabled: data.shippingEnabled !== false,
+    orderNoticeEnabled: data.orderNoticeEnabled !== false,
+    reservationNoticeEnabled: data.reservationNoticeEnabled !== false,
+    eventNoticeEnabled: data.eventNoticeEnabled !== false
+  };
+}
+
+async function getSettings() {
+  const existing = await findRecord("store_settings", "key", "store");
+  return {
+    ok: true,
+    settings: existing || normalizeSettings({})
+  };
+}
+
+async function updateSettings(event) {
+  const payload = normalizeSettings(event.data || {});
+  await upsertRecord("store_settings", "key", "store", payload);
+  return { ok: true, settings: payload };
+}
+
 exports.main = async (event = {}) => {
   try {
     const caller = await getCaller();
@@ -341,6 +811,9 @@ exports.main = async (event = {}) => {
 
     if (action === "getSummary") {
       return await getSummary();
+    }
+    if (action === "getDashboard") {
+      return await getDashboard();
     }
     if (action === "listOrders") {
       const orders = await listCollection("orders", status, keyword);
@@ -368,6 +841,42 @@ exports.main = async (event = {}) => {
     }
     if (action === "updateSignup") {
       return await updateSignup(event);
+    }
+    if (action === "listCustomers") {
+      return await listCustomers(event);
+    }
+    if (action === "getAnalytics") {
+      return await getAnalytics();
+    }
+    if (action === "listContent") {
+      return await listContent(event);
+    }
+    if (action === "saveContent") {
+      return await saveContent(event);
+    }
+    if (action === "deleteContent") {
+      return await deleteContent(event);
+    }
+    if (action === "listMarketing") {
+      return await listMarketing();
+    }
+    if (action === "saveCoupon") {
+      return await saveCoupon(event);
+    }
+    if (action === "saveCampaign") {
+      return await saveCampaign(event);
+    }
+    if (action === "disableCoupon") {
+      return await disableRecord("coupons", event.id);
+    }
+    if (action === "disableCampaign") {
+      return await disableRecord("marketing_campaigns", event.id);
+    }
+    if (action === "getSettings") {
+      return await getSettings();
+    }
+    if (action === "updateSettings") {
+      return await updateSettings(event);
     }
 
     return { ok: false, message: "未知后台操作" };

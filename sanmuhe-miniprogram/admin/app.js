@@ -8,16 +8,26 @@ const state = {
   app: null,
   auth: null,
   user: null,
-  tab: "catalog",
+  tab: "dashboard",
   collection: "tea_products",
+  contentType: "home_carousel",
   catalogItems: [],
   orders: [],
   reservations: [],
   signups: [],
+  customers: [],
+  contentItems: [],
+  coupons: [],
+  campaigns: [],
+  dashboard: null,
+  analytics: null,
+  settings: null,
   selectedCatalogId: "",
   selectedOrderId: "",
   selectedReservationId: "",
   selectedSignupId: "",
+  selectedCustomerId: "",
+  selectedContentKey: "",
   toastTimer: null
 };
 
@@ -29,17 +39,24 @@ const collectionLabels = {
 };
 
 const tabTitles = {
-  catalog: "商品与内容",
-  orders: "订单履约",
+  dashboard: "后台首页",
+  catalog: "商品管理",
+  orders: "订单管理",
   reservations: "茶室预约",
-  signups: "活动报名"
+  signups: "茶事活动",
+  customers: "用户管理",
+  content: "内容管理",
+  analytics: "数据统计",
+  marketing: "营销中心",
+  settings: "设置管理"
 };
 
 const panelKeywords = {
   catalog: "#catalogKeyword",
   orders: "#orderKeyword",
   reservations: "#reservationKeyword",
-  signups: "#signupKeyword"
+  signups: "#signupKeyword",
+  customers: "#customerKeyword"
 };
 
 function $(selector) {
@@ -257,14 +274,19 @@ function setActiveTab(tab) {
     button.classList.toggle("active", button.dataset.tab === tab);
   });
   $all(".panel").forEach((panel) => panel.classList.remove("active-panel"));
-  $(`#${tab}Panel`).classList.add("active-panel");
+  const panel = $(`#${tab}Panel`);
+  if (panel) {
+    panel.classList.add("active-panel");
+  }
   setText("#pageTitle", tabTitles[tab]);
   syncGlobalKeyword();
 }
 
 async function loadActiveTab() {
   await refreshSummary();
-  if (state.tab === "catalog") {
+  if (state.tab === "dashboard") {
+    await loadDashboard();
+  } else if (state.tab === "catalog") {
     await loadCatalog();
   } else if (state.tab === "orders") {
     await loadOrders();
@@ -272,6 +294,16 @@ async function loadActiveTab() {
     await loadReservations();
   } else if (state.tab === "signups") {
     await loadSignups();
+  } else if (state.tab === "customers") {
+    await loadCustomers();
+  } else if (state.tab === "content") {
+    await loadContent();
+  } else if (state.tab === "analytics") {
+    await loadAnalytics();
+  } else if (state.tab === "marketing") {
+    await loadMarketing();
+  } else if (state.tab === "settings") {
+    await loadSettings();
   }
 }
 
@@ -308,6 +340,80 @@ function bindImageFallback(scope) {
       image.replaceWith(fallback);
     }, { once: true });
   });
+}
+
+function compactRows(items, getTitle, getMeta, getEnd) {
+  if (!items || !items.length) {
+    return emptyState("暂无记录", "有新数据后会自动出现");
+  }
+  return items.map((item) => `
+    <div class="compact-row">
+      <div>
+        <strong>${escapeHtml(getTitle(item))}</strong>
+        <span>${escapeHtml(getMeta(item))}</span>
+      </div>
+      <em>${escapeHtml(getEnd(item))}</em>
+    </div>
+  `).join("");
+}
+
+async function loadDashboard() {
+  $("#roomBoard").innerHTML = loadingState("读取经营首页");
+  try {
+    const result = await callFunction("manageOperations", { action: "getDashboard" });
+    state.dashboard = result.dashboard || {};
+    renderDashboard();
+  } catch (error) {
+    $("#roomBoard").innerHTML = errorState(error.message);
+    showToast(error.message || "经营首页加载失败");
+  }
+}
+
+function renderDashboard() {
+  const dashboard = state.dashboard || {};
+  const board = dashboard.roomBoard || [];
+  $("#roomBoard").innerHTML = board.length ? `
+    <div class="room-board-table">
+      <div class="room-board-head">
+        <span>茶室</span>
+        <span>10:00</span>
+        <span>12:30</span>
+        <span>15:00</span>
+        <span>17:30</span>
+        <span>20:00</span>
+      </div>
+      ${board.map((room) => `
+        <div class="room-board-row">
+          <div><strong>${escapeHtml(room.name)}</strong><small>${escapeHtml(room.capacity || "")}</small></div>
+          ${(room.slots || []).map((slot) => `
+            <div class="slot ${slot.status === "可预约" ? "open" : "booked"}">
+              <strong>${escapeHtml(slot.status)}</strong>
+              <span>${escapeHtml(slot.name ? `${slot.name} ${slot.people || 1}人` : "")}</span>
+            </div>
+          `).join("")}
+        </div>
+      `).join("")}
+    </div>
+  ` : emptyState("暂无茶室排期", "配置茶室和预约后显示");
+
+  $("#recentReservations").innerHTML = compactRows(
+    dashboard.recentReservations || [],
+    (item) => item.room || item.name || "茶室预约",
+    (item) => `${item.day || ""} ${item.time || ""} · ${item.name || ""}`,
+    (item) => item.status || "待确认"
+  );
+  $("#recentSignups").innerHTML = compactRows(
+    dashboard.recentSignups || [],
+    (item) => item.title || item.eventId || "活动报名",
+    (item) => `${item.name || ""} · ${item.phone || ""}`,
+    (item) => item.status || "待确认"
+  );
+  $("#recentOrders").innerHTML = compactRows(
+    dashboard.recentOrders || [],
+    (item) => item.orderNo || item._id || "订单",
+    (item) => `${item.consignee || item.name || ""} · ¥${money(item.total)}`,
+    (item) => item.status || "待支付"
+  );
 }
 
 function getItemName(item) {
@@ -1011,6 +1117,390 @@ async function updateRecordStatus(type, id, status) {
   }
 }
 
+async function loadCustomers() {
+  setTableLoading("#customersTable", "读取用户");
+  setDetailEmpty("#customerDetail", "选择用户", "查看消费、预约和活动概览");
+  try {
+    const result = await callFunction("manageOperations", {
+      action: "listCustomers",
+      keyword: $("#customerKeyword").value.trim()
+    });
+    state.customers = result.customers || [];
+    if (state.selectedCustomerId && !state.customers.some((item) => item.id === state.selectedCustomerId)) {
+      state.selectedCustomerId = "";
+    }
+    renderCustomers();
+  } catch (error) {
+    $("#customersTable").innerHTML = errorState(error.message);
+    showToast(error.message || "用户加载失败");
+  }
+}
+
+function renderCustomers() {
+  if (!state.customers.length) {
+    $("#customersTable").innerHTML = emptyState("暂无用户", "订单、预约或报名产生后自动聚合用户");
+    setDetailEmpty("#customerDetail", "暂无用户", "当前筛选条件下没有用户");
+    return;
+  }
+  $("#customersTable").innerHTML = `
+    <table class="data-table">
+      <thead><tr><th style="width: 26%">用户</th><th>标签</th><th>累计消费</th><th>订单</th><th>预约</th><th>活动</th><th>最近活跃</th></tr></thead>
+      <tbody>
+        ${state.customers.map((item) => `
+          <tr class="${state.selectedCustomerId === item.id ? "selected" : ""}" data-id="${escapeHtml(item.id)}">
+            <td data-label="用户"><div class="cell-title"><strong>${escapeHtml(item.name || "未留姓名")}</strong><span>${escapeHtml(item.phone || item.openid || "-")}</span></div></td>
+            <td data-label="标签">${(item.tags || []).map((tag) => `<span class="mini-tag">${escapeHtml(tag)}</span>`).join("")}</td>
+            <td data-label="累计消费" class="numeric">¥${money(item.spend)}</td>
+            <td data-label="订单">${escapeHtml(item.orders || 0)}</td>
+            <td data-label="预约">${escapeHtml(item.reservations || 0)}</td>
+            <td data-label="活动">${escapeHtml(item.signups || 0)}</td>
+            <td data-label="最近活跃">${escapeHtml(formatDate(item.lastSeenAt))}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+  $all("#customersTable tbody tr").forEach((row) => {
+    row.addEventListener("click", () => {
+      state.selectedCustomerId = row.dataset.id;
+      renderCustomers();
+      renderCustomerDetail();
+    });
+  });
+  if (!state.selectedCustomerId) {
+    state.selectedCustomerId = state.customers[0].id;
+  }
+  renderCustomerDetail();
+}
+
+function renderCustomerDetail() {
+  const customer = state.customers.find((item) => item.id === state.selectedCustomerId);
+  if (!customer) {
+    setDetailEmpty("#customerDetail", "选择用户", "查看用户画像");
+    return;
+  }
+  clearDetailEmpty("#customerDetail");
+  $("#customerDetail").innerHTML = `
+    <div class="detail-head">
+      <div><span class="eyebrow">Customer</span><strong>${escapeHtml(customer.name || "未留姓名")}</strong></div>
+      ${statusBadge(customer.spend >= 3000 ? "高价值" : "正常")}
+    </div>
+    <div class="detail-list">
+      <div class="detail-row"><span>手机号</span><div>${escapeHtml(customer.phone || "-")}</div></div>
+      <div class="detail-row"><span>OpenID</span><div>${escapeHtml(customer.openid || "-")}</div></div>
+      <div class="detail-row"><span>累计消费</span><strong class="numeric">¥${money(customer.spend)}</strong></div>
+      <div class="detail-row"><span>订单数</span><div>${escapeHtml(customer.orders || 0)}</div></div>
+      <div class="detail-row"><span>预约数</span><div>${escapeHtml(customer.reservations || 0)}</div></div>
+      <div class="detail-row"><span>活动数</span><div>${escapeHtml(customer.signups || 0)}</div></div>
+      <div class="detail-row"><span>标签</span><div>${(customer.tags || []).map((tag) => `<span class="mini-tag">${escapeHtml(tag)}</span>`).join("")}</div></div>
+    </div>
+  `;
+}
+
+const contentLabels = {
+  home_carousel: "首页轮播",
+  event_note: "活动说明",
+  member_card: "会员背景",
+  service: "客服内容"
+};
+
+async function loadContent() {
+  setTableLoading("#contentTable", "读取内容");
+  try {
+    const result = await callFunction("manageOperations", {
+      action: "listContent",
+      type: state.contentType
+    });
+    state.contentItems = result.items || [];
+    if (state.selectedContentKey && !state.contentItems.some((item) => item.key === state.selectedContentKey)) {
+      state.selectedContentKey = "";
+    }
+    renderContent();
+    if (!state.selectedContentKey) {
+      resetContentForm();
+    }
+  } catch (error) {
+    $("#contentTable").innerHTML = errorState(error.message);
+    showToast(error.message || "内容加载失败");
+  }
+}
+
+function renderContent() {
+  if (!state.contentItems.length) {
+    $("#contentTable").innerHTML = emptyState(`暂无${contentLabels[state.contentType] || "内容"}`, "新建后会被前台读取");
+    return;
+  }
+  $("#contentTable").innerHTML = `
+    <table class="data-table">
+      <thead><tr><th style="width: 34%">内容</th><th>图片</th><th>链接</th><th>排序</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>
+        ${state.contentItems.map((item) => `
+          <tr class="${state.selectedContentKey === item.key ? "selected" : ""}" data-key="${escapeHtml(item.key)}">
+            <td data-label="内容"><div class="cell-title"><strong>${escapeHtml(item.title || item.key)}</strong><span>${escapeHtml(item.subtitle || item.summary || "")}</span></div></td>
+            <td data-label="图片">${item.image ? `<img class="thumb" src="${escapeHtml(displayImage(item.image))}" alt="">` : "-"}</td>
+            <td data-label="链接">${escapeHtml([item.linkType, item.linkTarget].filter(Boolean).join(": ") || "-")}</td>
+            <td data-label="排序">${escapeHtml(item.sort || 0)}</td>
+            <td data-label="状态">${statusBadge(item.visible === false ? "已停用" : "已发布")}</td>
+            <td data-label="操作"><button class="btn btn-small btn-secondary" data-action="edit" type="button">编辑</button></td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+  $all("#contentTable tbody tr").forEach((row) => {
+    row.addEventListener("click", () => {
+      const item = state.contentItems.find((entry) => entry.key === row.dataset.key);
+      if (item) {
+        fillContentForm(item);
+        renderContent();
+      }
+    });
+  });
+  bindImageFallback("#contentTable");
+}
+
+function resetContentForm() {
+  const form = $("#contentForm");
+  form.reset();
+  state.selectedContentKey = "";
+  form.elements.visible.checked = true;
+  setText("#contentFormTitle", `新建${contentLabels[state.contentType] || "内容"}`);
+  $("#contentModeBadge").outerHTML = `<span id="contentModeBadge" class="status-badge neutral">草稿</span>`;
+  setText("#contentMessage", "");
+  renderContent();
+}
+
+function fillContentForm(item) {
+  const form = $("#contentForm");
+  state.selectedContentKey = item.key || "";
+  form.elements.key.value = item.key || "";
+  form.elements.title.value = item.title || "";
+  form.elements.subtitle.value = item.subtitle || "";
+  form.elements.image.value = item.image || "";
+  form.elements.summary.value = item.summary || "";
+  form.elements.linkType.value = item.linkType || "";
+  form.elements.linkTarget.value = item.linkTarget || "";
+  form.elements.sort.value = item.sort || 0;
+  form.elements.visible.checked = item.visible !== false;
+  setText("#contentFormTitle", item.title || item.key || "内容");
+  $("#contentModeBadge").outerHTML = statusBadge(item.visible === false ? "已停用" : "已发布");
+  $("#contentForm .detail-head .status-badge").id = "contentModeBadge";
+  setText("#contentMessage", "");
+}
+
+function readContentForm() {
+  const form = $("#contentForm");
+  return {
+    key: form.elements.key.value.trim(),
+    type: state.contentType,
+    title: form.elements.title.value.trim(),
+    subtitle: form.elements.subtitle.value.trim(),
+    image: form.elements.image.value.trim(),
+    summary: form.elements.summary.value.trim(),
+    linkType: form.elements.linkType.value.trim(),
+    linkTarget: form.elements.linkTarget.value.trim(),
+    sort: Number(form.elements.sort.value || 0),
+    visible: form.elements.visible.checked
+  };
+}
+
+async function saveContent(event) {
+  event.preventDefault();
+  const data = readContentForm();
+  if (!data.title) {
+    setText("#contentMessage", "请填写标题");
+    return;
+  }
+  try {
+    const result = await callFunction("manageOperations", { action: "saveContent", data });
+    state.selectedContentKey = result.key || data.key;
+    setText("#contentMessage", "已保存");
+    showToast("内容已保存");
+    await loadContent();
+  } catch (error) {
+    setText("#contentMessage", error.message || "保存失败");
+  }
+}
+
+async function deleteCurrentContent() {
+  const key = $("#contentForm").elements.key.value.trim();
+  if (!key) {
+    setText("#contentMessage", "请先选择内容");
+    return;
+  }
+  await callFunction("manageOperations", { action: "deleteContent", key });
+  showToast("内容已停用");
+  await loadContent();
+}
+
+async function loadAnalytics() {
+  $("#analyticsGrid").innerHTML = loadingState("读取统计");
+  try {
+    const result = await callFunction("manageOperations", { action: "getAnalytics" });
+    state.analytics = result.analytics || {};
+    renderAnalytics();
+  } catch (error) {
+    $("#analyticsGrid").innerHTML = errorState(error.message);
+    showToast(error.message || "统计加载失败");
+  }
+}
+
+function renderAnalytics() {
+  const analytics = state.analytics || {};
+  const summary = analytics.summary || {};
+  const maxTrend = Math.max(1, ...(analytics.trend || []).map((item) => Number(item.amount || 0)));
+  const maxCategory = Math.max(1, ...(analytics.categories || []).map((item) => Number(item.amount || 0)));
+  $("#analyticsGrid").innerHTML = `
+    <section class="board-card metric-card"><span>销售额</span><strong>¥${money(summary.revenue)}</strong><small>真实支付或已履约订单</small></section>
+    <section class="board-card metric-card"><span>预约量</span><strong>${escapeHtml(summary.reservations || 0)}</strong><small>未取消茶室预约</small></section>
+    <section class="board-card metric-card"><span>活动报名</span><strong>${escapeHtml(summary.signups || 0)}</strong><small>未取消报名</small></section>
+    <section class="board-card metric-card"><span>客单价</span><strong>¥${money(summary.averageOrder)}</strong><small>按有效订单计算</small></section>
+    <section class="board-card chart-card wide-chart">
+      <div class="board-head"><strong>近期销售趋势</strong></div>
+      <div class="bar-chart">${(analytics.trend || []).map((item) => `<div style="height:${Math.max(8, Number(item.amount || 0) / maxTrend * 100)}%"><span>${escapeHtml(item.date.slice(5))}</span></div>`).join("")}</div>
+    </section>
+    <section class="board-card chart-card">
+      <div class="board-head"><strong>品类销售额</strong></div>
+      <div class="rank-list">${(analytics.categories || []).map((item) => `<div><span>${escapeHtml(item.name)}</span><strong>¥${money(item.amount)}</strong><em style="width:${Number(item.amount || 0) / maxCategory * 100}%"></em></div>`).join("") || emptyState("暂无销售", "支付回调完成后显示")}</div>
+    </section>
+    <section class="board-card wide-chart">
+      <div class="board-head"><strong>热销商品 / 活动排行</strong></div>
+      <table class="data-table embedded-table"><thead><tr><th>名称</th><th>类型</th><th>销售额</th><th>销量/报名数</th></tr></thead><tbody>${(analytics.topItems || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.type)}</td><td>¥${money(item.amount)}</td><td>${escapeHtml(item.count)}</td></tr>`).join("")}</tbody></table>
+    </section>
+  `;
+}
+
+async function loadMarketing() {
+  $("#couponTable").innerHTML = loadingState("读取优惠券");
+  $("#campaignTable").innerHTML = loadingState("读取营销计划");
+  try {
+    const result = await callFunction("manageOperations", { action: "listMarketing" });
+    state.coupons = result.coupons || [];
+    state.campaigns = result.campaigns || [];
+    renderMarketing();
+  } catch (error) {
+    $("#couponTable").innerHTML = errorState(error.message);
+    $("#campaignTable").innerHTML = errorState(error.message);
+  }
+}
+
+function renderMarketing() {
+  $("#couponTable").innerHTML = renderSimpleMarketingTable(state.coupons, "coupon");
+  $("#campaignTable").innerHTML = renderSimpleMarketingTable(state.campaigns, "campaign");
+  $all("[data-marketing-type]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const list = button.dataset.marketingType === "coupon" ? state.coupons : state.campaigns;
+      const item = list.find((entry) => entry.id === button.dataset.id);
+      if (item) {
+        fillMarketingForm(button.dataset.marketingType, item);
+      }
+    });
+  });
+}
+
+function renderSimpleMarketingTable(items, type) {
+  if (!items.length) {
+    return emptyState(type === "coupon" ? "暂无优惠券" : "暂无营销计划", "新建后保存到云数据库");
+  }
+  return `
+    <table class="data-table embedded-table">
+      <thead><tr><th>名称</th><th>状态</th><th>${type === "coupon" ? "面额/门槛" : "类型"}</th><th>操作</th></tr></thead>
+      <tbody>${items.map((item) => `
+        <tr>
+          <td><div class="cell-title"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.id)}</span></div></td>
+          <td>${statusBadge(item.visible === false ? "已停用" : item.status)}</td>
+          <td>${type === "coupon" ? `¥${money(item.amount)} / 满 ${money(item.threshold)}` : escapeHtml(item.type || "-")}</td>
+          <td><button class="btn btn-small btn-secondary" data-marketing-type="${type}" data-id="${escapeHtml(item.id)}" type="button">编辑</button></td>
+        </tr>
+      `).join("")}</tbody>
+    </table>
+  `;
+}
+
+function fillMarketingForm(type, item) {
+  const form = type === "coupon" ? $("#couponForm") : $("#campaignForm");
+  Object.keys(item).forEach((key) => {
+    if (form.elements[key]) {
+      if (form.elements[key].type === "checkbox") {
+        form.elements[key].checked = item[key] !== false;
+      } else {
+        form.elements[key].value = item[key] === undefined ? "" : item[key];
+      }
+    }
+  });
+}
+
+function readForm(form) {
+  const data = {};
+  Array.from(form.elements).forEach((element) => {
+    if (!element.name) {
+      return;
+    }
+    data[element.name] = element.type === "checkbox" ? element.checked : element.value;
+  });
+  return data;
+}
+
+async function saveCoupon(event) {
+  event.preventDefault();
+  const result = await callFunction("manageOperations", {
+    action: "saveCoupon",
+    data: readForm($("#couponForm"))
+  });
+  showToast(`优惠券已保存：${result.id}`);
+  await loadMarketing();
+}
+
+async function saveCampaign(event) {
+  event.preventDefault();
+  const result = await callFunction("manageOperations", {
+    action: "saveCampaign",
+    data: readForm($("#campaignForm"))
+  });
+  showToast(`营销计划已保存：${result.id}`);
+  await loadMarketing();
+}
+
+function resetMarketingForm(type) {
+  const form = type === "coupon" ? $("#couponForm") : $("#campaignForm");
+  form.reset();
+  if (form.elements.visible) {
+    form.elements.visible.checked = true;
+  }
+}
+
+async function loadSettings() {
+  try {
+    const result = await callFunction("manageOperations", { action: "getSettings" });
+    state.settings = result.settings || {};
+    fillSettingsForm(state.settings);
+  } catch (error) {
+    showToast(error.message || "设置加载失败");
+  }
+}
+
+function fillSettingsForm(settings) {
+  const form = $("#settingsForm");
+  Object.keys(settings || {}).forEach((key) => {
+    if (!form.elements[key]) {
+      return;
+    }
+    if (form.elements[key].type === "checkbox") {
+      form.elements[key].checked = settings[key] !== false;
+    } else {
+      form.elements[key].value = settings[key] || "";
+    }
+  });
+}
+
+async function saveSettings(event) {
+  event.preventDefault();
+  const settings = readForm($("#settingsForm"));
+  await callFunction("manageOperations", { action: "updateSettings", data: settings });
+  showToast("设置已保存");
+  await loadSettings();
+}
+
 function bindEvents() {
   $("#loginForm").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1037,6 +1527,12 @@ function bindEvents() {
   $all(".nav-tabs button").forEach((button) => {
     button.addEventListener("click", async () => {
       setActiveTab(button.dataset.tab);
+      await loadActiveTab();
+    });
+  });
+  $all("[data-jump-tab]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      setActiveTab(button.dataset.jumpTab);
       await loadActiveTab();
     });
   });
@@ -1095,13 +1591,37 @@ function bindEvents() {
       loadSignups();
     }
   });
+  $("#reloadCustomersBtn").addEventListener("click", loadCustomers);
+  $("#customerKeyword").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      syncGlobalKeyword();
+      loadCustomers();
+    }
+  });
+  $all("#contentTabs button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      state.contentType = button.dataset.type;
+      state.selectedContentKey = "";
+      $all("#contentTabs button").forEach((item) => item.classList.toggle("active", item === button));
+      await loadContent();
+    });
+  });
+  $("#newContentBtn").addEventListener("click", resetContentForm);
+  $("#contentForm").addEventListener("submit", saveContent);
+  $("#deleteContentBtn").addEventListener("click", deleteCurrentContent);
+  $("#reloadAnalyticsBtn").addEventListener("click", loadAnalytics);
+  $("#couponForm").addEventListener("submit", saveCoupon);
+  $("#campaignForm").addEventListener("submit", saveCampaign);
+  $("#newCouponBtn").addEventListener("click", () => resetMarketingForm("coupon"));
+  $("#newCampaignBtn").addEventListener("click", () => resetMarketingForm("campaign"));
+  $("#settingsForm").addEventListener("submit", saveSettings);
 }
 
 async function enterDashboard() {
   showView("dashboard");
   const label = state.user && (state.user.username || state.user.email || state.user.uid) || "管理员";
   setText("#userLine", label);
-  setActiveTab("catalog");
+  setActiveTab("dashboard");
   await loadActiveTab();
 }
 

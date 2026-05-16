@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>三木合经营后台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260515-ops2">
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./styles.css?v=20260516-ops3">
     <script src="https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js"></script>
   </head>
   <body>
@@ -42,10 +43,16 @@
             <strong>Operations</strong>
           </div>
           <nav class="nav-tabs" aria-label="后台导航">
-            <button class="active" data-tab="catalog" type="button">商品与内容</button>
-            <button data-tab="orders" type="button">订单履约</button>
+            <button class="active" data-tab="dashboard" type="button">首页</button>
             <button data-tab="reservations" type="button">茶室预约</button>
             <button data-tab="signups" type="button">活动报名</button>
+            <button data-tab="orders" type="button">订单管理</button>
+            <button data-tab="customers" type="button">用户管理</button>
+            <button data-tab="catalog" type="button">商品管理</button>
+            <button data-tab="content" type="button">内容管理</button>
+            <button data-tab="analytics" type="button">数据统计</button>
+            <button data-tab="marketing" type="button">营销中心</button>
+            <button data-tab="settings" type="button">设置管理</button>
           </nav>
           <div class="sidebar-footer">
             <div class="operator" id="userLine">管理员</div>
@@ -67,7 +74,52 @@
 
           <section class="summary-grid" id="summaryGrid" aria-label="经营概览"></section>
 
-          <section id="catalogPanel" class="panel active-panel">
+          <section id="dashboardPanel" class="panel active-panel">
+            <div class="dashboard-layout">
+              <section class="board-card wide">
+                <div class="board-head">
+                  <div>
+                    <span class="eyebrow">Today</span>
+                    <strong>茶室预约概览</strong>
+                  </div>
+                  <button class="btn btn-secondary btn-small" data-jump-tab="reservations" type="button">查看预约</button>
+                </div>
+                <div id="roomBoard" class="room-board"></div>
+              </section>
+              <section class="board-card">
+                <div class="board-head">
+                  <div>
+                    <span class="eyebrow">Actions</span>
+                    <strong>快捷操作</strong>
+                  </div>
+                </div>
+                <div class="quick-admin-grid">
+                  <button data-jump-tab="reservations" type="button">新增预约</button>
+                  <button data-jump-tab="signups" type="button">活动报名</button>
+                  <button data-jump-tab="catalog" type="button">商品资料</button>
+                  <button data-jump-tab="content" type="button">发布内容</button>
+                  <button data-jump-tab="orders" type="button">订单履约</button>
+                  <button data-jump-tab="analytics" type="button">数据统计</button>
+                </div>
+              </section>
+            </div>
+            <div class="dashboard-lists">
+              <section class="board-card">
+                <div class="board-head"><strong>最新预约</strong><button class="link-button" data-jump-tab="reservations" type="button">查看更多</button></div>
+                <div id="recentReservations" class="compact-list"></div>
+              </section>
+              <section class="board-card">
+                <div class="board-head"><strong>最新活动报名</strong><button class="link-button" data-jump-tab="signups" type="button">查看更多</button></div>
+                <div id="recentSignups" class="compact-list"></div>
+              </section>
+              <section class="board-card">
+                <div class="board-head"><strong>最新订单</strong><button class="link-button" data-jump-tab="orders" type="button">查看更多</button></div>
+                <div id="recentOrders" class="compact-list"></div>
+              </section>
+            </div>
+          </section>
+
+          <section id="catalogPanel" class="panel">
             <div class="panel-toolbar">
               <div class="segmented" id="collectionTabs">
                 <button class="active" data-collection="tea_products" type="button">茶叶</button>
@@ -134,6 +186,19 @@
             </div>
           </section>
 
+          <section id="customersPanel" class="panel">
+            <div class="panel-toolbar">
+              <div class="filter-row">
+                <input id="customerKeyword" class="compact-input" placeholder="姓名、手机号、标签、OpenID">
+              </div>
+              <button id="reloadCustomersBtn" class="btn btn-secondary" type="button">刷新用户</button>
+            </div>
+            <div class="split-view">
+              <section class="table-shell" id="customersTable"></section>
+              <aside class="detail-panel" id="customerDetail"></aside>
+            </div>
+          </section>
+
           <section id="ordersPanel" class="panel">
             <div class="panel-toolbar">
               <div class="filter-row">
@@ -194,11 +259,128 @@
               <aside class="detail-panel" id="signupDetail"></aside>
             </div>
           </section>
+
+          <section id="contentPanel" class="panel">
+            <div class="panel-toolbar">
+              <div class="segmented" id="contentTabs">
+                <button class="active" data-type="home_carousel" type="button">首页轮播</button>
+                <button data-type="event_note" type="button">活动说明</button>
+                <button data-type="member_card" type="button">会员背景</button>
+                <button data-type="service" type="button">客服内容</button>
+              </div>
+              <button id="newContentBtn" class="btn btn-primary" type="button">新建内容</button>
+            </div>
+            <div class="split-view">
+              <section class="table-shell" id="contentTable"></section>
+              <aside class="detail-panel">
+                <form id="contentForm" class="editor-form">
+                  <div class="detail-head">
+                    <div>
+                      <span class="eyebrow">Content</span>
+                      <strong id="contentFormTitle">新建内容</strong>
+                    </div>
+                    <span id="contentModeBadge" class="status-badge neutral">草稿</span>
+                  </div>
+                  <label><span>Key</span><input name="key" placeholder="自动生成或自定义"></label>
+                  <label><span>标题</span><input name="title"></label>
+                  <label><span>副标题</span><input name="subtitle"></label>
+                  <label><span>图片 URL</span><input name="image"></label>
+                  <label><span>说明</span><textarea name="summary" rows="4"></textarea></label>
+                  <div class="two-col">
+                    <label><span>链接类型</span><input name="linkType" placeholder="product / event / page"></label>
+                    <label><span>链接目标</span><input name="linkTarget"></label>
+                  </div>
+                  <div class="two-col">
+                    <label><span>排序</span><input name="sort" type="number" min="0"></label>
+                    <label class="check-line content-visible"><input name="visible" type="checkbox" checked> 发布</label>
+                  </div>
+                  <div class="form-actions">
+                    <button class="btn btn-primary" type="submit">保存内容</button>
+                    <button class="btn btn-danger" id="deleteContentBtn" type="button">停用</button>
+                  </div>
+                  <p id="contentMessage" class="form-message" role="status"></p>
+                </form>
+              </aside>
+            </div>
+          </section>
+
+          <section id="analyticsPanel" class="panel">
+            <div class="panel-toolbar">
+              <div class="segmented static">
+                <button class="active" type="button">近 14 天</button>
+                <button type="button">本月</button>
+                <button type="button">经营全量</button>
+              </div>
+              <button id="reloadAnalyticsBtn" class="btn btn-secondary" type="button">刷新统计</button>
+            </div>
+            <div id="analyticsGrid" class="analytics-grid"></div>
+          </section>
+
+          <section id="marketingPanel" class="panel">
+            <div class="marketing-grid">
+              <section class="board-card">
+                <div class="board-head"><strong>优惠券管理</strong><button id="newCouponBtn" class="btn btn-secondary btn-small" type="button">新建券</button></div>
+                <div id="couponTable" class="table-shell embedded"></div>
+              </section>
+              <section class="board-card">
+                <div class="board-head"><strong>营销计划</strong><button id="newCampaignBtn" class="btn btn-secondary btn-small" type="button">新建计划</button></div>
+                <div id="campaignTable" class="table-shell embedded"></div>
+              </section>
+            </div>
+            <div class="marketing-forms">
+              <form id="couponForm" class="board-card editor-form">
+                <strong>优惠券编辑</strong>
+                <div class="two-col"><label><span>ID</span><input name="id"></label><label><span>名称</span><input name="name"></label></div>
+                <div class="two-col"><label><span>面额</span><input name="amount" type="number" min="0"></label><label><span>门槛</span><input name="threshold" type="number" min="0"></label></div>
+                <div class="two-col"><label><span>库存</span><input name="stock" type="number" min="0"></label><label><span>状态</span><input name="status" placeholder="领取中"></label></div>
+                <div class="two-col"><label><span>开始</span><input name="startAt"></label><label><span>结束</span><input name="endAt"></label></div>
+                <label class="check-line"><input name="visible" type="checkbox" checked> 可见</label>
+                <button class="btn btn-primary" type="submit">保存优惠券</button>
+              </form>
+              <form id="campaignForm" class="board-card editor-form">
+                <strong>营销计划编辑</strong>
+                <div class="two-col"><label><span>ID</span><input name="id"></label><label><span>名称</span><input name="name"></label></div>
+                <div class="two-col"><label><span>类型</span><input name="type" placeholder="banner / group / member"></label><label><span>状态</span><input name="status" placeholder="进行中"></label></div>
+                <label><span>说明</span><textarea name="summary" rows="3"></textarea></label>
+                <div class="two-col"><label><span>开始</span><input name="startAt"></label><label><span>结束</span><input name="endAt"></label></div>
+                <label class="check-line"><input name="visible" type="checkbox" checked> 可见</label>
+                <button class="btn btn-primary" type="submit">保存计划</button>
+              </form>
+            </div>
+          </section>
+
+          <section id="settingsPanel" class="panel">
+            <form id="settingsForm" class="settings-grid">
+              <section class="board-card editor-form">
+                <strong>基础信息</strong>
+                <label><span>品牌名称</span><input name="brandName"></label>
+                <label><span>品牌标语</span><input name="slogan"></label>
+                <label><span>门店名称</span><input name="storeName"></label>
+                <label><span>门店地址</span><input name="address"></label>
+              </section>
+              <section class="board-card editor-form">
+                <strong>运营规则</strong>
+                <label><span>联系电话</span><input name="phone"></label>
+                <label><span>营业时间</span><input name="businessHours"></label>
+                <label><span>预约规则</span><textarea name="reservationRule" rows="4"></textarea></label>
+              </section>
+              <section class="board-card editor-form">
+                <strong>开关设置</strong>
+                <label class="check-line"><input name="paymentEnabled" type="checkbox"> 微信支付</label>
+                <label class="check-line"><input name="pickupEnabled" type="checkbox"> 到店自提</label>
+                <label class="check-line"><input name="shippingEnabled" type="checkbox"> 快递配送</label>
+                <label class="check-line"><input name="orderNoticeEnabled" type="checkbox"> 订单通知</label>
+                <label class="check-line"><input name="reservationNoticeEnabled" type="checkbox"> 预约提醒</label>
+                <label class="check-line"><input name="eventNoticeEnabled" type="checkbox"> 活动通知</label>
+                <button class="btn btn-primary" type="submit">保存设置</button>
+              </section>
+            </form>
+          </section>
         </section>
       </section>
 
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </main>
-    <script src="./app.js?v=20260515-ops2"></script>
+    <script src="./app.js?v=20260516-ops3"></script>
   </body>
 </html>

@@ -5,7 +5,11 @@ function getFallbackCatalog() {
     drinks,
     teaProducts,
     rooms,
-    events
+    events,
+    content: {
+      homeSlides: []
+    },
+    settings: null
   };
 }
 
@@ -30,7 +34,9 @@ function enrichCatalog(catalog) {
     drinks: mergeById(source.drinks && source.drinks.length ? source.drinks : drinks, drinks),
     teaProducts: mergeById(source.teaProducts && source.teaProducts.length ? source.teaProducts : teaProducts, teaProducts),
     rooms: mergeById(source.rooms && source.rooms.length ? source.rooms : rooms, rooms),
-    events: mergeById(source.events && source.events.length ? source.events : events, events)
+    events: mergeById(source.events && source.events.length ? source.events : events, events),
+    content: source.content || { homeSlides: [] },
+    settings: source.settings || null
   };
 }
 
@@ -59,10 +65,7 @@ function getCatalog() {
 function listEvents() {
   return callCloud("listEvents")
     .then((result) => mergeById(result.events || events, events))
-    .catch(() => {
-      const customEvents = wx.getStorageSync("sanmuhe_custom_events") || [];
-      return customEvents.concat(events);
-    });
+    .catch(() => events);
 }
 
 function createOrder(payload) {
@@ -117,9 +120,10 @@ function joinEvent(payload) {
 
 function listMyRecords() {
   return callCloud("listMyRecords").catch(() => ({
-    orders: wx.getStorageSync("sanmuhe_orders") || [],
-    reservations: wx.getStorageSync("sanmuhe_reservations") || [],
-    signups: wx.getStorageSync("sanmuhe_event_signups") || []
+    orders: [],
+    reservations: [],
+    signups: [],
+    coupons: []
   }));
 }
 

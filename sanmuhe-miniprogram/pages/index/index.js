@@ -91,6 +91,25 @@ function buildSeasonRecommendations(products) {
   }));
 }
 
+function buildHomeSlides(contentSlides, fallbackSlides) {
+  const slides = Array.isArray(contentSlides) ? contentSlides : [];
+  const normalized = slides
+    .filter((item) => item && item.visible !== false && item.image)
+    .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+    .map((item, index) => ({
+      id: item.key || item.id || `content-slide-${index}`,
+      image: item.image,
+      titleTop: item.title || "",
+      titleBottom: item.subtitle || "",
+      descTop: item.summary || "",
+      descBottom: "",
+      seal: item.badge || "茶",
+      linkType: item.linkType || "",
+      linkTarget: item.linkTarget || ""
+    }));
+  return normalized.length ? normalized : fallbackSlides;
+}
+
 Page({
   data: {
     homeCatalog: normalizeCatalog({ drinks, teaProducts, rooms, events }, events),
@@ -165,8 +184,10 @@ Page({
       listEvents()
     ]).then(([catalogResult, eventList]) => {
       const homeCatalog = normalizeCatalog(catalogResult || {}, eventList);
+      const content = catalogResult && catalogResult.content || {};
       this.setData({
         homeCatalog,
+        heroSlides: buildHomeSlides(content.homeSlides, this.data.heroSlides),
         featuredDrink: homeCatalog.drinks[0] || drinks[0],
         featuredTea: homeCatalog.teaProducts[0] || teaProducts[0],
         featuredRoom: homeCatalog.rooms[0] || rooms[0],

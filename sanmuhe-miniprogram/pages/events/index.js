@@ -203,36 +203,12 @@ Page({
         showCancel: false,
         success: () => wx.switchTab({ url: "/pages/profile/index" })
       });
-    }).catch(() => {
-      const signups = wx.getStorageSync("sanmuhe_event_signups") || [];
-      const alreadyJoined = signups.some((item) => item.eventId === target.id);
-      if (alreadyJoined) {
-        wx.showToast({ title: "你已经报名过该活动", icon: "none" });
-        this.setData({ submitting: false });
-        return;
-      }
-      signups.unshift({
-        id: `JOIN${Date.now()}`,
-        eventId: target.id,
-        title: target.title,
-        date: target.date,
-        time: target.time,
-        place: target.place,
-        image: target.image,
-        name,
-        phone,
-        note,
-        createdAt: new Date().toISOString(),
-        status: "待确认"
-      });
-      wx.setStorageSync("sanmuhe_event_signups", signups);
-      this.markJoined(target.id);
+    }).catch((error) => {
       this.setData({ signupOpen: false, selectedEvent: null, submitting: false });
       wx.showModal({
-        title: "报名已提交",
-        content: "当前云服务不可用，报名已临时保存在本机。",
-        showCancel: false,
-        success: () => wx.switchTab({ url: "/pages/profile/index" })
+        title: "报名未提交",
+        content: error && error.message ? error.message : "当前云服务不可用，请稍后重试。为避免误以为门店已收到报名，本次没有保存为有效报名。",
+        showCancel: false
       });
     });
   },

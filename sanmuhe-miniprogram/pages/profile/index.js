@@ -92,6 +92,16 @@ function getRecentSignup(signups) {
   };
 }
 
+function getRecentOrders(orders) {
+  return orders.slice(0, 3).map((item) => ({
+    id: item.id,
+    title: item.displayId || item.orderNo || "订单",
+    total: item.total || 0,
+    status: item.status || "待支付",
+    meta: (item.items || []).map((line) => `${line.name} x${line.quantity}`).join("，") || item.deliveryText || ""
+  }));
+}
+
 Page({
   data: {
     user: defaultUser,
@@ -101,6 +111,7 @@ Page({
     orders: [],
     reservations: [],
     signups: [],
+    recentOrders: [],
     recentReservation: null,
     recentSignup: null,
     shippingAddress: ""
@@ -121,9 +132,11 @@ Page({
         reservations,
         signups,
         member: Object.assign({}, defaultMember, {
-          orders: orders.length
+          orders: orders.length,
+          coupons: Array.isArray(records.coupons) ? records.coupons.length : defaultMember.coupons
         }),
         orderShortcuts: buildOrderShortcuts(orders),
+        recentOrders: getRecentOrders(orders),
         recentReservation: getRecentReservation(reservations),
         recentSignup: getRecentSignup(signups)
       });
@@ -138,8 +151,46 @@ Page({
     wx.navigateTo({ url: "/pages/cloud-status/index" });
   },
 
-  handleOrderShortcut() {
-    wx.showToast({ title: "订单记录暂不展示", icon: "none" });
+  handleOrderShortcut(event) {
+    const key = event.currentTarget.dataset.key;
+    const orders = this.data.orders;
+    const filtered = orders.filter((order) => {
+      if (key === "pending") {
+        return order.status === "待支付" || order.payStatus === "pending";
+      }
+      if (key === "usable") {
+        return ["待发货", "待自提", "已发货", "待确认"].includes(order.status);
+      }
+      if (key === "afterSale") {
+        return /退款|售后|取消|异常/.test(String(order.status || ""));
+      }
+      return true;
+    });
+    if (!filtered.length) {
+      wx.showToast({ title: "暂无相关订单", icon: "none" });
+      return;
+    }
+    const latest = filtered[0];
+    wx.showModal({
+      title: latest.displayId || "订单记录",
+      content: `${latest.status || "待处理"}｜¥${latest.total || 0}\n${(latest.items || []).map((item) => `${item.name} x${item.quantity}`).join("，") || "订单明细以后台为准"}`,
+      showCancel: false
+    });
+  },
+
+  viewOrderRecord(event) {
+    const id = event.currentTarget.dataset.id;
+    const order = this.data.orders.find((item) => item.id === id || item.displayId === id || item.orderNo === id);
+    if (!order) {
+      wx.showToast({ title: "订单记录已更新", icon: "none" });
+      this.loadRecords();
+      return;
+    }
+    wx.showModal({
+      title: order.displayId || "订单记录",
+      content: `${order.status || "待处理"}｜¥${order.total || 0}\n${(order.items || []).map((item) => `${item.name} x${item.quantity}`).join("，") || "订单明细以后台为准"}`,
+      showCancel: false
+    });
   },
 
   handleService(event) {
@@ -157,7 +208,7 @@ Page({
       return;
     }
     if (action === "coupon") {
-      wx.showToast({ title: "暂无可用优惠券", icon: "none" });
+      wx.showToast({ title: this.data.member.coupons ? `${this.data.member.coupons} 张可用优惠券` : "暂无可用优惠券", icon: "none" });
       return;
     }
     if (action === "service") {

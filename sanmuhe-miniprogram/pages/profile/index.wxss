@@ -437,6 +437,61 @@
   font-weight: 500;
 }
 
+.order-record {
+  min-height: 112rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #eee9df;
+}
+
+.order-record:last-child {
+  border-bottom: 0;
+}
+
+.order-record > view:first-child {
+  min-width: 0;
+}
+
+.order-record-title {
+  overflow: hidden;
+  color: #111;
+  font-size: 28rpx;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-record-meta {
+  max-width: 430rpx;
+  margin-top: 8rpx;
+  overflow: hidden;
+  color: #746a5c;
+  font-size: 23rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-record-side {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.order-record-side text {
+  display: block;
+  color: #111;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.order-record-side view {
+  margin-top: 8rpx;
+  color: #4f7d43;
+  font-size: 23rpx;
+}
+
 .empty-card {
   margin-top: 20rpx;
   padding: 34rpx 24rpx;

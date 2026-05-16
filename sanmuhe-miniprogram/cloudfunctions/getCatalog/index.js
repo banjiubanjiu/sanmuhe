@@ -67,11 +67,40 @@ async function getCollectionData(collection, fallback) {
   }
 }
 
+async function getContentBlocks() {
+  try {
+    await db.createCollection("content_blocks");
+  } catch (error) {
+    // Existing collections are expected.
+  }
+  try {
+    const result = await db.collection("content_blocks")
+      .where({ visible: true })
+      .orderBy("sort", "asc")
+      .limit(50)
+      .get();
+    return result.data || [];
+  } catch (error) {
+    return [];
+  }
+}
+
+async function getStoreSettings() {
+  try {
+    const result = await db.collection("store_settings").where({ key: "store" }).limit(1).get();
+    return result.data && result.data[0] ? result.data[0] : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 exports.main = async () => {
-  const [cloudDrinks, cloudTeaProducts, cloudRooms] = await Promise.all([
+  const [cloudDrinks, cloudTeaProducts, cloudRooms, contentBlocks, storeSettings] = await Promise.all([
     getCollectionData("drinks", fallbackCatalog.drinks),
     getCollectionData("tea_products", fallbackCatalog.teaProducts),
-    getCollectionData("rooms", fallbackCatalog.rooms)
+    getCollectionData("rooms", fallbackCatalog.rooms),
+    getContentBlocks(),
+    getStoreSettings()
   ]);
 
   return {
@@ -79,7 +108,12 @@ exports.main = async () => {
     catalog: {
       drinks: cloudDrinks,
       teaProducts: cloudTeaProducts,
-      rooms: cloudRooms
+      rooms: cloudRooms,
+      content: {
+        homeSlides: contentBlocks.filter((item) => item.type === "home_carousel"),
+        blocks: contentBlocks
+      },
+      settings: storeSettings
     }
   };
 };

@@ -50,15 +50,12 @@ Page({
       }
       wx.showToast({ title: "已发布" });
       setTimeout(() => wx.navigateBack(), 450);
-    }).catch(() => {
-      const customEvents = wx.getStorageSync("sanmuhe_custom_events") || [];
-      customEvents.unshift(Object.assign({
-        id: `event-custom-${Date.now()}`,
-        status: "新发布"
-      }, payload));
-      wx.setStorageSync("sanmuhe_custom_events", customEvents);
-      wx.showToast({ title: "已发布" });
-      setTimeout(() => wx.navigateBack(), 450);
+    }).catch((error) => {
+      wx.showModal({
+        title: "活动未发布",
+        content: error && error.message ? error.message : "当前云服务不可用，请稍后重试。为避免前台展示无效活动，本次没有保存到本地。",
+        showCancel: false
+      });
     });
   }
 });

@@ -174,28 +174,11 @@ Page({
           wx.switchTab({ url: "/pages/profile/index" });
         }
       });
-    }).catch(() => {
-      const reservations = wx.getStorageSync("sanmuhe_reservations") || [];
-      reservations.unshift({
-        id: `RSV${Date.now()}`,
-        room: selectedRoom.name,
-        day: selectedDay,
-        time: selectedTime,
-        people,
-        name,
-        phone,
-        note,
-        status: "待确认"
-      });
-      wx.setStorageSync("sanmuhe_reservations", reservations);
+    }).catch((error) => {
       wx.showModal({
-        title: "预约已提交",
-        content: "预约已临时保存在本机，云端恢复后请重新提交确认。",
-        showCancel: false,
-        success: () => {
-          this.setData({ bookingOpen: false });
-          wx.switchTab({ url: "/pages/profile/index" });
-        }
+        title: "预约未提交",
+        content: error && error.message ? error.message : "当前云服务不可用，请稍后重试。为避免误以为门店已收到预约，本次没有保存为有效预约。",
+        showCancel: false
       });
     });
   }
