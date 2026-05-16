@@ -34,7 +34,7 @@ function decorateDays(days) {
 }
 
 function buildStoreRoom(room = {}) {
-  return Object.assign({}, room, storeRoom, {
+  return Object.assign({}, storeRoom, room, {
     id: room.id || storeRoom.id,
     price: room.price || storeRoom.price,
     status: room.status || storeRoom.status
@@ -76,7 +76,9 @@ Page({
 
   loadCatalog() {
     getCatalog().then((catalog) => {
-      const sourceRoom = catalog.rooms && catalog.rooms.length ? catalog.rooms[0] : rooms[0];
+      const sourceRoom = catalog.fromCloud
+        ? (catalog.rooms && catalog.rooms[0] ? catalog.rooms[0] : { id: "", name: "暂无可预约茶室", status: "已订满", price: 0 })
+        : (catalog.rooms && catalog.rooms.length ? catalog.rooms[0] : rooms[0]);
       this.setData({ selectedRoom: buildStoreRoom(sourceRoom) });
     });
   },

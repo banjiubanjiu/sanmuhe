@@ -260,3 +260,28 @@
   color: #fff;
   background: #4f7d43;
 }
+
+.product-empty {
+  min-height: 100vh;
+}
+
+.empty-copy {
+  min-height: 520rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18rpx;
+  color: #77736b;
+}
+
+.empty-title {
+  color: #163a24;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 42rpx;
+  font-weight: 600;
+}
+
+.empty-text {
+  font-size: 26rpx;
+}

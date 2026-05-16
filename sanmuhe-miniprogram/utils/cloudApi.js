@@ -9,7 +9,8 @@ function getFallbackCatalog() {
     content: {
       homeSlides: []
     },
-    settings: null
+    settings: null,
+    fromCloud: false
   };
 }
 
@@ -28,15 +29,24 @@ function mergeById(remoteItems, localItems) {
   return mergedRemote.concat(localOnly);
 }
 
-function enrichCatalog(catalog) {
+function normalizeCatalogList(source, key, localItems, trustRemote) {
+  if (trustRemote) {
+    return Array.isArray(source[key]) ? source[key] : [];
+  }
+  return mergeById(source[key] && source[key].length ? source[key] : localItems, localItems);
+}
+
+function enrichCatalog(catalog, options = {}) {
   const source = catalog || {};
+  const trustRemote = options.trustRemote === true;
   return {
-    drinks: mergeById(source.drinks && source.drinks.length ? source.drinks : drinks, drinks),
-    teaProducts: mergeById(source.teaProducts && source.teaProducts.length ? source.teaProducts : teaProducts, teaProducts),
-    rooms: mergeById(source.rooms && source.rooms.length ? source.rooms : rooms, rooms),
-    events: mergeById(source.events && source.events.length ? source.events : events, events),
+    drinks: normalizeCatalogList(source, "drinks", drinks, trustRemote),
+    teaProducts: normalizeCatalogList(source, "teaProducts", teaProducts, trustRemote),
+    rooms: normalizeCatalogList(source, "rooms", rooms, trustRemote),
+    events: normalizeCatalogList(source, "events", events, trustRemote),
     content: source.content || { homeSlides: [] },
-    settings: source.settings || null
+    settings: source.settings || null,
+    fromCloud: trustRemote
   };
 }
 
@@ -58,13 +68,13 @@ function callCloud(name, data) {
 
 function getCatalog() {
   return callCloud("getCatalog")
-    .then((result) => enrichCatalog(result.catalog || getFallbackCatalog()))
+    .then((result) => enrichCatalog(result.catalog || {}, { trustRemote: true }))
     .catch(() => enrichCatalog(getFallbackCatalog()));
 }
 
 function listEvents() {
   return callCloud("listEvents")
-    .then((result) => mergeById(result.events || events, events))
+    .then((result) => Array.isArray(result.events) ? result.events : [])
     .catch(() => events);
 }
 

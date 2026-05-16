@@ -1134,6 +1134,338 @@ textarea:focus {
   transform: translateY(0);
 }
 
+/* Design-spec alignment: light ink-wash operations console. */
+:root {
+  --bg: #f8f5ee;
+  --bg-2: #f1ede4;
+  --surface: rgba(255, 253, 248, 0.94);
+  --surface-2: #f6f2eb;
+  --ink: #191915;
+  --ink-soft: #3d3a32;
+  --muted: #827d72;
+  --line: #e6dfd4;
+  --line-strong: #d5cabb;
+  --brand: #536846;
+  --brand-strong: #3f5235;
+  --brand-soft: #edf2e9;
+  --accent: #b58a4e;
+  --accent-soft: #f4ead9;
+  --shadow: 0 16px 38px rgba(58, 49, 36, 0.08);
+  --shadow-soft: 0 8px 22px rgba(58, 49, 36, 0.055);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+}
+
+body {
+  background:
+    radial-gradient(circle at 86% 10%, rgba(202, 190, 166, 0.18), transparent 28%),
+    radial-gradient(circle at 8% 88%, rgba(83, 104, 70, 0.08), transparent 26%),
+    var(--bg);
+}
+
+.dashboard-view {
+  grid-template-columns: 216px minmax(0, 1fr);
+}
+
+.sidebar {
+  isolation: isolate;
+  overflow: hidden;
+  border-right: 1px solid rgba(213, 202, 187, 0.62);
+  background: linear-gradient(180deg, #fffdf8 0%, #f5f1e8 100%);
+  color: var(--ink);
+  box-shadow: 16px 0 38px rgba(74, 66, 52, 0.045);
+}
+
+.sidebar::before {
+  content: "";
+  position: absolute;
+  inset: auto -34px -24px -18px;
+  z-index: -1;
+  height: 292px;
+  background:
+    linear-gradient(180deg, rgba(248, 245, 238, 0), rgba(248, 245, 238, 0.96) 72%),
+    url("https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg") center bottom / cover;
+  filter: grayscale(1);
+  opacity: 0.28;
+}
+
+.sidebar-brand {
+  align-items: center;
+  justify-items: center;
+  border-bottom: 0;
+  padding: 8px 0 22px;
+}
+
+.sidebar-brand strong {
+  color: #171715;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: 8px;
+  line-height: 1.15;
+}
+
+.sidebar-brand span {
+  color: #3f3a31;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 5px;
+}
+
+.nav-tabs {
+  gap: 10px;
+}
+
+.nav-tabs button {
+  min-height: 50px;
+  border-radius: 8px;
+  color: #35342d;
+  font-size: 16px;
+  font-weight: 500;
+  padding: 0 18px;
+}
+
+.nav-tabs button:hover,
+.nav-tabs button:focus-visible {
+  border-color: rgba(83, 104, 70, 0.12);
+  background: rgba(83, 104, 70, 0.08);
+  color: var(--brand-strong);
+}
+
+.nav-tabs button.active {
+  background: linear-gradient(135deg, #5b704e, #3f5235);
+  color: #fffdf8;
+  box-shadow: 0 10px 22px rgba(63, 82, 53, 0.22);
+}
+
+.operator {
+  background: rgba(83, 104, 70, 0.08);
+  color: var(--brand-strong);
+}
+
+.btn-subtle {
+  border-color: rgba(83, 104, 70, 0.22);
+  background: rgba(255, 253, 248, 0.66);
+  color: var(--brand-strong);
+}
+
+.workspace {
+  padding: 30px 32px 36px;
+}
+
+.topbar {
+  min-height: 54px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.topbar h2 {
+  color: #171715;
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.eyebrow {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.admin-profile {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.notice-bell {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: #fff;
+  background: #c34839;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.admin-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, rgba(25, 25, 21, 0), rgba(25, 25, 21, 0.18)),
+    url("https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/profile-avatar.jpg") center / cover;
+  box-shadow: 0 6px 14px rgba(58, 49, 36, 0.12);
+}
+
+.summary-grid {
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.summary-card {
+  position: relative;
+  min-height: 132px;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  column-gap: 18px;
+  padding: 22px 24px;
+  border-color: rgba(213, 202, 187, 0.78);
+  background: linear-gradient(145deg, rgba(255, 253, 248, 0.96), rgba(250, 246, 239, 0.9));
+}
+
+.summary-card::before {
+  content: "";
+  grid-row: 1 / span 3;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(83, 104, 70, 0.22), rgba(83, 104, 70, 0.08) 62%, transparent 64%),
+    #f0ede6;
+}
+
+.summary-card span,
+.summary-card strong,
+.summary-card small {
+  grid-column: 2;
+}
+
+.summary-card span {
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.summary-card strong {
+  margin-top: 4px;
+  color: #12120f;
+  font-size: 31px;
+  font-weight: 500;
+}
+
+.summary-card small {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.summary-card.urgent {
+  border-color: rgba(181, 138, 78, 0.34);
+  background: linear-gradient(145deg, #fffdf8, #f9f1e5);
+}
+
+.board-card,
+.table-shell,
+.detail-panel,
+.panel-toolbar {
+  border-color: rgba(213, 202, 187, 0.82);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.92);
+  box-shadow: var(--shadow-soft);
+}
+
+.board-card {
+  padding: 22px;
+}
+
+.board-head strong,
+.board-card > strong,
+.detail-head strong {
+  color: #171715;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.quick-admin-grid button {
+  min-height: 108px;
+  border-color: transparent;
+  background: transparent;
+  color: #26251f;
+  font-weight: 500;
+}
+
+.quick-admin-grid button::before {
+  content: "";
+  width: 58px;
+  height: 58px;
+  display: block;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: #eee9df;
+}
+
+.room-board-head span,
+.data-table th {
+  background: #f3f0e9;
+  color: #4e4a40;
+  font-weight: 500;
+}
+
+.data-table td,
+.detail-row,
+.compact-row {
+  font-size: 14px;
+}
+
+.data-table tbody tr:hover,
+.data-table tbody tr.selected {
+  background: #f3f6ef;
+}
+
+.btn {
+  border-radius: 6px;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-weight: 500;
+}
+
+.btn-primary {
+  border-color: var(--brand);
+  background: linear-gradient(135deg, #5b704e, #3f5235);
+  color: #fffdf8;
+}
+
+.btn-secondary {
+  border-color: var(--line-strong);
+  background: rgba(255, 253, 248, 0.78);
+  color: var(--ink-soft);
+}
+
+.segmented button {
+  border-width: 0 0 2px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.segmented button.active {
+  border-color: var(--brand);
+  background: transparent;
+  color: var(--brand-strong);
+}
+
+input,
+select,
+textarea {
+  border-color: var(--line);
+  border-radius: 6px;
+  background: rgba(255, 253, 248, 0.82);
+}
+
+.status-badge {
+  border-radius: 6px;
+  font-weight: 500;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

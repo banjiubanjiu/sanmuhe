@@ -1,4 +1,5 @@
 const app = getApp({ allowDefault: true });
+const { getCatalog } = require("../../utils/cloudApi");
 
 const fallbackContact = {
   phone: "0757-8888 8888",
@@ -28,6 +29,17 @@ Page({
         phone: globalData.servicePhone || fallbackContact.phone,
         address: globalData.storeAddress || fallbackContact.address
       })
+    });
+    getCatalog().then((catalog) => {
+      const settings = catalog.settings || {};
+      this.setData({
+        contact: Object.assign({}, this.data.contact, {
+          phone: settings.phone || this.data.contact.phone,
+          serviceTime: settings.businessHours || this.data.contact.serviceTime,
+          store: settings.storeName || this.data.contact.store,
+          address: settings.address || this.data.contact.address
+        })
+      });
     });
   },
 

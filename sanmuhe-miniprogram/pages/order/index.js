@@ -46,9 +46,19 @@ Page({
 
   loadCatalog() {
     getCatalog().then((catalog) => {
-      const nextDrinks = catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks;
+      const nextDrinks = catalog.fromCloud ? (catalog.drinks || []) : (catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks);
       const filteredDrinks = nextDrinks.filter((item) => item.category === this.data.activeCategory);
       const activeDrink = nextDrinks.find((item) => item.id === this.data.activeDrink.id) || nextDrinks[0];
+      if (!activeDrink) {
+        this.setData({
+          drinks: [],
+          filteredDrinks: [],
+          activeDrink: null,
+          selectedTemp: "",
+          selectedSugar: ""
+        });
+        return;
+      }
       this.setData({
         drinks: nextDrinks,
         filteredDrinks,
@@ -100,6 +110,10 @@ Page({
 
   addDrink() {
     const { activeDrink, selectedTemp, selectedSugar, tableLabel } = this.data;
+    if (!activeDrink) {
+      wx.showToast({ title: "暂无可点茶饮", icon: "none" });
+      return;
+    }
     addToCart({
       id: activeDrink.id,
       type: "drink",

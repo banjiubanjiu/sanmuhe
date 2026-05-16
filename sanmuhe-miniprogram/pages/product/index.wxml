@@ -72,3 +72,15 @@
     <button class="buy-action" bindtap="buyNow">立即购买</button>
   </view>
 </view>
+
+<view class="page product-page product-empty" wx:else>
+  <view class="page-nav">
+    <view class="back-mark" bindtap="goBack">‹</view>
+    <view class="page-title">商品详情</view>
+    <view class="nav-placeholder"></view>
+  </view>
+  <view class="empty-copy">
+    <view class="empty-title">商品已下架</view>
+    <view class="empty-text">请返回商城查看当前可售商品</view>
+  </view>
+</view>

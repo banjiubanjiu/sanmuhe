@@ -23,32 +23,6 @@ const specMultipliers = {
   "500g": 10
 };
 
-const priceMap = {
-  "drink:drink-001": { name: "桂花龙井", price: 28 },
-  "drink:drink-002": { name: "芝士抹茶", price: 32 },
-  "drink:drink-003": { name: "柠檬红茶", price: 24 },
-  "drink:drink-004": { name: "经典龙井茶", price: 22 },
-  "drink:drink-005": { name: "白桃乌龙", price: 30 },
-  "drink:drink-006": { name: "红豆抹茶", price: 26 },
-  "tea:tea-001": { name: "明前龙井", price: 268, unit: "50g" },
-  "tea:tea-002": { name: "大红袍", price: 198, unit: "50g" },
-  "tea:tea-003": { name: "白毫银针", price: 358, unit: "50g" },
-  "tea:tea-004": { name: "碧螺春", price: 198, unit: "50g" },
-  "tea:tea-005": { name: "黄山毛峰", price: 158, unit: "50g" },
-  "tea:tea-006": { name: "六安瓜片", price: 128, unit: "50g" },
-  "tea:tea-007": { name: "信阳毛尖", price: 138, unit: "50g" },
-  "tea:tea-008": { name: "滇红金芽", price: 168, unit: "50g" },
-  "tea:tea-009": { name: "正山小种", price: 158, unit: "50g" },
-  "tea:tea-010": { name: "君山银针", price: 228, unit: "50g" },
-  "tea:tea-011": { name: "普洱熟茶", price: 128, unit: "50g" },
-  "tea:tea-012": { name: "安化黑茶", price: 118, unit: "50g" },
-  "tea:tea-013": { name: "茉莉龙珠", price: 98, unit: "50g" },
-  "tea:tea-014": { name: "玻璃煮茶壶", price: 168, unit: "件" },
-  "tea:tea-015": { name: "手工盖碗", price: 138, unit: "件" },
-  "tea:tea-016": { name: "桂花糕", price: 28, unit: "份" },
-  "tea:tea-017": { name: "花样酥点", price: 36, unit: "盒" }
-};
-
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
@@ -139,19 +113,10 @@ async function findTrustedItem(type, id) {
       };
     }
   } catch (error) {
-    // Fall through to the built-in catalog map.
+    return null;
   }
 
-  const fallback = priceMap[`${type}:${id}`];
-  return fallback ? {
-    collection,
-    docId: "",
-    id,
-    name: fallback.name,
-    price: fallback.price,
-    unit: fallback.unit,
-    image: ""
-  } : null;
+  return null;
 }
 
 async function sanitizeItems(items) {

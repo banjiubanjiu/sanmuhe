@@ -58,13 +58,12 @@ function normalizeEvents(items) {
   return items.map((raw, index) => {
     const fallbackKey = `event-00${index + 1}`;
     const display = eventDisplay[raw.id] || eventDisplay[fallbackKey] || {};
-    const usesDisplay = Boolean(display.title);
-    const item = Object.assign({}, raw, display);
-    const signed = Number(usesDisplay ? (display.signed || 0) : (raw.signed || 0));
+    const item = Object.assign({}, display, raw);
+    const signed = Number(item.signed || 0);
     const quota = Number(item.quota || raw.quota || 0);
     const isFull = quota > 0 && signed >= quota;
     const available = quota > 0 ? Math.max(0, quota - signed) : 0;
-    const joinText = isFull ? "已满" : (display.joinText || item.status || "报名中");
+    const joinText = isFull ? "已满" : (item.joinText || item.status || "报名中");
     return Object.assign({
       category: "养心茶会",
       image: "/assets/images/event-yangxin-tea.jpg",
@@ -81,7 +80,7 @@ function normalizeEvents(items) {
       category: normalizeCategory(item.category),
       canJoin: !isFull,
       joinText,
-      actionClass: isFull ? "disabled" : (display.actionClass || "primary"),
+      actionClass: isFull ? "disabled" : (item.actionClass || "primary"),
       limitText: quota > 0 ? `限${quota}人` : "名额有限"
     });
   });

@@ -41,7 +41,7 @@ Page({
       favored: isFavorite(product.id)
     });
     getCatalog().then((catalog) => {
-      const products = catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts;
+      const products = catalog.fromCloud ? (catalog.teaProducts || []) : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts);
       const nextProduct = products.find((item) => item.id === options.id);
       if (nextProduct) {
         const normalized = normalizeProduct(nextProduct);
@@ -52,6 +52,8 @@ Page({
           displayPrice: this.getPrice(normalized.price, selectedSpec),
           favored: isFavorite(normalized.id)
         });
+      } else if (catalog.fromCloud) {
+        this.setData({ product: null });
       }
     });
   },

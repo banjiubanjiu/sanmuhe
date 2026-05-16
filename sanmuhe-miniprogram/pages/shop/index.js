@@ -30,8 +30,9 @@ function normalizeDrinkProducts(items) {
 }
 
 function buildProducts(catalog = {}) {
-  const nextTeaProducts = catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts;
-  const nextDrinks = catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks;
+  const fromCloud = catalog.fromCloud === true;
+  const nextTeaProducts = fromCloud ? (catalog.teaProducts || []) : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts);
+  const nextDrinks = fromCloud ? (catalog.drinks || []) : (catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks);
   return normalizeTeaProducts(nextTeaProducts).concat(normalizeDrinkProducts(nextDrinks));
 }
 

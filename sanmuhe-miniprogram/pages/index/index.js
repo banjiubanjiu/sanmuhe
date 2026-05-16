@@ -4,11 +4,13 @@ const { getCatalog, listEvents } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
 function normalizeCatalog(catalog, eventList) {
+  const fromCloud = catalog && catalog.fromCloud;
   return {
-    drinks: catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks,
-    teaProducts: catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts,
-    rooms: catalog.rooms && catalog.rooms.length ? catalog.rooms : rooms,
-    events: eventList && eventList.length ? eventList : (catalog.events && catalog.events.length ? catalog.events : events)
+    drinks: fromCloud ? (catalog.drinks || []) : (catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks),
+    teaProducts: fromCloud ? (catalog.teaProducts || []) : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts),
+    rooms: fromCloud ? (catalog.rooms || []) : (catalog.rooms && catalog.rooms.length ? catalog.rooms : rooms),
+    events: eventList && eventList.length ? eventList : (fromCloud ? (catalog.events || []) : (catalog.events && catalog.events.length ? catalog.events : events)),
+    fromCloud
   };
 }
 
@@ -91,7 +93,7 @@ function buildSeasonRecommendations(products) {
   }));
 }
 
-function buildHomeSlides(contentSlides, fallbackSlides) {
+function buildHomeSlides(contentSlides, fallbackSlides, fromCloud) {
   const slides = Array.isArray(contentSlides) ? contentSlides : [];
   const normalized = slides
     .filter((item) => item && item.visible !== false && item.image)
@@ -107,7 +109,7 @@ function buildHomeSlides(contentSlides, fallbackSlides) {
       linkType: item.linkType || "",
       linkTarget: item.linkTarget || ""
     }));
-  return normalized.length ? normalized : fallbackSlides;
+  return normalized.length || fromCloud ? normalized : fallbackSlides;
 }
 
 Page({
@@ -187,7 +189,7 @@ Page({
       const content = catalogResult && catalogResult.content || {};
       this.setData({
         homeCatalog,
-        heroSlides: buildHomeSlides(content.homeSlides, this.data.heroSlides),
+        heroSlides: buildHomeSlides(content.homeSlides, this.data.heroSlides, catalogResult && catalogResult.fromCloud),
         featuredDrink: homeCatalog.drinks[0] || drinks[0],
         featuredTea: homeCatalog.teaProducts[0] || teaProducts[0],
         featuredRoom: homeCatalog.rooms[0] || rooms[0],
