@@ -1,0 +1,71 @@
+.privacy-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 32rpx;
+  background: rgba(18, 24, 20, 0.42);
+  box-sizing: border-box;
+}
+
+.privacy-card {
+  width: 100%;
+  max-width: 686rpx;
+  border-radius: 28rpx;
+  padding: 34rpx 30rpx 28rpx;
+  background: #fffdf8;
+  box-shadow: 0 24rpx 70rpx rgba(28, 35, 30, 0.18);
+  box-sizing: border-box;
+}
+
+.privacy-title {
+  color: #273427;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.privacy-copy {
+  margin-top: 18rpx;
+  color: #687466;
+  font-size: 27rpx;
+  line-height: 1.65;
+}
+
+.privacy-link {
+  margin-top: 20rpx;
+  color: #526b45;
+  font-size: 27rpx;
+  font-weight: 600;
+}
+
+.privacy-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18rpx;
+  margin-top: 30rpx;
+}
+
+.privacy-cancel,
+.privacy-primary {
+  height: 88rpx;
+  border-radius: 44rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.privacy-cancel {
+  color: #526b45;
+  background: #f2eee3;
+}
+
+.privacy-primary {
+  color: #fffdf8;
+  background: #526b45;
+}
+
+.privacy-cancel::after,
+.privacy-primary::after {
+  border: 0;
+}

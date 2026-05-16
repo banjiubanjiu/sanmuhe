@@ -99,4 +99,11 @@
       <button class="submit-reserve" bindtap="submitReservation">提交预约</button>
     </view>
   </view>
+  <privacy-gate
+    show="{{privacyGateOpen}}"
+    purpose="{{privacyPurpose}}"
+    contractName="{{privacyContractName}}"
+    bindagree="onPrivacyAgree"
+    bindcancel="onPrivacyCancel"
+  />
 </view>

@@ -1,5 +1,6 @@
 const { events: localEvents } = require("../../data/catalog");
 const { joinEvent: joinEventRequest, listEvents } = require("../../utils/cloudApi");
+const { withPrivacy } = require("../../utils/privacy");
 
 const CONTACT_KEY = "sanmuhe_contact";
 const detailImages = {
@@ -33,7 +34,7 @@ function findEvent(id, source) {
   return target ? normalizeEvent(target, list.indexOf(target)) : null;
 }
 
-Page({
+Page(withPrivacy({
   data: {
     event: null,
     signupOpen: false,
@@ -135,51 +136,56 @@ Page({
       return;
     }
 
-    wx.setStorageSync(CONTACT_KEY, {
-      consignee: name,
-      phone
-    });
-
-    this.setData({ submitting: true });
-    joinEventRequest({
-      eventId: target.id,
-      title: target.title,
-      name,
-      phone,
-      note,
-      date: target.date,
-      time: target.time,
-      place: target.place,
-      image: target.image,
-      source: "miniprogram"
-    }).then((result) => {
-      if (result && result.ok === false) {
-        wx.showToast({ title: result.message || "报名失败", icon: "none" });
-        this.setData({ submitting: false });
+    this.requestPrivacy("我们需要收集活动报名联系人、手机号和备注，用于名额确认、到场核销和活动服务联系。").then((accepted) => {
+      if (!accepted) {
         return;
       }
-      const signed = Number(target.signed || 0) + 1;
-      this.setData({
-        event: Object.assign({}, target, {
-          signed,
-          canJoin: false,
-          joinText: "已报名"
-        }),
-        signupOpen: false,
-        submitting: false
+      wx.setStorageSync(CONTACT_KEY, {
+        consignee: name,
+        phone
       });
-      wx.showModal({
-        title: "报名已提交",
-        content: "门店确认后会通过电话或服务通知联系你。",
-        showCancel: false
-      });
-    }).catch((error) => {
-      this.setData({ signupOpen: false, submitting: false });
-      wx.showModal({
-        title: "报名未提交",
-        content: error && error.message ? error.message : "当前云服务不可用，请稍后重试。为避免误以为门店已收到报名，本次没有保存为有效报名。",
-        showCancel: false
+
+      this.setData({ submitting: true });
+      joinEventRequest({
+        eventId: target.id,
+        title: target.title,
+        name,
+        phone,
+        note,
+        date: target.date,
+        time: target.time,
+        place: target.place,
+        image: target.image,
+        source: "miniprogram"
+      }).then((result) => {
+        if (result && result.ok === false) {
+          wx.showToast({ title: result.message || "报名失败", icon: "none" });
+          this.setData({ submitting: false });
+          return;
+        }
+        const signed = Number(target.signed || 0) + 1;
+        this.setData({
+          event: Object.assign({}, target, {
+            signed,
+            canJoin: false,
+            joinText: "已报名"
+          }),
+          signupOpen: false,
+          submitting: false
+        });
+        wx.showModal({
+          title: "报名已提交",
+          content: "门店确认后会通过电话或服务通知联系你。",
+          showCancel: false
+        });
+      }).catch((error) => {
+        this.setData({ signupOpen: false, submitting: false });
+        wx.showModal({
+          title: "报名未提交",
+          content: error && error.message ? error.message : "当前云服务不可用，请稍后重试。为避免误以为门店已收到报名，本次没有保存为有效报名。",
+          showCancel: false
+        });
       });
     });
   }
-});
+}));

@@ -63,6 +63,25 @@ function number(value) {
   return Math.max(0, Number(value) || 0);
 }
 
+function maskPhone(value) {
+  const text = cleanText(value, 40);
+  if (!text) {
+    return "";
+  }
+  if (/^1\d{10}$/.test(text)) {
+    return `${text.slice(0, 3)}****${text.slice(7)}`;
+  }
+  return text.length > 4 ? `${text.slice(0, 2)}***${text.slice(-2)}` : "***";
+}
+
+function maskOpenid(value) {
+  const text = cleanText(value, 80);
+  if (!text) {
+    return "";
+  }
+  return text.length > 12 ? `${text.slice(0, 6)}...${text.slice(-4)}` : `${text.slice(0, 3)}...`;
+}
+
 function parseList(value) {
   return String(value || "")
     .split(/[\s,;]+/)
@@ -649,6 +668,152 @@ async function listCustomers(event) {
   };
 }
 
+function normalizeIdentity(event = {}) {
+  const customerId = cleanText(event.customerId || event.id, 80);
+  const identity = {
+    openid: cleanText(event.openid, 80),
+    phone: cleanText(event.phone || event.mobile, 40)
+  };
+  if (!identity.phone && /^1\d{10}$/.test(customerId)) {
+    identity.phone = customerId;
+  }
+  if (!identity.openid && customerId && customerId !== identity.phone && customerId.length >= 12) {
+    identity.openid = customerId;
+  }
+  return identity;
+}
+
+function identityQueries(identity, fields) {
+  const queries = [];
+  if (identity.openid) {
+    fields.openid.forEach((field) => queries.push({ [field]: identity.openid }));
+  }
+  if (identity.phone) {
+    fields.phone.forEach((field) => queries.push({ [field]: identity.phone }));
+  }
+  return queries;
+}
+
+async function findDocsByIdentity(collection, identity, fields) {
+  await ensureCollection(collection);
+  const docs = {};
+  const queries = identityQueries(identity, fields);
+  for (const where of queries) {
+    const result = await db.collection(collection).where(where).limit(200).get();
+    (result.data || []).forEach((doc) => {
+      docs[doc._id] = doc;
+    });
+  }
+  return Object.values(docs);
+}
+
+async function anonymizeDocs(collection, docs, data) {
+  let count = 0;
+  for (const doc of docs) {
+    await db.collection(collection).doc(doc._id).update({
+      data: Object.assign({}, data, {
+        privacyDeleted: true,
+        privacyDeletedAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      })
+    });
+    count += 1;
+  }
+  return count;
+}
+
+async function removeDocs(collection, docs) {
+  let count = 0;
+  for (const doc of docs) {
+    await db.collection(collection).doc(doc._id).remove();
+    count += 1;
+  }
+  return count;
+}
+
+async function writeAdminAuditLog(caller, action, detail) {
+  await ensureCollection("admin_audit_logs");
+  await db.collection("admin_audit_logs").add({
+    data: {
+      action,
+      adminOpenid: maskOpenid(caller.openid),
+      adminUid: caller.uid ? maskOpenid(caller.uid) : "",
+      detail,
+      createdAt: db.serverDate()
+    }
+  });
+}
+
+async function deleteCustomerData(event, caller) {
+  const identity = normalizeIdentity(event);
+  if (!identity.openid && !identity.phone) {
+    return { ok: false, message: "缺少可定位用户的 OpenID 或手机号" };
+  }
+
+  const recordFields = {
+    openid: ["_openid", "openid"],
+    phone: ["phone", "mobile"]
+  };
+  const orderDocs = await findDocsByIdentity("orders", identity, recordFields);
+  const reservationDocs = await findDocsByIdentity("reservations", identity, recordFields);
+  const signupDocs = await findDocsByIdentity("event_signups", identity, recordFields);
+  const memberDocs = await findDocsByIdentity("members", identity, recordFields);
+  const preferenceDocs = await findDocsByIdentity("subscription_preferences", identity, recordFields);
+  const couponDocs = await findDocsByIdentity("user_coupons", identity, recordFields);
+
+  const counts = {
+    orders: await anonymizeDocs("orders", orderDocs, {
+      _openid: "",
+      openid: "",
+      consignee: "已匿名",
+      name: "已匿名",
+      contactName: "已匿名",
+      phone: "",
+      mobile: "",
+      address: "",
+      remark: "",
+      pickupNote: ""
+    }),
+    reservations: await anonymizeDocs("reservations", reservationDocs, {
+      _openid: "",
+      openid: "",
+      name: "已匿名",
+      customerName: "已匿名",
+      phone: "",
+      mobile: "",
+      note: ""
+    }),
+    signups: await anonymizeDocs("event_signups", signupDocs, {
+      _openid: "",
+      openid: "",
+      name: "已匿名",
+      customerName: "已匿名",
+      phone: "",
+      mobile: "",
+      note: ""
+    }),
+    members: await anonymizeDocs("members", memberDocs, {
+      _openid: "",
+      openid: "",
+      name: "已匿名",
+      nickname: "",
+      phone: "",
+      mobile: "",
+      avatar: ""
+    }),
+    subscriptionPreferences: await removeDocs("subscription_preferences", preferenceDocs),
+    userCoupons: await removeDocs("user_coupons", couponDocs)
+  };
+
+  await writeAdminAuditLog(caller, "deleteCustomerData", {
+    openid: maskOpenid(identity.openid),
+    phone: maskPhone(identity.phone),
+    counts
+  });
+
+  return { ok: true, counts };
+}
+
 function addTrend(bucket, key, amount) {
   if (!bucket[key]) {
     bucket[key] = 0;
@@ -919,6 +1084,9 @@ exports.main = async (event = {}) => {
     }
     if (action === "listCustomers") {
       return await listCustomers(event);
+    }
+    if (action === "deleteCustomerData") {
+      return await deleteCustomerData(event, caller);
     }
     if (action === "getAnalytics") {
       return await getAnalytics();

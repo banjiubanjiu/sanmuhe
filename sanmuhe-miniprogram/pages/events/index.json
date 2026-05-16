@@ -1,4 +1,7 @@
 {
   "navigationBarTitleText": "茶事活动",
-  "navigationStyle": "custom"
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "privacy-gate": "/components/privacy-gate/index"
+  }
 }

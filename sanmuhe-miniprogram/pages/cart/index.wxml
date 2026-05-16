@@ -199,4 +199,11 @@
       <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">去结算</button>
     </view>
   </block>
+  <privacy-gate
+    show="{{privacyGateOpen}}"
+    purpose="{{privacyPurpose}}"
+    contractName="{{privacyContractName}}"
+    bindagree="onPrivacyAgree"
+    bindcancel="onPrivacyCancel"
+  />
 </view>

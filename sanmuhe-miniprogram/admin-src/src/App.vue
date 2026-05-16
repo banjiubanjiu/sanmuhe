@@ -290,6 +290,44 @@ function money(value) {
   return Number.isInteger(number) ? String(number) : number.toFixed(2);
 }
 
+function maskPhone(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^1\d{10}$/.test(text)) return `${text.slice(0, 3)}****${text.slice(7)}`;
+  return text.length > 4 ? `${text.slice(0, 2)}***${text.slice(-2)}` : "***";
+}
+
+function maskOpenid(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return text.length > 12 ? `${text.slice(0, 6)}...${text.slice(-4)}` : `${text.slice(0, 3)}...`;
+}
+
+function maskName(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (text === "已匿名") return text;
+  return text.length <= 1 ? "*" : `${text.slice(0, 1)}*`;
+}
+
+function customerDisplayName(customer) {
+  return maskName(customer?.name) || maskPhone(customer?.phone) || maskOpenid(customer?.openid || customer?.id) || "访客";
+}
+
+function customerLevel(customer) {
+  if (customer?.levelName) return customer.levelName;
+  if (Array.isArray(customer?.tags) && customer.tags[0]) return customer.tags[0];
+  return customer?.tag || "会员";
+}
+
+function customerSpend(customer) {
+  return Number(customer?.totalSpend ?? customer?.spend ?? 0);
+}
+
+function customerLatestAt(customer) {
+  return customer?.latestAt || customer?.lastSeenAt || "";
+}
+
 function numberText(value) {
   return Number(value || 0).toLocaleString("zh-CN");
 }
@@ -618,6 +656,25 @@ async function loadCustomers() {
   });
 }
 
+async function deleteCustomerData(customer) {
+  if (!customer) return;
+  const name = customerDisplayName(customer);
+  const confirmed = window.confirm(`确认删除/匿名化 ${name} 的个人信息？订单、预约、报名会保留经营记录，但姓名、手机号、地址、备注和用户关联会被清空。`);
+  if (!confirmed) return;
+  await withLoading("删除用户数据", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "deleteCustomerData",
+      customerId: customer.id,
+      openid: customer.openid,
+      phone: customer.phone
+    });
+    const counts = result.counts || {};
+    const total = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
+    showToast(total ? `已处理 ${total} 条相关数据` : "未找到可处理的数据");
+    await loadCustomers();
+  });
+}
+
 async function updateRecord(type, id, status) {
   await withLoading("更新状态", async () => {
     await callFunction("manageOperations", {
@@ -927,9 +984,9 @@ onMounted(async () => {
             <div class="panel-title"><h2>最新预约</h2><button class="link-more" type="button" @click="switchTab('reservations')">查看更多 ›</button></div>
             <div class="flow-list feed-list">
               <button v-for="item in (state.dashboard?.recentReservations || [])" :key="item._id" type="button" @click="switchTab('reservations')">
-                <span class="feed-avatar">{{ (item.name || item.customerName || "访").slice(0, 1) }}</span>
+                <span class="feed-avatar">{{ (maskName(item.name || item.customerName) || "访").slice(0, 1) }}</span>
                 <span class="feed-main">
-                  <strong>{{ item.name || item.customerName || "访客" }}</strong>
+                  <strong>{{ maskName(item.name || item.customerName) || "访客" }}</strong>
                   <small>{{ item.day || item.date }} · {{ item.roomName || item.room }}</small>
                 </span>
                 <em>{{ item.status || "已预约" }}</em>
@@ -944,7 +1001,7 @@ onMounted(async () => {
                 <span v-else class="feed-thumb">{{ (item.eventTitle || item.title || "茶").slice(0, 1) }}</span>
                 <span class="feed-main">
                   <strong>{{ item.eventTitle || item.title || "活动报名" }}</strong>
-                  <small>{{ item.name || item.customerName || "访客" }} · {{ item.status }}</small>
+                  <small>{{ maskName(item.name || item.customerName) || "访客" }} · {{ item.status }}</small>
                 </span>
                 <em>{{ item.people || item.count || 1 }}人报名</em>
               </button>
@@ -1069,7 +1126,7 @@ onMounted(async () => {
             <div class="record-list">
               <button v-for="order in state.orders" :key="order._id" :class="{ selected: state.selectedOrderId === order._id }" type="button" @click="state.selectedOrderId = order._id">
                 <strong>{{ order.orderNo || order._id }} <em>¥{{ money(order.total) }}</em></strong>
-                <span>{{ order.name || order.contactName || "访客" }} · {{ order.status }} · {{ formatDate(order.createdAt) }}</span>
+                <span>{{ maskName(order.name || order.contactName) || "访客" }} · {{ order.status }} · {{ formatDate(order.createdAt) }}</span>
               </button>
             </div>
           </article>
@@ -1079,8 +1136,8 @@ onMounted(async () => {
             <DetailRow label="金额" :value="`¥${money(selectedOrder.total)}`" />
             <DetailRow label="支付" :value="selectedOrder.payStatus || '-'" />
             <DetailRow label="配送" :value="selectedOrder.deliveryMethod === 'shipping' ? '快递' : '到店自提'" />
-            <DetailRow label="客户" :value="selectedOrder.name || selectedOrder.contactName || '-'" />
-            <DetailRow label="电话" :value="selectedOrder.phone || selectedOrder.mobile || '-'" />
+            <DetailRow label="客户" :value="maskName(selectedOrder.name || selectedOrder.contactName) || '-'" />
+            <DetailRow label="电话" :value="maskPhone(selectedOrder.phone || selectedOrder.mobile) || '-'" />
             <DetailRow label="地址/备注" :value="selectedOrder.address || selectedOrder.pickupNote || selectedOrder.remark || '-'" />
             <DetailRow label="创建时间" :value="formatDate(selectedOrder.createdAt)" />
             <div class="line-items" v-if="selectedOrder.items?.length">
@@ -1126,7 +1183,7 @@ onMounted(async () => {
                 @click="state.activeTab === 'reservations' ? state.selectedReservationId = record._id : state.selectedSignupId = record._id"
               >
                 <strong>{{ record.roomName || record.eventTitle || record.title || record.name || "记录" }} <em>{{ record.status }}</em></strong>
-                <span>{{ record.name || record.customerName || "访客" }} · {{ record.day || record.date || formatDate(record.createdAt) }}</span>
+                <span>{{ maskName(record.name || record.customerName) || "访客" }} · {{ record.day || record.date || formatDate(record.createdAt) }}</span>
               </button>
             </div>
           </article>
@@ -1134,7 +1191,7 @@ onMounted(async () => {
             <div class="panel-title"><h2>{{ state.activeTab === 'reservations' ? "预约详情" : "报名详情" }}</h2></div>
             <template v-if="state.activeTab === 'reservations'">
               <DetailRow label="茶室" :value="selectedReservation.roomName || selectedReservation.room || '-'" />
-              <DetailRow label="客户" :value="selectedReservation.name || selectedReservation.customerName || '-'" />
+              <DetailRow label="客户" :value="maskName(selectedReservation.name || selectedReservation.customerName) || '-'" />
               <DetailRow label="日期" :value="selectedReservation.day || selectedReservation.date || '-'" />
               <DetailRow label="时段" :value="selectedReservation.time || selectedReservation.slot || '-'" />
               <DetailRow label="人数" :value="selectedReservation.people || selectedReservation.count || '-'" />
@@ -1146,8 +1203,8 @@ onMounted(async () => {
             </template>
             <template v-else>
               <DetailRow label="活动" :value="selectedSignup.eventTitle || selectedSignup.title || '-'" />
-              <DetailRow label="客户" :value="selectedSignup.name || selectedSignup.customerName || '-'" />
-              <DetailRow label="电话" :value="selectedSignup.phone || selectedSignup.mobile || '-'" />
+              <DetailRow label="客户" :value="maskName(selectedSignup.name || selectedSignup.customerName) || '-'" />
+              <DetailRow label="电话" :value="maskPhone(selectedSignup.phone || selectedSignup.mobile) || '-'" />
               <DetailRow label="状态" :value="selectedSignup.status || '-'" />
               <div class="action-row">
                 <button class="secondary-action" type="button" @click="updateRecord('signup', selectedSignup._id, '已确认')">确认</button>
@@ -1163,18 +1220,22 @@ onMounted(async () => {
             <div class="panel-toolbar"><input v-model="filters.customerKeyword" class="line-input" placeholder="姓名、手机号、OpenID" @keydown.enter="loadCustomers"></div>
             <div class="record-list">
               <button v-for="customer in state.customers" :key="customer.id" :class="{ selected: state.selectedCustomerId === customer.id }" type="button" @click="state.selectedCustomerId = customer.id">
-                <strong>{{ customer.name || customer.phone || customer.id }} <em>{{ customer.levelName || customer.tag || "会员" }}</em></strong>
-                <span>消费 ¥{{ money(customer.totalSpend) }} · 订单 {{ customer.orders || 0 }} · 预约 {{ customer.reservations || 0 }}</span>
+                <strong>{{ customerDisplayName(customer) }} <em>{{ customerLevel(customer) }}</em></strong>
+                <span>消费 ¥{{ money(customerSpend(customer)) }} · 订单 {{ customer.orders || 0 }} · 预约 {{ customer.reservations || 0 }}</span>
               </button>
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="selectedCustomer">
             <div class="panel-title"><h2>用户画像</h2></div>
-            <DetailRow label="标识" :value="selectedCustomer.id" />
-            <DetailRow label="手机号" :value="selectedCustomer.phone || '-'" />
-            <DetailRow label="累计消费" :value="`¥${money(selectedCustomer.totalSpend)}`" />
+            <DetailRow label="标识" :value="maskOpenid(selectedCustomer.openid || selectedCustomer.id) || '-'" />
+            <DetailRow label="手机号" :value="maskPhone(selectedCustomer.phone) || '-'" />
+            <DetailRow label="累计消费" :value="`¥${money(customerSpend(selectedCustomer))}`" />
             <DetailRow label="积分" :value="selectedCustomer.points || 0" />
-            <DetailRow label="最近访问" :value="formatDate(selectedCustomer.latestAt)" />
+            <DetailRow label="最近访问" :value="formatDate(customerLatestAt(selectedCustomer))" />
+            <div class="privacy-note">默认脱敏展示；删除个人数据会清空联系方式、地址、备注、订阅偏好和未使用优惠券。</div>
+            <div class="action-row">
+              <button class="danger-action" type="button" @click="deleteCustomerData(selectedCustomer)">删除个人数据</button>
+            </div>
           </aside>
         </section>
 

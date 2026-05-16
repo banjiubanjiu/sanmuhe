@@ -86,4 +86,11 @@
       <button class="submit-signup" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitSignup">提交报名</button>
     </view>
   </view>
+  <privacy-gate
+    show="{{privacyGateOpen}}"
+    purpose="{{privacyPurpose}}"
+    contractName="{{privacyContractName}}"
+    bindagree="onPrivacyAgree"
+    bindcancel="onPrivacyCancel"
+  />
 </view>

@@ -1134,6 +1134,17 @@ tr.selected td {
   font-weight: 500;
 }
 
+.privacy-note {
+  margin-top: 14px;
+  border: 1px solid rgba(151, 119, 62, 0.2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--admin-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  background: rgba(245, 240, 226, 0.62);
+}
+
 .action-row {
   display: flex;
   flex-wrap: wrap;

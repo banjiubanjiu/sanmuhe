@@ -1,4 +1,7 @@
 {
   "navigationBarTitleText": "茶室预定",
-  "navigationStyle": "custom"
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "privacy-gate": "/components/privacy-gate/index"
+  }
 }

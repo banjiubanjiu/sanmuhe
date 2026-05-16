@@ -1,6 +1,7 @@
 const { rooms } = require("../../data/catalog");
 const { createReservation, getCatalog } = require("../../utils/cloudApi");
 const { getBookingDays } = require("../../utils/date");
+const { withPrivacy } = require("../../utils/privacy");
 
 const timeOptions = [
   { value: "10:00", seats: 2 },
@@ -43,7 +44,7 @@ function buildStoreRoom(room = {}) {
 
 const defaultRoom = buildStoreRoom(rooms[0]);
 
-Page({
+Page(withPrivacy({
   data: {
     days: [],
     visibleDays: [],
@@ -129,15 +130,7 @@ Page({
 
   onInput(event) {
     const field = event.currentTarget.dataset.field;
-    this.setData({ [field]: event.detail.value }, () => {
-      if (field === "name" || field === "phone") {
-        wx.setStorageSync(CONTACT_KEY, {
-          consignee: this.data.name,
-          phone: this.data.phone,
-          address: (wx.getStorageSync(CONTACT_KEY) || {}).address || ""
-        });
-      }
-    });
+    this.setData({ [field]: event.detail.value });
   },
 
   submitReservation() {
@@ -162,26 +155,36 @@ Page({
       note
     };
 
-    createReservation(payload).then((result) => {
-      if (result && result.ok === false) {
-        wx.showToast({ title: result.message || "预约失败", icon: "none" });
+    this.requestPrivacy("我们需要收集预约联系人、手机号、到店人数、预约日期时段和备注，用于门店确认茶室预约和后续服务联系。").then((accepted) => {
+      if (!accepted) {
         return;
       }
-      wx.showModal({
-        title: "预约已提交",
-        content: "门店确认后可通过服务通知或电话联系顾客。",
-        showCancel: false,
-        success: () => {
-          this.setData({ bookingOpen: false });
-          wx.switchTab({ url: "/pages/profile/index" });
-        }
+      wx.setStorageSync(CONTACT_KEY, {
+        consignee: name,
+        phone,
+        address: (wx.getStorageSync(CONTACT_KEY) || {}).address || ""
       });
-    }).catch((error) => {
-      wx.showModal({
-        title: "预约未提交",
-        content: error && error.message ? error.message : "当前云服务不可用，请稍后重试。为避免误以为门店已收到预约，本次没有保存为有效预约。",
-        showCancel: false
+      createReservation(payload).then((result) => {
+        if (result && result.ok === false) {
+          wx.showToast({ title: result.message || "预约失败", icon: "none" });
+          return;
+        }
+        wx.showModal({
+          title: "预约已提交",
+          content: "门店确认后可通过服务通知或电话联系顾客。",
+          showCancel: false,
+          success: () => {
+            this.setData({ bookingOpen: false });
+            wx.switchTab({ url: "/pages/profile/index" });
+          }
+        });
+      }).catch((error) => {
+        wx.showModal({
+          title: "预约未提交",
+          content: error && error.message ? error.message : "当前云服务不可用，请稍后重试。为避免误以为门店已收到预约，本次没有保存为有效预约。",
+          showCancel: false
+        });
       });
     });
   }
-});
+}));

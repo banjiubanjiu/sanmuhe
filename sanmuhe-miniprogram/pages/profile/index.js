@@ -1,5 +1,6 @@
 const { listMyRecords } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
+const { withPrivacy } = require("../../utils/privacy");
 
 const defaultUser = {
   name: "木木",
@@ -27,7 +28,7 @@ const serviceItems = [
   { label: "收货地址", icon: "/assets/icons/profile-pin.png", action: "address" },
   { label: "优惠券", icon: "/assets/icons/profile-coupon.png", action: "coupon" },
   { label: "联系客服", icon: "/assets/icons/profile-headset.png", action: "service" },
-  { label: "设置", icon: "/assets/icons/profile-setting.png", action: "status" }
+  { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" }
 ];
 
 function normalizeRecords(records, type) {
@@ -106,7 +107,7 @@ function getUsableCouponCount(coupons) {
   return (coupons || []).filter((item) => item.status === "可使用").length;
 }
 
-Page({
+Page(withPrivacy({
   data: {
     user: defaultUser,
     member: defaultMember,
@@ -221,6 +222,10 @@ Page({
       wx.navigateTo({ url: "/pages/contact/index" });
       return;
     }
+    if (action === "privacy") {
+      this.openPrivacyContract();
+      return;
+    }
     if (action === "status") {
       wx.navigateTo({ url: "/pages/cloud-status/index" });
       return;
@@ -229,15 +234,20 @@ Page({
   },
 
   chooseAddress() {
-    wx.chooseAddress({
-      success: (res) => {
-        const address = `${res.provinceName}${res.cityName}${res.countyName}${res.detailInfo}`;
-        this.setData({ shippingAddress: address });
-        wx.showToast({ title: "地址已选择", icon: "success" });
-      },
-      fail: () => {
-        wx.showToast({ title: "未选择地址", icon: "none" });
+    this.requestPrivacy("我们需要读取你的微信收货地址，用于订单配送、售后服务和下次下单时快速填写。").then((accepted) => {
+      if (!accepted) {
+        return;
       }
+      wx.chooseAddress({
+        success: (res) => {
+          const address = `${res.provinceName}${res.cityName}${res.countyName}${res.detailInfo}`;
+          this.setData({ shippingAddress: address });
+          wx.showToast({ title: "地址已选择", icon: "success" });
+        },
+        fail: () => {
+          wx.showToast({ title: "未选择地址", icon: "none" });
+        }
+      });
     });
   },
 
@@ -252,4 +262,4 @@ Page({
   goEvents() {
     wx.switchTab({ url: "/pages/events/index" });
   }
-});
+}));

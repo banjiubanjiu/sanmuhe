@@ -2,6 +2,7 @@ const { addToCart, getCart, getTotal, setCart, updateQuantity } = require("../..
 const { createOrder, getMemberCenter, payOrder } = require("../../utils/cloudApi");
 const { teaProducts } = require("../../data/catalog");
 const { syncTabBar } = require("../../utils/tabbar");
+const { withPrivacy } = require("../../utils/privacy");
 
 const deliveryMethods = [
   { value: "pickup", label: "到店自提", hint: "门店确认后自提" },
@@ -70,7 +71,7 @@ function buildRecommendations(cart) {
     }));
 }
 
-Page({
+Page(withPrivacy({
   data: {
     deliveryMethods,
     deliveryMethod: "pickup",
@@ -253,11 +254,7 @@ Page({
 
   onInput(event) {
     const field = event.currentTarget.dataset.field;
-    this.setData({ [field]: event.detail.value }, () => {
-      if (["consignee", "phone", "address"].indexOf(field) >= 0) {
-        this.saveContact();
-      }
-    });
+    this.setData({ [field]: event.detail.value });
   },
 
   chooseDelivery(event) {
@@ -293,18 +290,23 @@ Page({
   },
 
   chooseAddress() {
-    wx.chooseAddress({
-      success: (res) => {
-        const address = `${res.provinceName || ""}${res.cityName || ""}${res.countyName || ""}${res.detailInfo || ""}`;
-        this.setData({
-          consignee: res.userName || "",
-          phone: res.telNumber || "",
-          address
-        }, () => this.saveContact({ address }));
-      },
-      fail: () => {
-        wx.showToast({ title: "未选择地址", icon: "none" });
+    this.requestPrivacy("我们需要读取你的微信收货地址，并保存联系人、手机号和详细地址，用于快递配送、售后与订单履约。").then((accepted) => {
+      if (!accepted) {
+        return;
       }
+      wx.chooseAddress({
+        success: (res) => {
+          const address = `${res.provinceName || ""}${res.cityName || ""}${res.countyName || ""}${res.detailInfo || ""}`;
+          this.setData({
+            consignee: res.userName || "",
+            phone: res.telNumber || "",
+            address
+          }, () => this.saveContact({ address }));
+        },
+        fail: () => {
+          wx.showToast({ title: "未选择地址", icon: "none" });
+        }
+      });
     });
   },
 
@@ -344,47 +346,52 @@ Page({
       couponUserId: selectedCouponId
     };
 
-    this.saveContact();
-    this.setData({ submitting: true });
-    createOrder(payload).then((result) => {
-      if (result && result.ok === false) {
-        wx.showToast({ title: result.message || "提交失败", icon: "none" });
-        this.setData({ submitting: false });
+    this.requestPrivacy("我们需要收集订单联系人、手机号、配送地址、订单明细和备注，用于创建订单、支付、配送、自提和售后服务。").then((accepted) => {
+      if (!accepted) {
         return;
       }
-      setCart(cart.filter((item) => selectedKeys.indexOf(item.key) < 0));
-      this.setData({ selectedKeys: [], selectionInitialized: false });
-      this.refresh();
-      payOrder({
-        _id: result.id,
-        orderNo: result.orderNo
-      }).then(() => {
-        wx.showModal({
-          title: "支付已提交",
-          content: "订单支付结果以后端回调为准，可在我的页面查看最新状态。",
-          showCancel: false,
-          success: () => wx.switchTab({ url: "/pages/profile/index" })
+      this.saveContact();
+      this.setData({ submitting: true });
+      createOrder(payload).then((result) => {
+        if (result && result.ok === false) {
+          wx.showToast({ title: result.message || "提交失败", icon: "none" });
+          this.setData({ submitting: false });
+          return;
+        }
+        setCart(cart.filter((item) => selectedKeys.indexOf(item.key) < 0));
+        this.setData({ selectedKeys: [], selectionInitialized: false });
+        this.refresh();
+        payOrder({
+          _id: result.id,
+          orderNo: result.orderNo
+        }).then(() => {
+          wx.showModal({
+            title: "支付已提交",
+            content: "订单支付结果以后端回调为准，可在我的页面查看最新状态。",
+            showCancel: false,
+            success: () => wx.switchTab({ url: "/pages/profile/index" })
+          });
+        }).catch((error) => {
+          const message = error && error.errMsg && error.errMsg.indexOf("cancel") >= 0
+            ? "订单已保留为待支付，可在我的页面继续支付。"
+            : (error.message || "订单已生成，但暂未完成支付，可在我的页面继续处理。");
+          wx.showModal({
+            title: "待支付订单已生成",
+            content: message,
+            showCancel: false,
+            success: () => wx.switchTab({ url: "/pages/profile/index" })
+          });
+        }).finally(() => {
+          this.setData({ submitting: false });
         });
-      }).catch((error) => {
-        const message = error && error.errMsg && error.errMsg.indexOf("cancel") >= 0
-          ? "订单已保留为待支付，可在我的页面继续支付。"
-          : (error.message || "订单已生成，但暂未完成支付，可在我的页面继续处理。");
+      }).catch(() => {
         wx.showModal({
-          title: "待支付订单已生成",
-          content: message,
+          title: "订单未提交",
+          content: "当前网络或云服务不可用，请稍后重试。购物车内容已保留。",
           showCancel: false,
-          success: () => wx.switchTab({ url: "/pages/profile/index" })
         });
-      }).finally(() => {
         this.setData({ submitting: false });
       });
-    }).catch(() => {
-      wx.showModal({
-        title: "订单未提交",
-        content: "当前网络或云服务不可用，请稍后重试。购物车内容已保留。",
-        showCancel: false,
-      });
-      this.setData({ submitting: false });
     });
   }
-});
+}));
