@@ -1,0 +1,25 @@
+{
+  "name": "sanmuhe-miniprogram",
+  "version": "1.0.0",
+  "description": "三木合茶事空间的小程序原型，使用原生微信小程序开发，无需安装依赖，可直接用微信开发者工具导入。",
+  "main": "app.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "admin:dev": "vite --config vite.config.mjs --host 0.0.0.0",
+    "admin:build": "vite build --config vite.config.mjs",
+    "admin:preview": "vite preview --config vite.config.mjs --host 0.0.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.7",
+    "miniprogram-ci": "^2.1.31",
+    "vite": "^8.0.13"
+  },
+  "dependencies": {
+    "vue": "^3.5.34"
+  }
+}
