@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>禾熙生产上线人工必做清单</title>
+  <style>
+    :root {
+      color: #273427;
+      background: #f7f1e6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 40px 20px;
+    }
+
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    p {
+      margin: 0;
+      color: #697263;
+      line-height: 1.7;
+    }
+
+    section {
+      display: grid;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    article {
+      border: 1px solid rgba(82, 107, 69, 0.18);
+      border-radius: 10px;
+      padding: 18px 20px;
+      background: #fffdf8;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+      color: #4d574b;
+      line-height: 1.75;
+    }
+
+    a {
+      color: #526b45;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .done {
+      margin-top: 22px;
+      border-color: rgba(69, 112, 82, 0.24);
+      background: #f0f6ed;
+    }
+
+    .source {
+      margin-top: 22px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>禾熙生产上线人工必做清单</h1>
+      <p>以下事项需要真实主体、真实资质或微信公众平台人工操作，代码无法代替。</p>
+    </header>
+
+    <section>
+      <article>
+        <h2>1. 完善用户隐私保护指引</h2>
+        <ul>
+          <li>入口：微信公众平台 → 设置 → 服务内容声明 → 用户隐私保护指引。</li>
+          <li>如实填写：联系人、手机号、收货地址、订单信息、预约/报名备注、OpenID/用户标识。</li>
+          <li>填写开发者联系方式，用于用户申请查询、更正、删除个人信息。</li>
+        </ul>
+      </article>
+
+      <article>
+        <h2>2. 完成小程序备案</h2>
+        <ul>
+          <li>准备主体证件、负责人证件、负责人手机号、补充材料。</li>
+          <li>平台初审后注意工信部 12381 短信核验，通常需 24 小时内完成。</li>
+          <li>备案成功后再进入正式提审发布。</li>
+        </ul>
+      </article>
+
+      <article>
+        <h2>3. 确认经营资质</h2>
+        <ul>
+          <li>营业执照。</li>
+          <li>按实际售卖范围准备食品经营许可证、食品生产许可证或预包装食品销售备案凭证。</li>
+          <li>确认茶饮、茶叶、活动/课程类目与小程序服务类目一致。</li>
+        </ul>
+      </article>
+
+      <article>
+        <h2>4. 配置微信支付</h2>
+        <ul>
+          <li>开通微信支付商户号，准备 API v3 密钥、商户证书、私钥、平台证书/公钥。</li>
+          <li>配置支付回调 HTTPS 域名，并把支付环境变量填到云函数。</li>
+          <li>用小额真机订单验证支付、回调、库存释放、优惠券核销。</li>
+        </ul>
+      </article>
+
+      <article>
+        <h2>5. 配置订阅消息模板</h2>
+        <ul>
+          <li>在微信公众平台申请模板：订单支付、订单发货、预约状态、活动报名状态。</li>
+          <li>把模板 ID 填入后台「设置管理」。</li>
+          <li>真机确认用户授权后能收到服务通知。</li>
+        </ul>
+      </article>
+
+      <article>
+        <h2>6. 提审前最终检查</h2>
+        <ul>
+          <li>真机跑通：首页、购物车、支付、预约、活动报名、我的页面。</li>
+          <li>后台确认：订单履约、预约确认、活动确认、用户数据删除。</li>
+          <li>开发者工具预览包体保持低于 2MB。</li>
+        </ul>
+      </article>
+    </section>
+
+    <article class="done">
+      <h2>我已经完成的代码侧工作</h2>
+      <ul>
+        <li>隐私授权弹窗、隐私协议入口、后台敏感信息脱敏。</li>
+        <li>后台用户数据删除/匿名化、审计日志、云函数和后台静态托管部署。</li>
+        <li>小程序业务图片和后台资源已放到云端，包体当前约 1.86 MB。</li>
+      </ul>
+    </article>
+
+    <p class="source">
+      官方入口：
+      <a href="https://developers.weixin.qq.com/miniprogram/dev/framework/user-privacy/">隐私保护指引</a> ·
+      <a href="https://developers.weixin.qq.com/miniprogram/product/record/guidelines.html">小程序备案</a> ·
+      <a href="https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/subscribe-message.html">订阅消息</a>
+    </p>
+  </main>
+</body>
+</html>
