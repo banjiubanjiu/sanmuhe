@@ -7,6 +7,77 @@ cloud.init({
 
 const db = cloud.database();
 
+function parseList(value) {
+  return String(value || "")
+    .split(/[\s,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getAuthObject() {
+  try {
+    const cloudbase = require("@cloudbase/js-sdk");
+    const app = cloudbase.init({});
+    if (app.auth && typeof app.auth.getUserInfo === "function") {
+      return app.auth;
+    }
+    if (typeof app.auth === "function") {
+      return app.auth();
+    }
+  } catch (error) {
+    // Mini program admins can still be authorized with ADMIN_OPENIDS.
+  }
+  return null;
+}
+
+async function getCaller() {
+  const wxContext = cloud.getWXContext();
+  const caller = {
+    openid: wxContext.OPENID || "",
+    uid: "",
+    username: ""
+  };
+  const auth = getAuthObject();
+  if (!auth) return caller;
+  try {
+    const userInfo = typeof auth.getUserInfo === "function" ? auth.getUserInfo() : {};
+    caller.uid = userInfo.uid || userInfo.userInfo && userInfo.userInfo.uid || "";
+    caller.username = userInfo.username || userInfo.userInfo && userInfo.userInfo.username || "";
+  } catch (error) {
+    // Ignore and fall back to OpenID whitelist.
+  }
+  if (caller.uid && !caller.username && typeof auth.getEndUserInfo === "function") {
+    try {
+      const detail = await auth.getEndUserInfo(caller.uid);
+      const info = detail.userInfo || detail.data && detail.data.userInfo || {};
+      caller.username = info.username || info.email || caller.username;
+    } catch (error) {
+      // UID whitelist remains sufficient when detailed lookup is unavailable.
+    }
+  }
+  return caller;
+}
+
+async function assertSeedAllowed() {
+  if (String(process.env.SEED_DEMO_ENABLED || "").toLowerCase() === "true") {
+    return;
+  }
+  const caller = await getCaller();
+  const openids = parseList(process.env.ADMIN_OPENIDS);
+  const uids = parseList(process.env.ADMIN_UIDS);
+  const usernames = parseList(process.env.ADMIN_USERNAMES);
+  const allowed =
+    (caller.openid && openids.includes(caller.openid)) ||
+    (caller.uid && uids.includes(caller.uid)) ||
+    (caller.username && usernames.includes(caller.username));
+  if (allowed) {
+    return;
+  }
+  const error = new Error("默认数据写入已关闭，仅管理员或显式开启 SEED_DEMO_ENABLED=true 后可执行");
+  error.code = "SEED_DEMO_FORBIDDEN";
+  throw error;
+}
+
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
@@ -166,6 +237,7 @@ async function syncStoreSettings() {
 }
 
 exports.main = async () => {
+  await assertSeedAllowed();
   const results = [];
 
   for (const [collection, docs] of Object.entries(seed.collections || {})) {
