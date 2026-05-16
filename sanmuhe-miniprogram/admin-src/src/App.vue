@@ -558,6 +558,11 @@ function isPhone(value) {
   return !text || /^1\d{10}$/.test(text) || /^[\d\s\-+()]{6,24}$/.test(text);
 }
 
+function isDiscountRate(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0.01 && number <= 1;
+}
+
 function isUrlish(value) {
   const text = String(value || "").trim();
   return !text || text.startsWith("cloud://") || text.startsWith("http://") || text.startsWith("https://") || text.startsWith("/assets/");
@@ -1819,6 +1824,15 @@ async function saveSettings() {
     showToast("电话格式不正确");
     return;
   }
+  const discountRates = [
+    state.settings.levelOneDiscountRate,
+    state.settings.levelTwoDiscountRate,
+    state.settings.levelThreeDiscountRate
+  ];
+  if (discountRates.some((rate) => !isDiscountRate(rate))) {
+    showToast("会员折扣需在 0.01 到 1 之间");
+    return;
+  }
   await withLoading("保存设置", async () => {
     await callFunction("manageOperations", { action: "updateSettings", data: state.settings });
     showToast("设置已保存");
@@ -2879,22 +2893,35 @@ onMounted(async () => {
           <form class="settings-grid" @submit.prevent="saveSettings">
             <label><span>品牌名</span><input v-model="state.settings.brandName"></label>
             <label><span>门店名</span><input v-model="state.settings.storeName"></label>
+            <label class="wide"><span>品牌标语</span><input v-model="state.settings.slogan"></label>
             <label><span>电话</span><input v-model="state.settings.phone"></label>
             <label><span>营业时间</span><input v-model="state.settings.businessHours"></label>
             <label class="wide"><span>地址</span><input v-model="state.settings.address"></label>
             <label class="wide"><span>预约规则</span><textarea v-model="state.settings.reservationRule" rows="4"></textarea></label>
             <label><span>积分倍率</span><input v-model.number="state.settings.memberPointRate" type="number" min="0"></label>
             <label><span>一档会员</span><input v-model="state.settings.levelOneName"></label>
+            <label><span>一档门槛</span><input v-model.number="state.settings.levelOneMinSpend" type="number" min="0"></label>
+            <label><span>一档折扣</span><input v-model.number="state.settings.levelOneDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
             <label><span>二档会员</span><input v-model="state.settings.levelTwoName"></label>
+            <label><span>二档门槛</span><input v-model.number="state.settings.levelTwoMinSpend" type="number" min="0"></label>
+            <label><span>二档折扣</span><input v-model.number="state.settings.levelTwoDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
             <label><span>三档会员</span><input v-model="state.settings.levelThreeName"></label>
+            <label><span>三档门槛</span><input v-model.number="state.settings.levelThreeMinSpend" type="number" min="0"></label>
+            <label><span>三档折扣</span><input v-model.number="state.settings.levelThreeDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
             <label class="switch"><input v-model="state.settings.paymentEnabled" type="checkbox"> 启用微信支付</label>
+            <label class="switch"><input v-model="state.settings.pickupEnabled" type="checkbox"> 启用自提</label>
+            <label class="switch"><input v-model="state.settings.shippingEnabled" type="checkbox"> 启用配送</label>
             <label class="switch"><input v-model="state.settings.orderNoticeEnabled" type="checkbox"> 订单通知</label>
             <label class="switch"><input v-model="state.settings.reservationNoticeEnabled" type="checkbox"> 预约通知</label>
             <label class="switch"><input v-model="state.settings.eventNoticeEnabled" type="checkbox"> 活动通知</label>
             <label class="wide"><span>支付成功模板 ID</span><input v-model="state.settings.orderPaidTemplateId"></label>
+            <label class="wide"><span>支付成功跳转页</span><input v-model="state.settings.orderPaidPage"></label>
             <label class="wide"><span>发货通知模板 ID</span><input v-model="state.settings.orderShippedTemplateId"></label>
+            <label class="wide"><span>发货通知跳转页</span><input v-model="state.settings.orderShippedPage"></label>
             <label class="wide"><span>预约通知模板 ID</span><input v-model="state.settings.reservationTemplateId"></label>
+            <label class="wide"><span>预约通知跳转页</span><input v-model="state.settings.reservationNoticePage"></label>
             <label class="wide"><span>活动通知模板 ID</span><input v-model="state.settings.eventTemplateId"></label>
+            <label class="wide"><span>活动通知跳转页</span><input v-model="state.settings.eventNoticePage"></label>
             <button v-if="hasPermission('settings.write')" class="primary-action" type="submit">保存设置</button>
             <div v-else class="permission-note wide">当前角色仅可查看设置。</div>
           </form>
