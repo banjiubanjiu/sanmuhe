@@ -93,7 +93,7 @@ function buildSeasonRecommendations(products) {
   }));
 }
 
-function buildHomeSlides(contentSlides, fallbackSlides, fromCloud) {
+function buildHomeSlides(contentSlides, fallbackSlides) {
   const slides = Array.isArray(contentSlides) ? contentSlides : [];
   const normalized = slides
     .filter((item) => item && item.visible !== false && item.image)
@@ -109,7 +109,7 @@ function buildHomeSlides(contentSlides, fallbackSlides, fromCloud) {
       linkType: item.linkType || "",
       linkTarget: item.linkTarget || ""
     }));
-  return normalized.length || fromCloud ? normalized : fallbackSlides;
+  return normalized.length ? normalized : fallbackSlides;
 }
 
 Page({
@@ -189,7 +189,7 @@ Page({
       const content = catalogResult && catalogResult.content || {};
       this.setData({
         homeCatalog,
-        heroSlides: buildHomeSlides(content.homeSlides, this.data.heroSlides, catalogResult && catalogResult.fromCloud),
+        heroSlides: buildHomeSlides(content.homeSlides, this.data.heroSlides),
         featuredDrink: homeCatalog.drinks[0] || drinks[0],
         featuredTea: homeCatalog.teaProducts[0] || teaProducts[0],
         featuredRoom: homeCatalog.rooms[0] || rooms[0],
