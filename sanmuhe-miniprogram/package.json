@@ -9,7 +9,8 @@
   "scripts": {
     "admin:dev": "vite --config vite.config.mjs --host 0.0.0.0",
     "admin:build": "vite build --config vite.config.mjs",
-    "admin:preview": "vite preview --config vite.config.mjs --host 0.0.0.0"
+    "admin:preview": "vite preview --config vite.config.mjs --host 0.0.0.0",
+    "admin:verify": "node scripts/verify-admin-production.mjs"
   },
   "keywords": [],
   "author": "",

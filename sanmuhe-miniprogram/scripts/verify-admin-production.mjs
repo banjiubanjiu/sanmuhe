@@ -1,0 +1,88 @@
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+
+function rel(path) {
+  return relative(root, path).replace(/\\/g, "/");
+}
+
+function fail(message) {
+  console.error(`\n[admin:verify] ${message}`);
+  process.exit(1);
+}
+
+function run(command, args) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    stdio: "inherit",
+    shell: process.platform === "win32"
+  });
+  if (result.status !== 0) {
+    fail(`${command} ${args.join(" ")} failed`);
+  }
+}
+
+function readJson(path) {
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function listFunctionEntrypoints() {
+  const functionsDir = join(root, "cloudfunctions");
+  return readdirSync(functionsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(functionsDir, entry.name, "index.js"))
+    .filter((path) => existsSync(path))
+    .sort();
+}
+
+function verifyProjectIgnore() {
+  const config = readJson(join(root, "project.config.json"));
+  const ignored = new Set((config.packOptions?.ignore || []).map((item) => item.value));
+  const required = ["admin", "admin-src", "node_modules", "package-lock.json", "package.json", "vite.config.mjs"];
+  const missing = required.filter((item) => !ignored.has(item));
+  if (missing.length) {
+    fail(`project.config.json missing packOptions.ignore: ${missing.join(", ")}`);
+  }
+  console.log(`[admin:verify] project.config.json ignores ${required.length} heavy/admin paths`);
+}
+
+function verifyBuiltAdminAssets() {
+  const htmlPath = join(root, "admin", "index.html");
+  if (!existsSync(htmlPath)) {
+    fail("admin/index.html missing; run npm run admin:build");
+  }
+  const html = readFileSync(htmlPath, "utf8");
+  const assets = [...html.matchAll(/(?:\/admin\/|\.\/)assets\/([^"']+)/g)].map((match) => join(root, "admin", "assets", match[1]));
+  if (!assets.length) {
+    fail("admin/index.html does not reference built JS/CSS assets");
+  }
+  for (const asset of assets) {
+    if (!existsSync(asset)) {
+      fail(`missing built asset referenced by admin/index.html: ${rel(asset)}`);
+    }
+  }
+  const maxAssetBytes = 2 * 1024 * 1024;
+  const oversized = readdirSync(join(root, "admin", "assets"))
+    .map((name) => join(root, "admin", "assets", name))
+    .filter((path) => statSync(path).isFile() && statSync(path).size > maxAssetBytes);
+  if (oversized.length) {
+    fail(`admin assets exceed 2MB each: ${oversized.map(rel).join(", ")}`);
+  }
+  console.log(`[admin:verify] built admin assets exist and each asset is under 2MB`);
+}
+
+console.log("[admin:verify] checking cloud function syntax");
+for (const entrypoint of listFunctionEntrypoints()) {
+  run(process.execPath, ["--check", rel(entrypoint)]);
+}
+
+console.log("[admin:verify] building admin");
+run("npm", ["run", "admin:build"]);
+
+verifyBuiltAdminAssets();
+verifyProjectIgnore();
+
+console.log("[admin:verify] ok");
