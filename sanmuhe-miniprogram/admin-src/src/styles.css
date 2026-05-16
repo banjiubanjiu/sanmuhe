@@ -731,6 +731,82 @@ textarea:focus {
   background: rgba(255, 253, 248, 0.72);
 }
 
+.sync-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  align-items: center;
+  gap: 20px;
+  margin: -10px 0 20px;
+  border: 1px solid rgba(77, 101, 66, 0.16);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background:
+    linear-gradient(90deg, rgba(239, 245, 231, 0.82), rgba(255, 253, 247, 0.9));
+  box-shadow: var(--admin-shadow-soft);
+}
+
+.sync-banner span {
+  display: block;
+  color: var(--admin-green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sync-banner strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--admin-ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.sync-banner p {
+  margin: 5px 0 0;
+  color: var(--admin-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sync-skeleton {
+  display: grid;
+  gap: 8px;
+}
+
+.sync-skeleton i {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(222, 235, 217, 0.88);
+}
+
+.sync-skeleton i::after {
+  content: "";
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(255, 253, 247, 0.74);
+  animation: sync-sweep 1200ms ease-in-out infinite;
+}
+
+.sync-skeleton i:nth-child(2) {
+  width: 82%;
+}
+
+.sync-skeleton i:nth-child(3) {
+  width: 58%;
+}
+
+@keyframes sync-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(280%);
+  }
+}
+
 .work-context {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(260px, 0.72fr);
@@ -1563,6 +1639,22 @@ td small {
   line-height: 1.55;
 }
 
+.empty-action {
+  min-height: 32px;
+  margin-top: 3px;
+  border: 1px solid rgba(77, 101, 66, 0.2);
+  border-radius: 7px;
+  padding: 0 12px;
+  color: var(--admin-green-dark);
+  background: rgba(255, 253, 247, 0.78);
+}
+
+.empty-action:hover,
+.empty-action:focus-visible {
+  border-color: rgba(77, 101, 66, 0.34);
+  background: rgba(222, 235, 217, 0.62);
+}
+
 tr.selected td {
   background: rgba(229, 229, 215, 0.72);
 }
@@ -2336,6 +2428,7 @@ tr.selected td:first-child {
   .analytics-layout,
   .marketing-grid,
   .system-grid,
+  .sync-banner,
   .work-context,
   .status-grid {
     grid-template-columns: 1fr;

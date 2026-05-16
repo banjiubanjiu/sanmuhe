@@ -58,6 +58,24 @@ const DetailRow = {
   }
 };
 
+const EmptyState = {
+  props: {
+    title: { type: String, required: true },
+    hint: { type: String, required: true },
+    actionLabel: { type: String, default: "" }
+  },
+  emits: ["action"],
+  setup(props, { emit }) {
+    return () => h("div", { class: "empty-state rich-empty", role: "status" }, [
+      h("strong", props.title),
+      h("span", props.hint),
+      props.actionLabel
+        ? h("button", { class: "empty-action", type: "button", onClick: () => emit("action") }, props.actionLabel)
+        : null
+    ]);
+  }
+};
+
 const navItems = [
   { key: "dashboard", label: "首页", icon: Home },
   { key: "reservations", label: "茶室预约", icon: CalendarCheck },
@@ -228,6 +246,7 @@ const state = reactive({
   collection: "tea_products",
   contentType: "home_carousel",
   loading: "",
+  loadingTab: "",
   loginError: "",
   moduleError: "",
   searchOpen: false,
@@ -570,6 +589,7 @@ const hasClearableFilters = computed(() => {
   return false;
 });
 const exportScopeLabel = computed(() => hasClearableFilters.value ? "按筛选导出 CSV" : "导出全部 CSV");
+const showSyncBanner = computed(() => !!state.loading && /^读取/.test(state.loading));
 const currentRecordCount = computed(() => {
   const counts = {
     dashboard: state.summary.length,
@@ -1146,6 +1166,7 @@ async function loadActiveTab() {
 
 async function withLoading(label, task) {
   state.loading = label;
+  state.loadingTab = state.activeTab;
   state.moduleError = "";
   try {
     await task();
@@ -1155,6 +1176,7 @@ async function withLoading(label, task) {
     showToast(message);
   } finally {
     state.loading = "";
+    state.loadingTab = "";
   }
 }
 
@@ -2313,6 +2335,48 @@ function emptyHint(tab = state.activeTab) {
   }[tab] || "暂无可展示记录。";
 }
 
+function emptyActionLabel(tab = state.activeTab) {
+  if (hasClearableFilters.value) return "清除筛选";
+  const labels = {
+    catalog: hasPermission("catalog.write") ? "新建资料" : "刷新资料",
+    content: hasPermission("content.write") ? "新建内容" : "刷新内容",
+    marketing: hasPermission("marketing.write") ? "新建营销记录" : "刷新营销",
+    roles: hasPermission("roles.manage") ? "新建角色" : "刷新角色",
+    backups: "刷新备份",
+    system: "重新检查"
+  };
+  return labels[tab] || "刷新记录";
+}
+
+function handleEmptyAction(tab = state.activeTab) {
+  if (hasClearableFilters.value) {
+    clearActiveFilters();
+    return;
+  }
+  if (tab === "catalog" && hasPermission("catalog.write")) {
+    resetCatalog();
+    return;
+  }
+  if (tab === "content" && hasPermission("content.write")) {
+    resetContent();
+    return;
+  }
+  if (tab === "marketing" && hasPermission("marketing.write")) {
+    resetCoupon();
+    resetCampaign();
+    return;
+  }
+  if (tab === "roles" && hasPermission("roles.manage")) {
+    resetRole();
+    return;
+  }
+  if (tab === "system") {
+    loadSystemStatus();
+    return;
+  }
+  loadActiveTab();
+}
+
 onMounted(async () => {
   try {
     initCloud();
@@ -2457,6 +2521,19 @@ onMounted(async () => {
           <strong>{{ state.moduleError }}</strong>
           <button type="button" @click="loadActiveTab">重试</button>
         </div>
+
+        <section v-if="showSyncBanner" class="sync-banner" role="status" aria-live="polite">
+          <div>
+            <span>正在同步云端数据</span>
+            <strong>{{ state.loading }}</strong>
+            <p>当前页面会保留原有内容，新的记录返回后自动更新。</p>
+          </div>
+          <div class="sync-skeleton" aria-hidden="true">
+            <i></i>
+            <i></i>
+            <i></i>
+          </div>
+        </section>
 
         <section class="work-context" aria-live="polite">
           <div class="context-main">
@@ -2636,10 +2713,7 @@ onMounted(async () => {
                 </tbody>
               </table>
             </div>
-            <div v-if="filteredCatalog.length === 0" class="empty-state rich-empty">
-              <strong>{{ emptyTitle('catalog') }}</strong>
-              <span>{{ emptyHint('catalog') }}</span>
-            </div>
+            <EmptyState v-if="filteredCatalog.length === 0" :title="emptyTitle('catalog')" :hint="emptyHint('catalog')" :action-label="emptyActionLabel('catalog')" @action="handleEmptyAction('catalog')" />
           </article>
           <aside class="panel-card editor-panel">
             <div class="panel-title">
@@ -2702,10 +2776,7 @@ onMounted(async () => {
                   <i class="record-status">{{ order.status }}</i>
                 </span>
               </button>
-              <div v-if="state.orders.length === 0" class="empty-state rich-empty">
-                <strong>{{ emptyTitle('orders') }}</strong>
-                <span>{{ emptyHint('orders') }}</span>
-              </div>
+              <EmptyState v-if="state.orders.length === 0" :title="emptyTitle('orders')" :hint="emptyHint('orders')" :action-label="emptyActionLabel('orders')" @action="handleEmptyAction('orders')" />
             </div>
             <div v-if="pageMetaFor('orders').total > pageMetaFor('orders').pageSize" class="pager">
               <span>{{ pageRangeText('orders') }}</span>
@@ -2787,10 +2858,7 @@ onMounted(async () => {
                   <i class="record-status warn">{{ order.afterSaleStatus || order.status }}</i>
                 </span>
               </button>
-              <div v-if="state.afterSales.length === 0" class="empty-state rich-empty">
-                <strong>{{ emptyTitle('afterSales') }}</strong>
-                <span>{{ emptyHint('afterSales') }}</span>
-              </div>
+              <EmptyState v-if="state.afterSales.length === 0" :title="emptyTitle('afterSales')" :hint="emptyHint('afterSales')" :action-label="emptyActionLabel('afterSales')" @action="handleEmptyAction('afterSales')" />
             </div>
             <div v-if="pageMetaFor('afterSales').total > pageMetaFor('afterSales').pageSize" class="pager">
               <span>{{ pageRangeText('afterSales') }}</span>
@@ -2853,10 +2921,7 @@ onMounted(async () => {
                 </tbody>
               </table>
             </div>
-            <div v-if="state.inventoryLogs.length === 0" class="empty-state rich-empty">
-              <strong>{{ emptyTitle('inventory') }}</strong>
-              <span>{{ emptyHint('inventory') }}</span>
-            </div>
+            <EmptyState v-if="state.inventoryLogs.length === 0" :title="emptyTitle('inventory')" :hint="emptyHint('inventory')" :action-label="emptyActionLabel('inventory')" @action="handleEmptyAction('inventory')" />
             <div v-if="pageMetaFor('inventory').total > pageMetaFor('inventory').pageSize" class="pager">
               <span>{{ pageRangeText('inventory') }}</span>
               <button type="button" :disabled="pageMetaFor('inventory').page <= 1" @click="changePage('inventory', -1, loadInventoryLogs)">上一页</button>
@@ -2903,10 +2968,7 @@ onMounted(async () => {
                   <small>{{ slot.record ? `${maskName(slot.record.name || slot.record.customerName) || '访客'} · ${slot.record.people || 1}人` : "可预约" }}</small>
                 </span>
               </div>
-              <div v-if="reservationCalendarRows.length === 0" class="empty-state rich-empty">
-                <strong>{{ emptyTitle('reservations') }}</strong>
-                <span>{{ emptyHint('reservations') }}</span>
-              </div>
+              <EmptyState v-if="reservationCalendarRows.length === 0" :title="emptyTitle('reservations')" :hint="emptyHint('reservations')" :action-label="emptyActionLabel('reservations')" @action="handleEmptyAction('reservations')" />
             </div>
             <div class="record-list">
               <button
@@ -2922,10 +2984,7 @@ onMounted(async () => {
                   <i class="record-status">{{ record.status }}</i>
                 </span>
               </button>
-              <div v-if="(state.activeTab === 'reservations' ? state.reservations : state.signups).length === 0" class="empty-state rich-empty">
-                <strong>{{ emptyTitle(state.activeTab) }}</strong>
-                <span>{{ emptyHint(state.activeTab) }}</span>
-              </div>
+              <EmptyState v-if="(state.activeTab === 'reservations' ? state.reservations : state.signups).length === 0" :title="emptyTitle(state.activeTab)" :hint="emptyHint(state.activeTab)" :action-label="emptyActionLabel(state.activeTab)" @action="handleEmptyAction(state.activeTab)" />
             </div>
             <div v-if="state.activeTab === 'reservations' && pageMetaFor('reservations').total > pageMetaFor('reservations').pageSize" class="pager">
               <span>{{ pageRangeText('reservations') }}</span>
@@ -3009,10 +3068,7 @@ onMounted(async () => {
                   <i class="record-status neutral">预约 {{ customer.reservations || 0 }}</i>
                 </span>
               </button>
-              <div v-if="state.customers.length === 0" class="empty-state rich-empty">
-                <strong>{{ emptyTitle('customers') }}</strong>
-                <span>{{ emptyHint('customers') }}</span>
-              </div>
+              <EmptyState v-if="state.customers.length === 0" :title="emptyTitle('customers')" :hint="emptyHint('customers')" :action-label="emptyActionLabel('customers')" @action="handleEmptyAction('customers')" />
             </div>
             <div v-if="pageMetaFor('customers').total > pageMetaFor('customers').pageSize" class="pager">
               <span>{{ pageRangeText('customers') }}</span>
@@ -3071,10 +3127,7 @@ onMounted(async () => {
                 <img v-if="displayImage(item.image)" :src="displayImage(item.image)" alt="">
                 <span><strong>{{ item.title || item.key }} <em>{{ item.visible === false ? "停用" : "启用" }}</em></strong><small>{{ item.subtitle || item.type }}</small></span>
               </button>
-              <div v-if="state.contentItems.length === 0" class="empty-state rich-empty">
-                <strong>{{ emptyTitle('content') }}</strong>
-                <span>{{ emptyHint('content') }}</span>
-              </div>
+              <EmptyState v-if="state.contentItems.length === 0" :title="emptyTitle('content')" :hint="emptyHint('content')" :action-label="emptyActionLabel('content')" @action="handleEmptyAction('content')" />
             </div>
           </article>
           <aside class="panel-card editor-panel">
@@ -3122,10 +3175,7 @@ onMounted(async () => {
           <article class="panel-card wide-table">
             <div class="panel-title"><h2>热销项目</h2></div>
             <table><caption>热销项目统计</caption><thead><tr><th>名称</th><th>类型</th><th>销售额</th><th>数量</th></tr></thead><tbody><tr v-for="item in (state.analytics?.topItems || [])" :key="item.name"><td>{{ item.name }}</td><td>{{ item.type }}</td><td>¥{{ money(item.amount) }}</td><td>{{ item.count }}</td></tr></tbody></table>
-            <div v-if="(state.analytics?.topItems || []).length === 0" class="empty-state rich-empty">
-              <strong>暂无热销项目</strong>
-              <span>有已支付订单后会自动生成销售排行。</span>
-            </div>
+            <EmptyState v-if="(state.analytics?.topItems || []).length === 0" title="暂无热销项目" hint="有已支付订单后会自动生成销售排行。" :action-label="emptyActionLabel('analytics')" @action="handleEmptyAction('analytics')" />
           </article>
         </section>
 
@@ -3143,7 +3193,7 @@ onMounted(async () => {
                   <i class="record-status neutral">库存 {{ item.stock || "不限" }}</i>
                 </span>
               </button>
-              <div v-if="state.coupons.length === 0" class="empty-state rich-empty"><strong>暂无优惠券</strong><span>{{ emptyHint('marketing') }}</span></div>
+              <EmptyState v-if="state.coupons.length === 0" title="暂无优惠券" :hint="emptyHint('marketing')" :action-label="emptyActionLabel('marketing')" @action="handleEmptyAction('marketing')" />
             </div>
           </article>
           <article class="panel-card">
@@ -3159,7 +3209,7 @@ onMounted(async () => {
                   <i class="record-status neutral">{{ item.visible === false ? "已停用" : "启用" }}</i>
                 </span>
               </button>
-              <div v-if="state.campaigns.length === 0" class="empty-state rich-empty"><strong>暂无营销计划</strong><span>{{ emptyHint('marketing') }}</span></div>
+              <EmptyState v-if="state.campaigns.length === 0" title="暂无营销计划" :hint="emptyHint('marketing')" :action-label="emptyActionLabel('marketing')" @action="handleEmptyAction('marketing')" />
             </div>
           </article>
           <article class="panel-card wide-table">
@@ -3177,10 +3227,7 @@ onMounted(async () => {
                 </tr>
               </tbody>
             </table>
-            <div v-if="state.couponStats.length === 0" class="empty-state rich-empty">
-              <strong>暂无优惠券领取记录</strong>
-              <span>领取和核销后会自动形成转化统计。</span>
-            </div>
+            <EmptyState v-if="state.couponStats.length === 0" title="暂无优惠券领取记录" hint="领取和核销后会自动形成转化统计。" :action-label="emptyActionLabel('marketing')" @action="handleEmptyAction('marketing')" />
           </article>
           <form v-if="hasPermission('marketing.write')" class="panel-card editor-form" @submit.prevent="saveCoupon">
             <div class="panel-title">
@@ -3236,10 +3283,7 @@ onMounted(async () => {
                 </tbody>
               </table>
             </div>
-            <div v-if="state.auditLogs.length === 0" class="empty-state rich-empty">
-              <strong>{{ emptyTitle('audit') }}</strong>
-              <span>{{ emptyHint('audit') }}</span>
-            </div>
+            <EmptyState v-if="state.auditLogs.length === 0" :title="emptyTitle('audit')" :hint="emptyHint('audit')" :action-label="emptyActionLabel('audit')" @action="handleEmptyAction('audit')" />
             <div v-if="pageMetaFor('audit').total > pageMetaFor('audit').pageSize" class="pager">
               <span>{{ pageRangeText('audit') }}</span>
               <button type="button" :disabled="pageMetaFor('audit').page <= 1" @click="changePage('audit', -1, loadAuditLogs)">上一页</button>
@@ -3289,10 +3333,7 @@ onMounted(async () => {
                 </tbody>
               </table>
             </div>
-            <div v-if="state.notificationLogs.length === 0" class="empty-state rich-empty">
-              <strong>{{ emptyTitle('notifications') }}</strong>
-              <span>{{ emptyHint('notifications') }}</span>
-            </div>
+            <EmptyState v-if="state.notificationLogs.length === 0" :title="emptyTitle('notifications')" :hint="emptyHint('notifications')" :action-label="emptyActionLabel('notifications')" @action="handleEmptyAction('notifications')" />
             <div v-if="pageMetaFor('notifications').total > pageMetaFor('notifications').pageSize" class="pager">
               <span>{{ pageRangeText('notifications') }}</span>
               <button type="button" :disabled="pageMetaFor('notifications').page <= 1" @click="changePage('notifications', -1, loadNotificationLogs)">上一页</button>
@@ -3335,10 +3376,7 @@ onMounted(async () => {
                 <small>{{ item.detail }}</small>
               </div>
             </div>
-            <div v-if="(state.systemStatus?.checks || []).length === 0" class="empty-state rich-empty">
-              <strong>暂无系统检查结果</strong>
-              <span>点击重新检查后会读取当前云端配置和包体规则。</span>
-            </div>
+            <EmptyState v-if="(state.systemStatus?.checks || []).length === 0" title="暂无系统检查结果" hint="重新检查后会读取当前云端配置和包体规则。" :action-label="emptyActionLabel('system')" @action="handleEmptyAction('system')" />
           </article>
         </section>
 
@@ -3352,10 +3390,7 @@ onMounted(async () => {
                 <strong>{{ role.displayName || role.subject }} <em>{{ role.roleName || role.roleKey }}</em></strong>
                 <span>{{ role.subjectType || "username" }} · {{ role.disabled ? "已停用" : "启用" }}</span>
               </button>
-              <div v-if="state.adminRoles.length === 0" class="empty-state rich-empty">
-                <strong>{{ emptyTitle('roles') }}</strong>
-                <span>{{ emptyHint('roles') }}</span>
-              </div>
+              <EmptyState v-if="state.adminRoles.length === 0" :title="emptyTitle('roles')" :hint="emptyHint('roles')" :action-label="emptyActionLabel('roles')" @action="handleEmptyAction('roles')" />
             </div>
           </article>
           <aside class="panel-card editor-panel">
@@ -3401,10 +3436,7 @@ onMounted(async () => {
                 </tbody>
               </table>
             </div>
-            <div v-if="state.backupLogs.length === 0" class="empty-state rich-empty">
-              <strong>{{ emptyTitle('backups') }}</strong>
-              <span>{{ emptyHint('backups') }}</span>
-            </div>
+            <EmptyState v-if="state.backupLogs.length === 0" :title="emptyTitle('backups')" :hint="emptyHint('backups')" :action-label="emptyActionLabel('backups')" @action="handleEmptyAction('backups')" />
             <div v-if="pageMetaFor('backups').total > pageMetaFor('backups').pageSize" class="pager">
               <span>{{ pageRangeText('backups') }}</span>
               <button type="button" :disabled="pageMetaFor('backups').page <= 1" @click="changePage('backups', -1, loadBackupLogs)">上一页</button>
