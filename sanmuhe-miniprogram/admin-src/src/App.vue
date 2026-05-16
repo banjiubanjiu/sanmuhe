@@ -568,6 +568,16 @@ function isDiscountRate(value) {
   return Number.isFinite(number) && number >= 0.01 && number <= 1;
 }
 
+function isNonNegativeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0;
+}
+
+function isSafePagePath(value) {
+  const text = String(value || "").trim();
+  return !text || (!/[\r\n]/.test(text) && !/^(javascript|data|vbscript):/i.test(text));
+}
+
 function isUrlish(value) {
   const text = String(value || "").trim();
   return !text || text.startsWith("cloud://") || text.startsWith("http://") || text.startsWith("https://") || text.startsWith("/assets/");
@@ -1829,6 +1839,23 @@ async function saveSettings() {
     showToast("电话格式不正确");
     return;
   }
+  if (!isNonNegativeNumber(state.settings.memberPointRate)) {
+    showToast("积分倍率不能为负数");
+    return;
+  }
+  const levelMinSpends = [
+    Number(state.settings.levelOneMinSpend),
+    Number(state.settings.levelTwoMinSpend),
+    Number(state.settings.levelThreeMinSpend)
+  ];
+  if (levelMinSpends.some((value) => !Number.isFinite(value) || value < 0)) {
+    showToast("会员门槛必须是非负数字");
+    return;
+  }
+  if (levelMinSpends[1] < levelMinSpends[0] || levelMinSpends[2] < levelMinSpends[1]) {
+    showToast("会员等级门槛需按一档、二档、三档递增");
+    return;
+  }
   const discountRates = [
     state.settings.levelOneDiscountRate,
     state.settings.levelTwoDiscountRate,
@@ -1836,6 +1863,21 @@ async function saveSettings() {
   ];
   if (discountRates.some((rate) => !isDiscountRate(rate))) {
     showToast("会员折扣需在 0.01 到 1 之间");
+    return;
+  }
+  const discountNumbers = discountRates.map(Number);
+  if (discountNumbers[1] > discountNumbers[0] || discountNumbers[2] > discountNumbers[1]) {
+    showToast("高等级会员折扣率不能高于低等级会员");
+    return;
+  }
+  const noticePages = [
+    state.settings.orderPaidPage,
+    state.settings.orderShippedPage,
+    state.settings.reservationNoticePage,
+    state.settings.eventNoticePage
+  ];
+  if (noticePages.some((page) => !isSafePagePath(page))) {
+    showToast("通知跳转页格式不安全");
     return;
   }
   await withLoading("保存设置", async () => {
