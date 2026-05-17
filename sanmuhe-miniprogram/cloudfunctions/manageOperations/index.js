@@ -1633,6 +1633,20 @@ function envMissing(keys) {
   return keys.filter((key) => !process.env[key]);
 }
 
+function backupTruncatedCollections(record = {}) {
+  if (Array.isArray(record.truncatedCollections)) {
+    return record.truncatedCollections.filter(Boolean);
+  }
+  const truncated = record.truncated || {};
+  return Object.keys(truncated).filter((collection) => truncated[collection]);
+}
+
+function hasBackupCompleteness(record = {}) {
+  return Array.isArray(record.truncatedCollections)
+    || record.truncated && typeof record.truncated === "object"
+    || record.totals && typeof record.totals === "object";
+}
+
 async function countCollection(name) {
   await ensureCollection(name);
   try {
@@ -1758,6 +1772,8 @@ async function getSystemStatus(event = {}) {
     readCollection("data_backup_logs", { orderBy: "createdAt", limit: 1 })
   ]);
   const latestBackup = latestBackupResult[0] || null;
+  const latestBackupTruncated = backupTruncatedCollections(latestBackup || {});
+  const latestBackupReady = latestBackup && latestBackup.status === "success" && latestBackup.fileId;
   const functionHealth = await checkCloudFunctionHealth(packageInfo.requiredFunctions);
 
   const checks = [
@@ -1810,10 +1826,14 @@ async function getSystemStatus(event = {}) {
     statusItem(
       "backupRecovery",
       "最近备份可恢复",
-      latestBackup && latestBackup.status === "success" && latestBackup.fileId ? "ok" : "warn",
+      latestBackupReady && latestBackupTruncated.length === 0 && hasBackupCompleteness(latestBackup) ? "ok" : "warn",
       latestBackup
-        ? latestBackup.status === "success" && latestBackup.fileId
-          ? `最近备份：${latestBackup.cloudPath || latestBackup.fileId}`
+        ? latestBackupReady
+          ? latestBackupTruncated.length
+            ? `最近备份可下载，但可能截断：${latestBackupTruncated.join("、")}`
+            : hasBackupCompleteness(latestBackup)
+              ? `最近备份完整：${latestBackup.cloudPath || latestBackup.fileId}`
+              : `最近备份可下载；旧记录未包含完整性校验，建议重新创建一次备份`
           : `最近备份不可直接下载：${latestBackup.error || "缺少云文件 ID"}`
         : "暂无成功备份，建议上线前先创建一次云端备份"
     ),

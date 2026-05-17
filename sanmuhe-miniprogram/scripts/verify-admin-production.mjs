@@ -131,6 +131,10 @@ function verifyProductionSurfaces() {
     {
       label: "system health probes",
       items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性", "durationMs"]
+    },
+    {
+      label: "backup completeness system status",
+      items: ["backupTruncatedCollections", "hasBackupCompleteness", "旧记录未包含完整性校验", "最近备份完整"]
     }
   ]);
 
