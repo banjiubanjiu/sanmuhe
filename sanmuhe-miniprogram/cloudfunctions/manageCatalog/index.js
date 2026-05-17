@@ -204,10 +204,12 @@ function normalizeRoleKey(value) {
 async function getAdminRole(caller) {
   await ensureCollection("admin_roles");
   const result = await db.collection("admin_roles")
-    .where({ disabled: _.neq(true) })
     .limit(100)
     .get();
   const role = (result.data || []).find((item) => roleSubjectMatches(item, caller));
+  if (role && role.disabled === true) {
+    return { roleKey: "disabled", roleName: "已停用", permissions: [], disabled: true };
+  }
   if (!role) {
     return { roleKey: "admin", roleName: roleLabels.admin, permissions: rolePermissionMap.admin };
   }

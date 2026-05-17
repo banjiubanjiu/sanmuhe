@@ -459,12 +459,19 @@ function normalizePermissionList(value, roleKey) {
 async function getAdminRole(caller) {
   await ensureCollection("admin_roles");
   const result = await db.collection("admin_roles")
-    .where({
-      disabled: _.neq(true)
-    })
     .limit(100)
     .get();
   const role = (result.data || []).find((item) => roleSubjectMatches(item, caller));
+  if (role && role.disabled === true) {
+    return {
+      roleKey: "disabled",
+      roleName: "已停用",
+      permissions: [],
+      source: "admin_roles",
+      disabled: true,
+      raw: role
+    };
+  }
   if (!role) {
     return {
       roleKey: "admin",
@@ -2344,7 +2351,8 @@ function adminProfile(role) {
     roleKey: role.roleKey,
     roleName: role.roleName,
     permissions: role.permissions || [],
-    source: role.source || "admin_roles"
+    source: role.source || "admin_roles",
+    disabled: role.disabled === true
   };
 }
 
