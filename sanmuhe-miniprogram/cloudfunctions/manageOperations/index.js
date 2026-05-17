@@ -1806,13 +1806,26 @@ async function getSystemStatus(event = {}) {
   const ignored = Array.isArray(packageInfo.ignored) ? packageInfo.ignored : [];
   const ignoreExpected = ["admin", "admin-src", "node_modules", "package-lock.json", "package.json", "vite.config.mjs"];
   const ignoreMissing = ignoreExpected.filter((item) => !ignored.includes(item));
-  const [auditCount, notificationCount, backupCount, roleCount, latestBackupResult] = await Promise.all([
+  const catalogCollections = [
+    ["tea_products", "茶叶"],
+    ["drinks", "茶饮"],
+    ["rooms", "茶室"],
+    ["content_blocks", "首页内容"],
+    ["events", "活动"]
+  ];
+  const [auditCount, notificationCount, backupCount, roleCount, latestBackupResult, catalogCounts] = await Promise.all([
     countCollection("admin_audit_logs"),
     countCollection("notification_logs"),
     countCollection("data_backup_logs"),
     countCollection("admin_roles"),
-    readCollection("data_backup_logs", { orderBy: "createdAt", limit: 1 })
+    readCollection("data_backup_logs", { orderBy: "createdAt", limit: 1 }),
+    Promise.all(catalogCollections.map(async ([collection, label]) => ({
+      collection,
+      label,
+      count: await countCollection(collection)
+    })))
   ]);
+  const emptyCatalogCollections = catalogCounts.filter((item) => item.count <= 0);
   const latestBackup = latestBackupResult[0] || null;
   const latestBackupTruncated = backupTruncatedCollections(latestBackup || {});
   const latestBackupReady = latestBackup && latestBackup.status === "success" && latestBackup.fileId;
@@ -1864,6 +1877,14 @@ async function getSystemStatus(event = {}) {
       "后台配置完整度",
       missingStoreFields.length ? "warn" : "ok",
       missingStoreFields.length ? `缺少门店字段：${missingStoreFields.join("、")}` : "门店基础资料完整"
+    ),
+    statusItem(
+      "frontendCatalog",
+      "前台资料云端数据",
+      emptyCatalogCollections.length ? "warn" : "ok",
+      emptyCatalogCollections.length
+        ? `云端缺少：${emptyCatalogCollections.map((item) => item.label).join("、")}。上线前应由后台保存或导入，避免依赖本地兜底数据。`
+        : catalogCounts.map((item) => `${item.label} ${item.count}`).join("；")
     ),
     statusItem(
       "operationLogs",

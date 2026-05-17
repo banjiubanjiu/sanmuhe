@@ -133,6 +133,10 @@ function verifyProductionSurfaces() {
       items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性", "durationMs", "paymentConfig", "name: \"manageOperations\""]
     },
     {
+      label: "frontend catalog cloud data readiness",
+      items: ["frontendCatalog", "前台资料云端数据", "catalogCounts", "content_blocks", "避免依赖本地兜底数据"]
+    },
+    {
       label: "backup completeness system status",
       items: ["backupTruncatedCollections", "hasBackupCompleteness", "旧记录未包含完整性校验", "最近备份完整"]
     }
