@@ -1676,6 +1676,7 @@ function callWithTimeout(promise, timeoutMs, label) {
 }
 
 async function checkFunctionHealth(name, timeoutMs) {
+  const startedAt = Date.now();
   try {
     const result = await callWithTimeout(
       cloud.callFunction({
@@ -1687,17 +1688,19 @@ async function checkFunctionHealth(name, timeoutMs) {
     );
     const payload = result && result.result ? result.result : {};
     if (payload.ok === true) {
-      return { name, ok: true, message: payload.name || "可调用" };
+      return { name, ok: true, durationMs: Date.now() - startedAt, message: payload.name || "可调用" };
     }
     return {
       name,
       ok: false,
+      durationMs: Date.now() - startedAt,
       message: cleanText(payload.message || payload.code || "health 未返回 ok", 160)
     };
   } catch (error) {
     return {
       name,
       ok: false,
+      durationMs: Date.now() - startedAt,
       message: cleanText(error.message || String(error), 160)
     };
   }

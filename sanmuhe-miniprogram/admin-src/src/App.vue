@@ -3812,6 +3812,28 @@ onBeforeUnmount(() => {
             </div>
             <EmptyState v-if="(state.systemStatus?.checks || []).length === 0" title="暂无系统检查结果" hint="重新检查后会读取当前云端配置和包体规则。" :action-label="emptyActionLabel('system')" @action="handleEmptyAction('system')" />
           </article>
+          <article v-if="(state.systemStatus?.functionHealth?.results || []).length" class="panel-card wide-table">
+            <div class="panel-title">
+              <h2>云函数探测明细</h2>
+              <span>{{ state.systemStatus.functionHealth.passed.length }}/{{ state.systemStatus.functionHealth.total }} 可调用</span>
+            </div>
+            <div class="table-wrap">
+              <table class="health-table">
+                <caption>云函数健康探测明细</caption>
+                <thead>
+                  <tr><th>函数</th><th>状态</th><th>耗时</th><th>结果</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in state.systemStatus.functionHealth.results" :key="item.name">
+                    <td><strong class="health-function-name">{{ item.name }}</strong></td>
+                    <td><span :class="['status-pill', item.ok ? 'good' : 'danger']">{{ item.ok ? "可调用" : "异常" }}</span></td>
+                    <td>{{ item.durationMs ? item.durationMs + "ms" : "-" }}</td>
+                    <td>{{ item.message || "-" }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <section v-if="state.activeTab === 'roles'" class="split-panel">

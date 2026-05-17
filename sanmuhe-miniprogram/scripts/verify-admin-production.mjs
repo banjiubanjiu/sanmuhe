@@ -130,7 +130,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "system health probes",
-      items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性"]
+      items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性", "durationMs"]
     }
   ]);
 
@@ -168,7 +168,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "system required functions",
-      items: ["requiredFunctions", "createPayment", "serviceNotify", "scheduledBackup", "cleanupSmokeData"]
+      items: ["requiredFunctions", "createPayment", "serviceNotify", "scheduledBackup", "cleanupSmokeData", "云函数探测明细", "health-table"]
     },
     {
       label: "catalog sensitive operation reasons",
@@ -190,6 +190,10 @@ function verifyProductionSurfaces() {
     {
       label: "workflow state strip",
       items: [".workflow-strip", "grid-template-columns: repeat(2, minmax(0, 1fr))", "data-tone=\"danger\""]
+    },
+    {
+      label: "cloud function health detail table",
+      items: [".health-table", ".health-function-name", "overflow-wrap: anywhere"]
     }
   ]);
 }

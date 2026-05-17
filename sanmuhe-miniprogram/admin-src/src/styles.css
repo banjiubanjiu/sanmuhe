@@ -2367,6 +2367,23 @@ tr.selected td:first-child {
   line-height: 1.55;
 }
 
+.health-table td {
+  height: 54px;
+}
+
+.health-table td:last-child {
+  color: var(--admin-muted);
+  overflow-wrap: anywhere;
+}
+
+.health-function-name {
+  display: block;
+  min-width: 0;
+  color: var(--admin-ink);
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+
 .permission-preview {
   display: grid;
   gap: 8px;
