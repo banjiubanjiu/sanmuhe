@@ -27,6 +27,28 @@ like a generic SaaS template.
 - Signature element: grayscale/ink side scene using tea object plus distant
   mountains. It must be visible on admin pages, not just login.
 
+## Professional Operating Rules
+
+External admin UX research checked with Exa on 2026-05-17 points to the same
+bar: a production admin is judged by daily operational confidence, not by page
+count. Apply these rules before adding more modules.
+
+- Every module must surface the current result scope, active filters, last
+  successful sync, write permission boundary, and risky-operation rule.
+- Tables and list views must handle loading, error, zero-result, pagination, and
+  long text states. Status must always include readable text, never color alone.
+- High-impact actions involving money, inventory, permissions, user privacy,
+  production settings, content visibility, backups, or exports require a clear
+  reason and an audit trail.
+- Export labels should tell whether the export uses current filters. Large
+  backup/export flows should say where the file goes and whether links are
+  temporary.
+- Empty states must explain what belongs in the module and provide the next
+  useful action. Blank panels or generic "No data" states are not acceptable.
+- Role-aware UI must be permission-based, not role-name based. A disabled or
+  hidden action should be an intentional product choice, not an incidental
+  template behavior.
+
 ## Tokens
 
 - `--admin-bg`: #f7f3eb

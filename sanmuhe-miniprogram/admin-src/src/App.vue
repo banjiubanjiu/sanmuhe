@@ -238,6 +238,40 @@ const moduleProfiles = {
   settings: { group: "系统治理", subject: "门店配置", countLabel: "项配置", note: "涉及支付和通知模板的配置会影响生产链路。" }
 };
 
+const writePermissionsByTab = {
+  orders: ["order.write", "afterSale.write"],
+  afterSales: ["afterSale.write"],
+  inventory: ["inventory.write"],
+  reservations: ["reservation.write"],
+  signups: ["signup.write"],
+  customers: ["export.read", "privacy.delete"],
+  catalog: ["catalog.write"],
+  content: ["content.write"],
+  marketing: ["marketing.write"],
+  audit: ["export.read"],
+  notifications: ["notification.write"],
+  roles: ["roles.manage"],
+  backups: ["backup.create"],
+  settings: ["settings.write"]
+};
+
+const riskPolicyByTab = {
+  orders: "取消订单和售后动作需确认",
+  afterSales: "退款状态需保留处理备注",
+  inventory: "人工调整需填写库存原因",
+  reservations: "取消预约需记录业务原因",
+  signups: "取消报名需记录业务原因",
+  customers: "导出/删除个人数据需原因",
+  catalog: "价格库存状态变更需原因",
+  content: "内容停用会影响小程序展示",
+  marketing: "优惠规则影响领取与核销",
+  audit: "导出审计记录需操作原因",
+  notifications: "测试通知会写入投递日志",
+  roles: "授权变更需二次确认",
+  backups: "备份和下载均写入审计",
+  settings: "生产配置变更需审计"
+};
+
 const state = reactive({
   user: null,
   ready: false,
@@ -267,6 +301,7 @@ const state = reactive({
   adminRoles: [],
   rolePresets: [],
   backupLogs: [],
+  lastLoadedAt: {},
   reservations: [],
   signups: [],
   customers: [],
@@ -642,6 +677,35 @@ const marketingScopeText = computed(() => {
   const limited = scope.limited ? "，已达读取上限，请导出订单和用户券数据复核" : "";
   return `按最近 ${numberText(userCouponsRead)} 条领券记录、${numberText(ordersRead)} 笔订单统计${limited}`;
 });
+const currentFreshnessText = computed(() => formatFreshness(state.lastLoadedAt[state.activeTab]));
+const currentAccessText = computed(() => {
+  if (!state.adminProfile) return "角色资料未加载";
+  const permissions = writePermissionsByTab[state.activeTab] || [];
+  if (!permissions.length) return "只读核对";
+  const allowed = permissions.filter((permission) => hasPermission(permission));
+  if (!allowed.length) return "只读访问";
+  if (allowed.length === permissions.length) return "可执行全部操作";
+  return `可执行 ${allowed.length}/${permissions.length} 项操作`;
+});
+const currentResultText = computed(() => {
+  const page = state.pagination[pageKeyForTab(state.activeTab)];
+  if (page && (page.total || page.pageCount > 1)) {
+    return page.total ? `${pageRangeText(state.activeTab)}，每页 ${numberText(page.pageSize)}` : "0 条记录";
+  }
+  const prefix = hasClearableFilters.value ? "筛选后" : "当前";
+  return `${prefix} ${numberText(currentRecordCount.value)} 条`;
+});
+const currentRiskText = computed(() => {
+  const permissions = writePermissionsByTab[state.activeTab] || [];
+  if (permissions.length && !permissions.some((permission) => hasPermission(permission))) return "当前角色无写入风险";
+  return riskPolicyByTab[state.activeTab] || "关键写入保留操作痕迹";
+});
+const operationAssuranceItems = computed(() => [
+  { label: "最后同步", value: currentFreshnessText.value, tone: state.loading ? "busy" : "" },
+  { label: "权限边界", value: currentAccessText.value, tone: currentAccessText.value.includes("只读") ? "quiet" : "" },
+  { label: "结果范围", value: currentResultText.value, tone: hasClearableFilters.value ? "focus" : "" },
+  { label: "风控提示", value: currentRiskText.value, tone: currentRiskText.value.includes("无写入") ? "quiet" : "risk" }
+]);
 
 const filteredCatalog = computed(() => {
   const keyword = filters.catalog.trim().toLowerCase();
@@ -946,6 +1010,25 @@ function formatDate(value) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+function formatFreshness(value) {
+  if (!value) return "等待首次同步";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "同步时间未知";
+  const diff = Date.now() - date.getTime();
+  if (diff < 15000) return "刚刚同步";
+  if (diff < 60000) return `${Math.max(1, Math.floor(diff / 1000))} 秒前`;
+  if (diff < 3600000) return `${Math.max(1, Math.floor(diff / 60000))} 分钟前`;
+  return formatDate(value);
+}
+
+function statusTone(value) {
+  const text = String(value || "");
+  if (/失败|拒绝|取消|关闭|停用|下架|错误|异常|failed|error/i.test(text)) return "danger";
+  if (/待|申请|审核|处理中|未到场|提醒|跳过|pending|skipped|warn/i.test(text)) return "warn";
+  if (/已支付|已发货|已完成|已确认|已退款|已到场|已使用|成功|启用|上架|success|sent|ok/i.test(text)) return "good";
+  return "neutral";
+}
+
 function addTimeline(items, time, title, detail, tone = "") {
   if (!time) return;
   items.push({ time, title, detail, tone });
@@ -1213,6 +1296,7 @@ async function withLoading(label, task) {
   state.moduleError = "";
   try {
     await task();
+    state.lastLoadedAt[state.activeTab] = new Date().toISOString();
   } catch (error) {
     const message = error.message || `${label}失败`;
     state.moduleError = message;
@@ -2688,6 +2772,13 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section class="ops-assurance" aria-label="当前模块经营保障信息">
+          <article v-for="item in operationAssuranceItems" :key="item.label" :data-tone="item.tone || undefined">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+        </section>
+
         <section class="metric-row">
           <article v-for="(card, index) in state.summary" :key="card.label" class="metric-card" :data-tone="card.tone">
             <div class="metric-icon"><component :is="metricIcon(card, index)" :size="24" :stroke-width="1.8" /></div>
@@ -2924,7 +3015,7 @@ onBeforeUnmount(() => {
                 <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
                 <span class="record-meta">
                   <span>{{ maskName(order.name || order.contactName) || "访客" }} · {{ formatDate(order.createdAt) }}</span>
-                  <i class="record-status">{{ order.status }}</i>
+                  <i :class="['record-status', statusTone(order.status)]">{{ order.status }}</i>
                 </span>
               </button>
               <EmptyState v-if="state.orders.length === 0" :title="emptyTitle('orders')" :hint="emptyHint('orders')" :action-label="emptyActionLabel('orders')" @action="handleEmptyAction('orders')" />
@@ -2936,7 +3027,7 @@ onBeforeUnmount(() => {
             </div>
           </article>
           <aside class="panel-card detail-panel" v-if="selectedOrder">
-            <div class="panel-title"><h2>订单详情</h2><span class="status-pill good">{{ selectedOrder.status }}</span></div>
+            <div class="panel-title"><h2>订单详情</h2><span :class="['status-pill', statusTone(selectedOrder.status)]">{{ selectedOrder.status }}</span></div>
             <DetailRow label="订单号" :value="selectedOrder.orderNo || selectedOrder._id" />
             <DetailRow label="金额" :value="`¥${money(selectedOrder.total)}`" />
             <DetailRow label="支付" :value="selectedOrder.payStatus || '-'" />
@@ -3006,7 +3097,7 @@ onBeforeUnmount(() => {
                 <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
                 <span class="record-meta">
                   <span>{{ maskName(order.name || order.contactName || order.consignee) || "访客" }} · {{ formatDate(order.afterSaleUpdatedAt || order.updatedAt) }}</span>
-                  <i class="record-status warn">{{ order.afterSaleStatus || order.status }}</i>
+                  <i :class="['record-status', statusTone(order.afterSaleStatus || order.status)]">{{ order.afterSaleStatus || order.status }}</i>
                 </span>
               </button>
               <EmptyState v-if="state.afterSales.length === 0" :title="emptyTitle('afterSales')" :hint="emptyHint('afterSales')" :action-label="emptyActionLabel('afterSales')" @action="handleEmptyAction('afterSales')" />
@@ -3018,7 +3109,7 @@ onBeforeUnmount(() => {
             </div>
           </article>
           <aside class="panel-card editor-panel" v-if="selectedAfterSale">
-            <div class="panel-title"><h2>售后处理</h2><span class="status-pill neutral">{{ selectedAfterSale.afterSaleStatus || "未处理" }}</span></div>
+            <div class="panel-title"><h2>售后处理</h2><span :class="['status-pill', statusTone(selectedAfterSale.afterSaleStatus || '未处理')]">{{ selectedAfterSale.afterSaleStatus || "未处理" }}</span></div>
             <DetailRow label="订单号" :value="selectedAfterSale.orderNo || selectedAfterSale._id" />
             <DetailRow label="金额" :value="`¥${money(selectedAfterSale.total)}`" />
             <DetailRow label="客户" :value="maskName(selectedAfterSale.name || selectedAfterSale.contactName || selectedAfterSale.consignee) || '-'" />
@@ -3132,7 +3223,7 @@ onBeforeUnmount(() => {
                 <strong><span>{{ record.roomName || record.eventTitle || record.title || record.name || "记录" }}</span><em>{{ record.day || record.date || formatDate(record.createdAt) }}</em></strong>
                 <span class="record-meta">
                   <span>{{ maskName(record.name || record.customerName) || "访客" }}</span>
-                  <i class="record-status">{{ record.status }}</i>
+                  <i :class="['record-status', statusTone(record.status)]">{{ record.status }}</i>
                 </span>
               </button>
               <EmptyState v-if="(state.activeTab === 'reservations' ? state.reservations : state.signups).length === 0" :title="emptyTitle(state.activeTab)" :hint="emptyHint(state.activeTab)" :action-label="emptyActionLabel(state.activeTab)" @action="handleEmptyAction(state.activeTab)" />
@@ -3489,7 +3580,7 @@ onBeforeUnmount(() => {
                   <tr v-for="log in state.notificationLogs" :key="log._id">
                     <td>{{ formatDate(log.createdAt) }}</td>
                     <td>{{ log.kind || "-" }}</td>
-                    <td><span :class="['status-pill', log.status === 'sent' ? 'good' : 'neutral']">{{ log.status || "-" }}</span></td>
+                    <td><span :class="['status-pill', statusTone(log.status)]">{{ log.status || "-" }}</span></td>
                     <td><strong>{{ log.templateId || "-" }}</strong><small>{{ maskOpenid(log.openid) }}</small></td>
                     <td><small>{{ log.reason || log.error || "-" }}</small></td>
                   </tr>
@@ -3591,7 +3682,7 @@ onBeforeUnmount(() => {
                 <tbody>
                   <tr v-for="log in state.backupLogs" :key="log._id">
                     <td>{{ formatDate(log.createdAt) }}</td>
-                    <td><span :class="['status-pill', log.status === 'success' ? 'good' : 'neutral']">{{ log.status }}</span></td>
+                    <td><span :class="['status-pill', statusTone(log.status)]">{{ log.status }}</span></td>
                     <td><strong>{{ log.cloudPath || "-" }}</strong><small>{{ log.error || log.fileId || "" }}</small></td>
                     <td>{{ numberText(log.size || 0) }} B</td>
                     <td><button v-if="log.status === 'success' && log.fileId" class="ghost-button" type="button" @click="downloadBackup(log)">下载</button></td>
@@ -3717,7 +3808,7 @@ onBeforeUnmount(() => {
         </form>
       </div>
       <div v-if="state.loading" class="loading-mask">{{ state.loading }}</div>
-      <div :class="['toast', { show: toast.show }]">{{ toast.text }}</div>
+      <div :class="['toast', { show: toast.show }]" role="status" aria-live="polite">{{ toast.text }}</div>
     </section>
   </main>
 </template>

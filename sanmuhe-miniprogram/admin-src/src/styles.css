@@ -937,6 +937,57 @@ textarea:focus {
   background: rgba(255, 253, 247, 0.72);
 }
 
+.ops-assurance {
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: -8px 0 20px;
+  border: 1px solid rgba(72, 68, 56, 0.12);
+  border-radius: 12px;
+  background: rgba(72, 68, 56, 0.1);
+  box-shadow: var(--admin-shadow-soft);
+}
+
+.ops-assurance article {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 13px 15px;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.9), rgba(248, 244, 236, 0.82));
+}
+
+.ops-assurance span {
+  color: var(--admin-muted);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.ops-assurance strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--admin-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-assurance article[data-tone="busy"] strong,
+.ops-assurance article[data-tone="focus"] strong {
+  color: var(--admin-green-dark);
+}
+
+.ops-assurance article[data-tone="risk"] strong {
+  color: #8a6837;
+}
+
+.ops-assurance article[data-tone="quiet"] strong {
+  color: var(--admin-muted);
+}
+
 .metric-card,
 .panel-card {
   min-width: 0;
@@ -1549,6 +1600,16 @@ textarea:focus {
   background: rgba(235, 221, 188, 0.86);
 }
 
+.record-status.good {
+  color: var(--admin-green-dark);
+  background: rgba(222, 235, 217, 0.84);
+}
+
+.record-status.danger {
+  color: #9f4636;
+  background: rgba(239, 207, 199, 0.9);
+}
+
 .record-status.neutral {
   color: #827763;
   background: rgba(231, 224, 212, 0.9);
@@ -1756,6 +1817,21 @@ tr.selected td:first-child {
 .status-pill.neutral {
   color: #827763;
   background: rgba(231, 224, 212, 0.92);
+}
+
+.status-pill.warn {
+  color: #8a682b;
+  background: rgba(235, 221, 188, 0.86);
+}
+
+.status-pill.good {
+  color: var(--admin-green-dark);
+  background: rgba(222, 235, 217, 0.88);
+}
+
+.status-pill.danger {
+  color: #9f4636;
+  background: rgba(239, 207, 199, 0.9);
 }
 
 .editor-panel,
@@ -2495,6 +2571,7 @@ tr.selected td:first-child {
   .marketing-grid,
   .system-grid,
   .sync-banner,
+  .ops-assurance,
   .work-context,
   .status-grid {
     grid-template-columns: 1fr;
