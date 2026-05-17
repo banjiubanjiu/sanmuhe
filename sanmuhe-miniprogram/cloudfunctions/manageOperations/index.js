@@ -1731,7 +1731,13 @@ async function checkFunctionHealth(name, timeoutMs) {
     );
     const payload = result && result.result ? result.result : {};
     if (payload.ok === true) {
-      return { name, ok: true, durationMs: Date.now() - startedAt, message: payload.name || "可调用" };
+      return {
+        name,
+        ok: true,
+        durationMs: Date.now() - startedAt,
+        message: cleanText(payload.message || payload.name || "可调用", 180),
+        paymentConfig: payload.paymentConfig || null
+      };
     }
     return {
       name,
@@ -1804,6 +1810,8 @@ async function getSystemStatus(event = {}) {
   const latestBackupTruncated = backupTruncatedCollections(latestBackup || {});
   const latestBackupReady = latestBackup && latestBackup.status === "success" && latestBackup.fileId;
   const functionHealth = await checkCloudFunctionHealth(packageInfo.requiredFunctions);
+  const createPaymentHealth = functionHealth.results.find((item) => item.name === "createPayment");
+  const createPaymentConfig = createPaymentHealth && createPaymentHealth.paymentConfig || null;
 
   const checks = [
     statusItem(
@@ -1815,10 +1823,14 @@ async function getSystemStatus(event = {}) {
     statusItem(
       "paymentConfig",
       "微信支付配置",
-      settings.paymentEnabled === false ? "ok" : payMissing.length ? "warn" : "ok",
+      settings.paymentEnabled === false ? "ok" : createPaymentConfig ? createPaymentConfig.ready ? "ok" : "warn" : payMissing.length ? "warn" : "ok",
       settings.paymentEnabled === false
         ? "后台已关闭支付"
-        : payMissing.length ? `管理函数未检测到：${payMissing.join("、")}。如变量仅配置在 createPayment，请以支付函数环境为准。` : "支付相关环境变量完整"
+        : createPaymentConfig
+          ? createPaymentConfig.ready
+            ? "createPayment 支付下单环境变量完整；回调 API v3 密钥仍按支付回调函数环境校验"
+            : `createPayment 缺少：${createPaymentConfig.missing.join("、")}`
+          : payMissing.length ? `管理函数未检测到：${payMissing.join("、")}。如变量仅配置在 createPayment，请以支付函数环境为准。` : "支付相关环境变量完整"
     ),
     statusItem(
       "cloudFunctions",

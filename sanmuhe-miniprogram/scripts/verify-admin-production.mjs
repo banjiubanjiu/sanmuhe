@@ -130,7 +130,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "system health probes",
-      items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性", "durationMs", "name: \"manageOperations\""]
+      items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性", "durationMs", "paymentConfig", "name: \"manageOperations\""]
     },
     {
       label: "backup completeness system status",

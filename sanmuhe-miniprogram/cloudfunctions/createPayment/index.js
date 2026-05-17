@@ -21,6 +21,29 @@ function requiredEnv(name) {
   return value;
 }
 
+function paymentConfigHealth() {
+  const missing = [];
+  if (!process.env.WECHAT_PAY_APPID && !process.env.WX_APPID) {
+    missing.push("WECHAT_PAY_APPID/WX_APPID");
+  }
+  [
+    "WECHAT_PAY_MCH_ID",
+    "WECHAT_PAY_CERT_SERIAL_NO",
+    "WECHAT_PAY_PRIVATE_KEY",
+    "WECHAT_PAY_NOTIFY_URL"
+  ].forEach((name) => {
+    if (!process.env[name]) {
+      missing.push(name);
+    }
+  });
+  return {
+    ready: missing.length === 0,
+    missing,
+    notifyUrlConfigured: Boolean(process.env.WECHAT_PAY_NOTIFY_URL),
+    platformKeyConfigured: Boolean(process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY || process.env.WECHAT_PAY_PLATFORM_CERTIFICATE)
+  };
+}
+
 function normalizePem(value) {
   const text = String(value || "").replace(/\\n/g, "\n").trim();
   if (text.includes("-----BEGIN")) {
@@ -226,7 +249,13 @@ function buildPaymentParams(config, prepayId) {
 
 exports.main = async (event = {}) => {
   if (event.action === "health") {
-    return { ok: true, name: "createPayment" };
+    const paymentConfig = paymentConfigHealth();
+    return {
+      ok: true,
+      name: "createPayment",
+      paymentConfig,
+      message: paymentConfig.ready ? "支付下单配置完整" : `支付下单缺少：${paymentConfig.missing.join("、")}`
+    };
   }
 
   const { OPENID } = cloud.getWXContext();
