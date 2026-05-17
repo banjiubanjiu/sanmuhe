@@ -89,6 +89,19 @@ function verifySourceContains(file, groups) {
   console.log(`[admin:verify] ${file} covers ${groups.length} production surface groups`);
 }
 
+function verifySourceExcludes(file, items) {
+  const path = join(root, file);
+  if (!existsSync(path)) {
+    fail(`${file} missing`);
+  }
+  const source = readFileSync(path, "utf8");
+  const found = items.filter((item) => source.includes(item));
+  if (found.length) {
+    fail(`${file} contains non-production demo text: ${found.join(", ")}`);
+  }
+  console.log(`[admin:verify] ${file} excludes demo-only metric copy`);
+}
+
 function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageOperations/index.js", [
     {
@@ -127,6 +140,7 @@ function verifyProductionSurfaces() {
       items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected"]
     }
   ]);
+  verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%"]);
 
   verifySourceContains("admin-src/src/styles.css", [
     {

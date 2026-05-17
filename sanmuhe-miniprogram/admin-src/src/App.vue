@@ -869,11 +869,11 @@ function metricIcon(card, index) {
 
 function buildDashboardSummaryCards(summary = {}) {
   return [
-    { label: "今日预约（茶室）", value: summary.todayReservations || 0, meta: "茶室", tone: "green", icon: CalendarCheck, delta: "较昨日 +3" },
-    { label: "今日活动报名", value: summary.todaySignups || 0, meta: "活动", tone: "moss", icon: TicketPercent, delta: "较昨日 +2" },
-    { label: "今日订单金额", value: summary.todayOrderAmount || 0, meta: "订单", tone: "gold", icon: BadgeDollarSign, delta: "较昨日 +12.5%" },
-    { label: "今日新增用户", value: summary.newCustomers || 0, meta: "用户", tone: "ink", icon: UserPlus, delta: "较昨日 +5" },
-    { label: "本月营业额", value: summary.monthRevenue || summary.totalRevenue || 0, meta: "经营", tone: "sand", icon: CircleDollarSign, delta: "较上月 +18.6%" }
+    { label: "今日预约（茶室）", value: summary.todayReservations || 0, meta: "茶室", tone: "green", icon: CalendarCheck, delta: "今日已记录" },
+    { label: "今日活动报名", value: summary.todaySignups || 0, meta: "活动", tone: "moss", icon: TicketPercent, delta: "今日新增" },
+    { label: "今日订单金额", value: summary.todayOrderAmount || 0, meta: "订单", tone: "gold", icon: BadgeDollarSign, delta: "已支付订单" },
+    { label: "今日新增用户", value: summary.newCustomers || 0, meta: "用户", tone: "ink", icon: UserPlus, delta: "今日活跃" },
+    { label: "本月营业额", value: summary.monthRevenue || summary.totalRevenue || 0, meta: "经营", tone: "sand", icon: CircleDollarSign, delta: "本月累计" }
   ];
 }
 
@@ -1133,11 +1133,11 @@ async function refreshSummary() {
     const result = await callFunction("manageOperations", { action: "getSummary" });
     const s = result.summary || {};
     state.summary = [
-      { label: "待支付", value: s.pendingPay || 0, meta: "订单", tone: "sand", icon: CircleDollarSign, delta: "较昨日 -" },
-      { label: "待发货", value: s.toShip || 0, meta: "履约", tone: "green", icon: Package, delta: "较昨日 +2" },
-      { label: "待自提", value: s.toPickup || 0, meta: "门店", tone: "moss", icon: CalendarDays, delta: "较昨日 +1" },
-      { label: "待确认预约", value: s.pendingReservations || 0, meta: "茶室", tone: "ink", icon: CalendarCheck, delta: "较昨日 +3" },
-      { label: "待处理报名", value: s.pendingSignups || 0, meta: "活动", tone: "gold", icon: UserPlus, delta: "较昨日 +2" }
+      { label: "待支付", value: s.pendingPay || 0, meta: "订单", tone: "sand", icon: CircleDollarSign, delta: "当前待处理" },
+      { label: "待发货", value: s.toShip || 0, meta: "履约", tone: "green", icon: Package, delta: "待进入履约" },
+      { label: "待自提", value: s.toPickup || 0, meta: "门店", tone: "moss", icon: CalendarDays, delta: "待门店核销" },
+      { label: "待确认预约", value: s.pendingReservations || 0, meta: "茶室", tone: "ink", icon: CalendarCheck, delta: "需要确认" },
+      { label: "待处理报名", value: s.pendingSignups || 0, meta: "活动", tone: "gold", icon: UserPlus, delta: "需要跟进" }
     ];
   } catch (error) {
     state.summary = [];
