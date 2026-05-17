@@ -46,7 +46,11 @@ async function removeTitlePrefix(collection, openid) {
   }
 }
 
-exports.main = async () => {
+exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "cleanupSmokeData" };
+  }
+
   const { OPENID } = cloud.getWXContext();
   const details = [];
 

@@ -457,6 +457,10 @@ async function listItems(collection, options) {
 }
 
 exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "manageCatalog" };
+  }
+
   const action = normalizeAction(event.action);
   const collection = normalizeCollection(event.collection);
 

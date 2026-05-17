@@ -1643,6 +1643,83 @@ async function countCollection(name) {
   }
 }
 
+const DEFAULT_HEALTH_FUNCTIONS = [
+  "getOpenId",
+  "getCatalog",
+  "listEvents",
+  "listMyRecords",
+  "memberCenter",
+  "createOrder",
+  "createPayment",
+  "createReservation",
+  "createEvent",
+  "joinEvent",
+  "manageCatalog",
+  "serviceNotify",
+  "releaseOrderLocks",
+  "scheduledBackup",
+  "seedDemoData",
+  "cleanupSmokeData"
+];
+
+function callWithTimeout(promise, timeoutMs, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        const error = new Error(`${label} 健康检查超时`);
+        error.code = "HEALTH_TIMEOUT";
+        reject(error);
+      }, timeoutMs);
+    })
+  ]);
+}
+
+async function checkFunctionHealth(name, timeoutMs) {
+  try {
+    const result = await callWithTimeout(
+      cloud.callFunction({
+        name,
+        data: { action: "health" }
+      }),
+      timeoutMs,
+      name
+    );
+    const payload = result && result.result ? result.result : {};
+    if (payload.ok === true) {
+      return { name, ok: true, message: payload.name || "可调用" };
+    }
+    return {
+      name,
+      ok: false,
+      message: cleanText(payload.message || payload.code || "health 未返回 ok", 160)
+    };
+  } catch (error) {
+    return {
+      name,
+      ok: false,
+      message: cleanText(error.message || String(error), 160)
+    };
+  }
+}
+
+async function checkCloudFunctionHealth(requiredFunctions) {
+  const source = Array.isArray(requiredFunctions) && requiredFunctions.length
+    ? requiredFunctions
+    : DEFAULT_HEALTH_FUNCTIONS;
+  const names = Array.from(new Set(source
+    .map((item) => cleanText(item, 60))
+    .filter(Boolean)
+    .filter((item) => item !== "wechatPayNotify")));
+  const results = await Promise.all(names.map((name) => checkFunctionHealth(name, 2500)));
+  return {
+    total: names.length,
+    passed: results.filter((item) => item.ok),
+    failed: results.filter((item) => !item.ok),
+    results
+  };
+}
+
 async function getSystemStatus(event = {}) {
   const settingsResult = await getSettings();
   const settings = settingsResult.settings || {};
@@ -1668,7 +1745,7 @@ async function getSystemStatus(event = {}) {
   const requiredStoreFields = ["brandName", "storeName", "phone", "address", "businessHours"];
   const missingStoreFields = requiredStoreFields.filter((field) => !settings[field]);
   const ignored = Array.isArray(packageInfo.ignored) ? packageInfo.ignored : [];
-  const ignoreExpected = ["admin", "admin-src", "node_modules", "package-lock.json", "package.json"];
+  const ignoreExpected = ["admin", "admin-src", "node_modules", "package-lock.json", "package.json", "vite.config.mjs"];
   const ignoreMissing = ignoreExpected.filter((item) => !ignored.includes(item));
   const [auditCount, notificationCount, backupCount, roleCount, latestBackupResult] = await Promise.all([
     countCollection("admin_audit_logs"),
@@ -1678,6 +1755,7 @@ async function getSystemStatus(event = {}) {
     readCollection("data_backup_logs", { orderBy: "createdAt", limit: 1 })
   ]);
   const latestBackup = latestBackupResult[0] || null;
+  const functionHealth = await checkCloudFunctionHealth(packageInfo.requiredFunctions);
 
   const checks = [
     statusItem(
@@ -1693,6 +1771,14 @@ async function getSystemStatus(event = {}) {
       settings.paymentEnabled === false
         ? "后台已关闭支付"
         : payMissing.length ? `管理函数未检测到：${payMissing.join("、")}。如变量仅配置在 createPayment，请以支付函数环境为准。` : "支付相关环境变量完整"
+    ),
+    statusItem(
+      "cloudFunctions",
+      "云函数可用性",
+      functionHealth.failed.length ? "error" : "ok",
+      functionHealth.failed.length
+        ? `异常 ${functionHealth.failed.length}/${functionHealth.total}：${functionHealth.failed.map((item) => `${item.name} ${item.message}`).join("；")}`
+        : `已检测 ${functionHealth.passed.length}/${functionHealth.total} 个云函数；微信支付回调为 HTTP 入口，按支付配置单独校验`
     ),
     statusItem(
       "noticeTemplates",
@@ -1738,6 +1824,7 @@ async function getSystemStatus(event = {}) {
   return {
     ok: true,
     checks,
+    functionHealth,
     summary: {
       ok: checks.filter((item) => item.status === "ok").length,
       warn: checks.filter((item) => item.status === "warn").length,

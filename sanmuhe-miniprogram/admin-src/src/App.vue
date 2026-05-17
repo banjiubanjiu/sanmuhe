@@ -39,7 +39,25 @@ const CONFIG = {
 const PACKAGE_INFO = {
   appid: "wxaf9aedf1f6343786",
   sourceSizeLimit: "2MB",
-  ignored: ["admin", "admin-src", "node_modules", "package-lock.json", "package.json", "vite.config.mjs"]
+  ignored: ["admin", "admin-src", "node_modules", "package-lock.json", "package.json", "vite.config.mjs"],
+  requiredFunctions: [
+    "getOpenId",
+    "getCatalog",
+    "listEvents",
+    "listMyRecords",
+    "memberCenter",
+    "createOrder",
+    "createPayment",
+    "createReservation",
+    "createEvent",
+    "joinEvent",
+    "manageCatalog",
+    "serviceNotify",
+    "releaseOrderLocks",
+    "scheduledBackup",
+    "seedDemoData",
+    "cleanupSmokeData"
+  ]
 };
 
 let cloudApp = null;

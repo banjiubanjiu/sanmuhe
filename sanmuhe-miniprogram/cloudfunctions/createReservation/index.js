@@ -19,7 +19,11 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
-exports.main = async (event) => {
+exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "createReservation" };
+  }
+
   const { OPENID } = cloud.getWXContext();
   const roomId = cleanText(event.roomId, 40);
   const room = cleanText(event.room, 40);

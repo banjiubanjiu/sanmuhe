@@ -25,7 +25,11 @@ async function ensureCollection(name) {
   }
 }
 
-exports.main = async () => {
+exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "listEvents" };
+  }
+
   await ensureCollection("events");
   let cloudEvents = [];
 

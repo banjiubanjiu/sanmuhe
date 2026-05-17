@@ -225,6 +225,10 @@ function buildPaymentParams(config, prepayId) {
 }
 
 exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "createPayment" };
+  }
+
   const { OPENID } = cloud.getWXContext();
   const orderId = cleanText(event.orderId || event.id, 80);
   const orderNo = cleanText(event.orderNo, 32);

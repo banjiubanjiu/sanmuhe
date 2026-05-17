@@ -51,6 +51,10 @@ async function writeBackupLog(data) {
 }
 
 exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "scheduledBackup" };
+  }
+
   const limit = Math.min(1000, Math.max(50, Number(event.limit || process.env.BACKUP_LIMIT) || 500));
   const selected = Array.isArray(event.collections) && event.collections.length
     ? event.collections.filter((item) => backupCollections.includes(item))

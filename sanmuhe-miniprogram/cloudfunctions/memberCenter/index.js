@@ -312,6 +312,10 @@ async function saveSubscription(openid, event = {}) {
 }
 
 exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "memberCenter" };
+  }
+
   const { OPENID } = cloud.getWXContext();
   if (!OPENID) {
     return { ok: false, message: "无法识别当前用户" };

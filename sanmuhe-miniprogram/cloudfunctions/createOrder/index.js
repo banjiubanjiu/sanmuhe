@@ -468,6 +468,10 @@ async function releaseUserCoupon(coupon) {
 }
 
 exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "createOrder" };
+  }
+
   const { OPENID } = cloud.getWXContext();
   let appliedLocks = [];
   let appliedCoupon = null;

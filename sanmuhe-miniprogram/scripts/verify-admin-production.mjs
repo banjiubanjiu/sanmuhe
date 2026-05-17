@@ -127,6 +127,10 @@ function verifyProductionSurfaces() {
     {
       label: "analytics data scope",
       items: ["ANALYTICS_READ_LIMIT", "orders: revenueOrders.length", "MARKETING_STATS_LIMIT"]
+    },
+    {
+      label: "system health probes",
+      items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性"]
     }
   ]);
 
@@ -163,6 +167,10 @@ function verifyProductionSurfaces() {
       items: ["moduleWorkflowSteps", "buildWorkflowSteps", "当前模块状态流", "待履约", "售后关联"]
     },
     {
+      label: "system required functions",
+      items: ["requiredFunctions", "createPayment", "serviceNotify", "scheduledBackup", "cleanupSmokeData"]
+    },
+    {
       label: "catalog sensitive operation reasons",
       items: ["hasSensitiveCatalogChange", "保存 ${displayName(forms.catalog)} 的价格、库存、名额或状态", "下架 ${displayName(item)}"]
     }
@@ -186,12 +194,42 @@ function verifyProductionSurfaces() {
   ]);
 }
 
+function verifyCloudFunctionHealthChecks() {
+  const requiredFunctions = [
+    "getOpenId",
+    "getCatalog",
+    "listEvents",
+    "listMyRecords",
+    "memberCenter",
+    "createOrder",
+    "createPayment",
+    "createReservation",
+    "createEvent",
+    "joinEvent",
+    "manageCatalog",
+    "serviceNotify",
+    "releaseOrderLocks",
+    "scheduledBackup",
+    "seedDemoData",
+    "cleanupSmokeData"
+  ];
+  const missing = requiredFunctions.filter((name) => {
+    const source = readFileSync(join(root, "cloudfunctions", name, "index.js"), "utf8");
+    return !source.includes('action === "health"');
+  });
+  if (missing.length) {
+    fail(`cloud functions missing no-write health action: ${missing.join(", ")}`);
+  }
+  console.log(`[admin:verify] ${requiredFunctions.length} cloud functions expose no-write health checks`);
+}
+
 console.log("[admin:verify] checking cloud function syntax");
 for (const entrypoint of listFunctionEntrypoints()) {
   run(process.execPath, ["--check", rel(entrypoint)]);
 }
 
 verifyProductionSurfaces();
+verifyCloudFunctionHealthChecks();
 
 console.log("[admin:verify] building admin");
 run("npm", ["run", "admin:build"]);

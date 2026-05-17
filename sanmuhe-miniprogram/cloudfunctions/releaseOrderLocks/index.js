@@ -107,7 +107,11 @@ async function releaseUserCoupon(coupon) {
   }
 }
 
-exports.main = async () => {
+exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "releaseOrderLocks" };
+  }
+
   await ensureCollection("orders");
 
   const result = await db.collection("orders").where({

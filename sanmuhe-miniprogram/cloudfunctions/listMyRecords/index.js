@@ -52,7 +52,11 @@ async function getMember(openid) {
   }
 }
 
-exports.main = async () => {
+exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "listMyRecords" };
+  }
+
   const { OPENID } = cloud.getWXContext();
   const [orders, reservations, signups, coupons, member] = await Promise.all([
     getMine("orders", OPENID),

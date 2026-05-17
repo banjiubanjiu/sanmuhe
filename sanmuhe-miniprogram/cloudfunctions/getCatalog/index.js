@@ -80,7 +80,11 @@ async function getStoreSettings() {
   }
 }
 
-exports.main = async () => {
+exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "getCatalog" };
+  }
+
   const [cloudDrinks, cloudTeaProducts, cloudRooms, cloudEvents, contentBlocks, storeSettings] = await Promise.all([
     getCollectionData("drinks"),
     getCollectionData("tea_products"),

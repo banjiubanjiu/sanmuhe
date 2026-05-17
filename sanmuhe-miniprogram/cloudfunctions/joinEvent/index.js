@@ -19,7 +19,11 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
-exports.main = async (event) => {
+exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "joinEvent" };
+  }
+
   const { OPENID } = cloud.getWXContext();
   const eventId = cleanText(event.eventId, 80);
   const title = cleanText(event.title, 80);

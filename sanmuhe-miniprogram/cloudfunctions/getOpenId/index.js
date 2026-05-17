@@ -4,7 +4,11 @@ cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
 });
 
-exports.main = async (event) => {
+exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "getOpenId" };
+  }
+
   const { OPENID, APPID, UNIONID } = cloud.getWXContext();
 
   return {

@@ -187,6 +187,10 @@ async function sendNotice(event = {}) {
 }
 
 exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "serviceNotify" };
+  }
+
   try {
     return await sendNotice(event);
   } catch (error) {

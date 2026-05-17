@@ -290,6 +290,10 @@ function summarizeResults(results) {
 }
 
 exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "seedDemoData" };
+  }
+
   const reason = requireSeedReason(event);
   const auth = await assertSeedAllowed();
   const startedAt = Date.now();
