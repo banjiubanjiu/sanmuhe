@@ -138,7 +138,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "backup completeness system status",
-      items: ["backupTruncatedCollections", "hasBackupCompleteness", "旧记录未包含完整性校验", "最近备份完整"]
+      items: ["backupTruncatedCollections", "hasBackupCompleteness", "旧记录未包含完整性校验", "最近备份完整", "sha256", "checksum"]
     }
   ]);
 
@@ -177,6 +177,10 @@ function verifyProductionSurfaces() {
     {
       label: "system required functions",
       items: ["requiredFunctions", "createPayment", "serviceNotify", "scheduledBackup", "cleanupSmokeData", "云函数探测明细", "health-table", "backupCompleteness"]
+    },
+    {
+      label: "backup integrity UI",
+      items: ["backupFileHint", "sha256"]
     },
     {
       label: "catalog sensitive operation reasons",

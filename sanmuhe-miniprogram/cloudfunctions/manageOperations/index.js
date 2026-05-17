@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const crypto = require("crypto");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -12,6 +13,10 @@ const MARKETING_STATS_LIMIT = 1000;
 
 function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
+}
+
+function sha256(buffer) {
+  return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
 function requireAuditReason(event = {}, label = "高风险操作") {
@@ -2364,6 +2369,7 @@ async function getBackupDownloadUrl(event, caller) {
   await writeAdminAuditLog(caller, "getBackupDownloadUrl", {
     cloudPath: record.cloudPath || "",
     size: record.size || 0,
+    checksum: record.checksum || "",
     reason
   });
   return {
@@ -2371,6 +2377,7 @@ async function getBackupDownloadUrl(event, caller) {
     url,
     cloudPath: record.cloudPath || "",
     size: record.size || 0,
+    checksum: record.checksum || "",
     expireIn: 7200
   };
 }
@@ -2416,6 +2423,7 @@ async function createDataBackup(event, caller) {
     data: exported
   };
   const fileContent = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
+  const checksum = sha256(fileContent);
   try {
     const upload = await cloud.uploadFile({ cloudPath, fileContent });
     await ensureCollection("data_backup_logs");
@@ -2424,6 +2432,7 @@ async function createDataBackup(event, caller) {
         cloudPath,
         fileId: upload.fileID || upload.fileId || "",
         size: fileContent.length,
+        checksum,
         counts,
         totals,
         truncated,
@@ -2438,6 +2447,7 @@ async function createDataBackup(event, caller) {
     await writeAdminAuditLog(caller, "createDataBackup", {
       cloudPath,
       size: fileContent.length,
+      checksum,
       counts,
       totals,
       truncated,
@@ -2449,6 +2459,7 @@ async function createDataBackup(event, caller) {
       cloudPath,
       fileId: upload.fileID || upload.fileId || "",
       size: fileContent.length,
+      checksum,
       counts,
       totals,
       truncated,
@@ -2460,6 +2471,7 @@ async function createDataBackup(event, caller) {
       data: {
         cloudPath,
         size: fileContent.length,
+        checksum,
         counts,
         totals,
         truncated,

@@ -1267,6 +1267,11 @@ function backupCompleteness(log = {}) {
   };
 }
 
+function backupFileHint(log = {}) {
+  if (log.checksum) return `sha256 ${String(log.checksum).slice(0, 12)}`;
+  return log.error || log.fileId || "";
+}
+
 function addTimeline(items, time, title, detail, tone = "") {
   if (!time) return;
   items.push({ time, title, detail, tone });
@@ -4110,7 +4115,7 @@ onBeforeUnmount(() => {
                     <td>{{ formatDate(log.createdAt) }}</td>
                     <td><span :class="['status-pill', statusTone(log.status)]">{{ log.status }}</span></td>
                     <td><span :class="['status-pill', backupCompleteness(log).tone]">{{ backupCompleteness(log).label }}</span><small>{{ backupCompleteness(log).hint }}</small></td>
-                    <td><strong>{{ log.cloudPath || "-" }}</strong><small>{{ log.error || log.fileId || "" }}</small></td>
+                    <td><strong>{{ log.cloudPath || "-" }}</strong><small>{{ backupFileHint(log) }}</small></td>
                     <td>{{ numberText(log.size || 0) }} B</td>
                     <td><button v-if="log.status === 'success' && log.fileId" class="ghost-button" type="button" @click="downloadBackup(log)">下载</button></td>
                   </tr>
