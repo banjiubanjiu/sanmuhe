@@ -130,6 +130,13 @@ function verifyProductionSurfaces() {
     }
   ]);
 
+  verifySourceContains("cloudfunctions/manageCatalog/index.js", [
+    {
+      label: "catalog sensitive change audit",
+      items: ["requireAuditReason", "changedSensitiveCatalogFields", "修改价格、库存、名额或状态", "catalog.delete", "catalog.restore"]
+    }
+  ]);
+
   verifySourceContains("admin-src/src/App.vue", [
     {
       label: "core production tabs",
@@ -150,6 +157,10 @@ function verifyProductionSurfaces() {
     {
       label: "truthful analytics copy",
       items: ["dashboardScopeText", "analyticsScopeText", "marketingScopeText", "已支付订单数"]
+    },
+    {
+      label: "catalog sensitive operation reasons",
+      items: ["hasSensitiveCatalogChange", "保存 ${displayName(forms.catalog)} 的价格、库存、名额或状态", "下架 ${displayName(item)}"]
     }
   ]);
   verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%", "68.5", "20.3", "11.2", "2024年", "room-001"]);

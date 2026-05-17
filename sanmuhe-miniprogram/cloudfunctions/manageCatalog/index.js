@@ -30,6 +30,19 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
+function cleanAuditReason(event = {}) {
+  const data = event.data && typeof event.data === "object" ? event.data : {};
+  return cleanText(event.reason || event.auditReason || event.adminNote || data.reason || data.auditReason, 200);
+}
+
+function requireAuditReason(event = {}, label = "关键资料操作") {
+  const reason = cleanAuditReason(event);
+  if (!reason) {
+    invalidInput(`${label}需填写操作原因`);
+  }
+  return reason;
+}
+
 function invalidInput(message) {
   const error = new Error(message);
   error.code = "INVALID_INPUT";
@@ -241,6 +254,16 @@ function auditDiff(before = {}, after = {}, keys = []) {
     }
     return changes;
   }, {});
+}
+
+function changedSensitiveCatalogFields(existing = {}, payload = {}) {
+  const fields = ["price", "stock", "lockedStock", "soldStock", "quota", "signed", "status", "visible", "deleted"];
+  return fields.filter((field) => {
+    if (payload[field] === undefined) {
+      return false;
+    }
+    return JSON.stringify(auditValue(existing[field])) !== JSON.stringify(auditValue(payload[field]));
+  });
 }
 
 async function ensureCollection(name) {
@@ -511,6 +534,8 @@ exports.main = async (event = {}) => {
       const payload = normalizePayload(collection, event.data || {});
       delete payload.id;
       validateCatalogPayload(collection, payload, event.data || {}, { existing });
+      const sensitiveFields = changedSensitiveCatalogFields(existing, payload);
+      const reason = sensitiveFields.length ? requireAuditReason(event, "修改价格、库存、名额或状态") : cleanAuditReason(event);
       if ((collection === "drinks" || collection === "tea_products") && payload.stock !== undefined) {
         const lockedStock = Math.max(0, Number(existing.lockedStock) || 0);
         const soldStock = Math.max(0, Number(existing.soldStock) || 0);
@@ -525,12 +550,15 @@ exports.main = async (event = {}) => {
         id,
         name: existing.name || existing.title || "",
         fields: Object.keys(payload).filter((field) => field !== "updatedAt"),
+        reason,
+        sensitiveFields,
         changes: auditDiff(existing, Object.assign({}, existing, payload), Object.keys(payload).filter((field) => field !== "updatedAt"))
       });
       return { ok: true, collection, id };
     }
 
     if (action === "delete") {
+      const reason = requireAuditReason(event, "下架商品、茶室或活动");
       const data = collection === "events"
         ? { deleted: true, visible: false, updatedAt: db.serverDate() }
         : { visible: false, updatedAt: db.serverDate() };
@@ -539,12 +567,14 @@ exports.main = async (event = {}) => {
         collection,
         id,
         name: existing.name || existing.title || "",
+        reason,
         changes: auditDiff(existing, Object.assign({}, existing, data), Object.keys(data).filter((field) => field !== "updatedAt"))
       });
       return { ok: true, collection, id };
     }
 
     if (action === "restore") {
+      const reason = requireAuditReason(event, "恢复商品、茶室或活动");
       const data = collection === "events"
         ? { deleted: false, visible: true, updatedAt: db.serverDate() }
         : { visible: true, updatedAt: db.serverDate() };
@@ -553,6 +583,7 @@ exports.main = async (event = {}) => {
         collection,
         id,
         name: existing.name || existing.title || "",
+        reason,
         changes: auditDiff(existing, Object.assign({}, existing, data), Object.keys(data).filter((field) => field !== "updatedAt"))
       });
       return { ok: true, collection, id };

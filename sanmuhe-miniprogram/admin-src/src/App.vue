@@ -921,6 +921,17 @@ function displayInventory(item) {
   return "-";
 }
 
+function catalogComparableValue(field, item = {}) {
+  if (["price", "stock", "quota", "signed"].includes(field)) return Number(item[field] || 0);
+  if (["visible", "deleted"].includes(field)) return item[field] === true;
+  return String(item[field] || "").trim();
+}
+
+function hasSensitiveCatalogChange(existing, next) {
+  if (!existing) return false;
+  return ["price", "stock", "quota", "signed", "status", "visible", "deleted"].some((field) => catalogComparableValue(field, existing) !== catalogComparableValue(field, next));
+}
+
 function displayImage(src) {
   if (!src || src.startsWith("cloud://")) return "";
   if (src.startsWith("/assets/")) return `..${src}`;
@@ -1287,12 +1298,19 @@ async function saveCatalog() {
     showToast(error.message);
     return;
   }
-  const action = state.catalogItems.some((item) => item.id === forms.catalog.id) ? "update" : "create";
+  const existing = state.catalogItems.find((item) => item.id === forms.catalog.id);
+  const action = existing ? "update" : "create";
+  const needsReason = action === "update" && hasSensitiveCatalogChange(existing, forms.catalog);
+  const reason = needsReason
+    ? await promptActionReason(`保存 ${displayName(forms.catalog)} 的价格、库存、名额或状态`)
+    : "";
+  if (needsReason && !reason) return;
   await withLoading("保存资料", async () => {
     await callFunction("manageCatalog", {
       action,
       collection: state.collection,
       id: forms.catalog.id,
+      reason,
       data: { ...forms.catalog }
     });
     showToast("资料已保存");
@@ -1303,11 +1321,14 @@ async function saveCatalog() {
 async function toggleCatalog(item) {
   const restore = item.visible === false || item.deleted;
   if (!restore && !(await requireTypedConfirm(`确认下架 ${displayName(item)}？`, item.id || displayName(item)))) return;
+  const reason = await promptActionReason(`${restore ? "恢复" : "下架"} ${displayName(item)}`);
+  if (!reason) return;
   await withLoading(restore ? "恢复资料" : "下架资料", async () => {
     await callFunction("manageCatalog", {
       action: restore ? "restore" : "delete",
       collection: state.collection,
-      id: item.id
+      id: item.id,
+      reason
     });
     showToast(restore ? "已恢复" : "已下架");
     await loadCatalog();
