@@ -229,6 +229,40 @@ function requirePermission(role, permission) {
   throw error;
 }
 
+function hasRolePermission(role, permission) {
+  if (!permission) {
+    return true;
+  }
+  const permissions = role && Array.isArray(role.permissions) ? role.permissions : [];
+  return permissions.includes("*") || permissions.includes(permission);
+}
+
+async function writePermissionDeniedAudit(caller = {}, attemptedAction, requiredPermission, detail = {}) {
+  try {
+    await writeAdminAuditLog(caller, "permissionDenied", {
+      attemptedAction: cleanText(attemptedAction, 60),
+      requiredPermission: cleanText(requiredPermission, 80),
+      collection: cleanText(detail.collection, 40),
+      roleKey: cleanText(detail.role && detail.role.roleKey, 30),
+      roleName: cleanText(detail.role && detail.role.roleName, 40),
+      reason: "权限拦截"
+    });
+  } catch (error) {
+    // Permission denial should never fail the original response path.
+  }
+}
+
+async function requirePermissionWithAudit(role, permission, caller, attemptedAction, detail = {}) {
+  if (hasRolePermission(role, permission)) {
+    return;
+  }
+  await writePermissionDeniedAudit(caller, attemptedAction, permission, Object.assign({}, detail, { role }));
+  const error = new Error("当前后台角色无权修改商品和活动数据");
+  error.code = "ROLE_PERMISSION_DENIED";
+  error.permissionDeniedAudited = true;
+  throw error;
+}
+
 function auditValue(value) {
   if (value && typeof value === "object") {
     if (value.$date || value.seconds) {
@@ -471,15 +505,25 @@ exports.main = async (event = {}) => {
     };
   }
 
+  let caller = { openid: "", uid: "", username: "" };
   try {
-    const caller = await getCaller();
+    caller = await getCaller();
     const includeHidden = !!event.includeHidden;
 
     if (writeActions.has(action) || includeHidden) {
-      assertCanWrite(caller);
+      try {
+        assertCanWrite(caller);
+      } catch (error) {
+        await writePermissionDeniedAudit(caller, action, "catalog.write", {
+          collection,
+          role: { roleKey: "not-admin", roleName: "非管理员" }
+        });
+        error.permissionDeniedAudited = true;
+        throw error;
+      }
     }
     const role = await getAdminRole(caller);
-    requirePermission(role, writeActions.has(action) ? "catalog.write" : "catalog.read");
+    await requirePermissionWithAudit(role, writeActions.has(action) ? "catalog.write" : "catalog.read", caller, action, { collection });
 
     if (action === "list") {
       const items = await listItems(collection, { includeHidden });
@@ -595,6 +639,9 @@ exports.main = async (event = {}) => {
 
     return { ok: false, message: "未知操作" };
   } catch (error) {
+    if ((error.code === "NO_PERMISSION" || error.code === "ROLE_PERMISSION_DENIED") && !error.permissionDeniedAudited) {
+      await writePermissionDeniedAudit(caller, action, "", { collection });
+    }
     return {
       ok: false,
       code: error.code || "MANAGE_CATALOG_ERROR",

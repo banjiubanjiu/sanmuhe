@@ -503,6 +503,35 @@ function hasRolePermission(role, permission) {
   return false;
 }
 
+async function writePermissionDeniedAudit(caller = {}, attemptedAction, requiredPermission, detail = {}) {
+  try {
+    await writeAdminAuditLog(caller, "permissionDenied", Object.assign({
+      attemptedAction: cleanText(attemptedAction, 60),
+      requiredPermission: cleanText(requiredPermission, 80),
+      roleKey: cleanText(detail.role && detail.role.roleKey, 30),
+      roleName: cleanText(detail.role && detail.role.roleName, 40),
+      roleSource: cleanText(detail.role && detail.role.source, 40),
+      reason: "权限拦截"
+    }, detail.extra || {}));
+  } catch (error) {
+    // Permission denial should never fail the original response path.
+  }
+}
+
+async function requirePermissionWithAudit(role, permission, caller, attemptedAction, extra = {}) {
+  if (hasRolePermission(role, permission)) {
+    return;
+  }
+  await writePermissionDeniedAudit(caller, attemptedAction, permission, {
+    role,
+    extra
+  });
+  const error = new Error("当前后台角色无权执行该操作");
+  error.code = "ROLE_PERMISSION_DENIED";
+  error.permissionDeniedAudited = true;
+  throw error;
+}
+
 function auditValue(value) {
   if (value && typeof value === "object") {
     if (value.$date || value.seconds) {
@@ -2778,15 +2807,20 @@ async function updateSettings(event, caller) {
 }
 
 exports.main = async (event = {}) => {
+  if (event.action === "health") {
+    return { ok: true, name: "manageOperations" };
+  }
+
+  const action = cleanText(event.action, 40) || "getSummary";
+  let caller = { openid: "", uid: "", username: "" };
   try {
-    const caller = await getCaller();
+    caller = await getCaller();
     assertAdmin(caller);
     const role = await getAdminRole(caller);
 
-    const action = cleanText(event.action, 40) || "getSummary";
-    requirePermission(role, actionPermissions[action]);
+    await requirePermissionWithAudit(role, actionPermissions[action], caller, action);
     if (event.exportAll) {
-      requirePermission(role, "export.read");
+      await requirePermissionWithAudit(role, "export.read", caller, action, { exportAll: true });
       const exportReason = cleanText(event.exportReason || event.reason, 200);
       if (!exportReason) {
         return { ok: false, message: "导出 CSV 需填写原因" };
@@ -2938,6 +2972,14 @@ exports.main = async (event = {}) => {
 
     return { ok: false, message: "未知后台操作" };
   } catch (error) {
+    if ((error.code === "NO_PERMISSION" || error.code === "ROLE_PERMISSION_DENIED") && !error.permissionDeniedAudited) {
+      await writePermissionDeniedAudit(caller, action, "", {
+        extra: {
+          code: error.code || "",
+          message: error.message || ""
+        }
+      });
+    }
     return {
       ok: false,
       code: error.code || "MANAGE_OPERATIONS_ERROR",

@@ -106,7 +106,7 @@ function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageOperations/index.js", [
     {
       label: "permissions and audit",
-      items: ["const actionPermissions", "writeAdminAuditLog", "writeExportAuditLog", "redactAuditDetail", "导出 CSV 需填写原因", "requireAuditReason"]
+      items: ["const actionPermissions", "writeAdminAuditLog", "writeExportAuditLog", "writePermissionDeniedAudit", "permissionDenied", "redactAuditDetail", "导出 CSV 需填写原因", "requireAuditReason"]
     },
     {
       label: "commercial admin workflows",
@@ -130,7 +130,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "system health probes",
-      items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性", "durationMs"]
+      items: ["DEFAULT_HEALTH_FUNCTIONS", "checkCloudFunctionHealth", "cloud.callFunction", "云函数可用性", "durationMs", "name: \"manageOperations\""]
     },
     {
       label: "backup completeness system status",
@@ -141,7 +141,7 @@ function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageCatalog/index.js", [
     {
       label: "catalog sensitive change audit",
-      items: ["requireAuditReason", "changedSensitiveCatalogFields", "修改价格、库存、名额或状态", "catalog.delete", "catalog.restore"]
+      items: ["requireAuditReason", "changedSensitiveCatalogFields", "修改价格、库存、名额或状态", "catalog.delete", "catalog.restore", "writePermissionDeniedAudit", "permissionDenied"]
     }
   ]);
 
