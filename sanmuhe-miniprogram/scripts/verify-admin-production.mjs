@@ -106,7 +106,7 @@ function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageOperations/index.js", [
     {
       label: "permissions and audit",
-      items: ["const actionPermissions", "writeAdminAuditLog", "writeExportAuditLog", "redactAuditDetail", "导出 CSV 需填写原因"]
+      items: ["const actionPermissions", "writeAdminAuditLog", "writeExportAuditLog", "redactAuditDetail", "导出 CSV 需填写原因", "requireAuditReason"]
     },
     {
       label: "commercial admin workflows",
@@ -137,11 +137,11 @@ function verifyProductionSurfaces() {
     },
     {
       label: "risk controls and customer context",
-      items: ["requireTypedConfirm", "promptActionReason", "customerTimeline", "exportScopeLabel"]
+      items: ["requireTypedConfirm", "promptActionReason", "customerTimeline", "exportScopeLabel", "保存系统设置", "创建云端数据备份"]
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)"]
     }
   ]);
   verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%", "68.5", "20.3", "11.2", "2024年", "room-001"]);

@@ -11,6 +11,17 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
+function requireAuditReason(event = {}, label = "高风险操作") {
+  const data = event.data && typeof event.data === "object" ? event.data : {};
+  const reason = cleanText(event.reason || event.auditReason || event.adminNote || data.reason || data.auditReason, 200);
+  if (!reason) {
+    const error = new Error(`${label}需填写操作原因`);
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  return reason;
+}
+
 function assertSafeTextRef(value, label) {
   const text = cleanText(value, 300);
   if (!text) {
@@ -1575,6 +1586,7 @@ async function listAdminRoles() {
 
 async function saveAdminRole(event, caller) {
   const data = event.data && typeof event.data === "object" ? event.data : {};
+  const reason = requireAuditReason(event, "保存角色权限");
   const roleKey = normalizeRoleKey(data.roleKey);
   const payload = {
     id: cleanId(data.id || data.subject || data.username || data.uid || data.openid, "role"),
@@ -1589,11 +1601,16 @@ async function saveAdminRole(event, caller) {
   if (!payload.subject) {
     return { ok: false, message: "请填写角色账号标识" };
   }
+  const existing = await findRecord("admin_roles", "id", payload.id);
   await upsertRecord("admin_roles", "id", payload.id, payload);
   await writeAdminAuditLog(caller, "saveAdminRole", {
     subject: payload.subject,
+    subjectType: payload.subjectType,
+    displayName: payload.displayName,
     roleKey: payload.roleKey,
-    disabled: payload.disabled
+    disabled: payload.disabled,
+    reason,
+    changes: auditDiff(existing || {}, payload, ["subject", "subjectType", "displayName", "roleKey", "roleName", "permissions", "disabled"])
   });
   return { ok: true, role: payload };
 }
@@ -2111,6 +2128,7 @@ async function listBackupLogs(event = {}) {
 }
 
 async function getBackupDownloadUrl(event, caller) {
+  const reason = requireAuditReason(event, "下载数据备份");
   const id = cleanText(event.id, 120);
   const cloudPath = cleanText(event.cloudPath, 240);
   let record = null;
@@ -2141,7 +2159,8 @@ async function getBackupDownloadUrl(event, caller) {
   }
   await writeAdminAuditLog(caller, "getBackupDownloadUrl", {
     cloudPath: record.cloudPath || "",
-    size: record.size || 0
+    size: record.size || 0,
+    reason
   });
   return {
     ok: true,
@@ -2162,6 +2181,7 @@ function adminProfile(role) {
 }
 
 async function createDataBackup(event, caller) {
+  const reason = requireAuditReason(event, "创建数据备份");
   const limit = Math.min(1000, Math.max(50, Number(event.limit) || 500));
   const selected = Array.isArray(event.collections) && event.collections.length
     ? event.collections.map((item) => cleanText(item, 60)).filter((item) => backupCollections.includes(item))
@@ -2192,6 +2212,7 @@ async function createDataBackup(event, caller) {
         size: fileContent.length,
         counts,
         operator: callerLabel(caller),
+        reason,
         status: "success",
         createdAt: db.serverDate()
       }
@@ -2199,7 +2220,8 @@ async function createDataBackup(event, caller) {
     await writeAdminAuditLog(caller, "createDataBackup", {
       cloudPath,
       size: fileContent.length,
-      counts
+      counts,
+      reason
     });
     return {
       ok: true,
@@ -2216,6 +2238,7 @@ async function createDataBackup(event, caller) {
         size: fileContent.length,
         counts,
         operator: callerLabel(caller),
+        reason,
         status: "failed",
         error: error.message || String(error),
         createdAt: db.serverDate()
@@ -2552,6 +2575,7 @@ function validateSettingsInput(data = {}, payload = {}) {
 async function updateSettings(event, caller) {
   const existing = await findRecord("store_settings", "key", "store");
   const data = event.data || {};
+  const reason = requireAuditReason(event, "保存系统设置");
   const payload = normalizeSettings(data);
   assertPhoneText(payload.phone, "门店电话");
   validateSettingsInput(data, payload);
@@ -2563,6 +2587,7 @@ async function updateSettings(event, caller) {
     orderNoticeEnabled: payload.orderNoticeEnabled,
     reservationNoticeEnabled: payload.reservationNoticeEnabled,
     eventNoticeEnabled: payload.eventNoticeEnabled,
+    reason,
     changes: auditDiff(existing || {}, payload, [
       "brandName",
       "storeName",

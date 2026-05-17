@@ -776,8 +776,11 @@ function promptActionReason(label) {
 }
 
 function hasPermission(permission) {
-  if (!permission || !state.adminProfile) {
+  if (!permission) {
     return true;
+  }
+  if (!state.adminProfile) {
+    return false;
   }
   const permissions = state.adminProfile.permissions || [];
   return permissions.includes("*") || permissions.includes(permission);
@@ -1506,16 +1509,22 @@ function editRole(role) {
 }
 
 async function saveAdminRole() {
-  if (!roleForm.subject.trim()) {
+  const subject = roleForm.subject.trim();
+  if (!subject) {
     showToast("请填写账号标识");
     return;
   }
+  if (roleForm.roleKey === "admin" && !(await requireTypedConfirm(`确认授予 ${subject} 管理员权限？`, subject))) return;
+  const reason = await promptActionReason(`保存角色 ${subject}`);
+  if (!reason) return;
   await withLoading("保存角色", async () => {
     await callFunction("manageOperations", {
       action: "saveAdminRole",
+      reason,
       data: {
         ...roleForm,
-        id: roleForm.id || roleForm.subject,
+        subject,
+        id: roleForm.id || subject,
         permissions: currentRolePreset.value?.permissions || []
       }
     });
@@ -1536,10 +1545,19 @@ async function loadBackupLogs() {
 }
 
 async function createDataBackup() {
+  const limit = Number(backupForm.limit || 500);
+  if (!Number.isFinite(limit) || limit < 50 || limit > 1000) {
+    showToast("备份上限需在 50 到 1000 之间");
+    return;
+  }
+  if (!(await requireTypedConfirm("确认创建包含订单、用户、审计和库存数据的云端备份？", "创建备份"))) return;
+  const reason = await promptActionReason("创建云端数据备份");
+  if (!reason) return;
   await withLoading("创建备份", async () => {
     const result = await callFunction("manageOperations", {
       action: "createDataBackup",
-      limit: Number(backupForm.limit || 500)
+      limit,
+      reason
     });
     showToast(result.cloudPath ? "备份已写入云存储" : "备份已完成");
     await loadBackupLogs();
@@ -1548,11 +1566,14 @@ async function createDataBackup() {
 
 async function downloadBackup(log) {
   if (!log) return;
+  const reason = await promptActionReason(`下载备份 ${log.cloudPath || log._id}`);
+  if (!reason) return;
   await withLoading("获取备份链接", async () => {
     const result = await callFunction("manageOperations", {
       action: "getBackupDownloadUrl",
       id: log._id,
-      cloudPath: log.cloudPath
+      cloudPath: log.cloudPath,
+      reason
     });
     if (!result.url) throw new Error("未返回备份下载链接");
     window.open(result.url, "_blank", "noopener,noreferrer");
@@ -2213,8 +2234,10 @@ async function saveSettings() {
     showToast("通知跳转页格式不安全");
     return;
   }
+  const reason = await promptActionReason("保存系统设置");
+  if (!reason) return;
   await withLoading("保存设置", async () => {
-    await callFunction("manageOperations", { action: "updateSettings", data: state.settings });
+    await callFunction("manageOperations", { action: "updateSettings", data: state.settings, reason });
     showToast("设置已保存");
   });
 }
