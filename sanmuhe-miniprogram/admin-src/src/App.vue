@@ -715,7 +715,31 @@ const marketingScopeText = computed(() => {
   const limited = scope.limited ? "，已达读取上限，请导出订单和用户券数据复核" : "";
   return `按最近 ${numberText(userCouponsRead)} 条领券记录、${numberText(ordersRead)} 笔订单统计${limited}`;
 });
-const currentFreshnessText = computed(() => formatFreshness(state.lastLoadedAt[state.activeTab]));
+const currentFreshnessMeta = computed(() => {
+  const value = state.lastLoadedAt[state.activeTab];
+  if (!value) {
+    return {
+      text: "等待首次同步",
+      title: "当前模块还没有成功读取云端数据",
+      tone: "quiet"
+    };
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return {
+      text: "同步时间未知",
+      title: "最近同步时间格式异常",
+      tone: "risk"
+    };
+  }
+  const diff = Date.now() - date.getTime();
+  return {
+    text: formatFreshness(value),
+    title: `最近成功同步：${formatDate(value)}`,
+    tone: diff > 10 * 60 * 1000 ? "risk" : ""
+  };
+});
+const currentFreshnessText = computed(() => currentFreshnessMeta.value.text);
 const currentAccessText = computed(() => {
   if (!state.adminProfile) return "角色资料未加载";
   const permissions = writePermissionsByTab[state.activeTab] || [];
@@ -739,7 +763,7 @@ const currentRiskText = computed(() => {
   return riskPolicyByTab[state.activeTab] || "关键写入保留操作痕迹";
 });
 const operationAssuranceItems = computed(() => [
-  { label: "最后同步", value: currentFreshnessText.value, tone: state.loading ? "busy" : "" },
+  { label: "最后同步", value: currentFreshnessText.value, tone: state.loading ? "busy" : currentFreshnessMeta.value.tone, title: currentFreshnessMeta.value.title },
   { label: "权限边界", value: currentAccessText.value, tone: currentAccessText.value.includes("只读") ? "quiet" : "" },
   { label: "结果范围", value: currentResultText.value, tone: hasClearableFilters.value ? "focus" : "" },
   { label: "风控提示", value: currentRiskText.value, tone: currentRiskText.value.includes("无写入") ? "quiet" : "risk" }
@@ -3043,7 +3067,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section v-else class="workspace">
+      <section v-else class="workspace" :aria-busy="!!state.loading">
         <header class="topbar">
           <div>
             <span class="section-kicker">禾熙运营中枢</span>
@@ -3096,9 +3120,9 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <button class="secondary-action icon-action" aria-label="刷新当前模块" type="button" @click="loadActiveTab">
+            <button :class="['secondary-action icon-action', { spinning: !!state.loading }]" aria-label="刷新当前模块" type="button" :disabled="!!state.loading" @click="loadActiveTab">
               <RefreshCw :size="16" :stroke-width="1.8" />
-              刷新
+              {{ state.loading ? "同步中" : "刷新" }}
             </button>
             <div class="admin-chip">
               <span class="bell"><Bell :size="18" :stroke-width="1.9" /><em v-if="headerSignalCount">{{ headerSignalCount }}</em></span>
@@ -3162,7 +3186,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="ops-assurance" aria-label="当前模块经营保障信息">
-          <article v-for="item in operationAssuranceItems" :key="item.label" :data-tone="item.tone || undefined">
+          <article v-for="item in operationAssuranceItems" :key="item.label" :data-tone="item.tone || undefined" :title="item.title || item.value">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
           </article>

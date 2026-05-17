@@ -270,6 +270,16 @@ textarea:focus {
   flex: 0 0 auto;
 }
 
+.icon-action.spinning svg {
+  animation: admin-spin 900ms linear infinite;
+}
+
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .form-error {
   min-height: 20px;
   color: var(--admin-danger);

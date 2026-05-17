@@ -164,7 +164,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch", "saveCurrentView", "applySavedView"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch", "saveCurrentView", "applySavedView", "currentFreshnessMeta", "aria-busy"]
     },
     {
       label: "truthful analytics copy",
@@ -193,7 +193,7 @@ function verifyProductionSurfaces() {
   verifySourceContains("admin-src/src/styles.css", [
     {
       label: "professional loading and empty states",
-      items: [".sync-banner", ".sync-skeleton", ".empty-action", ".rich-empty", ".network-banner", ".runtime-banner"]
+      items: [".sync-banner", ".sync-skeleton", ".empty-action", ".rich-empty", ".network-banner", ".runtime-banner", ".icon-action.spinning", "@keyframes admin-spin"]
     },
     {
       label: "responsive admin shell",
