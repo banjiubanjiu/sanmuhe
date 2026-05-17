@@ -275,6 +275,7 @@ const state = reactive({
   coupons: [],
   couponStats: [],
   campaigns: [],
+  marketingScope: null,
   searchResults: [],
   settings: {},
   pagination: {
@@ -617,6 +618,30 @@ const currentRecordCount = computed(() => {
   return counts[state.activeTab] || 0;
 });
 const globalSearchTotal = computed(() => state.searchResults.reduce((sum, group) => sum + Number(group.total || group.items?.length || 0), 0));
+const dashboardScopeText = computed(() => {
+  const scope = state.dashboard?.dataScope || {};
+  const ordersRead = Number(scope.ordersRead || 0);
+  const reservationsRead = Number(scope.reservationsRead || 0);
+  const signupsRead = Number(scope.signupsRead || 0);
+  if (!ordersRead && !reservationsRead && !signupsRead) return "暂无经营记录统计口径";
+  const limited = scope.limited ? "，已达读取上限，请进入订单列表导出复核" : "";
+  return `首页按最近 ${numberText(ordersRead)} 笔订单、${numberText(reservationsRead)} 条预约、${numberText(signupsRead)} 条报名统计${limited}`;
+});
+const analyticsScopeText = computed(() => {
+  const scope = state.analytics?.scope || {};
+  const ordersRead = Number(scope.ordersRead || 0);
+  if (!ordersRead) return "来自已支付订单";
+  const limited = scope.limited ? "，已达读取上限，请用 CSV 导出核对完整口径" : "";
+  return `按最近 ${numberText(ordersRead)} 笔订单统计${limited}`;
+});
+const marketingScopeText = computed(() => {
+  const scope = state.marketingScope || {};
+  const userCouponsRead = Number(scope.userCouponsRead || 0);
+  const ordersRead = Number(scope.ordersRead || 0);
+  if (!userCouponsRead && !ordersRead) return "领取和核销后会自动形成转化统计。";
+  const limited = scope.limited ? "，已达读取上限，请导出订单和用户券数据复核" : "";
+  return `按最近 ${numberText(userCouponsRead)} 条领券记录、${numberText(ordersRead)} 笔订单统计${limited}`;
+});
 
 const filteredCatalog = computed(() => {
   const keyword = filters.catalog.trim().toLowerCase();
@@ -2075,6 +2100,7 @@ async function loadMarketing() {
     state.coupons = result.coupons || [];
     state.couponStats = result.couponStats || [];
     state.campaigns = result.campaigns || [];
+    state.marketingScope = result.scope || null;
   });
 }
 
@@ -2759,6 +2785,7 @@ onBeforeUnmount(() => {
               <h2>数据概览</h2>
               <select aria-label="统计周期"><option>本月</option><option>本周</option></select>
             </div>
+            <div class="privacy-note">{{ dashboardScopeText }}</div>
             <div class="donut-row">
               <div :class="['donut', { 'no-data': !dashboardInsight.totalCount }]" :style="dashboardDonutStyle">
                 <div>
@@ -3263,10 +3290,10 @@ onBeforeUnmount(() => {
           <article class="panel-card metric-card large">
             <span>总营业额</span>
             <strong>¥{{ money(state.analytics?.summary?.revenue) }}</strong>
-            <p>来自已支付订单</p>
+            <p>{{ analyticsScopeText }}</p>
           </article>
           <article class="panel-card metric-card large">
-            <span>总订单数</span>
+            <span>已支付订单数</span>
             <strong>{{ numberText(state.analytics?.summary?.orders || 0) }}</strong>
             <p>含茶品和茶饮订单</p>
           </article>
@@ -3317,6 +3344,7 @@ onBeforeUnmount(() => {
           </article>
           <article class="panel-card wide-table">
             <div class="panel-title"><h2>优惠券核销看板</h2></div>
+            <div class="privacy-note">{{ marketingScopeText }}</div>
             <table>
               <caption>优惠券领取与核销统计</caption>
               <thead><tr><th scope="col">优惠券</th><th scope="col">领取</th><th scope="col">使用</th><th scope="col">核销率</th><th scope="col">带来订单金额</th></tr></thead>

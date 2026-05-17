@@ -122,7 +122,11 @@ function verifyProductionSurfaces() {
     },
     {
       label: "dashboard truthful empty states",
-      items: ["buildRoomBoard", "room.visible !== false"]
+      items: ["buildRoomBoard", "room.visible !== false", "dataScope"]
+    },
+    {
+      label: "analytics data scope",
+      items: ["ANALYTICS_READ_LIMIT", "orders: revenueOrders.length", "MARKETING_STATS_LIMIT"]
     }
   ]);
 
@@ -142,6 +146,10 @@ function verifyProductionSurfaces() {
     {
       label: "professional state handling",
       items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)"]
+    },
+    {
+      label: "truthful analytics copy",
+      items: ["dashboardScopeText", "analyticsScopeText", "marketingScopeText", "已支付订单数"]
     }
   ]);
   verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%", "68.5", "20.3", "11.2", "2024年", "room-001"]);

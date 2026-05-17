@@ -6,6 +6,9 @@ cloud.init({
 
 const db = cloud.database();
 const _ = db.command;
+const DASHBOARD_READ_LIMIT = 1000;
+const ANALYTICS_READ_LIMIT = 1000;
+const MARKETING_STATS_LIMIT = 1000;
 
 function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
@@ -1255,9 +1258,9 @@ function buildRoomBoard(rooms, reservations) {
 
 async function getDashboard() {
   const [orders, reservations, signups, events, rooms] = await Promise.all([
-    readCollection("orders", { orderBy: "createdAt", limit: 100 }),
-    readCollection("reservations", { orderBy: "createdAt", limit: 100 }),
-    readCollection("event_signups", { orderBy: "createdAt", limit: 100 }),
+    readCollection("orders", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT }),
+    readCollection("reservations", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT }),
+    readCollection("event_signups", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT }),
     readCollection("events", { orderBy: "sort", order: "asc", limit: 50 }),
     readCollection("rooms", { orderBy: "sort", order: "asc", limit: 50 })
   ]);
@@ -1279,7 +1282,14 @@ async function getDashboard() {
       recentReservations: reservations.slice(0, 6),
       recentSignups: signups.slice(0, 6),
       recentOrders: orders.slice(0, 6),
-      events: events.slice(0, 5).filter((item) => item.deleted !== true && item.visible !== false)
+      events: events.slice(0, 5).filter((item) => item.deleted !== true && item.visible !== false),
+      dataScope: {
+        limit: DASHBOARD_READ_LIMIT,
+        ordersRead: orders.length,
+        reservationsRead: reservations.length,
+        signupsRead: signups.length,
+        limited: orders.length >= DASHBOARD_READ_LIMIT || reservations.length >= DASHBOARD_READ_LIMIT || signups.length >= DASHBOARD_READ_LIMIT
+      }
     }
   };
 }
@@ -2257,9 +2267,9 @@ function addTrend(bucket, key, amount) {
 
 async function getAnalytics() {
   const [orders, reservations, signups] = await Promise.all([
-    readCollection("orders", { orderBy: "createdAt", limit: 300 }),
-    readCollection("reservations", { orderBy: "createdAt", limit: 300 }),
-    readCollection("event_signups", { orderBy: "createdAt", limit: 300 })
+    readCollection("orders", { orderBy: "createdAt", limit: ANALYTICS_READ_LIMIT }),
+    readCollection("reservations", { orderBy: "createdAt", limit: ANALYTICS_READ_LIMIT }),
+    readCollection("event_signups", { orderBy: "createdAt", limit: ANALYTICS_READ_LIMIT })
   ]);
   const revenueOrders = orders.filter(isRevenueOrder);
   const byDay = {};
@@ -2288,6 +2298,8 @@ async function getAnalytics() {
     analytics: {
       summary: {
         revenue: revenueOrders.reduce((sum, order) => sum + number(order.total), 0),
+        orders: revenueOrders.length,
+        totalOrders: orders.length,
         reservations: reservations.filter((item) => item.status !== "已取消").length,
         signups: signups.filter((item) => item.status !== "已取消").length,
         averageOrder: revenueOrders.length
@@ -2296,7 +2308,14 @@ async function getAnalytics() {
       },
       trend,
       categories,
-      topItems: Object.values(topItems).sort((a, b) => b.amount - a.amount).slice(0, 10)
+      topItems: Object.values(topItems).sort((a, b) => b.amount - a.amount).slice(0, 10),
+      scope: {
+        limit: ANALYTICS_READ_LIMIT,
+        ordersRead: orders.length,
+        reservationsRead: reservations.length,
+        signupsRead: signups.length,
+        limited: orders.length >= ANALYTICS_READ_LIMIT || reservations.length >= ANALYTICS_READ_LIMIT || signups.length >= ANALYTICS_READ_LIMIT
+      }
     }
   };
 }
@@ -2400,8 +2419,8 @@ async function listMarketing() {
   const [coupons, campaigns, userCoupons, orders] = await Promise.all([
     readCollection("coupons", { orderBy: "createdAt", limit: 100 }),
     readCollection("marketing_campaigns", { orderBy: "createdAt", limit: 100 }),
-    readCollection("user_coupons", { orderBy: "createdAt", limit: 500 }),
-    readCollection("orders", { orderBy: "createdAt", limit: 500 })
+    readCollection("user_coupons", { orderBy: "createdAt", limit: MARKETING_STATS_LIMIT }),
+    readCollection("orders", { orderBy: "createdAt", limit: MARKETING_STATS_LIMIT })
   ]);
   const couponStats = coupons.map((coupon) => {
     const claims = userCoupons.filter((item) => item.couponId === coupon.id);
@@ -2420,7 +2439,20 @@ async function listMarketing() {
       discountAmount: couponOrders.reduce((sum, order) => sum + number(order.couponDiscount || order.coupon && order.coupon.discount), 0)
     };
   });
-  return { ok: true, coupons, campaigns, couponStats };
+  return {
+    ok: true,
+    coupons,
+    campaigns,
+    couponStats,
+    scope: {
+      limit: MARKETING_STATS_LIMIT,
+      couponsRead: coupons.length,
+      campaignsRead: campaigns.length,
+      userCouponsRead: userCoupons.length,
+      ordersRead: orders.length,
+      limited: userCoupons.length >= MARKETING_STATS_LIMIT || orders.length >= MARKETING_STATS_LIMIT
+    }
+  };
 }
 
 async function saveCoupon(event, caller) {
