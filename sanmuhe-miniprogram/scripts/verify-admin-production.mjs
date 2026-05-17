@@ -134,7 +134,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "frontend catalog cloud data readiness",
-      items: ["frontendCatalog", "前台资料云端数据", "catalogCounts", "content_blocks", "避免依赖本地兜底数据"]
+      items: ["frontendCatalog", "前台资料云端数据", "catalogCounts", "content_blocks", "避免依赖本地兜底数据", "countCollectionStatus", "云端资料集合读取失败"]
     },
     {
       label: "backup completeness system status",

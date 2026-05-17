@@ -1684,12 +1684,17 @@ function hasBackupCompleteness(record = {}) {
 }
 
 async function countCollection(name) {
+  const result = await countCollectionStatus(name);
+  return result.count;
+}
+
+async function countCollectionStatus(name) {
   await ensureCollection(name);
   try {
     const result = await db.collection(name).count();
-    return result.total || 0;
+    return { ok: true, count: result.total || 0 };
   } catch (error) {
-    return 0;
+    return { ok: false, count: 0, error: cleanText(error.message || String(error), 120) };
   }
 }
 
@@ -1822,9 +1827,10 @@ async function getSystemStatus(event = {}) {
     Promise.all(catalogCollections.map(async ([collection, label]) => ({
       collection,
       label,
-      count: await countCollection(collection)
+      ...(await countCollectionStatus(collection))
     })))
   ]);
+  const unreadableCatalogCollections = catalogCounts.filter((item) => item.ok === false);
   const emptyCatalogCollections = catalogCounts.filter((item) => item.count <= 0);
   const latestBackup = latestBackupResult[0] || null;
   const latestBackupTruncated = backupTruncatedCollections(latestBackup || {});
@@ -1881,8 +1887,10 @@ async function getSystemStatus(event = {}) {
     statusItem(
       "frontendCatalog",
       "前台资料云端数据",
-      emptyCatalogCollections.length ? "warn" : "ok",
-      emptyCatalogCollections.length
+      unreadableCatalogCollections.length ? "error" : emptyCatalogCollections.length ? "warn" : "ok",
+      unreadableCatalogCollections.length
+        ? `云端资料集合读取失败：${unreadableCatalogCollections.map((item) => `${item.label}${item.error ? `（${item.error}）` : ""}`).join("、")}`
+        : emptyCatalogCollections.length
         ? `云端缺少：${emptyCatalogCollections.map((item) => item.label).join("、")}。上线前应由后台保存或导入，避免依赖本地兜底数据。`
         : catalogCounts.map((item) => `${item.label} ${item.count}`).join("；")
     ),
