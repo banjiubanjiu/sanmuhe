@@ -102,6 +102,28 @@ function verifySourceExcludes(file, items) {
   console.log(`[admin:verify] ${file} excludes demo-only metric copy`);
 }
 
+function verifyManageOperationsPermissionCoverage() {
+  const source = readFileSync(join(root, "cloudfunctions/manageOperations/index.js"), "utf8");
+  const permissionBlock = source.match(/const actionPermissions = \{([\s\S]*?)\n\};/);
+  if (!permissionBlock) {
+    fail("manageOperations actionPermissions map missing");
+  }
+  const permissionActions = new Set([...permissionBlock[1].matchAll(/^\s*([A-Za-z0-9_]+):/gm)].map((match) => match[1]));
+  const dispatchedActions = new Set([...source.matchAll(/if \(action === "([^"]+)"\)/g)].map((match) => match[1]));
+  const missingPermissions = [...dispatchedActions].filter((action) => !permissionActions.has(action));
+  if (missingPermissions.length) {
+    fail(`manageOperations actions missing permission entries: ${missingPermissions.join(", ")}`);
+  }
+  const unhandledPermissions = [...permissionActions].filter((action) => !dispatchedActions.has(action));
+  if (unhandledPermissions.length) {
+    fail(`manageOperations actionPermissions has no dispatch branch: ${unhandledPermissions.join(", ")}`);
+  }
+  if (!source.includes('getAdminProfile: ""')) {
+    fail("getAdminProfile must remain readable after admin whitelist auth so disabled/no-permission accounts can see their access state");
+  }
+  console.log(`[admin:verify] manageOperations permission map covers ${dispatchedActions.size} dispatched actions`);
+}
+
 function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageOperations/index.js", [
     {
@@ -257,6 +279,7 @@ for (const entrypoint of listFunctionEntrypoints()) {
 }
 
 verifyProductionSurfaces();
+verifyManageOperationsPermissionCoverage();
 verifyCloudFunctionHealthChecks();
 verifyCloudFunctionDependencyHygiene();
 
