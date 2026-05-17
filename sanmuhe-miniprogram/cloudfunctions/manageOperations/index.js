@@ -2213,8 +2213,15 @@ const backupCollections = [
 
 async function readBackupCollection(collection, limit) {
   await ensureCollection(collection);
+  const countResult = await db.collection(collection).count();
   const result = await db.collection(collection).limit(limit).get();
-  return result.data || [];
+  const items = result.data || [];
+  const total = Number(countResult.total || 0);
+  return {
+    items,
+    total,
+    truncated: total > items.length
+  };
 }
 
 async function listBackupLogs(event = {}) {
@@ -2288,10 +2295,16 @@ async function createDataBackup(event, caller) {
     : backupCollections;
   const exported = {};
   const counts = {};
+  const totals = {};
+  const truncated = {};
   for (const collection of selected) {
-    exported[collection] = await readBackupCollection(collection, limit);
-    counts[collection] = exported[collection].length;
+    const backup = await readBackupCollection(collection, limit);
+    exported[collection] = backup.items;
+    counts[collection] = backup.items.length;
+    totals[collection] = backup.total;
+    truncated[collection] = backup.truncated;
   }
+  const truncatedCollections = Object.keys(truncated).filter((collection) => truncated[collection]);
   const fileName = `backup-${Date.now()}.json`;
   const cloudPath = `admin-backups/${fileName}`;
   const payload = {
@@ -2299,6 +2312,9 @@ async function createDataBackup(event, caller) {
     operator: callerLabel(caller),
     limit,
     counts,
+    totals,
+    truncated,
+    truncatedCollections,
     data: exported
   };
   const fileContent = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
@@ -2311,6 +2327,10 @@ async function createDataBackup(event, caller) {
         fileId: upload.fileID || upload.fileId || "",
         size: fileContent.length,
         counts,
+        totals,
+        truncated,
+        truncatedCollections,
+        limit,
         operator: callerLabel(caller),
         reason,
         status: "success",
@@ -2321,6 +2341,9 @@ async function createDataBackup(event, caller) {
       cloudPath,
       size: fileContent.length,
       counts,
+      totals,
+      truncated,
+      truncatedCollections,
       reason
     });
     return {
@@ -2328,7 +2351,10 @@ async function createDataBackup(event, caller) {
       cloudPath,
       fileId: upload.fileID || upload.fileId || "",
       size: fileContent.length,
-      counts
+      counts,
+      totals,
+      truncated,
+      truncatedCollections
     };
   } catch (error) {
     await ensureCollection("data_backup_logs");
@@ -2337,6 +2363,10 @@ async function createDataBackup(event, caller) {
         cloudPath,
         size: fileContent.length,
         counts,
+        totals,
+        truncated,
+        truncatedCollections,
+        limit,
         operator: callerLabel(caller),
         reason,
         status: "failed",

@@ -110,7 +110,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "commercial admin workflows",
-      items: ["globalSearch", "listBackupLogs", "createDataBackup", "deleteCustomerData", "exportCustomerData", "adjustInventory"]
+      items: ["globalSearch", "listBackupLogs", "createDataBackup", "deleteCustomerData", "exportCustomerData", "adjustInventory", "truncatedCollections"]
     },
     {
       label: "server-side operation guards",
@@ -168,7 +168,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "system required functions",
-      items: ["requiredFunctions", "createPayment", "serviceNotify", "scheduledBackup", "cleanupSmokeData", "云函数探测明细", "health-table"]
+      items: ["requiredFunctions", "createPayment", "serviceNotify", "scheduledBackup", "cleanupSmokeData", "云函数探测明细", "health-table", "backupCompleteness"]
     },
     {
       label: "catalog sensitive operation reasons",

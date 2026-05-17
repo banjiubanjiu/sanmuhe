@@ -1201,6 +1201,30 @@ function statusTone(value) {
   return "neutral";
 }
 
+function backupTruncatedCollections(log = {}) {
+  if (Array.isArray(log.truncatedCollections)) {
+    return log.truncatedCollections.filter(Boolean);
+  }
+  const truncated = log.truncated || {};
+  return Object.keys(truncated).filter((collection) => truncated[collection]);
+}
+
+function backupCompleteness(log = {}) {
+  if (log.status && log.status !== "success") {
+    return {
+      tone: statusTone(log.status),
+      label: "未完成",
+      hint: log.error || "备份未生成可核对文件"
+    };
+  }
+  const names = backupTruncatedCollections(log);
+  return {
+    tone: names.length ? "warn" : "good",
+    label: names.length ? "可能截断" : "完整",
+    hint: names.length ? `超出上限：${names.join("、")}` : `上限 ${numberText(log.limit || backupForm.limit || 500)} / 集合`
+  };
+}
+
 function addTimeline(items, time, title, detail, tone = "") {
   if (!time) return;
   items.push({ time, title, detail, tone });
@@ -3880,11 +3904,12 @@ onBeforeUnmount(() => {
             <div class="table-wrap">
               <table>
                 <caption>云端备份记录</caption>
-                <thead><tr><th scope="col">时间</th><th scope="col">状态</th><th scope="col">文件</th><th scope="col">大小</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">时间</th><th scope="col">状态</th><th scope="col">完整性</th><th scope="col">文件</th><th scope="col">大小</th><th scope="col">操作</th></tr></thead>
                 <tbody>
                   <tr v-for="log in state.backupLogs" :key="log._id">
                     <td>{{ formatDate(log.createdAt) }}</td>
                     <td><span :class="['status-pill', statusTone(log.status)]">{{ log.status }}</span></td>
+                    <td><span :class="['status-pill', backupCompleteness(log).tone]">{{ backupCompleteness(log).label }}</span><small>{{ backupCompleteness(log).hint }}</small></td>
                     <td><strong>{{ log.cloudPath || "-" }}</strong><small>{{ log.error || log.fileId || "" }}</small></td>
                     <td>{{ numberText(log.size || 0) }} B</td>
                     <td><button v-if="log.status === 'success' && log.fileId" class="ghost-button" type="button" @click="downloadBackup(log)">下载</button></td>
@@ -3903,7 +3928,7 @@ onBeforeUnmount(() => {
             <div class="panel-title"><h2>创建备份</h2></div>
             <form class="editor-grid" @submit.prevent="createDataBackup">
               <label><span>每个集合上限</span><input v-model.number="backupForm.limit" type="number" min="50" max="1000"></label>
-              <div class="privacy-note wide">备份会导出订单、预约、报名、会员、商品、内容、优惠券、审计、通知和库存日志，并写入云存储 admin-backups/。</div>
+              <div class="privacy-note wide">备份会导出订单、预约、报名、会员、商品、内容、优惠券、审计、通知和库存日志，并写入云存储 admin-backups/。若集合总量超过上限，记录会标记为可能截断。</div>
               <button v-if="hasPermission('backup.create')" class="primary-action wide icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建云端备份</button>
               <div v-else class="permission-note wide">当前角色仅可查看备份记录。</div>
             </form>

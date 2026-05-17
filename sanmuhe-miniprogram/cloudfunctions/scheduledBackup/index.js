@@ -36,8 +36,15 @@ async function ensureCollection(name) {
 
 async function readCollection(collection, limit) {
   await ensureCollection(collection);
+  const countResult = await db.collection(collection).count();
   const result = await db.collection(collection).limit(limit).get();
-  return result.data || [];
+  const items = result.data || [];
+  const total = Number(countResult.total || 0);
+  return {
+    items,
+    total,
+    truncated: total > items.length
+  };
 }
 
 async function writeBackupLog(data) {
@@ -61,13 +68,19 @@ exports.main = async (event = {}) => {
     : backupCollections;
   const exported = {};
   const counts = {};
+  const totals = {};
+  const truncated = {};
   const startedAt = new Date();
 
   try {
     for (const collection of selected) {
-      exported[collection] = await readCollection(collection, limit);
-      counts[collection] = exported[collection].length;
+      const backup = await readCollection(collection, limit);
+      exported[collection] = backup.items;
+      counts[collection] = backup.items.length;
+      totals[collection] = backup.total;
+      truncated[collection] = backup.truncated;
     }
+    const truncatedCollections = Object.keys(truncated).filter((collection) => truncated[collection]);
 
     const dateKey = startedAt.toISOString().slice(0, 10);
     const fileName = `scheduled-${dateKey}-${Date.now()}.json`;
@@ -77,6 +90,9 @@ exports.main = async (event = {}) => {
       operator: "scheduledBackup",
       limit,
       counts,
+      totals,
+      truncated,
+      truncatedCollections,
       data: exported
     };
     const fileContent = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
@@ -88,6 +104,10 @@ exports.main = async (event = {}) => {
       fileId,
       size: fileContent.length,
       counts,
+      totals,
+      truncated,
+      truncatedCollections,
+      limit,
       operator: "scheduledBackup",
       status: "success"
     });
@@ -97,13 +117,20 @@ exports.main = async (event = {}) => {
       cloudPath,
       fileId,
       size: fileContent.length,
-      counts
+      counts,
+      totals,
+      truncated,
+      truncatedCollections
     };
   } catch (error) {
     await writeBackupLog({
       cloudPath: "",
       size: 0,
       counts,
+      totals,
+      truncated,
+      truncatedCollections: Object.keys(truncated).filter((collection) => truncated[collection]),
+      limit,
       operator: "scheduledBackup",
       status: "failed",
       error: error.message || String(error)
@@ -111,7 +138,9 @@ exports.main = async (event = {}) => {
     return {
       ok: false,
       message: error.message || "定时备份失败",
-      counts
+      counts,
+      totals,
+      truncated
     };
   }
 };
