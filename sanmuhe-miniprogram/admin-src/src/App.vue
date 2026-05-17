@@ -60,6 +60,9 @@ const PACKAGE_INFO = {
   ]
 };
 
+const SAVED_VIEWS_KEY = "hexi-admin-saved-views-v1";
+const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "reservations", "signups", "customers", "content", "audit", "notifications"]);
+
 let cloudApp = null;
 let cloudAuth = null;
 
@@ -331,6 +334,7 @@ const state = reactive({
   campaigns: [],
   marketingScope: null,
   searchResults: [],
+  savedViews: {},
   settings: {},
   pagination: {
     orders: createPageState(),
@@ -422,6 +426,7 @@ const actionDialog = reactive({
   expected: "",
   input: "",
   reason: "",
+  inputLabel: "",
   confirmText: "确认",
   cancelText: "取消",
   danger: false,
@@ -684,6 +689,8 @@ const currentRecordCount = computed(() => {
   return counts[state.activeTab] || 0;
 });
 const globalSearchTotal = computed(() => state.searchResults.reduce((sum, group) => sum + Number(group.total || group.items?.length || 0), 0));
+const activeSavedViews = computed(() => state.savedViews[state.activeTab] || []);
+const canSaveActiveView = computed(() => SAVED_VIEW_TABS.has(state.activeTab));
 const dashboardScopeText = computed(() => {
   const scope = state.dashboard?.dataScope || {};
   const ordersRead = Number(scope.ordersRead || 0);
@@ -983,8 +990,9 @@ function openActionDialog(options) {
     title: options.title || "确认操作",
     message: options.message || "",
     expected: String(options.expected || "").trim(),
-    input: "",
+    input: String(options.defaultInput || ""),
     reason: "",
+    inputLabel: options.inputLabel || "",
     confirmText: options.confirmText || "确认",
     cancelText: options.cancelText || "取消",
     danger: options.danger === true,
@@ -1011,6 +1019,15 @@ function submitActionDialog() {
     actionDialog.error = "输入内容与确认值不一致";
     return;
   }
+  if (actionDialog.mode === "input") {
+    const input = actionDialog.input.trim();
+    if (!input) {
+      actionDialog.error = "请填写名称";
+      return;
+    }
+    closeActionDialog(input);
+    return;
+  }
   if (actionDialog.mode === "reason") {
     const reason = actionDialog.reason.trim();
     if (!reason) {
@@ -1025,6 +1042,18 @@ function submitActionDialog() {
 
 function cancelActionDialog() {
   closeActionDialog(actionDialog.mode === "reason" ? "" : false);
+}
+
+function promptTextValue(title, message, defaultInput = "") {
+  return openActionDialog({
+    mode: "input",
+    title,
+    message,
+    defaultInput,
+    inputLabel: "名称",
+    confirmText: "保存",
+    cancelText: "取消"
+  });
 }
 
 function requireTypedConfirm(label, expected) {
@@ -2660,6 +2689,114 @@ function closeSearch() {
   state.searchOpen = false;
 }
 
+function loadSavedViews() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SAVED_VIEWS_KEY) || "{}");
+    state.savedViews = parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    state.savedViews = {};
+  }
+}
+
+function persistSavedViews() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(state.savedViews));
+  } catch (error) {
+    showToast("常用视图保存失败，浏览器可能禁用了本地存储");
+  }
+}
+
+function snapshotActiveFilters(tab = state.activeTab) {
+  if (tab === "catalog") return { collection: state.collection, keyword: filters.catalog.trim() };
+  if (tab === "orders") return { status: filters.orderStatus, keyword: filters.orderKeyword.trim() };
+  if (tab === "afterSales") return { status: filters.afterSaleStatus, keyword: filters.afterSaleKeyword.trim() };
+  if (tab === "inventory") return { keyword: filters.inventoryKeyword.trim() };
+  if (tab === "reservations") return { date: state.reservationCalendarDate, status: filters.reservationStatus, keyword: filters.reservationKeyword.trim() };
+  if (tab === "signups") return { status: filters.signupStatus, keyword: filters.signupKeyword.trim() };
+  if (tab === "customers") return { keyword: filters.customerKeyword.trim() };
+  if (tab === "content") return { type: state.contentType };
+  if (tab === "audit") return { keyword: filters.auditKeyword.trim() };
+  if (tab === "notifications") return { keyword: filters.notificationKeyword.trim() };
+  return {};
+}
+
+function savedViewDefaultName() {
+  if (activeFilterLabels.value.length) {
+    return activeFilterLabels.value.map((item) => `${item.label}${item.value}`).join("、").slice(0, 24);
+  }
+  return `${currentTitle.value[0]}全部`;
+}
+
+async function saveCurrentView() {
+  if (!canSaveActiveView.value) return;
+  const name = await promptTextValue("保存常用视图", "把当前筛选条件保存到本浏览器，后续可一键恢复。", savedViewDefaultName());
+  if (!name) return;
+  const tab = state.activeTab;
+  const view = {
+    id: `${Date.now()}`,
+    tab,
+    name: String(name).slice(0, 24),
+    snapshot: snapshotActiveFilters(tab),
+    createdAt: new Date().toISOString()
+  };
+  const existing = state.savedViews[tab] || [];
+  state.savedViews = {
+    ...state.savedViews,
+    [tab]: [view, ...existing.filter((item) => item.name !== view.name)].slice(0, 6)
+  };
+  persistSavedViews();
+  showToast("常用视图已保存");
+}
+
+async function applySavedView(view) {
+  if (!view?.tab || !canAccessTab(view.tab)) {
+    showToast("当前角色无权访问该视图");
+    return;
+  }
+  const snapshot = view.snapshot || {};
+  state.activeTab = view.tab;
+  if (view.tab === "catalog") {
+    state.collection = snapshot.collection || state.collection;
+    filters.catalog = snapshot.keyword || "";
+  }
+  if (view.tab === "orders") {
+    filters.orderStatus = snapshot.status || "";
+    filters.orderKeyword = snapshot.keyword || "";
+  }
+  if (view.tab === "afterSales") {
+    filters.afterSaleStatus = snapshot.status || "";
+    filters.afterSaleKeyword = snapshot.keyword || "";
+  }
+  if (view.tab === "inventory") filters.inventoryKeyword = snapshot.keyword || "";
+  if (view.tab === "reservations") {
+    state.reservationCalendarDate = snapshot.date || state.reservationCalendarDate;
+    filters.reservationStatus = snapshot.status || "";
+    filters.reservationKeyword = snapshot.keyword || "";
+  }
+  if (view.tab === "signups") {
+    filters.signupStatus = snapshot.status || "";
+    filters.signupKeyword = snapshot.keyword || "";
+  }
+  if (view.tab === "customers") filters.customerKeyword = snapshot.keyword || "";
+  if (view.tab === "content") state.contentType = snapshot.type || "home_carousel";
+  if (view.tab === "audit") filters.auditKeyword = snapshot.keyword || "";
+  if (view.tab === "notifications") filters.notificationKeyword = snapshot.keyword || "";
+  resetPage(pageKeyForTab(view.tab));
+  await loadActiveTab();
+}
+
+function deleteSavedView(view) {
+  const tab = view?.tab || state.activeTab;
+  const existing = state.savedViews[tab] || [];
+  state.savedViews = {
+    ...state.savedViews,
+    [tab]: existing.filter((item) => item.id !== view.id)
+  };
+  persistSavedViews();
+}
+
 function clearActiveFilters() {
   if (state.activeTab === "catalog") filters.catalog = "";
   if (state.activeTab === "orders") {
@@ -2811,6 +2948,7 @@ function setupRuntimeGuards() {
 onMounted(async () => {
   try {
     setupRuntimeGuards();
+    loadSavedViews();
     initCloud();
     setCurrentUser(await getSessionUser());
     state.ready = true;
@@ -3023,6 +3161,18 @@ onBeforeUnmount(() => {
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
           </article>
+        </section>
+
+        <section v-if="canSaveActiveView" class="saved-views" aria-label="常用筛选视图">
+          <span>常用视图</span>
+          <button class="save-view-button" type="button" @click="saveCurrentView">保存当前筛选</button>
+          <div v-if="activeSavedViews.length" class="saved-view-list">
+            <button v-for="view in activeSavedViews" :key="view.id" type="button" @click="applySavedView(view)">
+              {{ view.name }}
+              <i aria-label="删除视图" role="button" tabindex="0" @click.stop="deleteSavedView(view)" @keydown.enter.stop.prevent="deleteSavedView(view)">×</i>
+            </button>
+          </div>
+          <p v-else>尚未保存常用筛选</p>
         </section>
 
         <section v-if="moduleWorkflowSteps.length" class="workflow-strip" aria-label="当前模块状态流">
@@ -4069,8 +4219,8 @@ onBeforeUnmount(() => {
             <span>确认值</span>
             <strong>{{ actionDialog.expected }}</strong>
           </div>
-          <label v-if="actionDialog.mode === 'typed'" class="wide">
-            <span>输入确认值</span>
+          <label v-if="actionDialog.mode === 'typed' || actionDialog.mode === 'input'" class="wide">
+            <span>{{ actionDialog.inputLabel || "输入确认值" }}</span>
             <input v-model="actionDialog.input" autocomplete="off" :placeholder="actionDialog.expected">
           </label>
           <label v-if="actionDialog.mode === 'reason'" class="wide">

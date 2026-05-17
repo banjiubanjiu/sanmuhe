@@ -164,7 +164,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch", "saveCurrentView", "applySavedView"]
     },
     {
       label: "truthful analytics copy",
@@ -193,7 +193,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "responsive admin shell",
-      items: ["@media (max-width: 1120px)", "@media (max-width: 860px)", ".global-search-panel", ".interactive-row", ".panel-toolbar .line-input", ".donut.no-data", ".access-block", ".shortcut-hint"]
+      items: ["@media (max-width: 1120px)", "@media (max-width: 860px)", ".global-search-panel", ".interactive-row", ".panel-toolbar .line-input", ".donut.no-data", ".access-block", ".shortcut-hint", ".saved-views"]
     },
     {
       label: "workflow state strip",

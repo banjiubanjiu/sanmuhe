@@ -1061,6 +1061,71 @@ textarea:focus {
   color: var(--admin-muted);
 }
 
+.saved-views {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: -8px 0 20px;
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.saved-views > span {
+  flex: 0 0 auto;
+  color: var(--admin-green);
+  font-weight: 600;
+}
+
+.saved-views p {
+  margin: 0;
+  color: var(--admin-faint);
+}
+
+.save-view-button,
+.saved-view-list button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(72, 68, 56, 0.12);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--admin-green-dark);
+  background: rgba(255, 253, 247, 0.7);
+  font-size: 12px;
+}
+
+.save-view-button {
+  border-color: rgba(77, 101, 66, 0.2);
+  background: rgba(222, 235, 217, 0.62);
+}
+
+.saved-view-list {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.saved-view-list i {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--admin-muted);
+  background: rgba(72, 68, 56, 0.08);
+  font-style: normal;
+  line-height: 1;
+}
+
+.saved-view-list i:hover,
+.saved-view-list i:focus-visible {
+  color: #fffdf7;
+  background: var(--admin-danger);
+  outline: none;
+}
+
 .workflow-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
@@ -2860,6 +2925,11 @@ tr.selected td:first-child {
   }
 
   .network-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .saved-views {
     align-items: flex-start;
     flex-direction: column;
   }
