@@ -106,7 +106,7 @@ function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageOperations/index.js", [
     {
       label: "permissions and audit",
-      items: ["const actionPermissions", "writeAdminAuditLog", "writeExportAuditLog", "writePermissionDeniedAudit", "permissionDenied", "role.disabled === true", "导出 CSV 需填写原因", "requireAuditReason"]
+      items: ["const actionPermissions", "getAdminProfile: \"\"", "unknownAction", "writeAdminAuditLog", "writeExportAuditLog", "writePermissionDeniedAudit", "permissionDenied", "role.disabled === true", "导出 CSV 需填写原因", "requireAuditReason"]
     },
     {
       label: "commercial admin workflows",

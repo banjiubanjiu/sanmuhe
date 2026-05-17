@@ -323,7 +323,7 @@ const roleLabels = {
 };
 
 const actionPermissions = {
-  getAdminProfile: "dashboard.read",
+  getAdminProfile: "",
   getSummary: "dashboard.read",
   getDashboard: "dashboard.read",
   globalSearch: "dashboard.read",
@@ -2878,6 +2878,15 @@ exports.main = async (event = {}) => {
     caller = await getCaller();
     assertAdmin(caller);
     const role = await getAdminRole(caller);
+
+    if (!Object.prototype.hasOwnProperty.call(actionPermissions, action)) {
+      await writeAdminAuditLog(caller, "unknownAction", {
+        attemptedAction: action,
+        roleKey: role.roleKey || "",
+        roleName: role.roleName || ""
+      });
+      return { ok: false, message: "未知后台操作" };
+    }
 
     await requirePermissionWithAudit(role, actionPermissions[action], caller, action);
     if (event.exportAll) {
