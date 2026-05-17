@@ -307,6 +307,7 @@ const state = reactive({
   searching: false,
   searchMessage: "",
   adminProfile: null,
+  adminProfileError: "",
   summary: [],
   dashboard: null,
   catalogItems: [],
@@ -506,7 +507,7 @@ const forms = reactive({
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
 const currentModuleProfile = computed(() => moduleProfiles[state.activeTab] || moduleProfiles.dashboard);
 const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾熙管理员");
-const currentRoleName = computed(() => state.adminProfile?.roleName || "管理员");
+const currentRoleName = computed(() => state.adminProfileError ? "未授权" : (state.adminProfile?.roleName || "管理员"));
 const headerSignalCount = computed(() => {
   const summary = state.systemStatus?.summary || {};
   return Number(summary.warn || 0) + Number(summary.error || 0);
@@ -551,11 +552,17 @@ const visibleNavGroups = computed(() => navGroups
   }))
   .filter((group) => group.items.length));
 const visibleQuickActions = computed(() => quickActions.filter((action) => canAccessTab(action.tab)));
-const accessBlocked = computed(() => !!state.adminProfile && (state.adminProfile.disabled === true || !visibleNavGroups.value.length));
-const accessBlockTitle = computed(() => state.adminProfile?.disabled ? "当前后台账号已停用" : "当前账号暂无可访问模块");
-const accessBlockHint = computed(() => state.adminProfile?.disabled
-  ? "该账号已被停用，后台不会继续读取经营数据。请使用仍在启用状态的管理员账号重新登录。"
-  : "该账号没有任何后台模块权限，无法查看订单、预约、用户或系统配置。");
+const accessBlocked = computed(() => !!state.adminProfileError || (!!state.adminProfile && (state.adminProfile.disabled === true || !visibleNavGroups.value.length)));
+const accessBlockTitle = computed(() => {
+  if (state.adminProfileError) return "无法读取后台权限";
+  return state.adminProfile?.disabled ? "当前后台账号已停用" : "当前账号暂无可访问模块";
+});
+const accessBlockHint = computed(() => {
+  if (state.adminProfileError) return `${state.adminProfileError}。后台不会继续读取经营数据，请退出后重新登录或检查账号权限配置。`;
+  return state.adminProfile?.disabled
+    ? "该账号已被停用，后台不会继续读取经营数据。请使用仍在启用状态的管理员账号重新登录。"
+    : "该账号没有任何后台模块权限，无法查看订单、预约、用户或系统配置。";
+});
 const reservationCalendarRows = computed(() => {
   const day = state.reservationCalendarDate;
   const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
@@ -1517,10 +1524,12 @@ async function withLoading(label, task) {
 
 async function loadAdminProfile() {
   try {
+    state.adminProfileError = "";
     const result = await callFunction("manageOperations", { action: "getAdminProfile" });
     state.adminProfile = result.admin || null;
   } catch (error) {
     state.adminProfile = null;
+    state.adminProfileError = error.message || "权限资料加载失败";
   }
 }
 

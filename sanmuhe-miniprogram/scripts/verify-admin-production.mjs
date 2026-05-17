@@ -160,7 +160,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)", "accessBlocked", "focusGlobalSearch"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch"]
     },
     {
       label: "truthful analytics copy",
