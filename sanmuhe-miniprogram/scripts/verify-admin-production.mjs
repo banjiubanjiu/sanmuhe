@@ -231,6 +231,18 @@ function verifyCloudFunctionHealthChecks() {
   console.log(`[admin:verify] ${requiredFunctions.length} cloud functions expose no-write health checks`);
 }
 
+function verifyCloudFunctionDependencyHygiene() {
+  const jsSdkFunctions = ["manageOperations", "manageCatalog", "seedDemoData"];
+  const missing = jsSdkFunctions.filter((name) => {
+    const pkg = readJson(join(root, "cloudfunctions", name, "package.json"));
+    return !pkg.dependencies?.["@cloudbase/js-sdk"] || !pkg.dependencies?.ws;
+  });
+  if (missing.length) {
+    fail(`cloud functions using @cloudbase/js-sdk must declare ws dependency: ${missing.join(", ")}`);
+  }
+  console.log(`[admin:verify] CloudBase JS SDK cloud functions declare ws dependency`);
+}
+
 console.log("[admin:verify] checking cloud function syntax");
 for (const entrypoint of listFunctionEntrypoints()) {
   run(process.execPath, ["--check", rel(entrypoint)]);
@@ -238,6 +250,7 @@ for (const entrypoint of listFunctionEntrypoints()) {
 
 verifyProductionSurfaces();
 verifyCloudFunctionHealthChecks();
+verifyCloudFunctionDependencyHygiene();
 
 console.log("[admin:verify] building admin");
 run("npm", ["run", "admin:build"]);
