@@ -140,7 +140,7 @@ function verifyProductionSurfaces() {
       items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected"]
     }
   ]);
-  verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%"]);
+  verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%", "68.5", "20.3", "11.2", "2024年"]);
 
   verifySourceContains("admin-src/src/styles.css", [
     {
@@ -149,7 +149,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "responsive admin shell",
-      items: ["@media (max-width: 1120px)", "@media (max-width: 860px)", ".global-search-panel", ".interactive-row", ".panel-toolbar .line-input"]
+      items: ["@media (max-width: 1120px)", "@media (max-width: 860px)", ".global-search-panel", ".interactive-row", ".panel-toolbar .line-input", ".donut.no-data"]
     }
   ]);
 }

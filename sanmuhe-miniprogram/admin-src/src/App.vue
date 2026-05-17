@@ -528,20 +528,21 @@ const dashboardInsight = computed(() => {
         { label: "活动报名", value: Math.max(0, Math.round((signupCount / totalCount) * 1000) / 10), className: "events" }
       ]
     : [
-        { label: "茶品订单", value: 68.5, className: "orders" },
-        { label: "茶室预约", value: 20.3, className: "rooms" },
-        { label: "活动报名", value: 11.2, className: "events" }
+        { label: "茶品订单", value: 0, className: "orders" },
+        { label: "茶室预约", value: 0, className: "rooms" },
+        { label: "活动报名", value: 0, className: "events" }
       ];
   return {
     revenue,
     orderCount,
     averagePrice: orderCount ? Math.round(revenue / orderCount) : 0,
+    totalCount,
     segments
   };
 });
 const dashboardDonutStyle = computed(() => {
-  const first = dashboardInsight.value.segments[0]?.value || 68.5;
-  const second = first + (dashboardInsight.value.segments[1]?.value || 20.3);
+  const first = dashboardInsight.value.totalCount ? dashboardInsight.value.segments[0]?.value || 0 : 0;
+  const second = first + (dashboardInsight.value.totalCount ? dashboardInsight.value.segments[1]?.value || 0 : 0);
   return {
     "--first-stop": `${first}%`,
     "--second-stop": `${Math.min(second, 100)}%`
@@ -2636,7 +2637,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="room-board-date">
               <span aria-hidden="true">‹</span>
-              <strong>{{ state.dashboard?.dateLabel || "2024年5月20日" }}</strong>
+              <strong>{{ state.dashboard?.dateLabel || state.reservationCalendarDate }}</strong>
               <span aria-hidden="true">›</span>
             </div>
             <div class="room-board">
@@ -2724,7 +2725,7 @@ onBeforeUnmount(() => {
               <select aria-label="统计周期"><option>本月</option><option>本周</option></select>
             </div>
             <div class="donut-row">
-              <div class="donut" :style="dashboardDonutStyle">
+              <div :class="['donut', { 'no-data': !dashboardInsight.totalCount }]" :style="dashboardDonutStyle">
                 <div>
                   <span>总营业额</span>
                   <strong>¥{{ numberText(dashboardInsight.revenue) }}</strong>
