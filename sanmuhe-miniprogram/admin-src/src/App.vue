@@ -706,12 +706,166 @@ const operationAssuranceItems = computed(() => [
   { label: "结果范围", value: currentResultText.value, tone: hasClearableFilters.value ? "focus" : "" },
   { label: "风控提示", value: currentRiskText.value, tone: currentRiskText.value.includes("无写入") ? "quiet" : "risk" }
 ]);
+const moduleWorkflowSteps = computed(() => buildWorkflowSteps(state.activeTab));
 
 const filteredCatalog = computed(() => {
   const keyword = filters.catalog.trim().toLowerCase();
   if (!keyword) return state.catalogItems;
   return state.catalogItems.filter((item) => textOf(item, ["id", "name", "title", "category", "status"]).includes(keyword));
 });
+
+function workflowStep(label, value, hint = "", tone = "neutral") {
+  return { label, value: String(value ?? "-"), hint, tone };
+}
+
+function countWhere(records, matcher) {
+  return (records || []).filter((item) => matcher(item || {})).length;
+}
+
+function hasStatus(item, patterns, field = "status") {
+  const text = String(item?.[field] || "");
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function boolText(value) {
+  return value ? "已启用" : "未启用";
+}
+
+function buildWorkflowSteps(tab) {
+  if (tab === "orders") {
+    return [
+      workflowStep("待支付", countWhere(state.orders, (item) => hasStatus(item, [/待支付/])), "需跟进支付或取消", "warn"),
+      workflowStep("待履约", countWhere(state.orders, (item) => hasStatus(item, [/待发货|待自提/])), "发货/自提动作", "focus"),
+      workflowStep("已发货", countWhere(state.orders, (item) => hasStatus(item, [/已发货/])), "等待完成", "good"),
+      workflowStep("已完成", countWhere(state.orders, (item) => hasStatus(item, [/已完成/])), "已闭环", "good"),
+      workflowStep("售后关联", countWhere(state.orders, (item) => hasStatus(item, [/售后/]) || hasStatus(item, [/申请|审核|退款|拒绝|关闭|处理中/], "afterSaleStatus")), "需核对退款状态", "warn")
+    ];
+  }
+  if (tab === "afterSales") {
+    return [
+      workflowStep("申请售后", countWhere(state.afterSales, (item) => hasStatus(item, [/申请售后/], "afterSaleStatus")), "用户已提交", "warn"),
+      workflowStep("审核中", countWhere(state.afterSales, (item) => hasStatus(item, [/审核中|处理中/], "afterSaleStatus")), "需处理备注", "focus"),
+      workflowStep("已退款", countWhere(state.afterSales, (item) => hasStatus(item, [/已退款/], "afterSaleStatus")), "状态闭环", "good"),
+      workflowStep("已拒绝", countWhere(state.afterSales, (item) => hasStatus(item, [/已拒绝/], "afterSaleStatus")), "需保留原因", "danger"),
+      workflowStep("已关闭", countWhere(state.afterSales, (item) => hasStatus(item, [/已关闭/], "afterSaleStatus")), "不再处理", "neutral")
+    ];
+  }
+  if (tab === "inventory") {
+    return [
+      workflowStep("下单锁定", countWhere(state.inventoryLogs, (item) => hasStatus(item, [/锁定|lock/i], "type")), "未支付占用", "warn"),
+      workflowStep("支付扣减", countWhere(state.inventoryLogs, (item) => hasStatus(item, [/扣减|支付|paid|deduct/i], "type")), "真实出库", "good"),
+      workflowStep("取消释放", countWhere(state.inventoryLogs, (item) => hasStatus(item, [/释放|取消|release|cancel/i], "type")), "回补可售", "neutral"),
+      workflowStep("人工调整", countWhere(state.inventoryLogs, (item) => hasStatus(item, [/人工|调整|manual|adjust/i], "type")), "需原因审计", "focus")
+    ];
+  }
+  if (tab === "reservations") {
+    const occupied = reservationCalendarRows.value.reduce((sum, row) => sum + row.slots.filter((slot) => slot.record).length, 0);
+    return [
+      workflowStep("日历占用", occupied, state.reservationCalendarDate, "focus"),
+      workflowStep("待确认", countWhere(state.reservations, (item) => hasStatus(item, [/待确认/])), "需联系客户", "warn"),
+      workflowStep("已确认", countWhere(state.reservations, (item) => hasStatus(item, [/已确认/])), "等待到店", "good"),
+      workflowStep("已完成", countWhere(state.reservations, (item) => hasStatus(item, [/已完成/])), "已履约", "good"),
+      workflowStep("已取消", countWhere(state.reservations, (item) => hasStatus(item, [/已取消/])), "需保留原因", "neutral")
+    ];
+  }
+  if (tab === "signups") {
+    return [
+      workflowStep("待确认", countWhere(state.signups, (item) => hasStatus(item, [/待确认/])), "需确认名额", "warn"),
+      workflowStep("已确认", countWhere(state.signups, (item) => hasStatus(item, [/已确认/])), "待到场", "good"),
+      workflowStep("已到场", countWhere(state.signups, (item) => hasStatus(item, [/已到场/])), "已核销", "good"),
+      workflowStep("未到场", countWhere(state.signups, (item) => hasStatus(item, [/未到场/])), "活动复盘", "warn"),
+      workflowStep("取消/完成", countWhere(state.signups, (item) => hasStatus(item, [/已取消|已完成/])), "最终状态", "neutral")
+    ];
+  }
+  if (tab === "catalog") {
+    return [
+      workflowStep("前台可见", countWhere(filteredCatalog.value, (item) => item.visible !== false && item.deleted !== true), "小程序展示", "good"),
+      workflowStep("已下架", countWhere(filteredCatalog.value, (item) => item.visible === false || item.deleted === true), "前台隐藏", "neutral"),
+      workflowStep("缺图片", countWhere(filteredCatalog.value, (item) => !item.image && !item.thumb), "影响质感", "warn"),
+      workflowStep("低库存", countWhere(filteredCatalog.value, (item) => Number(item.stock || 0) > 0 && Number(item.stock || 0) <= 5), "需补货核对", "focus")
+    ];
+  }
+  if (tab === "content") {
+    return [
+      workflowStep("启用内容", countWhere(state.contentItems, (item) => item.visible !== false), "前台展示", "good"),
+      workflowStep("停用内容", countWhere(state.contentItems, (item) => item.visible === false), "前台隐藏", "neutral"),
+      workflowStep("轮播", countWhere(state.contentItems, (item) => item.type === "home_carousel"), "首页首屏", "focus"),
+      workflowStep("缺图片", countWhere(state.contentItems, (item) => !item.image), "需补素材", "warn")
+    ];
+  }
+  if (tab === "customers") {
+    return [
+      workflowStep("有消费", countWhere(state.customers, (item) => customerSpend(item) > 0), "可运营", "good"),
+      workflowStep("有预约", countWhere(state.customers, (item) => Number(item.reservations || 0) > 0), "茶室关系", "focus"),
+      workflowStep("有报名", countWhere(state.customers, (item) => Number(item.signups || 0) > 0), "活动关系", "focus"),
+      workflowStep("已匿名", countWhere(state.customers, (item) => item.privacyDeletedAt || item.name === "已匿名"), "隐私处理", "neutral")
+    ];
+  }
+  if (tab === "marketing") {
+    return [
+      workflowStep("领取中", countWhere(state.coupons, (item) => hasStatus(item, [/领取中/])), "可发放", "good"),
+      workflowStep("暂停/结束", countWhere(state.coupons, (item) => hasStatus(item, [/暂停|结束/])), "不可领取", "neutral"),
+      workflowStep("进行中计划", countWhere(state.campaigns, (item) => hasStatus(item, [/进行中/])), "运营中", "focus"),
+      workflowStep("核销记录", state.couponStats.length, "看板口径", "good")
+    ];
+  }
+  if (tab === "audit") {
+    return [
+      workflowStep("日志数", state.auditLogs.length, "当前页", "focus"),
+      workflowStep("导出动作", countWhere(state.auditLogs, (item) => hasStatus(item, [/export|导出/i], "action")), "高风险", "warn"),
+      workflowStep("删除/停用", countWhere(state.auditLogs, (item) => hasStatus(item, [/delete|删除|停用|下架/i], "action")), "需复核", "danger"),
+      workflowStep("配置变更", countWhere(state.auditLogs, (item) => hasStatus(item, [/settings|role|backup|配置|角色|备份/i], "action")), "治理类", "focus")
+    ];
+  }
+  if (tab === "notifications") {
+    return [
+      workflowStep("发送成功", countWhere(state.notificationLogs, (item) => hasStatus(item, [/sent|success|成功|已发送/i])), "已投递", "good"),
+      workflowStep("跳过", countWhere(state.notificationLogs, (item) => hasStatus(item, [/skipped|跳过/i])), "模板或订阅缺失", "warn"),
+      workflowStep("失败", countWhere(state.notificationLogs, (item) => hasStatus(item, [/failed|error|失败|错误/i])), "需处理", "danger"),
+      workflowStep("测试记录", countWhere(state.notificationLogs, (item) => hasStatus(item, [/test|测试/i], "kind")), "后台发起", "neutral")
+    ];
+  }
+  if (tab === "system") {
+    const summary = state.systemStatus?.summary || {};
+    return [
+      workflowStep("正常", numberText(summary.ok || 0), "检查通过", "good"),
+      workflowStep("提醒", numberText(summary.warn || 0), "需补配置", "warn"),
+      workflowStep("错误", numberText(summary.error || 0), "影响生产", "danger"),
+      workflowStep("包体上限", PACKAGE_INFO.sourceSizeLimit, "预览限制", "focus")
+    ];
+  }
+  if (tab === "roles") {
+    return [
+      workflowStep("启用角色", countWhere(state.adminRoles, (item) => item.disabled !== true), "可登录授权", "good"),
+      workflowStep("停用角色", countWhere(state.adminRoles, (item) => item.disabled === true), "不可用", "neutral"),
+      workflowStep("管理员", countWhere(state.adminRoles, (item) => item.roleKey === "admin"), "高风险", "danger"),
+      workflowStep("可选预设", state.rolePresets.length, "权限模板", "focus")
+    ];
+  }
+  if (tab === "backups") {
+    return [
+      workflowStep("成功备份", countWhere(state.backupLogs, (item) => hasStatus(item, [/success|成功/i])), "云存储", "good"),
+      workflowStep("失败备份", countWhere(state.backupLogs, (item) => hasStatus(item, [/failed|error|失败|错误/i])), "需处理", "danger"),
+      workflowStep("当前上限", numberText(backupForm.limit), "每集合", "focus"),
+      workflowStep("下载链接", "临时", "会写审计", "warn")
+    ];
+  }
+  if (tab === "settings") {
+    const noticeMissing = [
+      state.settings.orderPaidTemplateId,
+      state.settings.orderShippedTemplateId,
+      state.settings.reservationTemplateId,
+      state.settings.eventTemplateId
+    ].filter((value) => !String(value || "").trim()).length;
+    return [
+      workflowStep("微信支付", boolText(state.settings.paymentEnabled), "订单收款", state.settings.paymentEnabled ? "good" : "warn"),
+      workflowStep("自提/配送", `${boolText(state.settings.pickupEnabled)} / ${boolText(state.settings.shippingEnabled)}`, "履约方式", "focus"),
+      workflowStep("通知模板缺项", noticeMissing, "订阅消息", noticeMissing ? "warn" : "good"),
+      workflowStep("积分倍率", state.settings.memberPointRate ?? "-", "会员规则", "neutral")
+    ];
+  }
+  return [];
+}
 
 function textOf(item, fields) {
   return fields.map((field) => String(item?.[field] || "")).join(" ").toLowerCase();
@@ -2776,6 +2930,14 @@ onBeforeUnmount(() => {
           <article v-for="item in operationAssuranceItems" :key="item.label" :data-tone="item.tone || undefined">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
+          </article>
+        </section>
+
+        <section v-if="moduleWorkflowSteps.length" class="workflow-strip" aria-label="当前模块状态流">
+          <article v-for="step in moduleWorkflowSteps" :key="step.label" :data-tone="step.tone">
+            <span>{{ step.label }}</span>
+            <strong>{{ step.value }}</strong>
+            <small>{{ step.hint }}</small>
           </article>
         </section>
 

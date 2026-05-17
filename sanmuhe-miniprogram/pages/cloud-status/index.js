@@ -119,7 +119,9 @@ Page({
 
     wx.cloud.callFunction({
       name: "seedDemoData",
-      data: {}
+      data: {
+        reason: "云开发状态页同步前台基础资料"
+      }
     }).then((res) => {
       const data = res.result || {};
       const summary = (data.results || [])
@@ -132,7 +134,7 @@ Page({
     }).catch((error) => {
       this.setData({
         seeding: false,
-        seedResult: "写入失败",
+        seedResult: "同步失败",
         error: error.errMsg || error.message || JSON.stringify(error)
       });
     });

@@ -48,6 +48,29 @@ count. Apply these rules before adding more modules.
 - Role-aware UI must be permission-based, not role-name based. A disabled or
   hidden action should be an intentional product choice, not an incidental
   template behavior.
+- Each operating module should expose its status flow directly in the page
+  chrome, for example `待支付 -> 待履约 -> 已完成 -> 售后`, so staff can see
+  queue pressure before opening a detail record.
+- The first screen of a module should answer: what needs attention, what can be
+  acted on by this role, what data scope is being shown, and which operations
+  will create audit records.
+
+## Exa Research References
+
+- Veld Systems, "How to Build a SaaS Admin Dashboard That Ops Teams Love":
+  admin tools should be workflow-first, not raw database tables; global search
+  and activity timelines reduce cross-referencing.
+- Orbix Studio, "SaaS Admin Dashboard Design: How to Avoid Rebuilds in 6
+  Months": scalable dashboards need information architecture, permission-aware
+  UI, design tokens, and explicit component states.
+- Designpixil, "SaaS Dashboard UX Best Practices": dashboards should prioritize
+  urgent status, then performance, then context, then raw details.
+- Fluent Commerce OMS documentation: order and inventory consoles work best
+  when order lifecycle, returns, inventory visibility, and exception alerts are
+  visible in one operating workspace.
+- AI UI anti-pattern notes found through Exa: avoid generic AI fingerprints such
+  as card-only layouts, purple/blue gradients, decorative glass effects, and
+  metrics with no action attached.
 
 ## Tokens
 

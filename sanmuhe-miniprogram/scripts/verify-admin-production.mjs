@@ -159,6 +159,10 @@ function verifyProductionSurfaces() {
       items: ["dashboardScopeText", "analyticsScopeText", "marketingScopeText", "已支付订单数"]
     },
     {
+      label: "workflow-first admin polish",
+      items: ["moduleWorkflowSteps", "buildWorkflowSteps", "当前模块状态流", "待履约", "售后关联"]
+    },
+    {
       label: "catalog sensitive operation reasons",
       items: ["hasSensitiveCatalogChange", "保存 ${displayName(forms.catalog)} 的价格、库存、名额或状态", "下架 ${displayName(item)}"]
     }
@@ -174,6 +178,10 @@ function verifyProductionSurfaces() {
     {
       label: "responsive admin shell",
       items: ["@media (max-width: 1120px)", "@media (max-width: 860px)", ".global-search-panel", ".interactive-row", ".panel-toolbar .line-input", ".donut.no-data"]
+    },
+    {
+      label: "workflow state strip",
+      items: [".workflow-strip", "grid-template-columns: repeat(2, minmax(0, 1fr))", "data-tone=\"danger\""]
     }
   ]);
 }

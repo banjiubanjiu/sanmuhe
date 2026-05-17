@@ -19,9 +19,9 @@ App({
       this.globalData.cloudReady = true;
       this.globalData.cloudEnv = cloudConfig.envId;
     } else if (cloudConfig.useCloud && !cloudConfig.envId) {
-      console.warn("禾熙云开发未配置 envId，当前使用本地演示数据。");
+      console.warn("禾熙云开发未配置 envId，当前仅展示本地基础资料。");
     } else if (cloudConfig.useCloud && !wx.cloud) {
-      console.warn("当前基础库不支持 wx.cloud，当前使用本地演示数据。");
+      console.warn("当前基础库不支持 wx.cloud，当前仅展示本地基础资料。");
     }
 
   }

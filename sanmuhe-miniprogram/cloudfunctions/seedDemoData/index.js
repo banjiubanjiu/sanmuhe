@@ -7,11 +7,40 @@ cloud.init({
 
 const db = cloud.database();
 
+function cleanText(value, maxLength = 200) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
 function parseList(value) {
   return String(value || "")
     .split(/[\s,;]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function requireSeedReason(event = {}) {
+  const data = event.data && typeof event.data === "object" ? event.data : {};
+  const reason = cleanText(event.reason || event.auditReason || event.adminNote || data.reason || data.auditReason, 200);
+  if (!reason) {
+    const error = new Error("同步前台基础资料需填写操作原因");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  return reason;
+}
+
+function maskRef(value) {
+  const text = cleanText(value, 80);
+  if (!text) return "";
+  return text.length > 12 ? `${text.slice(0, 6)}...${text.slice(-4)}` : text;
+}
+
+function safeJson(value, maxLength = 1000) {
+  try {
+    return cleanText(JSON.stringify(value || {}), maxLength);
+  } catch (error) {
+    return "{}";
+  }
 }
 
 function getAuthObject() {
@@ -59,10 +88,10 @@ async function getCaller() {
 }
 
 async function assertSeedAllowed() {
-  if (String(process.env.SEED_DEMO_ENABLED || "").toLowerCase() === "true") {
-    return;
-  }
   const caller = await getCaller();
+  if (String(process.env.SEED_DEMO_ENABLED || "").toLowerCase() === "true") {
+    return { caller, source: "SEED_DEMO_ENABLED" };
+  }
   const openids = parseList(process.env.ADMIN_OPENIDS);
   const uids = parseList(process.env.ADMIN_UIDS);
   const usernames = parseList(process.env.ADMIN_USERNAMES);
@@ -71,9 +100,9 @@ async function assertSeedAllowed() {
     (caller.uid && uids.includes(caller.uid)) ||
     (caller.username && usernames.includes(caller.username));
   if (allowed) {
-    return;
+    return { caller, source: "admin_whitelist" };
   }
-  const error = new Error("默认数据写入已关闭，仅管理员或显式开启 SEED_DEMO_ENABLED=true 后可执行");
+  const error = new Error("前台基础资料同步已关闭，仅管理员或显式开启 SEED_DEMO_ENABLED=true 后可执行");
   error.code = "SEED_DEMO_FORBIDDEN";
   throw error;
 }
@@ -84,6 +113,21 @@ async function ensureCollection(name) {
   } catch (error) {
     // Existing collections are expected after first setup.
   }
+}
+
+async function writeAdminAuditLog(caller, action, detail) {
+  const safeDetail = detail || {};
+  await ensureCollection("admin_audit_logs");
+  await db.collection("admin_audit_logs").add({
+    data: {
+      action,
+      adminOpenid: maskRef(caller.openid),
+      adminUid: caller.uid ? maskRef(caller.uid) : "",
+      detail: safeDetail,
+      detailText: safeJson(safeDetail),
+      createdAt: db.serverDate()
+    }
+  });
 }
 
 function keyBy(items, field) {
@@ -236,20 +280,59 @@ async function syncStoreSettings() {
   return { collection, created: 1, updated: 0 };
 }
 
-exports.main = async () => {
-  await assertSeedAllowed();
+function summarizeResults(results) {
+  return (results || []).reduce((summary, item) => {
+    summary.created += Number(item.created || 0);
+    summary.updated += Number(item.updated || 0);
+    summary.deactivated += Number(item.deactivated || 0);
+    return summary;
+  }, { created: 0, updated: 0, deactivated: 0 });
+}
+
+exports.main = async (event = {}) => {
+  const reason = requireSeedReason(event);
+  const auth = await assertSeedAllowed();
+  const startedAt = Date.now();
+  await writeAdminAuditLog(auth.caller, "syncFrontendSeedDataStarted", {
+    reason,
+    seedVersion: seed.version,
+    source: auth.source
+  });
+
   const results = [];
 
-  for (const [collection, docs] of Object.entries(seed.collections || {})) {
-    results.push(await syncCollection(collection, docs, { deactivateMissing: true }));
+  try {
+    for (const [collection, docs] of Object.entries(seed.collections || {})) {
+      results.push(await syncCollection(collection, docs, { deactivateMissing: true }));
+    }
+
+    results.push(await syncContentBlocks());
+    results.push(await syncStoreSettings());
+
+    const summary = summarizeResults(results);
+    await writeAdminAuditLog(auth.caller, "syncFrontendSeedData", {
+      reason,
+      seedVersion: seed.version,
+      source: auth.source,
+      summary,
+      results,
+      durationMs: Date.now() - startedAt
+    });
+
+    return {
+      ok: true,
+      seedVersion: seed.version,
+      summary,
+      results
+    };
+  } catch (error) {
+    await writeAdminAuditLog(auth.caller, "syncFrontendSeedDataFailed", {
+      reason,
+      seedVersion: seed.version,
+      source: auth.source,
+      error: cleanText(error.message || error.errMsg || "同步失败", 300),
+      durationMs: Date.now() - startedAt
+    });
+    throw error;
   }
-
-  results.push(await syncContentBlocks());
-  results.push(await syncStoreSettings());
-
-  return {
-    ok: true,
-    seedVersion: seed.version,
-    results
-  };
 };
