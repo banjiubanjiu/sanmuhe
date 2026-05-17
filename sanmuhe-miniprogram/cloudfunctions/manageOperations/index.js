@@ -1223,7 +1223,7 @@ function buildRoomBoard(rooms, reservations) {
   const today = todayKey();
   const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
   const todayReservations = reservations.filter((item) => item.day === today && item.status !== "已取消");
-  return (rooms.length ? rooms : [{ id: "room-001", name: "禾熙书茶空间", capacity: "2-6人" }]).slice(0, 5).map((room) => ({
+  return rooms.filter((room) => room.deleted !== true && room.visible !== false).slice(0, 5).map((room) => ({
     id: room.id,
     name: room.name,
     capacity: room.capacity || "",

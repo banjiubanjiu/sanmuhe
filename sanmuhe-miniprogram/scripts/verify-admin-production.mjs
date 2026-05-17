@@ -119,6 +119,10 @@ function verifyProductionSurfaces() {
     {
       label: "customer operation context",
       items: ["recentActivity", "customer.recentActivity.push"]
+    },
+    {
+      label: "dashboard truthful empty states",
+      items: ["buildRoomBoard", "room.visible !== false"]
     }
   ]);
 
@@ -137,10 +141,11 @@ function verifyProductionSurfaces() {
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog"]
     }
   ]);
-  verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%", "68.5", "20.3", "11.2", "2024年"]);
+  verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%", "68.5", "20.3", "11.2", "2024年", "room-001"]);
+  verifySourceExcludes("cloudfunctions/manageOperations/index.js", ["room-001"]);
 
   verifySourceContains("admin-src/src/styles.css", [
     {

@@ -1223,6 +1223,11 @@ function selectCollection(key) {
   loadCatalog();
 }
 
+function openRoomsCatalog() {
+  state.activeTab = "catalog";
+  selectCollection("rooms");
+}
+
 function resetCatalog() {
   Object.assign(forms.catalog, emptyCatalog(), {
     id: `${state.collection}-${Date.now()}`,
@@ -2661,6 +2666,13 @@ onBeforeUnmount(() => {
                 </span>
               </div>
             </div>
+            <EmptyState
+              v-if="(state.dashboard?.roomBoard || []).length === 0"
+              title="暂无茶室配置"
+              hint="配置真实茶室后，首页才会展示今日可预约时段。"
+              action-label="配置茶室"
+              @action="openRoomsCatalog"
+            />
             <div class="room-legend">
               <span><i class="free"></i>可预约</span>
               <span><i class="busy"></i>已预约</span>
