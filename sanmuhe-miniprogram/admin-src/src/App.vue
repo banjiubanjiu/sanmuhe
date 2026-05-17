@@ -1,5 +1,5 @@
 <script setup>
-import { computed, h, markRaw, onBeforeUnmount, onMounted, reactive } from "vue";
+import { computed, h, markRaw, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import {
   BadgeDollarSign,
   Bell,
@@ -429,6 +429,7 @@ const actionDialog = reactive({
 let toastTimer = null;
 let actionDialogResolve = null;
 let cleanupRuntimeGuards = null;
+const globalSearchInput = ref(null);
 
 const emptyCatalog = () => ({
   id: "",
@@ -550,6 +551,11 @@ const visibleNavGroups = computed(() => navGroups
   }))
   .filter((group) => group.items.length));
 const visibleQuickActions = computed(() => quickActions.filter((action) => canAccessTab(action.tab)));
+const accessBlocked = computed(() => !!state.adminProfile && (state.adminProfile.disabled === true || !visibleNavGroups.value.length));
+const accessBlockTitle = computed(() => state.adminProfile?.disabled ? "当前后台账号已停用" : "当前账号暂无可访问模块");
+const accessBlockHint = computed(() => state.adminProfile?.disabled
+  ? "该账号已被停用，后台不会继续读取经营数据。请使用仍在启用状态的管理员账号重新登录。"
+  : "该账号没有任何后台模块权限，无法查看订单、预约、用户或系统配置。");
 const reservationCalendarRows = computed(() => {
   const day = state.reservationCalendarDate;
   const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
@@ -1431,8 +1437,14 @@ async function callFunction(name, data = {}) {
 async function enterDashboard() {
   state.view = "dashboard";
   await loadAdminProfile();
+  if (accessBlocked.value) {
+    state.summary = [];
+    state.moduleError = "";
+    return;
+  }
   if (!canAccessTab(state.activeTab)) {
-    state.activeTab = "dashboard";
+    const firstGroup = visibleNavGroups.value[0];
+    state.activeTab = firstGroup?.items?.[0]?.key || "dashboard";
   }
   await loadActiveTab();
   if (state.activeTab !== "dashboard") await refreshSummary();
@@ -2751,6 +2763,12 @@ function setRuntimeError(error) {
   state.runtimeError = message || "后台运行异常";
 }
 
+function focusGlobalSearch() {
+  if (state.view !== "dashboard" || accessBlocked.value) return;
+  globalSearchInput.value?.focus();
+  state.searchOpen = !!(state.searchResults.length || state.searchMessage);
+}
+
 function setupRuntimeGuards() {
   if (typeof window === "undefined") return;
   const onError = (event) => setRuntimeError(event);
@@ -2761,15 +2779,23 @@ function setupRuntimeGuards() {
   const onOffline = () => {
     state.online = false;
   };
+  const onKeydown = (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      focusGlobalSearch();
+    }
+  };
   window.addEventListener("error", onError);
   window.addEventListener("unhandledrejection", onUnhandledRejection);
   window.addEventListener("online", onOnline);
   window.addEventListener("offline", onOffline);
+  window.addEventListener("keydown", onKeydown);
   cleanupRuntimeGuards = () => {
     window.removeEventListener("error", onError);
     window.removeEventListener("unhandledrejection", onUnhandledRejection);
     window.removeEventListener("online", onOnline);
     window.removeEventListener("offline", onOffline);
+    window.removeEventListener("keydown", onKeydown);
   };
 }
 
@@ -2852,7 +2878,20 @@ onBeforeUnmount(() => {
         </div>
       </aside>
 
-      <section class="workspace">
+      <section v-if="accessBlocked" class="workspace access-workspace">
+        <div class="access-block">
+          <span class="section-kicker">权限边界</span>
+          <h1>{{ accessBlockTitle }}</h1>
+          <p>{{ accessBlockHint }}</p>
+          <div class="access-facts">
+            <span>账号 <strong>{{ currentUser }}</strong></span>
+            <span>角色 <strong>{{ currentRoleName }}</strong></span>
+          </div>
+          <button class="secondary-action" type="button" @click="logout">退出并重新登录</button>
+        </div>
+      </section>
+
+      <section v-else class="workspace">
         <header class="topbar">
           <div>
             <span class="section-kicker">禾熙运营中枢</span>
@@ -2864,6 +2903,7 @@ onBeforeUnmount(() => {
               <label class="search-box">
                 <Search :size="17" :stroke-width="1.8" />
                 <input
+                  ref="globalSearchInput"
                   v-model="filters.global"
                   aria-label="全局搜索后台记录"
                   placeholder="全局搜索：手机号 / 订单号 / 预约"
@@ -2872,6 +2912,7 @@ onBeforeUnmount(() => {
                   @focus="state.searchOpen = !!(state.searchResults.length || state.searchMessage)"
                 >
               </label>
+              <span class="shortcut-hint">Ctrl/⌘ K</span>
               <button class="search-trigger" type="button" :disabled="state.searching" @click="runGlobalSearch">
                 {{ state.searching ? "搜索中" : "搜索" }}
               </button>

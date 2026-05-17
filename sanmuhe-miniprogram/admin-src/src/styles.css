@@ -429,6 +429,65 @@ textarea:focus {
   padding: 34px 32px 28px;
 }
 
+.access-workspace {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.access-block {
+  width: min(100%, 620px);
+  border: 1px solid rgba(72, 68, 56, 0.13);
+  border-radius: 18px;
+  padding: 38px;
+  background:
+    linear-gradient(135deg, rgba(255, 253, 247, 0.95), rgba(244, 240, 231, 0.84));
+  box-shadow: var(--admin-shadow);
+}
+
+.access-block h1 {
+  margin: 9px 0 0;
+  color: var(--admin-ink);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.access-block p {
+  margin: 13px 0 0;
+  color: var(--admin-muted);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.access-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 24px 0 22px;
+}
+
+.access-facts span {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--admin-muted);
+  background: rgba(255, 253, 247, 0.7);
+  font-size: 12px;
+}
+
+.access-facts strong {
+  overflow: hidden;
+  color: var(--admin-ink);
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .topbar {
   min-height: 36px;
   display: flex;
@@ -497,6 +556,20 @@ textarea:focus {
   padding: 0 13px;
   color: var(--admin-green-dark);
   background: rgba(223, 232, 216, 0.62);
+}
+
+.shortcut-hint {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(72, 68, 56, 0.12);
+  border-radius: 7px;
+  padding: 0 8px;
+  color: #8d887d;
+  background: rgba(255, 253, 247, 0.62);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .global-search-panel {
@@ -2793,6 +2866,10 @@ tr.selected td:first-child {
 
   .global-search-wrap {
     width: 100%;
+  }
+
+  .shortcut-hint {
+    display: none;
   }
 
   .search-box input,
