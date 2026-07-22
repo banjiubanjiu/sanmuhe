@@ -15,7 +15,7 @@
     "pages/profile/index"
   ],
   "window": {
-    "navigationBarTitleText": "禾熙",
+    "navigationBarTitleText": "禾煦",
     "navigationBarBackgroundColor": "#f7f1e6",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f7f1e6",
@@ -35,10 +35,6 @@
       {
         "pagePath": "pages/shop/index",
         "text": "分类"
-      },
-      {
-        "pagePath": "pages/cart/index",
-        "text": "购物车"
       },
       {
         "pagePath": "pages/events/index",

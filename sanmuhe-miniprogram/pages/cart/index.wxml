@@ -1,113 +1,25 @@
-<view class="page cart-page {{cart.length === 0 ? 'cart-page-empty' : ''}}">
+<view class="page cart-page {{items.length === 0 ? 'cart-page-empty' : ''}}">
   <view class="page-nav">
-    <view class="nav-placeholder"></view>
-    <view class="page-title">购物车</view>
+    <view class="back-mark" bindtap="goBack">‹</view>
+    <view class="page-title">确认点单</view>
     <view class="nav-placeholder"></view>
   </view>
 
-  <view class="member-strip" bindtap="goMember">
-    <view class="crown-mark">♛</view>
-    <view class="member-copy">雅客会员享 98 折优惠，去开通</view>
-    <view class="member-link">查看权益 ›</view>
-  </view>
-
-  <block wx:if="{{cart.length === 0}}">
+  <block wx:if="{{items.length === 0}}">
     <view class="empty-cart">
-      <image class="empty-hero" src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/empty-cart-hero.jpg" mode="aspectFit"></image>
-      <view class="empty-title">购物车还是空的</view>
-      <view class="empty-copy">去挑选一些喜欢的茶叶、茶饮与茶生活好物吧</view>
-      <button class="empty-action" bindtap="goOrder">去逛逛</button>
-      <view class="empty-link">看看推荐 ›</view>
-    </view>
-
-    <view wx:if="{{recommendations.length > 0}}" class="empty-recommend-section">
-      <view class="empty-recommend-title"><text></text><view>为你推荐</view><text></text></view>
-      <view class="empty-recommend-grid">
-        <view wx:for="{{recommendations}}" wx:key="id" class="empty-recommend-card" data-id="{{item.id}}" bindtap="addRecommended">
-          <image class="empty-recommend-image" src="{{item.displayImage}}" mode="aspectFill"></image>
-          <view class="empty-recommend-body">
-            <view class="empty-recommend-name">{{item.name}}</view>
-            <view class="empty-recommend-option">{{item.unit}} / {{item.category}}</view>
-            <view class="empty-recommend-bottom">
-              <view class="empty-recommend-price">¥{{item.price}}</view>
-              <view class="empty-recommend-add">+</view>
-            </view>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <view class="empty-benefits">
-      <view class="empty-benefit">
-        <image src="/assets/icons/leaf-active.png" mode="aspectFit"></image>
-        <view>
-          <text>正品好茶</text>
-          <text>产地直采</text>
-        </view>
-      </view>
-      <view class="empty-benefit">
-        <image src="/assets/icons/home-leaf.png" mode="aspectFit"></image>
-        <view>
-          <text>安心品饮</text>
-          <text>严选原料</text>
-        </view>
-      </view>
-      <view class="empty-benefit">
-        <image src="/assets/icons/profile-order.png" mode="aspectFit"></image>
-        <view>
-          <text>精美包装</text>
-          <text>心意之选</text>
-        </view>
-      </view>
-      <view class="empty-benefit">
-        <image src="/assets/icons/profile-ticket.png" mode="aspectFit"></image>
-        <view>
-          <text>会员专享</text>
-          <text>多重权益</text>
-        </view>
-      </view>
+      <view class="empty-title">还没有点单</view>
+      <view class="empty-copy">去选几杯茶饮或茶叶，确认后通知门店，到柜台扫码付款即可</view>
+      <button class="empty-action" bindtap="goShop">去点单</button>
     </view>
   </block>
 
-  <block wx:if="{{cart.length > 0}}">
-    <view wx:if="{{teaItems.length > 0}}" class="cart-group">
+  <block wx:if="{{items.length > 0}}">
+    <view class="cart-group">
       <view class="group-head">
-        <view class="group-title"><text class="group-icon">♣</text>茶叶商品（{{teaItems.length}}）</view>
-        <view class="edit-link" bindtap="toggleEdit">{{editing ? '完成' : '编辑'}}</view>
+        <view class="group-title">已选 {{count}} 件</view>
       </view>
       <view class="group-card">
-        <view wx:for="{{teaItems}}" wx:key="key" class="cart-row">
-          <view class="select-dot {{item.selected ? 'selected' : ''}}" data-key="{{item.key}}" bindtap="toggleSelect">✓</view>
-          <image wx:if="{{item.image}}" class="cart-image" src="{{item.image}}" mode="aspectFill"></image>
-          <view wx:if="{{!item.image}}" class="cart-swatch" style="background: {{item.color}};"></view>
-          <view class="cart-copy">
-            <view class="cart-name">{{item.name}}</view>
-            <view class="cart-option">{{item.optionText}}</view>
-            <view wx:if="{{item.tagText}}" class="item-tag">{{item.tagText}}</view>
-            <view class="row-bottom">
-              <view class="row-price">¥{{item.price}}</view>
-              <view class="stepper">
-                <button class="step-btn" data-key="{{item.key}}" data-quantity="{{item.quantity}}" bindtap="decrease">−</button>
-                <text class="qty">{{item.quantity}}</text>
-                <button class="step-btn" data-key="{{item.key}}" data-quantity="{{item.quantity}}" bindtap="increase">+</button>
-              </view>
-            </view>
-          </view>
-          <view class="row-tools">
-            <view class="delete-btn" data-key="{{item.key}}" bindtap="removeItem">×</view>
-            <view class="heart-btn">♡</view>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <view wx:if="{{drinkItems.length > 0}}" class="cart-group">
-      <view class="group-head">
-        <view class="group-title"><text class="group-icon">☕</text>茶饮点单（{{drinkItems.length}}）</view>
-      </view>
-      <view class="group-card">
-        <view wx:for="{{drinkItems}}" wx:key="key" class="cart-row">
-          <view class="select-dot {{item.selected ? 'selected' : ''}}" data-key="{{item.key}}" bindtap="toggleSelect">✓</view>
+        <view wx:for="{{items}}" wx:key="key" class="cart-row">
           <image wx:if="{{item.image}}" class="cart-image" src="{{item.image}}" mode="aspectFill"></image>
           <view wx:if="{{!item.image}}" class="cart-swatch" style="background: {{item.color}};"></view>
           <view class="cart-copy">
@@ -122,88 +34,35 @@
               </view>
             </view>
           </view>
-          <view class="row-tools">
-            <view class="delete-btn" data-key="{{item.key}}" bindtap="removeItem">×</view>
-          </view>
+          <view class="delete-btn" data-key="{{item.key}}" bindtap="removeItem">×</view>
         </view>
       </view>
     </view>
 
-    <view class="quick-card">
-      <view class="quick-row" bindtap="chooseCoupon">
-        <view class="quick-label"><text>▱</text>优惠券</view>
-        <view class="quick-value">{{selectedCoupon ? selectedCoupon.couponName : (usableCoupons.length ? usableCoupons.length + ' 张可用' : '暂无可用')}} ›</view>
-      </view>
-      <view wx:if="{{selectedCoupon}}" class="quick-row muted" bindtap="clearCoupon">
-        <view class="quick-label"><text>−</text>已抵扣</view>
-        <view class="quick-value">-¥{{couponDiscount}}，点击取消</view>
-      </view>
-      <view wx:if="{{memberDiscount > 0}}" class="quick-row muted">
-        <view class="quick-label"><text>♕</text>{{member.tier || '会员'}}折扣</view>
-        <view class="quick-value">-¥{{memberDiscount}}</view>
-      </view>
-      <view class="quick-row">
-        <view class="quick-label"><text>□</text>备注</view>
-        <view class="quick-value">给商家留言 ›</view>
-      </view>
+    <view class="note-block">
+      <input
+        class="field"
+        placeholder="桌号（选填）"
+        data-field="tableNo"
+        value="{{tableNo}}"
+        bindinput="onInput"
+      />
+      <input
+        class="field"
+        placeholder="备注，如少冰、打包（选填）"
+        data-field="remark"
+        value="{{remark}}"
+        bindinput="onInput"
+      />
+      <view class="pay-hint">确认后通知门店制作，请到柜台扫码付款</view>
     </view>
 
-    <view class="form-block">
-      <view class="form-head">
-        <view class="form-title">履约信息</view>
-        <view wx:if="{{deliveryMethod === 'shipping'}}" class="address-action" bindtap="chooseAddress">微信地址</view>
-      </view>
-      <view class="delivery-switch">
-        <view
-          wx:for="{{deliveryMethods}}"
-          wx:key="value"
-          class="delivery-option {{deliveryMethod === item.value ? 'active' : ''}}"
-          data-value="{{item.value}}"
-          bindtap="chooseDelivery"
-        >
-          <view>{{item.label}}</view>
-          <text>{{item.hint}}</text>
-        </view>
-      </view>
-      <input class="field" placeholder="姓名" data-field="consignee" value="{{consignee}}" bindinput="onInput" />
-      <input class="field" placeholder="手机号" type="number" data-field="phone" value="{{phone}}" bindinput="onInput" />
-      <input wx:if="{{deliveryMethod === 'shipping'}}" class="field" placeholder="收货地址" data-field="address" value="{{address}}" bindinput="onInput" />
-      <textarea class="textarea-field" placeholder="{{deliveryMethod === 'shipping' ? '备注，如礼盒包装、发票需求' : '自提备注，如到店时间、桌号、口味需求'}}" data-field="remark" value="{{remark}}" bindinput="onInput"></textarea>
-    </view>
-
-    <view wx:if="{{recommendations.length > 0}}" class="recommend-section">
-      <view class="recommend-title">你可能还喜欢</view>
-      <scroll-view scroll-x class="recommend-scroll" enhanced show-scrollbar="{{false}}">
-        <view wx:for="{{recommendations}}" wx:key="id" class="recommend-card" data-id="{{item.id}}" bindtap="addRecommended">
-          <image class="recommend-image" src="{{item.displayImage}}" mode="aspectFill"></image>
-          <view class="recommend-copy">
-            <view class="recommend-name">{{item.name}}</view>
-            <view class="recommend-option">{{item.unit}} / {{item.category}}</view>
-            <view class="recommend-price">¥{{item.price}}</view>
-          </view>
-          <view class="recommend-add">+</view>
-        </view>
-      </scroll-view>
-    </view>
-
-    <view class="checkout-bar">
-      <view class="select-all" bindtap="toggleAll">
-        <view class="select-dot large {{allSelected ? 'selected' : ''}}">✓</view>
-        <text>全选</text>
-      </view>
+    <view class="checkout-bar simple">
       <view class="checkout-total">
-        <view>合计 {{selectedCount}} 件</view>
-        <text>¥{{checkoutTotal}}</text>
-        <view wx:if="{{memberDiscount || couponDiscount}}" class="saved-text">已优惠 ¥{{memberDiscount + couponDiscount}}</view>
+        <view>合计 {{count}} 件</view>
+        <text>¥{{total}}</text>
       </view>
-      <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">去结算</button>
+      <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">确认点单</button>
     </view>
   </block>
-  <privacy-gate
-    show="{{privacyGateOpen}}"
-    purpose="{{privacyPurpose}}"
-    contractName="{{privacyContractName}}"
-    bindagree="onPrivacyAgree"
-    bindcancel="onPrivacyCancel"
-  />
 </view>

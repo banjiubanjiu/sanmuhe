@@ -2,7 +2,7 @@ const { drinks } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 
-const categories = ["推荐", "经典茶饮", "鲜果茶", "奶茶系列", "纯茶", "小食甜点"];
+const categories = ["推荐", "品鉴", "壶茶"];
 
 function parseTableLabel(rawValue) {
   const decoded = decodeURIComponent(rawValue || "");
@@ -160,7 +160,7 @@ Page({
   },
 
   goCart() {
-    wx.switchTab({ url: "/pages/cart/index" });
+    wx.navigateTo({ url: "/pages/cart/index" });
   },
 
   goBack() {

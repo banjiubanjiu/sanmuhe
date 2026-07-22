@@ -51,6 +51,6 @@
     </view>
     <view class="bar-title">购物车</view>
     <view class="bar-total">¥{{cartTotal}}</view>
-    <view class="checkout-chip">去结算</view>
+    <view class="checkout-chip">确认</view>
   </view>
 </view>

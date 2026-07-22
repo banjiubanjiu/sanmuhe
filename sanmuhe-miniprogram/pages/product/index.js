@@ -3,30 +3,73 @@ const { addToCart } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { isFavorite, toggleFavorite } = require("../../utils/favorites");
 
-const specOptions = ["50g", "100g", "250g", "500g"];
-const specMultipliers = {
+// 旧版按克重倍率计价（无 specs 时回退）
+const legacySpecMultipliers = {
   "50g": 1,
   "100g": 2,
   "250g": 5,
   "500g": 10
 };
 
-function normalizeProduct(product) {
+function normalizeSpecs(product) {
+  if (Array.isArray(product.specs) && product.specs.length) {
+    return product.specs.map((spec) => ({
+      label: String(spec.label || spec.unit || product.unit || "默认").trim(),
+      weight: String(spec.weight || "").trim(),
+      price: Math.max(0, Number(spec.price) || 0),
+      stockUnits: Math.max(1, Number(spec.stockUnits) || 1),
+      display: (() => {
+        const label = String(spec.label || spec.unit || product.unit || "默认").trim();
+        const weight = String(spec.weight || "").trim();
+        if (weight && label.indexOf(weight) < 0) {
+          return `${label} · ${weight}`;
+        }
+        return label;
+      })()
+    }));
+  }
+
   const unit = product.unit || "50g";
-  const hasWeightSpecs = !!specMultipliers[unit];
+  if (legacySpecMultipliers[unit]) {
+    return Object.keys(legacySpecMultipliers).map((label) => ({
+      label,
+      weight: label,
+      price: Math.round((Number(product.price) || 0) * legacySpecMultipliers[label]),
+      stockUnits: legacySpecMultipliers[label],
+      display: label
+    }));
+  }
+
+  return [{
+    label: unit,
+    weight: "",
+    price: Math.max(0, Number(product.price) || 0),
+    stockUnits: 1,
+    display: unit
+  }];
+}
+
+function normalizeProduct(product) {
+  const specs = normalizeSpecs(product);
+  const defaultSpec = specs[0];
   return Object.assign({}, product, {
     sold: product.soldStock || product.sold || 0,
     availableStock: product.availableStock,
-    unit,
-    hasWeightSpecs
+    unit: defaultSpec.label,
+    specs,
+    hasMultiSpecs: specs.length > 1
   });
+}
+
+function findSpec(specs, label) {
+  return (specs || []).find((item) => item.label === label) || (specs && specs[0]) || null;
 }
 
 Page({
   data: {
     product: null,
-    specOptions,
-    selectedSpec: "50g",
+    selectedSpec: "",
+    selectedSpecDisplay: "",
     quantity: 1,
     displayPrice: 0,
     favored: false
@@ -34,10 +77,12 @@ Page({
 
   onLoad(options) {
     const product = normalizeProduct(teaProducts.find((item) => item.id === options.id) || teaProducts[0]);
+    const selected = product.specs[0];
     this.setData({
       product,
-      selectedSpec: product.hasWeightSpecs ? "50g" : product.unit,
-      displayPrice: product.price,
+      selectedSpec: selected.label,
+      selectedSpecDisplay: selected.display,
+      displayPrice: selected.price,
       favored: isFavorite(product.id)
     });
     getCatalog().then((catalog) => {
@@ -45,11 +90,12 @@ Page({
       const nextProduct = products.find((item) => item.id === options.id);
       if (nextProduct) {
         const normalized = normalizeProduct(nextProduct);
-        const selectedSpec = normalized.hasWeightSpecs ? this.data.selectedSpec : normalized.unit;
+        const selectedSpec = findSpec(normalized.specs, this.data.selectedSpec) || normalized.specs[0];
         this.setData({
           product: normalized,
-          selectedSpec,
-          displayPrice: this.getPrice(normalized.price, selectedSpec),
+          selectedSpec: selectedSpec.label,
+          selectedSpecDisplay: selectedSpec.display,
+          displayPrice: selectedSpec.price,
           favored: isFavorite(normalized.id)
         });
       } else if (catalog.fromCloud) {
@@ -58,18 +104,16 @@ Page({
     });
   },
 
-  getPrice(basePrice, spec) {
-    if (!specMultipliers[spec]) {
-      return Math.round(basePrice);
-    }
-    return Math.round(basePrice * (specMultipliers[spec] || 1));
-  },
-
   chooseSpec(event) {
     const selectedSpec = event.currentTarget.dataset.spec;
+    const matched = findSpec(this.data.product.specs, selectedSpec);
+    if (!matched) {
+      return;
+    }
     this.setData({
-      selectedSpec,
-      displayPrice: this.getPrice(this.data.product.price, selectedSpec)
+      selectedSpec: matched.label,
+      selectedSpecDisplay: matched.display,
+      displayPrice: matched.price
     });
   },
 
@@ -98,7 +142,7 @@ Page({
 
   buyNow() {
     this.addProduct();
-    wx.switchTab({ url: "/pages/cart/index" });
+    wx.navigateTo({ url: "/pages/cart/index" });
   },
 
   contactService() {

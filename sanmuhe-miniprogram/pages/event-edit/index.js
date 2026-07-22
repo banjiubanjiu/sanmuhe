@@ -9,7 +9,7 @@ Page({
     title: "",
     date: "",
     time: "",
-    place: "禾熙书茶空间",
+    place: "禾煦书茶空间",
     quota: "12",
     price: "68",
     summary: ""

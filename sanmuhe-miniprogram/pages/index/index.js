@@ -262,12 +262,12 @@ Page({
     wx.switchTab({ url: "/pages/events/index" });
   },
 
-  goCart() {
-    wx.switchTab({ url: "/pages/cart/index" });
-  },
-
   goMember() {
     wx.navigateTo({ url: "/pages/member/index" });
+  },
+
+  goCart() {
+    wx.navigateTo({ url: "/pages/cart/index" });
   },
 
   addRecommended(event) {
@@ -275,20 +275,25 @@ Page({
     if (!product) {
       return;
     }
+    if (Array.isArray(product.specs) && product.specs.length > 1) {
+      wx.navigateTo({ url: `/pages/product/index?id=${product.id}` });
+      return;
+    }
+    const defaultSpec = Array.isArray(product.specs) && product.specs[0] ? product.specs[0] : null;
     addToCart({
       id: product.id,
       type: "tea",
       name: product.name,
-      price: product.price,
+      price: defaultSpec ? defaultSpec.price : product.price,
       color: product.color,
       image: product.thumb || product.image,
       category: product.category,
       options: {
-        unit: product.unit
+        unit: defaultSpec ? defaultSpec.label : product.unit
       }
     });
     this.refreshCart();
-    wx.showToast({ title: "已加入购物车" });
+    wx.showToast({ title: "已加入" });
   },
 
   goProduct(event) {

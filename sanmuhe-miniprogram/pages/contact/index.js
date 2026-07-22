@@ -4,7 +4,7 @@ const { getCatalog } = require("../../utils/cloudApi");
 const fallbackContact = {
   phone: "0757-8888 8888",
   serviceTime: "10:00 - 21:00",
-  store: "禾熙・佛山",
+  store: "禾煦・佛山",
   address: "广东省佛山市",
   wechat: "SANMUHE0757",
   heroImage: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg"

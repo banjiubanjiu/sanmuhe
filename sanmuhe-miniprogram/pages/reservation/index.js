@@ -15,8 +15,8 @@ const CONTACT_KEY = "sanmuhe_contact";
 
 const storeRoom = {
   id: "room-001",
-  name: "禾熙书茶空间",
-  displayName: "禾熙书茶空间",
+  name: "禾煦书茶空间",
+  displayName: "禾煦书茶空间",
   city: "佛山",
   address: "广东省佛山市",
   price: 168,

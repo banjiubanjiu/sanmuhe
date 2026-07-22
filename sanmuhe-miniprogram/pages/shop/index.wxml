@@ -59,7 +59,7 @@
       <view class="shop-cart-title">购物车 {{cartCount}} 件</view>
       <view class="shop-cart-meta">合计 ¥{{cartTotal}}</view>
     </view>
-    <view class="shop-cart-action">去结算</view>
+    <view class="shop-cart-action">确认点单</view>
   </view>
 
   <view wx:if="{{drinkSheetOpen}}" class="drink-mask" bindtap="closeDrinkSheet">

@@ -11,7 +11,6 @@ Component({
     list: [
       { pagePath: "pages/index/index", text: "首页", icon: "/assets/icons/home-line.png", activeIcon: "/assets/icons/home-active.png" },
       { pagePath: "pages/shop/index", text: "分类", icon: "/assets/icons/category-line.png", activeIcon: "/assets/icons/category-active.png" },
-      { pagePath: "pages/cart/index", text: "购物车", icon: "/assets/icons/cart-line.png", activeIcon: "/assets/icons/cart-active.png" },
       { pagePath: "pages/events/index", text: "活动", icon: "/assets/icons/events-line.png", activeIcon: "/assets/icons/events-active.png" },
       { pagePath: "pages/profile/index", text: "我的", icon: "/assets/icons/profile-line.png", activeIcon: "/assets/icons/profile-active.png" }
     ]

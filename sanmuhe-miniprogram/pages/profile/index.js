@@ -1,10 +1,10 @@
-const { listMyRecords } = require("../../utils/cloudApi");
+const { getMemberCenter, listMyRecords, saveSubscription } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 const { withPrivacy } = require("../../utils/privacy");
 
 const defaultUser = {
   name: "木木",
-  title: "禾熙雅客 · 茶生活会员",
+  title: "禾煦雅客 · 茶生活会员",
   avatar: "/assets/images/profile-avatar.jpg"
 };
 
@@ -22,7 +22,7 @@ const orderShortcutBase = [
   { key: "afterSale", label: "退款/售后", icon: "/assets/icons/profile-refund.png" }
 ];
 
-const serviceItems = [
+const serviceItemsBase = [
   { label: "茶室预约", icon: "/assets/icons/profile-room.png", action: "reservation" },
   { label: "活动报名", icon: "/assets/icons/profile-calendar.png", action: "events" },
   { label: "收货地址", icon: "/assets/icons/profile-pin.png", action: "address" },
@@ -30,6 +30,18 @@ const serviceItems = [
   { label: "联系客服", icon: "/assets/icons/profile-headset.png", action: "service" },
   { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" }
 ];
+
+function buildServices(staffNotice) {
+  const services = serviceItemsBase.slice();
+  if (staffNotice && staffNotice.isStaff && staffNotice.templateId) {
+    services.unshift({
+      label: staffNotice.remaining > 0 ? `接单提醒(${staffNotice.remaining})` : "接单提醒",
+      icon: "/assets/icons/profile-bell.png",
+      action: "staffNotice"
+    });
+  }
+  return services;
+}
 
 function normalizeRecords(records, type) {
   return (records || []).map((item, index) => {
@@ -87,7 +99,7 @@ function getRecentSignup(signups) {
     id: item.id,
     title: item.title || "活动报名",
     dateText: item.date && item.time ? `${item.date} ${item.time}` : item.dateText,
-    place: item.place || "禾熙",
+    place: item.place || "禾煦",
     status: item.status || "待确认",
     image: item.image || "/assets/images/event-yangxin-tea.jpg"
   };
@@ -112,19 +124,21 @@ Page(withPrivacy({
     user: defaultUser,
     member: defaultMember,
     orderShortcuts: buildOrderShortcuts([]),
-    services: serviceItems,
+    services: buildServices(null),
     orders: [],
     reservations: [],
     signups: [],
     recentOrders: [],
     recentReservation: null,
     recentSignup: null,
-    shippingAddress: ""
+    shippingAddress: "",
+    staffNotice: null
   },
 
   onShow() {
     syncTabBar(this);
     this.loadRecords();
+    this.loadStaffNotice();
   },
 
   loadRecords() {
@@ -147,6 +161,53 @@ Page(withPrivacy({
         recentReservation: getRecentReservation(reservations),
         recentSignup: getRecentSignup(signups)
       });
+    });
+  },
+
+  loadStaffNotice() {
+    getMemberCenter().then((result) => {
+      const staffNotice = result && result.staffNotice ? result.staffNotice : null;
+      this.setData({
+        staffNotice,
+        services: buildServices(staffNotice)
+      });
+    }).catch(() => {
+      this.setData({
+        staffNotice: null,
+        services: buildServices(null)
+      });
+    });
+  },
+
+  subscribeStaffNotice() {
+    const staffNotice = this.data.staffNotice || {};
+    const templates = staffNotice.templates || [];
+    const templateId = staffNotice.templateId;
+    if (!staffNotice.isStaff) {
+      wx.showToast({ title: "当前账号不是店员", icon: "none" });
+      return;
+    }
+    if (!templateId) {
+      wx.showToast({ title: "后台未配置店员提醒模板", icon: "none" });
+      return;
+    }
+    wx.requestSubscribeMessage({
+      tmplIds: [templateId],
+      success: (res) => {
+        saveSubscription(res, templates.length ? templates : [{
+          key: "staffOrderTemplateId",
+          name: staffNotice.templateName || "店员新订单提醒",
+          templateId
+        }]).then(() => {
+          wx.showToast({ title: res[templateId] === "accept" ? "接单提醒已开启" : "未授权提醒", icon: "none" });
+          this.loadStaffNotice();
+        }).catch(() => {
+          wx.showToast({ title: "订阅保存失败", icon: "none" });
+        });
+      },
+      fail: () => {
+        wx.showToast({ title: "未完成订阅", icon: "none" });
+      }
     });
   },
 
@@ -224,6 +285,10 @@ Page(withPrivacy({
     }
     if (action === "privacy") {
       this.openPrivacyContract();
+      return;
+    }
+    if (action === "staffNotice") {
+      this.subscribeStaffNotice();
       return;
     }
     if (action === "status") {

@@ -3,7 +3,7 @@ const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
-const categoryOrder = ["全部", "绿茶", "红茶", "乌龙茶", "白茶", "黄茶", "黑茶", "花茶", "茶具", "茶饮", "茶点"];
+const categoryOrder = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单丛", "茶饮"];
 const TARGET_CATEGORY_KEY = "sanmuhe_shop_category";
 
 function normalizeTeaProducts(products) {
@@ -24,7 +24,7 @@ function normalizeDrinkProducts(items) {
     thumb: item.image,
     taste: item.notes,
     origin: item.badge || item.category,
-    unit: "杯",
+    unit: item.unit || "杯",
     availableStock: ""
   }));
 }
@@ -156,16 +156,24 @@ Page({
       this.openDrinkSheet(product);
       return;
     }
+    // 多规格茶叶进入详情页选择包装与价格
+    if (Array.isArray(product.specs) && product.specs.length > 1) {
+      wx.navigateTo({
+        url: `/pages/product/index?id=${product.id}`
+      });
+      return;
+    }
+    const defaultSpec = Array.isArray(product.specs) && product.specs[0] ? product.specs[0] : null;
     addToCart({
       id: product.id,
       type: "tea",
       name: product.name,
-      price: product.price,
+      price: defaultSpec ? defaultSpec.price : product.price,
       color: product.color,
       image: product.thumb || product.image,
       category: product.category,
       options: {
-        unit: product.unit
+        unit: defaultSpec ? defaultSpec.label : product.unit
       }
     });
     this.refreshCart();
@@ -225,7 +233,7 @@ Page({
   },
 
   goCart() {
-    wx.switchTab({ url: "/pages/cart/index" });
+    wx.navigateTo({ url: "/pages/cart/index" });
   },
 
   goBack() {

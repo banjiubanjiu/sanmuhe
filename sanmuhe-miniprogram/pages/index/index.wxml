@@ -1,6 +1,6 @@
 <view class="page home">
   <view class="home-nav">
-    <view class="brand-title">禾熙</view>
+    <view class="brand-title">禾煦</view>
   </view>
 
   <swiper
@@ -45,7 +45,7 @@
     </view>
     <view class="member-copy">
       <view>
-        <text class="member-name">禾熙会员</text>
+        <text class="member-name">禾煦会员</text>
         <text class="growth-pill">积分自动累计</text>
       </view>
       <view class="member-meta">支付成功后更新等级、积分与可用优惠券</view>
@@ -87,6 +87,6 @@
       <view class="cart-title">购物车 {{cartCount}} 件</view>
       <view class="cart-meta">合计 ¥{{cartTotal}}</view>
     </view>
-    <view class="cart-arrow">去结算</view>
+    <view class="cart-arrow">确认点单</view>
   </view>
 </view>

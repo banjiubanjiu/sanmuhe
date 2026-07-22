@@ -1,7 +1,7 @@
 {
   "name": "sanmuhe-miniprogram",
   "version": "1.0.0",
-  "description": "禾熙书茶空间的小程序原型，使用原生微信小程序开发，无需安装依赖，可直接用微信开发者工具导入。",
+  "description": "禾煦书茶空间的小程序原型，使用原生微信小程序开发，无需安装依赖，可直接用微信开发者工具导入。",
   "main": "app.js",
   "directories": {
     "doc": "docs"

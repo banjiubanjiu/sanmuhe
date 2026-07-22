@@ -22,7 +22,14 @@
     </view>
   </view>
 
-  <button class="ink-button section" loading="{{checking}}" bindtap="checkCloud">检查 getOpenId 云函数</button>
+  <button class="ink-button section" loading="{{checking}}" bindtap="checkCloud">查看当前微信身份 / openid</button>
+  <view class="section help-card">
+    <view class="h2">店员微信提醒怎么开</view>
+    <view class="muted">1. 用「要收通知的那台手机微信」打开本小程序。</view>
+    <view class="muted">2. 点上面按钮，记下 openid（一串 o 开头的字符）。</view>
+    <view class="muted">3. 在「我的」里点「接单提醒」并允许（授权后才能收到服务通知）。</view>
+    <view class="muted">说明：openid 不是微信号，是「这个微信打开你们小程序」时的内部编号。</view>
+  </view>
   <button class="light-button seed-button" loading="{{seeding}}" bindtap="seedDemoData">同步前台基础资料</button>
   <button class="light-button seed-button" loading="{{smoking}}" bindtap="runSmokeTest">运行云端写入检查</button>
   <button class="line-button seed-button" loading="{{cleaning}}" bindtap="cleanupSmokeData">清理自动检查记录</button>
