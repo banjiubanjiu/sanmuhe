@@ -130,12 +130,15 @@ function getAuthObject() {
   return null;
 }
 
-async function getCaller() {
+async function getCaller(context = {}) {
   const wxContext = cloud.getWXContext();
+  const contextUser = context && context.userInfo && typeof context.userInfo === "object"
+    ? context.userInfo
+    : {};
   const caller = {
     openid: wxContext.OPENID || "",
-    uid: "",
-    username: ""
+    uid: cleanText(contextUser.uid || contextUser.userId, 120),
+    username: cleanText(contextUser.username || contextUser.userInfo && contextUser.userInfo.username, 120)
   };
 
   const auth = getAuthObject();
@@ -398,6 +401,26 @@ function normalizePayload(collection, payload) {
   if (Array.isArray(source.sugars)) {
     data.sugars = source.sugars.slice(0, 8).map((item) => cleanText(item, 20)).filter(Boolean);
   }
+  if (Array.isArray(source.specs)) {
+    data.specs = source.specs.slice(0, 12).map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const label = cleanText(item.label || item.unit, 40);
+      if (!label) {
+        return null;
+      }
+      return {
+        label,
+        weight: cleanText(item.weight, 20),
+        price: Math.max(0, Number(item.price) || 0),
+        stockUnits: Math.max(1, Number(item.stockUnits) || 1)
+      };
+    }).filter(Boolean);
+  }
+  if (source.year !== undefined) {
+    data.year = cleanText(source.year, 20);
+  }
 
   if (collection !== "events" && data.visible === undefined) {
     data.visible = true;
@@ -492,7 +515,7 @@ async function listItems(collection, options) {
   return sortCatalog(items);
 }
 
-exports.main = async (event = {}) => {
+exports.main = async (event = {}, context = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "manageCatalog" };
   }
@@ -509,7 +532,7 @@ exports.main = async (event = {}) => {
 
   let caller = { openid: "", uid: "", username: "" };
   try {
-    caller = await getCaller();
+    caller = await getCaller(context);
     const includeHidden = !!event.includeHidden;
 
     if (writeActions.has(action) || includeHidden) {

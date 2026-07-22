@@ -329,6 +329,7 @@ const actionPermissions = {
   globalSearch: "dashboard.read",
   listOrders: "order.read",
   cancelOrder: "order.write",
+  confirmManualOrder: "order.write",
   markShipped: "order.write",
   markPickupDone: "order.write",
   listReservations: "reservation.read",
@@ -381,12 +382,15 @@ function getAuthObject() {
   return null;
 }
 
-async function getCaller() {
+async function getCaller(context = {}) {
   const wxContext = cloud.getWXContext();
+  const contextUser = context && context.userInfo && typeof context.userInfo === "object"
+    ? context.userInfo
+    : {};
   const caller = {
     openid: wxContext.OPENID || "",
-    uid: "",
-    username: ""
+    uid: cleanText(contextUser.uid || contextUser.userId, 120),
+    username: cleanText(contextUser.username || contextUser.userInfo && contextUser.userInfo.username, 120)
   };
 
   const auth = getAuthObject();
@@ -688,6 +692,78 @@ async function releaseInventory(locks, meta = {}) {
   }
 }
 
+async function confirmInventory(locks, orderNo, operator = "admin") {
+  for (const lock of locks || []) {
+    if (!lock.docId || lock.quantity <= 0) {
+      continue;
+    }
+    const latest = await db.collection(lock.collection).doc(lock.docId).get();
+    const before = inventorySnapshot(latest.data || {});
+    await db.collection(lock.collection).doc(lock.docId).update({
+      data: {
+        lockedStock: _.inc(-lock.quantity),
+        soldStock: _.inc(lock.quantity),
+        updatedAt: db.serverDate()
+      }
+    });
+    await writeInventoryLog({
+      collection: lock.collection,
+      docId: lock.docId,
+      itemId: lock.id || "",
+      itemName: lock.name || "",
+      type: "manual_confirm",
+      quantity: lock.quantity,
+      beforeStock: before.stock,
+      afterStock: before.stock,
+      beforeLockedStock: before.lockedStock,
+      afterLockedStock: Math.max(0, before.lockedStock - lock.quantity),
+      beforeSoldStock: before.soldStock,
+      afterSoldStock: before.soldStock + lock.quantity,
+      orderNo,
+      operator,
+      note: "管理员确认免支付订单，库存转为已售"
+    });
+  }
+}
+
+async function markCouponUsed(order) {
+  if (!order || !order.coupon || !order.coupon.userCouponId) {
+    return;
+  }
+  try {
+    await ensureCollection("user_coupons");
+    await db.collection("user_coupons").doc(order.coupon.userCouponId).update({
+      data: {
+        status: "已使用",
+        usedOrderId: order._id,
+        usedOrderNo: order.orderNo,
+        usedAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    // Coupon usage is best-effort after order confirm.
+  }
+}
+
+function isOpenInventoryOrder(order) {
+  if (!order || order.lockReleased === true) {
+    return false;
+  }
+  return order.payStatus === "pending" || order.payStatus === "manual";
+}
+
+function getManualFulfillmentStatus(order) {
+  if (order && order.deliveryMethod === "shipping") {
+    return "待发货";
+  }
+  // 现场点单确认后，默认按门店履约处理（引导扫码付款 / 制作完成）。
+  if (order && (order.deliveryMethod === "onsite" || order.payMode === "manual")) {
+    return "待自提";
+  }
+  return "待自提";
+}
+
 async function releaseUserCoupon(coupon) {
   if (!coupon || !coupon.userCouponId) {
     return;
@@ -879,7 +955,8 @@ async function cancelOrder(event, caller) {
     return { ok: false, message: "已支付订单取消前请先完成人工退款或售后确认" };
   }
 
-  if (order.payStatus === "pending" && order.lockReleased !== true) {
+  const shouldRelease = isOpenInventoryOrder(order);
+  if (shouldRelease) {
     await releaseInventory(order.inventoryLocks, {
       type: "admin_cancel_release",
       orderNo: order.orderNo,
@@ -889,11 +966,15 @@ async function cancelOrder(event, caller) {
     await releaseUserCoupon(order.coupon);
   }
 
+  const nextPayStatus = (order.payStatus === "pending" || order.payStatus === "manual")
+    ? "cancelled"
+    : order.payStatus;
+
   await db.collection("orders").doc(order._id).update({
     data: {
       status: "已取消",
-      payStatus: order.payStatus === "pending" ? "cancelled" : order.payStatus,
-      lockReleased: order.payStatus === "pending" ? true : order.lockReleased,
+      payStatus: nextPayStatus,
+      lockReleased: shouldRelease ? true : order.lockReleased,
       cancelReason: reason,
       adminNote: cleanText(event.adminNote, 300),
       cancelledBy: callerLabel(caller),
@@ -906,11 +987,74 @@ async function cancelOrder(event, caller) {
     reason,
     changes: auditDiff(order, {
       status: "已取消",
-      payStatus: order.payStatus === "pending" ? "cancelled" : order.payStatus,
-      lockReleased: order.payStatus === "pending" ? true : order.lockReleased
+      payStatus: nextPayStatus,
+      lockReleased: shouldRelease ? true : order.lockReleased
     }, ["status", "payStatus", "lockReleased"])
   });
   return { ok: true };
+}
+
+async function confirmManualOrder(event, caller) {
+  const order = await getOrder(event);
+  if (!order) {
+    return { ok: false, message: "订单不存在" };
+  }
+  if (order.status !== "待确认" || order.payStatus !== "manual") {
+    return { ok: false, message: "只有待确认的免支付订单可以确认" };
+  }
+
+  const claim = await db.collection("orders").where({
+    _id: order._id,
+    status: "待确认",
+    payStatus: "manual"
+  }).update({
+    data: {
+      payStatus: "confirming",
+      updatedAt: db.serverDate()
+    }
+  });
+  if (!claim.updated) {
+    return { ok: false, message: "订单状态已变化，请刷新后重试" };
+  }
+
+  try {
+    if (order.lockReleased !== true) {
+      await confirmInventory(order.inventoryLocks, order.orderNo, callerLabel(caller));
+    }
+    await markCouponUsed(order);
+    const nextStatus = getManualFulfillmentStatus(order);
+    await db.collection("orders").doc(order._id).update({
+      data: {
+        status: nextStatus,
+        payStatus: "manual_confirmed",
+        payMode: "manual",
+        lockReleased: true,
+        confirmedAt: db.serverDate(),
+        confirmedBy: callerLabel(caller),
+        adminNote: cleanText(event.adminNote, 300),
+        updatedAt: db.serverDate()
+      }
+    });
+    await writeAdminAuditLog(caller, "confirmManualOrder", {
+      orderNo: order.orderNo,
+      nextStatus,
+      changes: auditDiff(order, {
+        status: nextStatus,
+        payStatus: "manual_confirmed",
+        lockReleased: true
+      }, ["status", "payStatus", "lockReleased"])
+    });
+    return { ok: true, status: nextStatus };
+  } catch (error) {
+    await db.collection("orders").doc(order._id).update({
+      data: {
+        status: "待确认",
+        payStatus: "manual",
+        updatedAt: db.serverDate()
+      }
+    });
+    return { ok: false, message: error.message || "确认订单失败" };
+  }
 }
 
 async function markShipped(event, caller) {
@@ -1115,8 +1259,9 @@ async function getSummary() {
     ensureCollection("event_signups")
   ]);
 
-  const [pendingPay, toShip, toPickup, reservations, signups] = await Promise.all([
+  const [pendingPay, pendingConfirm, toShip, toPickup, reservations, signups] = await Promise.all([
     db.collection("orders").where({ status: "待支付" }).count(),
+    db.collection("orders").where({ status: "待确认" }).count(),
     db.collection("orders").where({ status: "待发货" }).count(),
     db.collection("orders").where({ status: "待自提" }).count(),
     db.collection("reservations").where({ status: "待确认" }).count(),
@@ -1127,6 +1272,7 @@ async function getSummary() {
     ok: true,
     summary: {
       pendingPay: pendingPay.total,
+      pendingConfirm: pendingConfirm.total,
       toShip: toShip.total,
       toPickup: toPickup.total,
       pendingReservations: reservations.total,
@@ -1143,6 +1289,7 @@ function summarizeOrders(orders) {
   return {
     todayOrders: orders.filter((order) => dateKey(order.createdAt) === today).length,
     pendingPay: orders.filter((order) => order.status === "待支付").length,
+    pendingConfirm: orders.filter((order) => order.status === "待确认").length,
     toShip: orders.filter((order) => order.status === "待发货").length,
     toPickup: orders.filter((order) => order.status === "待自提").length,
     afterSale: orders.filter((order) => /退款|售后|异常/.test(String(order.status || ""))).length,
@@ -1603,7 +1750,7 @@ async function sendTestNotice(event, caller) {
     return { ok: false, message: "请填写接收通知的 OpenID" };
   }
   const payload = event.payload && typeof event.payload === "object" ? event.payload : {
-    room: "禾熙书茶空间",
+    room: "禾煦书茶空间",
     day: todayKey(),
     time: "15:00",
     status: "测试通知",
@@ -1804,6 +1951,7 @@ async function getSystemStatus(event = {}) {
   const templateItems = [
     ["orderPaidTemplateId", "订单支付通知", settings.orderNoticeEnabled !== false],
     ["orderShippedTemplateId", "订单发货通知", settings.orderNoticeEnabled !== false],
+    ["staffOrderTemplateId", "店员新订单提醒", settings.staffOrderNoticeEnabled !== false],
     ["reservationTemplateId", "预约状态通知", settings.reservationNoticeEnabled !== false],
     ["eventTemplateId", "活动报名通知", settings.eventNoticeEnabled !== false]
   ];
@@ -2762,7 +2910,7 @@ async function disableRecord(collection, id, caller) {
 function normalizeSettings(data = {}) {
   return {
     key: "store",
-    brandName: cleanText(data.brandName, 80) || "禾熙 HEXI TEA",
+    brandName: cleanText(data.brandName, 80) || "禾煦 HEXI TEA",
     slogan: cleanText(data.slogan, 120),
     storeName: cleanText(data.storeName, 80),
     address: cleanText(data.address, 160),
@@ -2783,6 +2931,10 @@ function normalizeSettings(data = {}) {
     orderPaidPage: cleanText(data.orderPaidPage, 120) || "pages/profile/index",
     orderShippedTemplateId: cleanText(data.orderShippedTemplateId, 80),
     orderShippedPage: cleanText(data.orderShippedPage, 120) || "pages/profile/index",
+    staffOrderTemplateId: cleanText(data.staffOrderTemplateId, 80),
+    staffOrderPage: cleanText(data.staffOrderPage, 120) || "pages/profile/index",
+    // JSON 字符串，例如 {"character_string1":"orderNo","thing2":"itemSummary","amount3":"total","time4":"time"}
+    staffOrderTemplateMap: cleanText(data.staffOrderTemplateMap, 500),
     reservationTemplateId: cleanText(data.reservationTemplateId, 80),
     reservationNoticePage: cleanText(data.reservationNoticePage, 120) || "pages/reservation/index",
     eventTemplateId: cleanText(data.eventTemplateId, 80),
@@ -2791,6 +2943,7 @@ function normalizeSettings(data = {}) {
     pickupEnabled: data.pickupEnabled !== false,
     shippingEnabled: data.shippingEnabled !== false,
     orderNoticeEnabled: data.orderNoticeEnabled !== false,
+    staffOrderNoticeEnabled: data.staffOrderNoticeEnabled !== false,
     reservationNoticeEnabled: data.reservationNoticeEnabled !== false,
     eventNoticeEnabled: data.eventNoticeEnabled !== false
   };
@@ -2829,6 +2982,7 @@ function validateSettingsInput(data = {}, payload = {}) {
   [
     ["orderPaidPage", "支付成功跳转页"],
     ["orderShippedPage", "发货通知跳转页"],
+    ["staffOrderPage", "店员新订单跳转页"],
     ["reservationNoticePage", "预约通知跳转页"],
     ["eventNoticePage", "活动通知跳转页"]
   ].forEach(([field, label]) => assertSafeTextRef(payload[field], label));
@@ -2867,7 +3021,7 @@ async function updateSettings(event, caller) {
   return { ok: true, settings: payload };
 }
 
-exports.main = async (event = {}) => {
+exports.main = async (event = {}, context = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "manageOperations" };
   }
@@ -2875,7 +3029,7 @@ exports.main = async (event = {}) => {
   const action = cleanText(event.action, 40) || "getSummary";
   let caller = { openid: "", uid: "", username: "" };
   try {
-    caller = await getCaller();
+    caller = await getCaller(context);
     assertAdmin(caller);
     const role = await getAdminRole(caller);
 
@@ -2922,6 +3076,9 @@ exports.main = async (event = {}) => {
     }
     if (action === "cancelOrder") {
       return await cancelOrder(event, caller);
+    }
+    if (action === "confirmManualOrder") {
+      return await confirmManualOrder(event, caller);
     }
     if (action === "markShipped") {
       return await markShipped(event, caller);

@@ -16,7 +16,8 @@ const DEFAULT_MEMBER_LEVELS = [
   { tier: "山房会员", minSpend: 5000, discountRate: 0.92 }
 ];
 
-const specMultipliers = {
+// 旧版按克重倍率计价；新目录优先使用商品 specs 固定价
+const legacySpecMultipliers = {
   "50g": 1,
   "100g": 2,
   "250g": 5,
@@ -35,16 +36,46 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
+function normalizeTrustedSpecs(item) {
+  if (Array.isArray(item.specs) && item.specs.length) {
+    return item.specs.map((spec) => ({
+      label: cleanText(spec.label || spec.unit, 40),
+      price: Math.max(0, Number(spec.price) || 0),
+      stockUnits: Math.max(1, Number(spec.stockUnits) || 1)
+    })).filter((spec) => spec.label);
+  }
+  return [];
+}
+
+function resolveTeaSpec(trusted, unitLabel) {
+  const specs = trusted.specs || [];
+  const requested = cleanText(unitLabel, 40);
+  if (specs.length) {
+    const matched = specs.find((spec) => spec.label === requested);
+    return matched || specs[0];
+  }
+  if (requested && legacySpecMultipliers[requested]) {
+    return {
+      label: requested,
+      price: Math.round((Number(trusted.price) || 0) * legacySpecMultipliers[requested]),
+      stockUnits: legacySpecMultipliers[requested]
+    };
+  }
+  const fallbackUnit = cleanText(trusted.unit, 40) || "默认";
+  return {
+    label: fallbackUnit,
+    price: Math.max(0, Number(trusted.price) || 0),
+    stockUnits: 1
+  };
+}
+
 function sanitizeOptions(type, options, trusted) {
   const source = options || {};
   const clean = {};
 
   if (type === "tea") {
-    const unit = cleanText(source.unit, 12);
-    const trustedUnit = cleanText(trusted && trusted.unit, 12);
-    clean.unit = trustedUnit && !specMultipliers[trustedUnit]
-      ? trustedUnit
-      : (specMultipliers[unit] ? unit : (trustedUnit || "50g"));
+    const resolved = resolveTeaSpec(trusted, source.unit);
+    clean.unit = resolved.label;
     return clean;
   }
 
@@ -60,21 +91,21 @@ function sanitizeOptions(type, options, trusted) {
   return clean;
 }
 
-function getTrustedPrice(type, basePrice, options) {
+function getTrustedPrice(type, trusted, options) {
   if (type !== "tea") {
-    return basePrice;
+    return Math.max(0, Number(trusted.price) || 0);
   }
-
-  return Math.round(basePrice * (specMultipliers[options.unit] || 1));
+  return resolveTeaSpec(trusted, options && options.unit).price;
 }
 
 function hasStockControl(item) {
   return item && item.stock !== undefined && item.stock !== null && item.stock !== "";
 }
 
-function getRequiredStockUnits(type, quantity, options) {
+function getRequiredStockUnits(type, quantity, trusted, options) {
   if (type === "tea") {
-    return quantity * (specMultipliers[options.unit] || 1);
+    const resolved = resolveTeaSpec(trusted, options && options.unit);
+    return quantity * (resolved.stockUnits || 1);
   }
   return quantity;
 }
@@ -133,7 +164,8 @@ async function findTrustedItem(type, id) {
         id: item.id,
         name: cleanText(item.name, 80),
         price: Math.max(0, Number(item.price) || 0),
-        unit: cleanText(item.unit, 12),
+        unit: cleanText(item.unit, 40),
+        specs: normalizeTrustedSpecs(item),
         image: cleanText(item.thumb || item.image, 240),
         stock: item.stock,
         lockedStock: item.lockedStock,
@@ -166,7 +198,7 @@ async function sanitizeItems(items) {
 
     const quantity = Math.max(1, Math.min(99, Number(item.quantity) || 1));
     const options = sanitizeOptions(type, item.options, trusted);
-    const price = getTrustedPrice(type, trusted.price, options);
+    const price = getTrustedPrice(type, trusted, options);
     const lineTotal = price * quantity;
     subtotal += lineTotal;
 
@@ -184,7 +216,7 @@ async function sanitizeItems(items) {
     }
 
     if (hasStockControl(trusted)) {
-      const requiredStock = getRequiredStockUnits(type, quantity, options);
+      const requiredStock = getRequiredStockUnits(type, quantity, trusted, options);
       const inventory = getInventorySnapshot(trusted);
       if (inventory.availableStock < requiredStock) {
         throw new Error(`${trusted.name} 库存不足`);
@@ -290,7 +322,13 @@ async function releaseInventory(locks) {
 }
 
 function normalizeDeliveryMethod(value) {
-  return value === "shipping" ? "shipping" : "pickup";
+  if (value === "shipping") {
+    return "shipping";
+  }
+  if (value === "onsite" || value === "dine-in" || value === "store") {
+    return "onsite";
+  }
+  return "pickup";
 }
 
 function calculateShippingFee(deliveryMethod, subtotal) {
@@ -467,6 +505,108 @@ async function releaseUserCoupon(coupon) {
   }
 }
 
+function parseList(value) {
+  return String(value || "")
+    .split(/[,\n;]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function isManualPayMode(event = {}) {
+  const mode = cleanText(event.payMode || event.paymentMode || event.checkoutMode, 20).toLowerCase();
+  const source = cleanText(event.source, 40).toLowerCase();
+  return mode === "manual" ||
+    mode === "offline" ||
+    mode === "confirm" ||
+    mode === "onsite" ||
+    event.skipPayment === true ||
+    source === "onsite-cart" ||
+    source === "cart-confirm";
+}
+
+function isOnsiteOrder(event = {}, deliveryMethod = "") {
+  return deliveryMethod === "onsite" ||
+    isManualPayMode(event) ||
+    cleanText(event.source, 40).toLowerCase() === "onsite-cart";
+}
+
+async function notifyStaffWechat(order = {}) {
+  try {
+    const result = await cloud.callFunction({
+      name: "serviceNotify",
+      data: {
+        action: "notifyStaff",
+        kind: "orderStaffNew",
+        payload: {
+          orderNo: order.orderNo || "",
+          total: order.total,
+          status: "待扫码付款",
+          itemSummary: order.itemSummary || "",
+          remark: order.remark || "",
+          time: ""
+        }
+      }
+    });
+    return result && result.result ? result.result : result;
+  } catch (error) {
+    return {
+      ok: false,
+      message: error.message || "调用 serviceNotify 失败"
+    };
+  }
+}
+
+async function notifyAdmins(order = {}) {
+  const itemSummary = (order.items || [])
+    .map((item) => `${item.name}x${item.quantity}`)
+    .join("、")
+    .slice(0, 120);
+  const notice = {
+    type: "order_created",
+    orderNo: order.orderNo || "",
+    orderId: order.orderId || "",
+    total: number(order.total),
+    status: order.status || "待确认",
+    payStatus: order.payStatus || "manual",
+    consignee: order.consignee || "",
+    phone: order.phone || "",
+    deliveryMethod: order.deliveryMethod || "pickup",
+    itemSummary,
+    remark: order.remark || "",
+    read: false,
+    createdAt: db.serverDate()
+  };
+
+  try {
+    await ensureCollection("admin_notices");
+    await db.collection("admin_notices").add({ data: notice });
+  } catch (error) {
+    // Notice board is best-effort; order creation should still succeed.
+  }
+
+  try {
+    await ensureCollection("notification_logs");
+    await db.collection("notification_logs").add({
+      data: Object.assign({}, notice, {
+        channel: "admin_notice",
+        target: "admin",
+        message: `现场点单 ${notice.orderNo} 待确认，合计 ¥${notice.total}，请引导扫码付款。${itemSummary || ""}`
+      })
+    });
+  } catch (error) {
+    // Logging is best-effort.
+  }
+
+  const wechat = await notifyStaffWechat(Object.assign({}, notice, { itemSummary }));
+
+  return {
+    adminOpenids: parseList(process.env.ADMIN_OPENIDS).length,
+    staffOpenids: parseList(process.env.STAFF_OPENIDS || process.env.ADMIN_OPENIDS).length,
+    noticeWritten: true,
+    wechat
+  };
+}
+
 exports.main = async (event = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "createOrder" };
@@ -479,25 +619,31 @@ exports.main = async (event = {}) => {
   try {
     const { cleanItems, inventoryLocks, subtotal } = await sanitizeItems(event.items);
     const deliveryMethod = normalizeDeliveryMethod(event.deliveryMethod);
-    const consignee = cleanText(event.consignee || event.pickupName, 40);
-    const phone = cleanText(event.phone || event.pickupPhone, 30);
+    const manualPay = isManualPayMode(event);
+    const onsiteOrder = isOnsiteOrder(event, deliveryMethod);
+    const consignee = cleanText(event.consignee || event.pickupName, 40) || (onsiteOrder ? "到店顾客" : "");
+    // 现场点单允许非手机号占位；真实手机号仅对非现场订单强制。
+    const phone = cleanText(event.phone || event.pickupPhone, 30) || (onsiteOrder ? "现场" : "");
     const address = cleanText(event.address, 180);
     const pickupNote = cleanText(event.pickupNote, 120);
 
-    if (!consignee || !phone) {
-      return { ok: false, message: "请填写联系人和手机号" };
-    }
-    if (deliveryMethod === "shipping" && !address) {
-      return { ok: false, message: "请选择或填写收货地址" };
+    // 现场点单 / 免支付确认：不强制履约联系人；快递与在线支付仍需联系方式。
+    if (!onsiteOrder) {
+      if (!consignee || !phone) {
+        return { ok: false, message: "请填写联系人和手机号" };
+      }
+      if (deliveryMethod === "shipping" && !address) {
+        return { ok: false, message: "请选择或填写收货地址" };
+      }
     }
 
     const orderNo = `SMH${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
-    const lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
+    const lockedUntil = onsiteOrder || manualPay ? null : new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
     const settings = await readSettings();
     const member = await getMemberDiscount(OPENID, settings, cleanItems);
     const memberDiscount = Math.min(subtotal, member.discount);
     const discountedSubtotal = Math.max(0, subtotal - memberDiscount);
-    const shippingFee = calculateShippingFee(deliveryMethod, discountedSubtotal);
+    const shippingFee = calculateShippingFee(onsiteOrder ? "onsite" : deliveryMethod, discountedSubtotal);
     appliedCoupon = await lockUserCoupon(OPENID, event.couponUserId || event.userCouponId, orderNo, lockedUntil, discountedSubtotal);
     const couponDiscount = appliedCoupon ? appliedCoupon.discount : 0;
     const total = Math.max(0, discountedSubtotal - couponDiscount) + shippingFee;
@@ -507,6 +653,10 @@ exports.main = async (event = {}) => {
 
     await ensureCollection("orders");
     appliedLocks = await lockInventory(inventoryLocks, orderNo);
+
+    const orderStatus = onsiteOrder || manualPay ? "待确认" : "待支付";
+    const payStatus = onsiteOrder || manualPay ? "manual" : "pending";
+    const finalDeliveryMethod = onsiteOrder ? "onsite" : deliveryMethod;
 
     const addResult = await db.collection("orders").add({
       data: {
@@ -523,21 +673,40 @@ exports.main = async (event = {}) => {
         couponDiscount,
         shippingFee,
         total,
-        deliveryMethod,
-        consignee,
-        phone,
-        address: deliveryMethod === "shipping" ? address : "",
-        pickupNote: deliveryMethod === "pickup" ? pickupNote : "",
+        deliveryMethod: finalDeliveryMethod,
+        consignee: consignee || "到店顾客",
+        phone: phone || (onsiteOrder ? "现场" : ""),
+        address: finalDeliveryMethod === "shipping" ? address : "",
+        pickupNote: finalDeliveryMethod === "pickup" || finalDeliveryMethod === "onsite" ? pickupNote : "",
         remark: cleanText(event.remark, 200),
-        source: cleanText(event.source, 40),
-        status: "待支付",
-        payStatus: "pending",
-        lockedUntil,
+        source: cleanText(event.source, 40) || (onsiteOrder ? "onsite-cart" : ""),
+        status: orderStatus,
+        payStatus,
+        payMode: onsiteOrder || manualPay ? "manual" : "wechat",
+        payHint: onsiteOrder || manualPay ? "现场扫码付款" : "",
+        lockedUntil: onsiteOrder || manualPay ? null : lockedUntil,
         lockReleased: false,
+        adminNotified: onsiteOrder || manualPay,
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
       }
     });
+
+    let adminNotify = null;
+    if (onsiteOrder || manualPay) {
+      adminNotify = await notifyAdmins({
+        orderId: addResult._id,
+        orderNo,
+        total,
+        status: orderStatus,
+        payStatus,
+        consignee: consignee || "到店顾客",
+        phone: phone || "现场",
+        deliveryMethod: finalDeliveryMethod,
+        remark: cleanText(event.remark, 200),
+        items: cleanItems
+      });
+    }
 
     return {
       ok: true,
@@ -548,9 +717,12 @@ exports.main = async (event = {}) => {
       couponDiscount,
       shippingFee,
       total,
-      deliveryMethod,
-      payStatus: "pending",
-      lockedUntil: lockedUntil.toISOString()
+      deliveryMethod: finalDeliveryMethod,
+      status: orderStatus,
+      payStatus,
+      payMode: onsiteOrder || manualPay ? "manual" : "wechat",
+      lockedUntil: lockedUntil ? lockedUntil.toISOString() : null,
+      adminNotify
     };
   } catch (error) {
     if (appliedLocks.length) {

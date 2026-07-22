@@ -112,8 +112,6 @@ const iconAssetFiles = [
   "sanmuhe-miniprogram/assets/icons/home-active.png",
   "sanmuhe-miniprogram/assets/icons/category-line.png",
   "sanmuhe-miniprogram/assets/icons/category-active.png",
-  "sanmuhe-miniprogram/assets/icons/cart-line.png",
-  "sanmuhe-miniprogram/assets/icons/cart-active.png",
   "sanmuhe-miniprogram/assets/icons/events-line.png",
   "sanmuhe-miniprogram/assets/icons/events-active.png",
   "sanmuhe-miniprogram/assets/icons/profile-line.png",
@@ -290,11 +288,24 @@ if (exists("sanmuhe-miniprogram/data/catalog.js")) {
   results.push(status("catalog image references", catalogAssetRefsOk, catalogAssetRefsOk ? "local catalog carries image/thumb fields" : "missing catalog image/thumb references"));
 }
 
-if (exists("sanmuhe-miniprogram/pages/cart/index.wxml")) {
-  const cartWxml = readText("sanmuhe-miniprogram/pages/cart/index.wxml");
-  const cartElseFree = !cartWxml.includes("wx:else");
-  results.push(status("cart WXML no wx:else", cartElseFree, cartElseFree ? "cart parser guard applied" : "cart still uses wx:else"));
-}
+const appJsonText = readText("sanmuhe-miniprogram/app.json");
+const tabBarJs = readText("sanmuhe-miniprogram/custom-tab-bar/index.js");
+const tabBarUtil = readText("sanmuhe-miniprogram/utils/tabbar.js");
+const cartJsText = exists("sanmuhe-miniprogram/pages/cart/index.js") ? readText("sanmuhe-miniprogram/pages/cart/index.js") : "";
+const createOrderText = exists("sanmuhe-miniprogram/cloudfunctions/createOrder/index.js")
+  ? readText("sanmuhe-miniprogram/cloudfunctions/createOrder/index.js")
+  : "";
+const cartConfirmOk = exists("sanmuhe-miniprogram/pages/cart/index.js") &&
+  appJsonText.includes("pages/cart/index") &&
+  !tabBarJs.includes("pages/cart/index") &&
+  !tabBarUtil.includes("pages/cart/index") &&
+  cartJsText.includes('payMode: "manual"') &&
+  cartJsText.includes('deliveryMethod: "onsite"') &&
+  !cartJsText.includes("chooseAddress") &&
+  createOrderText.includes("admin_notices") &&
+  createOrderText.includes("isManualPayMode") &&
+  createOrderText.includes('"onsite"');
+results.push(status("manual cart confirm flow", cartConfirmOk, cartConfirmOk ? "onsite cart confirms without fulfillment form and notifies admin" : "manual cart confirm flow incomplete"));
 
 const wxmlFiles = [];
 function collectFilesByExt(dir, ext, out = []) {
@@ -402,22 +413,20 @@ const orderDesignFlowOk = orderJs.includes("quickAddDrink") &&
   orderJs.includes("switchOrderTab") &&
   !orderWxml.includes("drink-options-panel") &&
   orderWxml.includes("/assets/icons/plus-white.png") &&
-  orderWxml.includes("order-tab-icon") &&
-  orderWxml.includes("/assets/icons/cart-white.png");
+  orderWxml.includes("order-tab-icon");
 results.push(status("drink ordering design flow", orderDesignFlowOk, orderDesignFlowOk ? "drink ordering matches design: plus icon quick-add, icon tabbar, no permanent option strip" : "drink ordering still has a permanent option strip or missing icon controls"));
 
 const roundAddNativeButton = /<button[\s\S]*?class="[^"]*round-add/.test(`${orderWxml}\n${shopWxml}`);
 const roundAddCentered =
   /\.round-add\s*{[\s\S]*?display:\s*flex;[\s\S]*?align-items:\s*center;[\s\S]*?justify-content:\s*center;/.test(orderWxss) &&
   /\.round-add\s*{[\s\S]*?display:\s*flex;[\s\S]*?align-items:\s*center;[\s\S]*?justify-content:\s*center;/.test(shopWxss);
-const compactOrderCartOk = orderWxml.includes('wx:if="{{cartCount > 0}}" class="order-cart-pill"') &&
-  orderWxml.includes('<view class="checkout-chip">去结算</view>') &&
+const compactAddOk = orderWxml.includes("order-cart-pill") &&
+  shopWxml.includes("shop-cart-pill") &&
   !orderWxml.includes('class="safe-bar tab-safe-bar"') &&
   !orderWxml.includes('<button class="safe-bar-action"') &&
-  orderWxss.includes(".order-cart-pill") &&
   !roundAddNativeButton &&
   roundAddCentered;
-results.push(status("compact icon add and cart pill", compactOrderCartOk, compactOrderCartOk ? "plus controls are icon-only and order checkout is a conditional compact pill" : "plus controls or order checkout can still render as oversized native/button strips"));
+results.push(status("compact icon add and cart pill", compactAddOk, compactAddOk ? "plus controls are icon-only and cart pills open confirm checkout" : "plus controls oversized or cart pill missing"));
 
 const eventsJs = readText("sanmuhe-miniprogram/pages/events/index.js");
 const eventsWxml = readText("sanmuhe-miniprogram/pages/events/index.wxml");
@@ -444,32 +453,16 @@ const createJoinIdOk = createEventJs.includes("const eventId = `event-cloud-${Da
   cloudStatusJs.includes("const eventId = data.id");
 results.push(status("create event returns joinable id", createJoinIdOk, createJoinIdOk ? "createEvent returns business id used by joinEvent" : "createEvent may return doc _id that joinEvent cannot count"));
 
-const cartJs = readText("sanmuhe-miniprogram/pages/cart/index.js");
-const cartWxmlFull = readText("sanmuhe-miniprogram/pages/cart/index.wxml");
-const cartProfileNavOk = cartJs.includes('wx.switchTab({ url: "/pages/profile/index" })');
-results.push(status("cart completion tab navigation", cartProfileNavOk, cartProfileNavOk ? "order success switches to profile tab" : "order success may navigateTo tabBar page"));
-
-const cartCheckoutPolishOk = cartJs.includes("wx.chooseAddress") &&
-  cartWxmlFull.includes("bindtap=\"chooseAddress\"") &&
-  cartWxmlFull.includes("提交并支付") &&
-  cartWxmlFull.includes("微信支付 ·") &&
-  cartJs.includes("payOrder") &&
-  !cartJs.includes("本地演示订单") &&
-  !cartJs.includes("当前使用本地记录") &&
-  !cartJs.includes("订单已临时保存在本机") &&
-  !cartWxmlFull.includes("待接入微信支付");
-results.push(status("cart checkout production copy", cartCheckoutPolishOk, cartCheckoutPolishOk ? "cart uses WeChat address picker and production-facing pay/confirmation copy" : "cart still contains rough payment/demo copy"));
-
 const reservationFallbackCopyOk = reservationJs.includes("预约已临时保存在本机，云端恢复后请重新提交确认。") &&
   !reservationJs.includes("本地演示记录");
 results.push(status("reservation fallback production copy", reservationFallbackCopyOk, reservationFallbackCopyOk ? "reservation fallback copy is production-facing" : "reservation fallback still exposes demo wording"));
 
 const createOrderJs = readText("sanmuhe-miniprogram/cloudfunctions/createOrder/index.js");
-const orderSpecPriceOk = createOrderJs.includes("specMultipliers") &&
+const orderSpecPriceOk = createOrderJs.includes("resolveTeaSpec") &&
   createOrderJs.includes("sanitizeOptions") &&
   createOrderJs.includes("getTrustedPrice") &&
   createOrderJs.includes("options.unit") &&
-  createOrderJs.includes("Math.round(basePrice *");
+  (createOrderJs.includes("legacySpecMultipliers") || createOrderJs.includes("specs"));
 results.push(status("order backend spec pricing", orderSpecPriceOk, orderSpecPriceOk ? "cloud order total honors tea unit specs" : "cloud order total may ignore selected tea specs"));
 
 const orderDynamicCatalogOk = createOrderJs.includes("findTrustedItem") &&
@@ -579,7 +572,7 @@ const report = {
   codeReady,
   readyForWechatDevtools: codeReady && appIdConfigured && envConfigured,
   completionAudit: {
-    objective: "按 docs 下全部 UI 设计图优化禾熙小程序 UI，并补齐云开发部署、商品/活动后台逻辑和微信开发者工具热部署路径。",
+    objective: "按 docs 下全部 UI 设计图优化禾煦小程序 UI，并补齐云开发部署、商品/活动后台逻辑和微信开发者工具热部署路径。",
     covered: auditCovered,
     missing: auditMissing
   },

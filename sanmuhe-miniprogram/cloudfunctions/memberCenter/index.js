@@ -20,6 +20,24 @@ const templateLabels = {
   eventTemplateId: "活动报名通知"
 };
 
+const staffTemplateLabels = {
+  staffOrderTemplateId: "店员新订单提醒"
+};
+
+function parseList(value) {
+  return String(value || "")
+    .split(/[,\n;]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function isStaffOpenid(openid) {
+  const staff = parseList(process.env.STAFF_OPENIDS);
+  const admins = parseList(process.env.ADMIN_OPENIDS);
+  const allowed = staff.length ? staff : admins;
+  return !!(openid && allowed.includes(openid));
+}
+
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
@@ -127,7 +145,7 @@ async function getMember(openid, settings) {
   const saved = existing.data && existing.data[0] ? existing.data[0] : {};
   const member = {
     _openid: openid,
-    name: saved.name || "禾熙会员",
+    name: saved.name || "禾煦会员",
     tier: level.tier,
     cardNo: saved.cardNo || `SMH ${String(openid || "000000").slice(-6).toUpperCase()}`,
     points,
@@ -199,18 +217,57 @@ function getSubscriptionTemplates(settings = {}) {
     .filter((item) => item.templateId);
 }
 
+function getStaffSubscriptionTemplates(settings = {}) {
+  return Object.keys(staffTemplateLabels)
+    .map((key) => ({
+      key,
+      name: staffTemplateLabels[key],
+      templateId: cleanText(settings[key], 80)
+    }))
+    .filter((item) => item.templateId);
+}
+
+async function getStaffNoticeState(openid, settings = {}) {
+  const templates = getStaffSubscriptionTemplates(settings);
+  const template = templates[0] || null;
+  let remaining = 0;
+  if (template && template.templateId) {
+    try {
+      await ensureCollection("subscription_preferences");
+      const result = await db.collection("subscription_preferences")
+        .where({ _openid: openid, templateId: template.templateId })
+        .limit(1)
+        .get();
+      const pref = result.data && result.data[0];
+      remaining = Math.max(0, Number(pref && pref.remaining) || 0);
+    } catch (error) {
+      remaining = 0;
+    }
+  }
+  return {
+    isStaff: isStaffOpenid(openid),
+    enabled: settings.staffOrderNoticeEnabled !== false,
+    templateId: template ? template.templateId : "",
+    templateName: template ? template.name : staffTemplateLabels.staffOrderTemplateId,
+    remaining,
+    templates
+  };
+}
+
 async function getMemberCenter(openid) {
   const settings = await readSettings();
-  const [member, coupons] = await Promise.all([
+  const [member, coupons, staffNotice] = await Promise.all([
     getMember(openid, settings),
-    listCoupons(openid)
+    listCoupons(openid),
+    getStaffNoticeState(openid, settings)
   ]);
   return {
     ok: true,
     member,
     userCoupons: coupons.userCoupons,
     availableCoupons: coupons.availableCoupons,
-    subscriptionTemplates: getSubscriptionTemplates(settings)
+    subscriptionTemplates: getSubscriptionTemplates(settings),
+    staffNotice
   };
 }
 
@@ -289,18 +346,22 @@ async function saveSubscription(openid, event = {}) {
       lastStatus: status,
       updatedAt: db.serverDate()
     };
+    // 店员接单提醒：每次授权累加更多次数，减少反复点授权。
+    const acceptDelta = template.key === "staffOrderTemplateId" || data.key === "staffOrderTemplateId"
+      ? 20
+      : 1;
     const existing = await db.collection("subscription_preferences").where({ _openid: openid, templateId }).limit(1).get();
     if (existing.data && existing.data[0]) {
       await db.collection("subscription_preferences").doc(existing.data[0]._id).update({
         data: Object.assign({}, data, {
-          remaining: status === "accept" ? _.inc(1) : _.inc(0)
+          remaining: status === "accept" ? _.inc(acceptDelta) : _.inc(0)
         })
       });
       saved.push(existing.data[0]._id);
     } else {
       const addResult = await db.collection("subscription_preferences").add({
         data: Object.assign({}, data, {
-          remaining: status === "accept" ? 1 : 0,
+          remaining: status === "accept" ? acceptDelta : 0,
           createdAt: db.serverDate()
         })
       });

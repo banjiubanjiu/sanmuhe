@@ -28,7 +28,7 @@ exports.main = async (event = {}) => {
   const category = cleanText(event.category, 20) || "茶会";
   const date = cleanText(event.date, 30);
   const time = cleanText(event.time, 20);
-  const place = cleanText(event.place, 80) || "禾熙书茶空间";
+  const place = cleanText(event.place, 80) || "禾煦书茶空间";
   const quota = Math.max(1, Math.min(999, Number(event.quota) || 1));
   const price = Math.max(0, Number(event.price) || 0);
   const summary = cleanText(event.summary, 300);

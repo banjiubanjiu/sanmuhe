@@ -21,18 +21,49 @@
     },
     {
       "name": "manageCatalog",
+      "type": "Event",
+      "handler": "index.main",
+      "timeout": 30,
       "runtime": "Nodejs16.13",
-      "handler": "index.main"
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
+        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
+        "ADMIN_UIDS": "2055212366319239170",
+        "ADMIN_USERNAMES": "admin"
+      }
     },
     {
       "name": "manageOperations",
+      "type": "Event",
+      "handler": "index.main",
+      "timeout": 30,
       "runtime": "Nodejs16.13",
-      "handler": "index.main"
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
+        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
+        "ADMIN_UIDS": "2055212366319239170",
+        "ADMIN_USERNAMES": "admin"
+      }
     },
     {
       "name": "createOrder",
+      "type": "Event",
+      "handler": "index.main",
+      "timeout": 30,
       "runtime": "Nodejs16.13",
-      "handler": "index.main"
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "FREE_SHIPPING_AMOUNT": "0",
+        "ORDER_LOCK_MINUTES": "15",
+        "SHIPPING_FEE": "0",
+        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM",
+        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM"
+      }
     },
     {
       "name": "createPayment",
@@ -85,6 +116,33 @@
       "name": "cleanupSmokeData",
       "runtime": "Nodejs16.13",
       "handler": "index.main"
+    },
+    {
+      "name": "serviceNotify",
+      "type": "Event",
+      "handler": "index.main",
+      "timeout": 15,
+      "runtime": "Nodejs16.13",
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM",
+        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM",
+        "MINIPROGRAM_STATE": "developer"
+      }
+    },
+    {
+      "name": "memberCenter",
+      "type": "Event",
+      "handler": "index.main",
+      "timeout": 15,
+      "runtime": "Nodejs16.13",
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM",
+        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM"
+      }
     }
   ]
 }
