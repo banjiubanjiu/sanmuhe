@@ -179,7 +179,7 @@ const quickActions = [
 const permissionCatalog = [
   { key: "dashboard.read", group: "经营首页", label: "查看首页与全局搜索", risk: "low" },
   { key: "order.read", group: "订单售后", label: "查看订单", risk: "low" },
-  { key: "order.write", group: "订单售后", label: "发货、自提、取消订单", risk: "medium" },
+  { key: "order.write", group: "订单售后", label: "确认、发货、自提、取消订单", risk: "medium" },
   { key: "afterSale.read", group: "订单售后", label: "查看售后", risk: "low" },
   { key: "afterSale.write", group: "订单售后", label: "处理售后状态", risk: "medium" },
   { key: "inventory.read", group: "库存", label: "查看库存流水", risk: "low" },
@@ -511,7 +511,7 @@ const forms = reactive({
 
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
 const currentModuleProfile = computed(() => moduleProfiles[state.activeTab] || moduleProfiles.dashboard);
-const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾熙管理员");
+const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾煦管理员");
 const currentRoleName = computed(() => state.adminProfileError ? "未授权" : (state.adminProfile?.roleName || "管理员"));
 const headerSignalCount = computed(() => {
   const summary = state.systemStatus?.summary || {};
@@ -796,6 +796,7 @@ function boolText(value) {
 function buildWorkflowSteps(tab) {
   if (tab === "orders") {
     return [
+      workflowStep("待确认", countWhere(state.orders, (item) => hasStatus(item, [/待确认/])), "免支付订单待门店确认", "warn"),
       workflowStep("待支付", countWhere(state.orders, (item) => hasStatus(item, [/待支付/])), "需跟进支付或取消", "warn"),
       workflowStep("待履约", countWhere(state.orders, (item) => hasStatus(item, [/待发货|待自提/])), "发货/自提动作", "focus"),
       workflowStep("已发货", countWhere(state.orders, (item) => hasStatus(item, [/已发货/])), "等待完成", "good"),
@@ -1529,6 +1530,7 @@ async function refreshSummary() {
     const result = await callFunction("manageOperations", { action: "getSummary" });
     const s = result.summary || {};
     state.summary = [
+      { label: "待确认订单", value: s.pendingConfirm || 0, meta: "订单", tone: "sand", icon: ClipboardList, delta: "免支付待确认" },
       { label: "待支付", value: s.pendingPay || 0, meta: "订单", tone: "sand", icon: CircleDollarSign, delta: "当前待处理" },
       { label: "待发货", value: s.toShip || 0, meta: "履约", tone: "green", icon: Package, delta: "待进入履约" },
       { label: "待自提", value: s.toPickup || 0, meta: "门店", tone: "moss", icon: CalendarDays, delta: "待门店核销" },
@@ -1853,7 +1855,7 @@ async function sendTestNotice() {
       kind: noticeTestForm.kind,
       openid: noticeTestForm.openid,
       payload: {
-        room: "禾熙书茶空间",
+        room: "禾煦书茶空间",
         day: new Date().toISOString().slice(0, 10),
         time: "15:00",
         status: "测试通知",
@@ -2118,8 +2120,12 @@ async function orderAction(action, order) {
     showToast("请填写取消订单原因");
     return;
   }
+  if (action === "confirm" && !(await requireTypedConfirm(`确认接单 ${order.orderNo || order._id}？确认后进入履约，无需顾客在线支付。`, order.orderNo || order._id))) return;
   await withLoading("处理订单", async () => {
     const payload = { orderId: order._id, orderNo: order.orderNo };
+    if (action === "confirm") {
+      await callFunction("manageOperations", { action: "confirmManualOrder", ...payload });
+    }
     if (action === "ship") {
       if (!orderForm.trackingNo.trim()) throw new Error("请填写快递单号");
       await callFunction("manageOperations", {
@@ -2136,6 +2142,7 @@ async function orderAction(action, order) {
     showToast("订单已更新");
     if (action === "cancel") orderForm.cancelReason = "";
     await loadOrders();
+    await refreshSummary();
   });
 }
 
@@ -3070,7 +3077,7 @@ onBeforeUnmount(() => {
       <section v-else class="workspace" :aria-busy="!!state.loading">
         <header class="topbar">
           <div>
-            <span class="section-kicker">禾熙运营中枢</span>
+            <span class="section-kicker">禾煦运营中枢</span>
             <h1>{{ currentTitle[0] }}</h1>
             <p>{{ currentTitle[1] }}</p>
           </div>
@@ -3438,7 +3445,7 @@ onBeforeUnmount(() => {
             <div class="panel-toolbar">
               <select v-model="filters.orderStatus" class="line-input" aria-label="筛选订单状态" @change="resetPageAndLoad('orders', loadOrders)">
                 <option value="">全部状态</option>
-                <option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
+                <option>待确认</option><option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
               <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
@@ -3463,9 +3470,9 @@ onBeforeUnmount(() => {
             <div class="panel-title"><h2>订单详情</h2><span :class="['status-pill', statusTone(selectedOrder.status)]">{{ selectedOrder.status }}</span></div>
             <DetailRow label="订单号" :value="selectedOrder.orderNo || selectedOrder._id" />
             <DetailRow label="金额" :value="`¥${money(selectedOrder.total)}`" />
-            <DetailRow label="支付" :value="selectedOrder.payStatus || '-'" />
-            <DetailRow label="配送" :value="selectedOrder.deliveryMethod === 'shipping' ? '快递' : '到店自提'" />
-            <DetailRow label="客户" :value="maskName(selectedOrder.name || selectedOrder.contactName) || '-'" />
+            <DetailRow label="支付" :value="selectedOrder.payMode === 'manual' ? (selectedOrder.payStatus === 'manual' ? '免支付·待确认' : (selectedOrder.payStatus || '免支付')) : (selectedOrder.payStatus || '-')" />
+            <DetailRow label="履约" :value="selectedOrder.deliveryMethod === 'shipping' ? '快递' : (selectedOrder.deliveryMethod === 'onsite' || selectedOrder.payMode === 'manual' ? '现场点单·扫码付款' : '到店自提')" />
+            <DetailRow label="客户" :value="maskName(selectedOrder.consignee || selectedOrder.name || selectedOrder.contactName) || '-'" />
             <DetailRow label="电话" :value="maskPhone(selectedOrder.phone || selectedOrder.mobile) || '-'" />
             <DetailRow label="地址/备注" :value="selectedOrder.address || selectedOrder.pickupNote || selectedOrder.remark || '-'" />
             <DetailRow label="创建时间" :value="formatDate(selectedOrder.createdAt)" />
@@ -3488,14 +3495,15 @@ onBeforeUnmount(() => {
               <label><span>快递公司</span><input v-model="orderForm.trackingCompany" placeholder="如 顺丰"></label>
               <label><span>快递单号</span><input v-model="orderForm.trackingNo" placeholder="填写后标记发货"></label>
             </div>
-            <label v-if="selectedOrder.status === '待支付'" class="cancel-box">
+            <label v-if="selectedOrder.status === '待支付' || selectedOrder.status === '待确认'" class="cancel-box">
               <span>取消原因</span>
               <input v-model="orderForm.cancelReason" placeholder="必填，审计日志会记录">
             </label>
             <div class="action-row">
+              <button v-if="selectedOrder.status === '待确认' && hasPermission('order.write')" class="primary-action" type="button" @click="orderAction('confirm', selectedOrder)">确认接单</button>
               <button v-if="selectedOrder.status === '待发货' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('ship', selectedOrder)">标记发货</button>
               <button v-if="selectedOrder.status === '待自提' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('pickup', selectedOrder)">完成自提</button>
-              <button v-if="selectedOrder.status === '待支付' && hasPermission('order.write')" class="danger-action" type="button" @click="orderAction('cancel', selectedOrder)">取消订单</button>
+              <button v-if="(selectedOrder.status === '待支付' || selectedOrder.status === '待确认') && hasPermission('order.write')" class="danger-action" type="button" @click="orderAction('cancel', selectedOrder)">取消订单</button>
               <button v-if="hasPermission('afterSale.write')" class="secondary-action" type="button" @click="startAfterSale(selectedOrder)">转售后处理</button>
               <div v-if="!hasPermission('order.write') && !hasPermission('afterSale.write')" class="permission-note">当前角色仅可查看订单。</div>
             </div>
@@ -4217,6 +4225,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="settings-switches">
                 <label class="switch"><input v-model="state.settings.orderNoticeEnabled" type="checkbox"> 订单通知</label>
+                <label class="switch"><input v-model="state.settings.staffOrderNoticeEnabled" type="checkbox"> 店员新订单微信提醒</label>
                 <label class="switch"><input v-model="state.settings.reservationNoticeEnabled" type="checkbox"> 预约通知</label>
                 <label class="switch"><input v-model="state.settings.eventNoticeEnabled" type="checkbox"> 活动通知</label>
               </div>
@@ -4225,11 +4234,15 @@ onBeforeUnmount(() => {
                 <label class="wide"><span>支付成功跳转页</span><input v-model="state.settings.orderPaidPage"></label>
                 <label class="wide"><span>发货通知模板 ID</span><input v-model="state.settings.orderShippedTemplateId"></label>
                 <label class="wide"><span>发货通知跳转页</span><input v-model="state.settings.orderShippedPage"></label>
+                <label class="wide"><span>店员新订单模板 ID</span><input v-model="state.settings.staffOrderTemplateId" placeholder="微信公众平台订阅消息模板 ID"></label>
+                <label class="wide"><span>店员新订单字段映射 JSON</span><input v-model="state.settings.staffOrderTemplateMap" placeholder='{"thing1":"orderNo","amount2":"total","phrase3":"status","time4":"time"}'></label>
+                <label class="wide"><span>店员新订单跳转页</span><input v-model="state.settings.staffOrderPage" placeholder="pages/profile/index"></label>
                 <label class="wide"><span>预约通知模板 ID</span><input v-model="state.settings.reservationTemplateId"></label>
                 <label class="wide"><span>预约通知跳转页</span><input v-model="state.settings.reservationNoticePage"></label>
                 <label class="wide"><span>活动通知模板 ID</span><input v-model="state.settings.eventTemplateId"></label>
                 <label class="wide"><span>活动通知跳转页</span><input v-model="state.settings.eventNoticePage"></label>
               </div>
+              <p class="settings-note">店员微信提醒：需配置云函数环境变量 STAFF_OPENIDS 或 ADMIN_OPENIDS（店员 openid，逗号分隔）；店员在小程序「我的」点「接单提醒」授权后，顾客现场点单会推送订阅消息。</p>
             </div>
             <div class="settings-footer">
               <button v-if="hasPermission('settings.write')" class="primary-action" type="submit">保存设置</button>
