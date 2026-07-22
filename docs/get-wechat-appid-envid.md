@@ -15,7 +15,7 @@
 2. 顶部或侧边栏打开「详情」。
 3. 在「基本信息」中查看 AppID。
 
-注意：`touristappid`、测试号、模板项目 AppID 都不能直接用于禾熙正式云开发。
+注意：`touristappid`、测试号、模板项目 AppID 都不能直接用于禾煦正式云开发。
 
 ## 云开发 envId
 
@@ -32,7 +32,7 @@ prod-xxxxxx
 cloud1-xxxxxx
 ```
 
-## 填入禾熙项目
+## 填入禾煦项目
 
 拿到 AppID 和 envId 后，双击：
 

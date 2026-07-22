@@ -49,7 +49,7 @@ module.exports = {
 Set-Content $CloudConfigPath -Value $CloudConfig -Encoding UTF8
 
 Write-Host ""
-Write-Host "禾熙云开发配置已写入：" -ForegroundColor Green
+Write-Host "禾煦云开发配置已写入：" -ForegroundColor Green
 Write-Host "  AppID: $AppId"
 Write-Host "  envId: $EnvId"
 Write-Host ""
