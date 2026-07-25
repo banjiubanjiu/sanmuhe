@@ -5,7 +5,7 @@
     <view class="nav-placeholder"></view>
   </view>
 
-  <view class="profile-head">
+  <view class="profile-head" bindtap="goMember">
     <view class="avatar-wrap">
       <image class="avatar" src="{{user.avatar}}" mode="aspectFill"></image>
     </view>
@@ -13,42 +13,47 @@
       <view class="user-name">{{user.name}}</view>
       <view class="user-title">{{user.title}}</view>
     </view>
-    <view class="head-extra">
-      <view class="tier-pill">{{member.isMember ? member.tier : '禾煦茶友'}}</view>
+    <view class="tier-pill">
+      <text>{{member.isMember ? member.tier : '禾煦茶友'}}</text>
+      <text class="tier-arrow">›</text>
     </view>
   </view>
 
   <view id="member-card" class="member-card">
+    <image class="member-card-deco" src="/assets/icons/cup-white.png" mode="aspectFit"></image>
     <view class="member-card-inner">
-      <view class="member-card-top">
-        <view class="member-card-title">{{member.isMember ? '禾煦会员卡' : '禾煦会员'}}</view>
-        <view class="member-card-badge">{{member.isMember ? '会员' : '体验卡'}}</view>
-      </view>
-      <view class="member-card-divider"></view>
+      <view class="member-card-title">{{member.isMember ? '禾煦会员卡' : '禾煦会员'}}</view>
       <view class="member-card-name-row">
         <text class="member-card-name">{{member.isMember ? (member.name || user.name) : '茶友'}}</text>
-        <text class="member-card-level">{{member.isMember ? (member.tier || '禾煦会员') : '开通即享积分/储值'}}</text>
+        <view class="member-tier-chip">{{member.isMember ? (member.tier || '禾煦会员') : '待开通'}}</view>
       </view>
+
       <view class="member-card-stats">
         <view class="member-kv">
-          <text>积分</text>
-          <text>{{member.points || 0}}</text>
+          <text class="member-kv-label">积分</text>
+          <text class="member-kv-value">{{member.points || 0}}</text>
         </view>
         <view class="member-kv">
-          <text>储值</text>
-          <text>{{member.isMember ? ('¥' + member.balance) : '—'}}</text>
+          <text class="member-kv-label">储值</text>
+          <text class="member-kv-value">{{member.isMember ? ('¥' + member.balance) : '—'}}</text>
         </view>
         <view class="member-kv">
-          <text>权益</text>
-          <text>{{member.isMember ? '尊享' : '充值有礼'}}</text>
+          <text class="member-kv-label">权益</text>
+          <text class="member-kv-value">{{member.isMember ? '尊享' : '充值有礼'}}</text>
         </view>
       </view>
-      <button wx:if="{{member.isMember}}" class="member-btn recharge-btn" bindtap="startRecharge">
-        充值
-      </button>
-      <button wx:elif="{{!member.isMember}}" class="member-btn" bindtap="showMemberBenefits">
-        立即开通会员
-      </button>
+
+      <view class="recharge-strip" bindtap="onMemberCardAction">
+        <view class="recharge-strip-copy">
+          <view class="recharge-strip-title">{{member.isMember ? '储值享特权' : '开通享特权'}}</view>
+          <view class="recharge-strip-desc">{{member.isMember ? '充值储值，享更多礼遇' : '开通会员，享积分与储值礼遇'}}</view>
+        </view>
+        <view class="recharge-cta">
+          <text class="recharge-cta-icon">¥</text>
+          <text>{{member.isMember ? '立即充值' : '立即开通'}}</text>
+          <text class="recharge-cta-arrow">›</text>
+        </view>
+      </view>
     </view>
   </view>
 

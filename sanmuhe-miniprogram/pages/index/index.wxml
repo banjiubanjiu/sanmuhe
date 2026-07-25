@@ -2,7 +2,7 @@
   <view class="home-nav">
     <image
       class="brand-lockup"
-      src="/assets/images/home-brand-lockup.png"
+      src="/assets/images/home-brand-lockup.jpg"
       mode="widthFix"
       aria-role="img"
       aria-label="禾煦茶印，一杯好茶，日日相伴"

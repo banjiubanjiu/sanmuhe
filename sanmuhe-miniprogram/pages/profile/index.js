@@ -264,18 +264,32 @@ Page(withPrivacy({
     });
   },
 
+  goMember() {
+    wx.navigateTo({ url: "/pages/member/index" });
+  },
+
+  onMemberCardAction() {
+    if (this.data.member && this.data.member.isMember) {
+      this.startRecharge();
+      return;
+    }
+    this.showMemberBenefits();
+  },
+
   showMemberBenefits() {
-    wx.showToast({
-      title: "会员权益功能已整合到当前页面",
-      icon: "none",
-      duration: 1500
-    });
+    wx.navigateTo({ url: "/pages/member/index" });
   },
 
   startRecharge() {
+    // 跳转会员中心完成档位选择与充值，避免简陋弹层
+    wx.navigateTo({ url: "/pages/member/index?focus=recharge" });
+  },
+
+  // 保留直充能力供调试；正式入口走会员中心
+  startRechargeDirect() {
     const plans = [
-      { name: "充 500 送 100（到账 ¥600）", planId: "plan_500" },
-      { name: "充 1000 送 250（到账 ¥1250）", planId: "plan_1000" }
+      { name: "充 500 送 100（到账 ¥600）", planId: "recharge-500" },
+      { name: "充 1000 送 250（到账 ¥1250）", planId: "recharge-1000" }
     ];
     wx.showActionSheet({
       itemList: plans.map((p) => p.name),
@@ -294,7 +308,7 @@ Page(withPrivacy({
               this.loadRecords();
             }).catch((err) => {
               wx.hideLoading();
-              wx.showToast({ title: err?.message || "充值未完成", icon: "none" });
+              wx.showToast({ title: (err && err.message) || "充值未完成", icon: "none" });
             });
           }
         });
