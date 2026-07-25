@@ -6,7 +6,7 @@ const { withPrivacy } = require("../../utils/privacy");
 const defaultUser = {
   name: "禾煦茶友",
   title: "愿你在此，得一盏清欢",
-  avatar: "/assets/images/profile-avatar.jpg"
+  avatar: require("../../config/assets").localImage("assets/images/profile-avatar.jpg")
 };
 
 const defaultMember = {
@@ -265,7 +265,7 @@ Page(withPrivacy({
   },
 
   goMember() {
-    wx.navigateTo({ url: "/pages/member/index" });
+    wx.showToast({ title: "会员功能已整合到当前页面", icon: "none" });
   },
 
   onMemberCardAction() {
@@ -273,20 +273,14 @@ Page(withPrivacy({
       this.startRecharge();
       return;
     }
-    this.showMemberBenefits();
+    wx.showToast({ title: "请先开通会员后再充值", icon: "none" });
   },
 
   showMemberBenefits() {
-    wx.navigateTo({ url: "/pages/member/index" });
+    wx.showToast({ title: "会员功能已整合到当前页面", icon: "none" });
   },
 
   startRecharge() {
-    // 跳转会员中心完成档位选择与充值，避免简陋弹层
-    wx.navigateTo({ url: "/pages/member/index?focus=recharge" });
-  },
-
-  // 保留直充能力供调试；正式入口走会员中心
-  startRechargeDirect() {
     const plans = [
       { name: "充 500 送 100（到账 ¥600）", planId: "recharge-500" },
       { name: "充 1000 送 250（到账 ¥1250）", planId: "recharge-1000" }

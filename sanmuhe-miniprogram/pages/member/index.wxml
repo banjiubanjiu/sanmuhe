@@ -66,7 +66,7 @@
     <view class="activation-note">点击开通后，请按提示同意隐私指引并允许使用手机号。手机号仅用于会员账户识别。</view>
   </view>
 
-  <view wx:if="{{member.isMember}}" class="wallet-card" id="wallet-card">
+  <view wx:if="{{member.isMember}}" class="wallet-card">
     <view class="wallet-head">
       <view>
         <view class="wallet-label">会员储值余额</view>
