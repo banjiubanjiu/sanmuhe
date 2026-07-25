@@ -39,7 +39,16 @@
 }
 
 .detail-copy {
+  min-width: 0;
+  max-width: 100%;
   padding: 0 18rpx;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.detail-copy .section {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .title-row {
@@ -131,27 +140,38 @@
   letter-spacing: 0.02em;
 }
 
+/* 规格区整体锁宽，避免横向 scroll 把页面撑出屏幕 */
+.spec-section {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 /* 短规格：贴近设计稿的 4 列 pill */
 .spec-row-pill {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16rpx;
+  gap: 12rpx;
   margin-top: 22rpx;
+  min-width: 0;
 }
 
 .spec-pill {
-  min-height: 72rpx;
+  min-width: 0;
+  min-height: 68rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 8rpx;
+  padding: 8rpx 6rpx;
   color: #333;
   border: 1rpx solid #e5e5e5;
   border-radius: 10rpx;
   background: #fff;
-  font-size: 28rpx;
+  font-size: 24rpx;
   line-height: 1.2;
   text-align: center;
+  overflow: hidden;
+  word-break: break-all;
 }
 
 .spec-pill.active {
@@ -161,36 +181,44 @@
   font-weight: 600;
 }
 
-/* 长规格：横向滑动 chip */
+/* 长规格：横向滑动 chip（只在 scroll-view 内滚动，不撑破页面） */
 .spec-scroll {
   width: 100%;
+  max-width: 100%;
   margin-top: 22rpx;
-  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .spec-chip-row {
-  display: inline-flex;
-  gap: 14rpx;
-  padding: 2rpx 2rpx 8rpx;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 12rpx;
+  width: max-content;
+  max-width: none;
+  padding: 2rpx 4rpx 10rpx 0;
+  box-sizing: border-box;
 }
 
 .spec-chip {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 72rpx;
-  max-width: 320rpx;
-  padding: 14rpx 24rpx;
+  min-height: 64rpx;
+  max-width: 260rpx;
+  padding: 12rpx 20rpx;
   color: #333;
   border: 1rpx solid #e5e5e5;
   border-radius: 999rpx;
   background: #fff;
   box-sizing: border-box;
-  font-size: 26rpx;
+  font-size: 24rpx;
   font-weight: 500;
   line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: top;
 }
 
 .spec-chip.active {
@@ -204,19 +232,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20rpx;
+  min-width: 0;
+}
+
+.single-spec .h2 {
+  flex-shrink: 0;
 }
 
 .single-spec-pill {
-  min-width: 148rpx;
+  min-width: 0;
+  max-width: 62%;
   min-height: 64rpx;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 18rpx;
   color: #4f7d43;
   border: 1rpx solid #4f7d43;
   border-radius: 10rpx;
   background: #f5faf3;
-  font-size: 28rpx;
+  font-size: 24rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
 }
 

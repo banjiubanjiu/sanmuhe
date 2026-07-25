@@ -34,7 +34,7 @@
     <view class="assurance-line">正品好茶 · 门店自提 · 快递到家</view>
 
     <!-- 短标签：设计稿式 4 列 pill，仅名称 -->
-    <view wx:if="{{product.hasMultiSpecs && product.specLayout === 'pill'}}" class="section">
+    <view wx:if="{{product.hasMultiSpecs && product.specLayout === 'pill'}}" class="section spec-section">
       <view class="h2">选择规格</view>
       <view class="spec-row spec-row-pill">
         <view
@@ -48,9 +48,9 @@
     </view>
 
     <!-- 长标签：横向滑动，仅规格名；价格与克数只在上方主价行 -->
-    <view wx:if="{{product.hasMultiSpecs && product.specLayout === 'chip'}}" class="section">
+    <view wx:if="{{product.hasMultiSpecs && product.specLayout === 'chip'}}" class="section spec-section">
       <view class="h2">选择规格</view>
-      <scroll-view class="spec-scroll" scroll-x show-scrollbar="{{false}}">
+      <scroll-view class="spec-scroll" scroll-x enable-flex show-scrollbar="{{false}}">
         <view class="spec-chip-row">
           <view
             wx:for="{{product.specs}}"
@@ -97,7 +97,7 @@
       ></button>
     </view>
     <view class="mini-action fav-action {{favored ? 'active' : ''}}" bindtap="toggleFavorite">
-      <image class="mini-action-icon" src="/assets/icons/heart-ink.png" mode="aspectFit"></image>
+      <image class="mini-action-icon" src="/assets/icons/{{favored ? 'heart-active' : 'heart-ink'}}.png" mode="aspectFit"></image>
       <text>{{favored ? '已收藏' : '收藏'}}</text>
     </view>
     <button class="cart-action" bindtap="addProduct">加入购物车</button>
