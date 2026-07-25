@@ -126,6 +126,12 @@ Page(withPrivacy({
     privacyReady: false
   },
 
+  onLoad(options) {
+    if (options && options.focus === "recharge") {
+      this._focusRecharge = true;
+    }
+  },
+
   onShow() {
     this.syncMemberTabBar();
     this.loadMemberCenter();
@@ -206,6 +212,12 @@ Page(withPrivacy({
       });
       this.refreshActivationState();
       this.syncPrivacyState();
+      if (this._focusRecharge) {
+        this._focusRecharge = false;
+        setTimeout(() => {
+          wx.pageScrollTo({ selector: "#wallet-card", duration: 300 });
+        }, 400);
+      }
     }).finally(() => {
       this.setData({ loadingMember: false });
     });
