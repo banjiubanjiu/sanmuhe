@@ -2,6 +2,17 @@ const { getMyOrder, payOrder, updateMyOrder } = require("../../utils/cloudApi");
 const { addToCart } = require("../../utils/cart");
 const { normalizeOrder } = require("../../utils/orderCenter");
 
+function buildContactMeta(orderId, order) {
+  const id = orderId || (order && (order._id || order.id)) || "";
+  const orderNo = order && order.orderNo ? String(order.orderNo) : "";
+  return {
+    contactSessionFrom: id ? `order:${id}` : "order-detail",
+    contactMessageTitle: orderNo ? `订单 ${orderNo}`.slice(0, 20) : "订单咨询",
+    contactMessagePath: id ? `pages/order-detail/index?id=${encodeURIComponent(id)}` : "pages/orders/index",
+    contactMessageImg: "/assets/images/contact-qr.jpg"
+  };
+}
+
 Page({
   data: {
     orderId: "",
@@ -10,12 +21,16 @@ Page({
     error: "",
     submitting: false,
     afterSaleOpen: false,
-    afterSaleReason: ""
+    afterSaleReason: "",
+    contactSessionFrom: "order-detail",
+    contactMessageTitle: "订单咨询",
+    contactMessagePath: "pages/orders/index",
+    contactMessageImg: "/assets/images/contact-qr.jpg"
   },
 
   onLoad(options = {}) {
     const orderId = decodeURIComponent(options.id || "");
-    this.setData({ orderId });
+    this.setData(Object.assign({ orderId }, buildContactMeta(orderId)));
     this.loadOrder();
   },
 
@@ -44,11 +59,12 @@ Page({
       this.setData({ loading: true, error: "" });
     }
     return getMyOrder(this.data.orderId).then((result) => {
-      this.setData({
-        order: normalizeOrder(result.order),
+      const order = normalizeOrder(result.order);
+      this.setData(Object.assign({
+        order,
         loading: false,
         error: ""
-      });
+      }, buildContactMeta(this.data.orderId, order)));
     }).catch((error) => {
       this.setData({
         loading: false,
@@ -167,8 +183,18 @@ Page({
     }
   },
 
-  contactService() {
-    wx.navigateTo({ url: "/pages/contact/index" });
+  handleContact(event) {
+    const detail = (event && event.detail) || {};
+    if (!detail.path) {
+      return;
+    }
+    const path = detail.path.startsWith("/") ? detail.path : `/${detail.path}`;
+    const query = detail.query || {};
+    const qs = Object.keys(query)
+      .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(String(query[key]))}`)
+      .join("&");
+    const url = qs ? `${path}${path.indexOf("?") >= 0 ? "&" : "?"}${qs}` : path;
+    wx.navigateTo({ url, fail: () => {} });
   },
 
   buyAgain() {

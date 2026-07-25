@@ -4,9 +4,20 @@
   </view>
 
   <view class="detail-safe-bar">
-    <view class="bar-action" bindtap="contactService">
+    <view class="bar-action">
       <image class="bar-action-icon" src="/assets/icons/service-line.png" mode="aspectFit"></image>
       <text>咨询</text>
+      <button
+        class="contact-hotspot"
+        open-type="contact"
+        session-from="{{contactSessionFrom}}"
+        show-message-card="{{true}}"
+        send-message-title="{{contactMessageTitle}}"
+        send-message-path="{{contactMessagePath}}"
+        send-message-img="{{contactMessageImg}}"
+        hover-class="none"
+        bindcontact="handleContact"
+      ></button>
     </view>
     <button class="bar-action share-button" open-type="share">
       <image class="bar-action-icon" src="/assets/icons/share-line.png" mode="aspectFit"></image>

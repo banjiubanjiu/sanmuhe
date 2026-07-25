@@ -429,12 +429,19 @@
   display: flex;
   align-items: center;
   gap: 10rpx;
+  margin: 0;
   padding: 0 24rpx;
   color: #536057;
   border: 1rpx solid #ddd5ca;
   border-radius: 999rpx;
   background: rgba(255, 253, 248, 0.78);
   font-size: 23rpx;
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+.secondary-actions button::after {
+  border: none;
 }
 
 .secondary-actions image {
@@ -460,8 +467,18 @@
 .detail-action-bar button {
   min-width: 178rpx;
   height: 78rpx;
+  margin: 0;
   padding: 0 24rpx;
   border-radius: 999rpx;
+  line-height: 78rpx;
+}
+
+.detail-action-bar button::after {
+  border: none;
+}
+
+.detail-action-bar .primary-action {
+  min-width: 178rpx;
   font-size: 25rpx;
   font-weight: 600;
 }

@@ -65,6 +65,18 @@ function findSpec(specs, label) {
   return (specs || []).find((item) => item.label === label) || (specs && specs[0]) || null;
 }
 
+function buildContactMeta(product) {
+  const id = product && product.id ? String(product.id) : "";
+  const name = product && product.name ? String(product.name) : "茶品";
+  const img = (product && (product.thumb || product.image)) || "/assets/images/contact-qr.jpg";
+  return {
+    contactSessionFrom: id ? `product:${id}` : "product-detail",
+    contactMessageTitle: name.slice(0, 20),
+    contactMessagePath: id ? `pages/product/index?id=${encodeURIComponent(id)}` : "pages/product/index",
+    contactMessageImg: img
+  };
+}
+
 Page({
   data: {
     product: null,
@@ -72,32 +84,36 @@ Page({
     selectedSpecDisplay: "",
     quantity: 1,
     displayPrice: 0,
-    favored: false
+    favored: false,
+    contactSessionFrom: "product-detail",
+    contactMessageTitle: "茶品咨询",
+    contactMessagePath: "pages/product/index",
+    contactMessageImg: "/assets/images/contact-qr.jpg"
   },
 
   onLoad(options) {
     const product = normalizeProduct(teaProducts.find((item) => item.id === options.id) || teaProducts[0]);
     const selected = product.specs[0];
-    this.setData({
+    this.setData(Object.assign({
       product,
       selectedSpec: selected.label,
       selectedSpecDisplay: selected.display,
       displayPrice: selected.price,
       favored: isFavorite(product.id)
-    });
+    }, buildContactMeta(product)));
     getCatalog().then((catalog) => {
       const products = catalog.fromCloud ? (catalog.teaProducts || []) : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts);
       const nextProduct = products.find((item) => item.id === options.id);
       if (nextProduct) {
         const normalized = normalizeProduct(nextProduct);
         const selectedSpec = findSpec(normalized.specs, this.data.selectedSpec) || normalized.specs[0];
-        this.setData({
+        this.setData(Object.assign({
           product: normalized,
           selectedSpec: selectedSpec.label,
           selectedSpecDisplay: selectedSpec.display,
           displayPrice: selectedSpec.price,
           favored: isFavorite(normalized.id)
-        });
+        }, buildContactMeta(normalized)));
       } else if (catalog.fromCloud) {
         this.setData({ product: null });
       }
@@ -145,8 +161,18 @@ Page({
     wx.navigateTo({ url: "/pages/cart/index" });
   },
 
-  contactService() {
-    wx.navigateTo({ url: "/pages/contact/index" });
+  handleContact(event) {
+    const detail = (event && event.detail) || {};
+    if (!detail.path) {
+      return;
+    }
+    const path = detail.path.startsWith("/") ? detail.path : `/${detail.path}`;
+    const query = detail.query || {};
+    const qs = Object.keys(query)
+      .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(String(query[key]))}`)
+      .join("&");
+    const url = qs ? `${path}${path.indexOf("?") >= 0 ? "&" : "?"}${qs}` : path;
+    wx.navigateTo({ url, fail: () => {} });
   },
 
   toggleFavorite() {

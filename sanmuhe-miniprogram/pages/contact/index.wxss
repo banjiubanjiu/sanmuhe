@@ -139,6 +139,22 @@ page {
   margin-top: 28rpx;
 }
 
+/* 原生 button 承载 open-type="contact"，清掉默认样式以免撑破卡片 */
+.contact-service-btn {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  line-height: inherit;
+  font-weight: inherit;
+  text-align: left;
+  overflow: hidden;
+}
+
+.contact-service-btn::after {
+  border: none;
+}
+
 .icon-wrap {
   width: 84rpx;
   height: 84rpx;
@@ -328,14 +344,28 @@ page {
   white-space: nowrap;
 }
 
-.qr-image {
-  width: 96rpx;
-  height: 96rpx;
-  flex: 0 0 96rpx;
-  border: 2rpx solid #e5dfd4;
-  border-radius: 14rpx;
-  background: #fff;
+.qr-box {
+  width: 76rpx;
+  height: 76rpx;
+  flex: 0 0 76rpx;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 4rpx;
+  padding: 10rpx;
+  border: 1rpx solid #e5dfd4;
+  border-radius: 16rpx;
+  background: rgba(249, 250, 244, 0.88);
   box-sizing: border-box;
+}
+
+.qr-cell {
+  border-radius: 2rpx;
+  background: rgba(72, 104, 60, 0.14);
+}
+
+.qr-cell.is-filled {
+  background: rgba(72, 104, 60, 0.46);
 }
 
 .card-chevron {
@@ -421,6 +451,14 @@ page {
   font-size: 22rpx;
   font-weight: 600;
   box-sizing: border-box;
+}
+
+.info-label {
+  color: rgba(42, 37, 32, 0.7);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 23rpx;
+  line-height: 1.35;
+  margin-bottom: 6rpx;
 }
 
 .info-text,

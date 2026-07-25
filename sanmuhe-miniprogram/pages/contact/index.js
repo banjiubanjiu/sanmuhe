@@ -3,17 +3,43 @@ const { getCatalog } = require("../../utils/cloudApi");
 
 const fallbackContact = {
   phone: "13392268386",
-  serviceTime: "10:00 - 21:00",
-  store: "禾煦・佛山",
-  address: "广东省佛山市",
+  serviceTime: "周一～周日 9:00～21:30",
+  store: "禾煦茶书房",
+  address: "佛山市禅城区石湾镇街道怡翠宏璟P9铺禾煦茶书房",
   wechat: "zizi66",
   heroImage: "/assets/images/reservation-hero.jpg",
   qrCode: "/assets/images/contact-qr.jpg"
 };
 
+function buildQueryString(query = {}) {
+  return Object.keys(query)
+    .filter((key) => query[key] !== undefined && query[key] !== null && query[key] !== "")
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(String(query[key]))}`)
+    .join("&");
+}
+
+function navigateFromContactCard(path, query) {
+  if (!path) {
+    return;
+  }
+  const qs = buildQueryString(query || {});
+  const url = path.startsWith("/") ? path : `/${path}`;
+  const full = qs ? `${url}${url.indexOf("?") >= 0 ? "&" : "?"}${qs}` : url;
+  wx.navigateTo({
+    url: full,
+    fail: () => {
+      wx.switchTab({ url: full.split("?")[0], fail: () => {} });
+    }
+  });
+}
+
 Page({
   data: {
     contact: fallbackContact,
+    sessionFrom: "contact-page",
+    sendMessageTitle: "禾煦茶书房 · 在线客服",
+    sendMessagePath: "pages/contact/index",
+    sendMessageImg: "/assets/images/contact-qr.jpg",
     qrCells: [
       1, 1, 1, 0, 1,
       1, 0, 0, 1, 0,
@@ -23,38 +49,62 @@ Page({
     ]
   },
 
-  onLoad() {
+  onLoad(options = {}) {
+    const from = String(options.from || "").trim();
+    const productId = String(options.productId || "").trim();
+    const orderId = String(options.orderId || "").trim();
+    const eventId = String(options.eventId || "").trim();
+
+    let sessionFrom = "contact-page";
+    let sendMessageTitle = "禾煦茶书房 · 在线客服";
+    let sendMessagePath = "pages/contact/index";
+
+    if (orderId) {
+      sessionFrom = `order:${orderId}`;
+      sendMessageTitle = "订单咨询";
+      sendMessagePath = `pages/order-detail/index?id=${encodeURIComponent(orderId)}`;
+    } else if (productId) {
+      sessionFrom = `product:${productId}`;
+      sendMessageTitle = "茶品咨询";
+      sendMessagePath = `pages/product/index?id=${encodeURIComponent(productId)}`;
+    } else if (eventId) {
+      sessionFrom = `event:${eventId}`;
+      sendMessageTitle = "活动咨询";
+      sendMessagePath = `pages/event-detail/index?id=${encodeURIComponent(eventId)}`;
+    } else if (from) {
+      sessionFrom = from.slice(0, 100);
+    }
+
     const globalData = app.globalData || {};
     this.setData({
+      sessionFrom,
+      sendMessageTitle,
+      sendMessagePath,
       contact: Object.assign({}, fallbackContact, {
-        phone: globalData.servicePhone || fallbackContact.phone,
         address: globalData.storeAddress || fallbackContact.address
       })
     });
+
     getCatalog().then((catalog) => {
       const settings = catalog.settings || {};
-      this.setData({
-        contact: Object.assign({}, this.data.contact, {
-          phone: settings.phone || this.data.contact.phone,
-          serviceTime: settings.businessHours || this.data.contact.serviceTime,
-          store: settings.storeName || this.data.contact.store,
-          address: settings.address || this.data.contact.address
-        })
-      });
+      if (settings.storeName || settings.address || settings.businessHours || settings.phone) {
+        this.setData({
+          contact: Object.assign({}, this.data.contact, {
+            store: settings.storeName || this.data.contact.store,
+            address: settings.address || this.data.contact.address,
+            serviceTime: settings.businessHours || this.data.contact.serviceTime,
+            phone: settings.phone || this.data.contact.phone
+          })
+        });
+      }
     });
   },
 
-  openOnlineService() {
-    wx.showModal({
-      title: "在线客服",
-      content: "当前可通过电话或微信联系门店，微信号 zizi66 已为你准备好。",
-      confirmText: "复制微信",
-      success: (res) => {
-        if (res.confirm) {
-          this.copyWechat();
-        }
-      }
-    });
+  handleContact(event) {
+    const detail = (event && event.detail) || {};
+    if (detail.path) {
+      navigateFromContactCard(detail.path, detail.query);
+    }
   },
 
   callPhone() {
@@ -68,6 +118,13 @@ Page({
           showCancel: false
         });
       }
+    });
+  },
+
+  showQrCode() {
+    wx.previewImage({
+      urls: [this.data.contact.qrCode],
+      current: this.data.contact.qrCode
     });
   },
 

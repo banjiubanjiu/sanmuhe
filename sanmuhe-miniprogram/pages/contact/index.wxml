@@ -12,13 +12,24 @@
         <view class="leaf-line leaf-left"></view>
         <view class="leaf-line leaf-right"></view>
       </view>
-      <view class="hero-title">禾煦・佛山</view>
+      <view class="hero-title">禾煦茶书房</view>
       <view class="hero-subtitle">茶生活服务</view>
       <view class="hero-rule"></view>
     </view>
   </view>
 
-  <view class="contact-card online-card" bindtap="openOnlineService">
+  <!-- 微信官方客服会话：需公众平台已绑定客服人员 -->
+  <button
+    class="contact-card online-card contact-service-btn"
+    open-type="contact"
+    session-from="{{sessionFrom}}"
+    show-message-card="{{true}}"
+    send-message-title="{{sendMessageTitle}}"
+    send-message-path="{{sendMessagePath}}"
+    send-message-img="{{sendMessageImg}}"
+    hover-class="none"
+    bindcontact="handleContact"
+  >
     <view class="icon-wrap">
       <view class="chat-icon">
         <view class="chat-dot"></view>
@@ -31,7 +42,7 @@
       <view class="card-subtitle">订单 / 茶品 / 茶室 / 活动咨询</view>
     </view>
     <view class="consult-pill">立即咨询 <text>›</text></view>
-  </view>
+  </button>
 
   <view class="contact-card" bindtap="callPhone">
     <view class="icon-wrap">
@@ -44,7 +55,7 @@
     <view class="card-action phone-number">{{contact.phone}} <text>›</text></view>
   </view>
 
-  <view class="contact-card" bindtap="copyWechat">
+  <view class="contact-card" bindtap="showQrCode">
     <view class="icon-wrap">
       <view class="wechat-icon">
         <view class="wechat-bubble big"></view>
@@ -55,7 +66,13 @@
       <view class="card-title">添加微信</view>
       <view class="card-subtitle">预约茶室 / 活动咨询 / 私人茶会</view>
     </view>
-    <image class="qr-image" src="{{contact.qrCode}}" mode="aspectFill" aria-label="微信二维码"></image>
+    <view class="qr-box" aria-label="微信二维码">
+      <view
+        wx:for="{{qrCells}}"
+        wx:key="index"
+        class="qr-cell {{item ? 'is-filled' : ''}}"
+      ></view>
+    </view>
     <view class="card-chevron">›</view>
   </view>
 
@@ -63,13 +80,16 @@
     <view class="info-content">
       <view class="info-line">
         <view class="info-icon clock-icon"></view>
-        <view class="info-text">服务时间&nbsp; {{contact.serviceTime}}</view>
+        <view>
+          <view class="info-text strong">服务时间</view>
+          <view class="info-text">{{contact.serviceTime}}</view>
+        </view>
       </view>
       <view class="info-line address-line">
         <image class="info-img" src="/assets/icons/map-pin-line.png" mode="aspectFit"></image>
         <view>
-          <view class="info-text strong">{{contact.store}}</view>
-          <view class="info-muted">{{contact.address}}</view>
+          <view class="info-text strong">服务地址</view>
+          <view class="info-text">{{contact.address}}</view>
         </view>
       </view>
       <view class="info-line note-line">
@@ -87,6 +107,4 @@
       <view class="bamboo-leaf leaf-e"></view>
     </view>
   </view>
-
-
 </view>

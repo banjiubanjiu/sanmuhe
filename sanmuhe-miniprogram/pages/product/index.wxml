@@ -63,9 +63,20 @@
   </view>
 
   <view class="safe-bar">
-    <view class="mini-action service-action" bindtap="contactService">
+    <view class="mini-action service-action">
       <image class="mini-action-icon" src="/assets/icons/headset-ink.png" mode="aspectFit"></image>
       <text>客服</text>
+      <button
+        class="contact-hotspot"
+        open-type="contact"
+        session-from="{{contactSessionFrom}}"
+        show-message-card="{{true}}"
+        send-message-title="{{contactMessageTitle}}"
+        send-message-path="{{contactMessagePath}}"
+        send-message-img="{{contactMessageImg}}"
+        hover-class="none"
+        bindcontact="handleContact"
+      ></button>
     </view>
     <view class="mini-action fav-action {{favored ? 'active' : ''}}" bindtap="toggleFavorite">
       <image class="mini-action-icon" src="/assets/icons/heart-ink.png" mode="aspectFit"></image>

@@ -26,21 +26,37 @@ function findEvent(id, source) {
   return target ? normalizeEvent(target, list.indexOf(target)) : null;
 }
 
+function buildContactMeta(event) {
+  const id = event && event.id ? String(event.id) : "";
+  const title = event && (event.title || event.name) ? String(event.title || event.name) : "活动咨询";
+  const img = (event && (event.detailImage || event.image)) || "/assets/images/contact-qr.jpg";
+  return {
+    contactSessionFrom: id ? `event:${id}` : "event-detail",
+    contactMessageTitle: title.slice(0, 20),
+    contactMessagePath: id ? `pages/event-detail/index?id=${encodeURIComponent(id)}` : "pages/event-detail/index",
+    contactMessageImg: img
+  };
+}
+
 Page({
   data: {
-    event: null
+    event: null,
+    contactSessionFrom: "event-detail",
+    contactMessageTitle: "活动咨询",
+    contactMessagePath: "pages/event-detail/index",
+    contactMessageImg: "/assets/images/contact-qr.jpg"
   },
 
   onLoad(options) {
     const eventId = options && options.id;
     this.eventId = eventId;
     const fallback = findEvent(eventId, localEvents);
-    this.setData({ event: fallback });
+    this.setData(Object.assign({ event: fallback }, buildContactMeta(fallback)));
 
     listEvents().then((remoteEvents) => {
       const event = findEvent(eventId, remoteEvents && remoteEvents.length ? remoteEvents : localEvents);
       if (event) {
-        this.setData({ event });
+        this.setData(Object.assign({ event }, buildContactMeta(event)));
       }
     });
   },
@@ -74,7 +90,17 @@ Page({
     });
   },
 
-  contactService() {
-    wx.navigateTo({ url: "/pages/contact/index" });
+  handleContact(event) {
+    const detail = (event && event.detail) || {};
+    if (!detail.path) {
+      return;
+    }
+    const path = detail.path.startsWith("/") ? detail.path : `/${detail.path}`;
+    const query = detail.query || {};
+    const qs = Object.keys(query)
+      .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(String(query[key]))}`)
+      .join("&");
+    const url = qs ? `${path}${path.indexOf("?") >= 0 ? "&" : "?"}${qs}` : path;
+    wx.navigateTo({ url, fail: () => {} });
   }
 });
