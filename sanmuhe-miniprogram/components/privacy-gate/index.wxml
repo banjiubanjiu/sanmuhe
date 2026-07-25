@@ -1,11 +1,17 @@
-<view wx:if="{{show}}" class="privacy-mask" catchtouchmove="noop">
+<view wx:if="{{show}}" class="privacy-mask" catchtouchmove="noop" catchtap="noop">
   <view class="privacy-card" catchtap="noop">
     <view class="privacy-title">隐私保护提示</view>
     <view class="privacy-copy">{{purpose}}</view>
     <view class="privacy-link" bindtap="openContract">查看《{{contractName}}》</view>
     <view class="privacy-actions">
-      <button class="privacy-cancel" bindtap="cancel">暂不</button>
-      <button class="privacy-primary" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="agree">同意并继续</button>
+      <button class="privacy-cancel" hover-class="none" bindtap="cancel">暂不</button>
+      <button
+        id="privacy-agree-btn"
+        class="privacy-primary"
+        hover-class="none"
+        open-type="agreePrivacyAuthorization"
+        bindagreeprivacyauthorization="agree"
+      >同意并继续</button>
     </view>
   </view>
 </view>

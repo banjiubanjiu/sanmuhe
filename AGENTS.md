@@ -14,6 +14,14 @@
 - Mini program workflow: Lucide SVG → recolor stroke → PNG into `sanmuhe-miniprogram/assets/icons/` → reference `/assets/icons/...`. Keep UI icons in the package; business photos stay on CloudBase.
 - Full steps, naming, and design rules: `sanmuhe-miniprogram/AGENTS.md` → section **Icons (Use An Icon Library First)**.
 
+## Customer-Facing Copy
+
+- Never turn product logic, implementation notes, test state, or architecture explanations into customer-facing copy. Internal facts should shape behavior, not be narrated to users.
+- Do not expose phrases such as “普通点单无需登录/开通会员”, “云端提交”, “后台未配置”, “自动识别”, “白名单”, “功能联调”, missing environment variables, payment configuration, or release-state explanations in production UI.
+- When a feature is unavailable, hide or disable the unavailable action when practical; otherwise use customer language such as “暂未开放” or “敬请期待”. Never explain backend configuration to the customer.
+- UI copy should communicate the user’s benefit, current state, and next action in the 禾煦 brand voice. Keep technical diagnostics in logs, admin tools, health pages, and developer documentation.
+- Detailed review rules and examples: `sanmuhe-miniprogram/AGENTS.md` → **Separate Product Logic From User Copy**.
+
 ## DevTools compile
 
 - After mini program UI/code changes, **compile/refresh via `wechat-devtools-cli` yourself** (`cache --clean compile` + `open --project`). Do not habitually ask the user to recompile. Details: `sanmuhe-miniprogram/AGENTS.md` → **Compile yourself**.

@@ -5,6 +5,8 @@
     "pages/shop/index",
     "pages/product/index",
     "pages/cart/index",
+    "pages/orders/index",
+    "pages/order-detail/index",
     "pages/reservation/index",
     "pages/events/index",
     "pages/event-detail/index",

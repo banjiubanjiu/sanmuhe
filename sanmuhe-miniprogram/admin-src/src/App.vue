@@ -17,6 +17,7 @@ import {
   Megaphone,
   Package,
   PenLine,
+  Play,
   Plus,
   RefreshCw,
   Search,
@@ -27,17 +28,21 @@ import {
   Upload,
   UserPlus,
   UserRound,
-  Users
+  Users,
+  Volume2,
+  VolumeX
 } from "@lucide/vue";
 
 const CONFIG = {
-  envId: "sanmuhe-env-d3g1nt3jsa1be67e3",
+  // 新小程序云环境（wx47e7cc7143682291）
+  envId: "cloudbase-d2gq023qn50e9d82f",
   region: "ap-shanghai",
-  accessKey: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkMWRjMzFlLWI0ZDAtNDQ4Yi1hNzZmLWIwY2M2M2Q4MTQ5OCJ9.eyJpc3MiOiJodHRwczovL3Nhbm11aGUtZW52LWQzZzFudDNqc2ExYmU2N2UzLmFwLXNoYW5naGFpLnRjYi1hcGkudGVuY2VudGNsb3VkYXBpLmNvbSIsInN1YiI6ImFub24iLCJhdWQiOiJzYW5tdWhlLWVudi1kM2cxbnQzanNhMWJlNjdlMyIsImV4cCI6NDA4MjUxODk5NiwiaWF0IjoxNzc4ODM1Nzk2LCJub25jZSI6Im8xbE9LR053VGs2U2I4WGgyTUpfbmciLCJhdF9oYXNoIjoibzFsT0tHTndUazZTYjhYaDJNSl9uZyIsIm5hbWUiOiJBbm9ueW1vdXMiLCJzY29wZSI6ImFub255bW91cyIsInByb2plY3RfaWQiOiJzYW5tdWhlLWVudi1kM2cxbnQzanNhMWJlNjdlMyIsIm1ldGEiOnsicGxhdGZvcm0iOiJQdWJsaXNoYWJsZUtleSJ9LCJ1c2VyX3R5cGUiOiIiLCJjbGllbnRfdHlwZSI6ImNsaWVudF91c2VyIiwiaXNfc3lzdGVtX2FkbWluIjpmYWxzZX0.OEuP69P5I_7iZiARFAcqBTO3jbhUwe2uruyIIlqLQPyqkikfnbuNS2AtPjy1zZqU0IFKU_QZH3HAG_oOvTPwH8n1WNWRcLNsetLvPM0pgCYvt5FcbaC6w8-zMxqSr2bCm1C0qLzz1Hu69LwD4YV86yhUUgsHiYsrrtIiRfdhX22sZgV6z57dlhidaCIFQCsr8bNdvEe_5tWPkDYqfernkqYHSZNfds2ILxAR-DYgt7j22zh2LUxzxLagIZ4SwTiea_UmNe7eUDdtjci-lqdLMDev7jbeVxndLnKq6cfBQvZANgjcI_57NxtQmDvSB7jVGuITgBCpPXBLGvNbjcUd9A"
+  // 在云开发控制台 → 环境 → 登录授权 / 可发布密钥 中创建新环境的 Publishable Key 后粘贴到这里
+  accessKey: ""
 };
 
 const PACKAGE_INFO = {
-  appid: "wxaf9aedf1f6343786",
+  appid: "wx47e7cc7143682291",
   sourceSizeLimit: "2MB",
   ignored: ["admin", "admin-src", "node_modules", "package-lock.json", "package.json", "vite.config.mjs"],
   requiredFunctions: [
@@ -62,6 +67,8 @@ const PACKAGE_INFO = {
 
 const SAVED_VIEWS_KEY = "hexi-admin-saved-views-v1";
 const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "reservations", "signups", "customers", "content", "audit", "notifications"]);
+const ORDER_ALERT_POLL_MS = 5000;
+const ORDER_ALERT_SEEN_LIMIT = 200;
 
 let cloudApp = null;
 let cloudAuth = null;
@@ -432,9 +439,36 @@ const actionDialog = reactive({
   danger: false,
   error: ""
 });
+const orderBroadcast = reactive({
+  enabled: false,
+  starting: false,
+  polling: false,
+  visible: typeof document === "undefined" ? true : !document.hidden,
+  wakeLockSupported: typeof navigator !== "undefined" && "wakeLock" in navigator,
+  wakeLockActive: false,
+  wakeMessage: "",
+  speechSupported: typeof window !== "undefined" && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window,
+  lastCheckedAt: "",
+  lastAlertAt: "",
+  lastOrderNo: "",
+  error: "",
+  audioMessage: "",
+  queueCount: 0
+});
 let toastTimer = null;
 let actionDialogResolve = null;
 let cleanupRuntimeGuards = null;
+let cleanupOrderBroadcastRuntime = null;
+let orderBroadcastTimer = null;
+let wakeLockSentinel = null;
+let broadcastAudioContext = null;
+let broadcastVoices = [];
+let speechQueue = [];
+let speechActive = false;
+let speechTimer = null;
+let speechRunId = 0;
+let broadcastSessionId = 0;
+const seenOrderAlertKeys = new Set();
 const globalSearchInput = ref(null);
 
 const emptyCatalog = () => ({
@@ -513,6 +547,31 @@ const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.da
 const currentModuleProfile = computed(() => moduleProfiles[state.activeTab] || moduleProfiles.dashboard);
 const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾煦管理员");
 const currentRoleName = computed(() => state.adminProfileError ? "未授权" : (state.adminProfile?.roleName || "管理员"));
+const orderBroadcastStatusTone = computed(() => {
+  if (orderBroadcast.error || orderBroadcast.audioMessage) return "danger";
+  if (orderBroadcast.starting || (orderBroadcast.enabled && !orderBroadcast.visible)) return "warn";
+  return orderBroadcast.enabled ? "good" : "neutral";
+});
+const orderBroadcastStatusLabel = computed(() => {
+  if (orderBroadcast.starting) return "正在连接";
+  if (orderBroadcast.audioMessage) return "声音异常，请点测试";
+  if (orderBroadcast.error) return "检查异常，自动重试中";
+  if (!orderBroadcast.enabled) return "未开启";
+  if (!orderBroadcast.visible) return "等待回到前台";
+  return "运行中";
+});
+const orderBroadcastStatusDetail = computed(() => {
+  if (orderBroadcast.starting) return "正在建立最新已付款订单基线，不会补播开启前的旧订单。";
+  if (orderBroadcast.audioMessage) return orderBroadcast.audioMessage;
+  if (orderBroadcast.error) return `最近检查失败：${orderBroadcast.error}`;
+  if (!orderBroadcast.enabled) return "连接普通蓝牙音箱后点击开启；仅播报支付已确认的订单。";
+  if (!orderBroadcast.visible) return "页面进入后台后浏览器可能暂停检查；回到本页会立即补查。";
+  if (orderBroadcast.wakeMessage) return orderBroadcast.wakeMessage;
+  return orderBroadcast.wakeLockActive
+    ? "每 5 秒检查一次新订单，屏幕常亮已保持。"
+    : "每 5 秒检查一次新订单，请保持本页在前台并关闭系统自动锁屏。";
+});
+const orderBroadcastLastCheck = computed(() => orderBroadcast.lastCheckedAt ? formatDate(orderBroadcast.lastCheckedAt) : "尚未检查");
 const headerSignalCount = computed(() => {
   const summary = state.systemStatus?.summary || {};
   return Number(summary.warn || 0) + Number(summary.error || 0);
@@ -1484,7 +1543,352 @@ async function getSessionUser() {
   return null;
 }
 
+function refreshBroadcastVoices() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  broadcastVoices = window.speechSynthesis.getVoices() || [];
+}
+
+function preferredBroadcastVoice() {
+  return broadcastVoices.find((voice) => /^zh[-_]?CN$/i.test(voice.lang || ""))
+    || broadcastVoices.find((voice) => /^zh/i.test(voice.lang || ""))
+    || broadcastVoices.find((voice) => /mandarin|chinese|普通话|中文/i.test(voice.name || ""))
+    || null;
+}
+
+function prepareBroadcastAudio() {
+  if (typeof window === "undefined") return false;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!broadcastAudioContext && AudioContextClass) {
+    try {
+      broadcastAudioContext = new AudioContextClass();
+    } catch (error) {
+      broadcastAudioContext = null;
+    }
+  }
+  if (broadcastAudioContext?.state === "suspended") {
+    broadcastAudioContext.resume().catch(() => {});
+  }
+  if (window.speechSynthesis?.paused) {
+    window.speechSynthesis.resume();
+  }
+  refreshBroadcastVoices();
+  return Boolean(broadcastAudioContext || orderBroadcast.speechSupported);
+}
+
+function playBroadcastChime() {
+  const context = broadcastAudioContext;
+  if (!context || context.state === "closed") return false;
+  try {
+    const startAt = context.currentTime + 0.01;
+    [
+      { frequency: 783.99, delay: 0 },
+      { frequency: 1046.5, delay: 0.16 }
+    ].forEach(({ frequency, delay }) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const noteAt = startAt + delay;
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, noteAt);
+      gain.gain.setValueAtTime(0.0001, noteAt);
+      gain.gain.exponentialRampToValueAtTime(0.16, noteAt + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteAt + 0.24);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(noteAt);
+      oscillator.stop(noteAt + 0.26);
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function syncBroadcastQueueCount() {
+  orderBroadcast.queueCount = speechQueue.length + (speechActive ? 1 : 0);
+}
+
+function processBroadcastSpeechQueue() {
+  if (speechActive || speechQueue.length === 0 || typeof window === "undefined") return;
+  const item = speechQueue.shift();
+  if (item.kind === "order" && !orderBroadcast.enabled) {
+    syncBroadcastQueueCount();
+    processBroadcastSpeechQueue();
+    return;
+  }
+
+  speechActive = true;
+  syncBroadcastQueueCount();
+  const runId = speechRunId;
+  let settled = false;
+  const finish = (errorMessage = "") => {
+    if (settled || runId !== speechRunId) return;
+    settled = true;
+    if (speechTimer) {
+      window.clearTimeout(speechTimer);
+      speechTimer = null;
+    }
+    speechActive = false;
+    if (errorMessage) {
+      orderBroadcast.audioMessage = errorMessage;
+    }
+    syncBroadcastQueueCount();
+    window.setTimeout(processBroadcastSpeechQueue, 120);
+  };
+
+  playBroadcastChime();
+  if (!orderBroadcast.speechSupported) {
+    speechTimer = window.setTimeout(() => finish(), 700);
+    return;
+  }
+
+  const utterance = new window.SpeechSynthesisUtterance(item.text);
+  const voice = preferredBroadcastVoice();
+  if (voice) utterance.voice = voice;
+  utterance.lang = voice?.lang || "zh-CN";
+  utterance.rate = 0.94;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  utterance.onend = () => finish();
+  utterance.onerror = (event) => {
+    const code = event?.error || "unknown";
+    if (code === "canceled" || code === "interrupted") {
+      finish();
+      return;
+    }
+    finish(`语音播放失败（${code}），请保持媒体音量开启后重新测试。`);
+  };
+  speechTimer = window.setTimeout(() => {
+    window.speechSynthesis.cancel();
+    finish("语音播放等待超时，请重新点击测试声音。");
+  }, 15000);
+  window.speechSynthesis.speak(utterance);
+}
+
+function enqueueBroadcastSpeech(text, kind = "order") {
+  speechQueue.push({ text, kind });
+  syncBroadcastQueueCount();
+  processBroadcastSpeechQueue();
+}
+
+function orderAlertKey(alert = {}) {
+  return `${alert.id || alert.orderNo || "order"}:${alert.paidAt || "paid"}`;
+}
+
+function rememberOrderAlert(alert) {
+  const key = orderAlertKey(alert);
+  seenOrderAlertKeys.add(key);
+  while (seenOrderAlertKeys.size > ORDER_ALERT_SEEN_LIMIT) {
+    const oldestKey = seenOrderAlertKeys.values().next().value;
+    seenOrderAlertKeys.delete(oldestKey);
+  }
+}
+
+function orderAlertSpeech(alert = {}) {
+  const tableNo = String(alert.tableNo || "").trim();
+  return tableNo
+    ? `禾煦收到新的已付款订单，桌号${tableNo}，请及时处理。`
+    : "禾煦收到新的已付款订单，请及时处理。";
+}
+
+async function pollPaidOrderAlerts({ baseline = false } = {}) {
+  if (orderBroadcast.polling || (!baseline && !orderBroadcast.enabled)) return;
+  const sessionId = broadcastSessionId;
+  orderBroadcast.polling = true;
+  try {
+    const result = await callFunction("manageOperations", { action: "listPaidOrderAlerts" });
+    if (sessionId !== broadcastSessionId) return;
+    const alerts = (Array.isArray(result.alerts) ? result.alerts : [])
+      .filter((alert) => alert && alert.paidAt)
+      .sort((left, right) => new Date(left.paidAt).getTime() - new Date(right.paidAt).getTime());
+
+    if (baseline) {
+      seenOrderAlertKeys.clear();
+      alerts.forEach(rememberOrderAlert);
+    } else {
+      alerts.filter((alert) => !seenOrderAlertKeys.has(orderAlertKey(alert))).forEach((alert) => {
+        rememberOrderAlert(alert);
+        orderBroadcast.lastAlertAt = alert.paidAt;
+        orderBroadcast.lastOrderNo = alert.orderNo || alert.id || "新订单";
+        enqueueBroadcastSpeech(orderAlertSpeech(alert), "order");
+      });
+    }
+
+    orderBroadcast.lastCheckedAt = result.serverTime || new Date().toISOString();
+    orderBroadcast.error = "";
+  } catch (error) {
+    if (sessionId === broadcastSessionId) {
+      orderBroadcast.error = error.message || "新订单检查失败";
+    }
+    throw error;
+  } finally {
+    if (sessionId === broadcastSessionId) orderBroadcast.polling = false;
+  }
+}
+
+function clearOrderBroadcastTimer() {
+  if (!orderBroadcastTimer || typeof window === "undefined") return;
+  window.clearTimeout(orderBroadcastTimer);
+  orderBroadcastTimer = null;
+}
+
+function scheduleOrderBroadcastPoll() {
+  clearOrderBroadcastTimer();
+  if (!orderBroadcast.enabled || !orderBroadcast.visible || typeof window === "undefined") return;
+  orderBroadcastTimer = window.setTimeout(async () => {
+    try {
+      await pollPaidOrderAlerts();
+    } catch (error) {
+      // The next scheduled check retries automatically and the status bar shows this error.
+    } finally {
+      scheduleOrderBroadcastPoll();
+    }
+  }, ORDER_ALERT_POLL_MS);
+}
+
+async function acquireOrderBroadcastWakeLock() {
+  orderBroadcast.wakeMessage = "";
+  if (!orderBroadcast.wakeLockSupported) {
+    orderBroadcast.wakeMessage = "当前浏览器不支持自动常亮，请在系统设置中关闭自动锁屏并保持本页在前台。";
+    return;
+  }
+  if (!orderBroadcast.enabled || !orderBroadcast.visible || wakeLockSentinel) return;
+  try {
+    const sentinel = await navigator.wakeLock.request("screen");
+    wakeLockSentinel = sentinel;
+    orderBroadcast.wakeLockActive = true;
+    sentinel.addEventListener("release", () => {
+      if (wakeLockSentinel === sentinel) wakeLockSentinel = null;
+      orderBroadcast.wakeLockActive = false;
+    });
+  } catch (error) {
+    orderBroadcast.wakeLockActive = false;
+    orderBroadcast.wakeMessage = `无法自动常亮：${error.message || "请检查浏览器与系统设置"}。`;
+  }
+}
+
+async function releaseOrderBroadcastWakeLock() {
+  const sentinel = wakeLockSentinel;
+  wakeLockSentinel = null;
+  orderBroadcast.wakeLockActive = false;
+  if (!sentinel) return;
+  try {
+    await sentinel.release();
+  } catch (error) {
+    // A lock may already have been released automatically when the page was hidden.
+  }
+}
+
+async function startOrderBroadcast() {
+  if (orderBroadcast.enabled || orderBroadcast.starting) return;
+  if (!hasPermission("order.read")) {
+    showToast("当前角色无权读取订单提醒");
+    return;
+  }
+  orderBroadcast.starting = true;
+  orderBroadcast.error = "";
+  orderBroadcast.audioMessage = "";
+  orderBroadcast.wakeMessage = "";
+  const sessionId = ++broadcastSessionId;
+
+  if (!prepareBroadcastAudio()) {
+    orderBroadcast.starting = false;
+    orderBroadcast.audioMessage = "当前浏览器不支持网页声音播放，请改用新版 Chrome。";
+    showToast(orderBroadcast.audioMessage);
+    return;
+  }
+  playBroadcastChime();
+
+  try {
+    await pollPaidOrderAlerts({ baseline: true });
+    if (sessionId !== broadcastSessionId) return;
+    orderBroadcast.enabled = true;
+    orderBroadcast.starting = false;
+    await acquireOrderBroadcastWakeLock();
+    enqueueBroadcastSpeech("禾煦店内新订单播报已开启。", "test");
+    scheduleOrderBroadcastPoll();
+    showToast("店内播报已开启，只提醒新产生的已付款订单");
+  } catch (error) {
+    if (sessionId !== broadcastSessionId) return;
+    orderBroadcast.enabled = false;
+    orderBroadcast.starting = false;
+    showToast(`播报开启失败：${error.message || "无法读取订单"}`);
+  }
+}
+
+async function stopOrderBroadcast({ silent = false } = {}) {
+  const wasActive = orderBroadcast.enabled || orderBroadcast.starting;
+  broadcastSessionId += 1;
+  orderBroadcast.enabled = false;
+  orderBroadcast.starting = false;
+  orderBroadcast.polling = false;
+  orderBroadcast.error = "";
+  orderBroadcast.audioMessage = "";
+  orderBroadcast.wakeMessage = "";
+  clearOrderBroadcastTimer();
+  speechRunId += 1;
+  speechQueue = [];
+  speechActive = false;
+  if (speechTimer && typeof window !== "undefined") {
+    window.clearTimeout(speechTimer);
+    speechTimer = null;
+  }
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  syncBroadcastQueueCount();
+  await releaseOrderBroadcastWakeLock();
+  if (wasActive && !silent) showToast("店内播报已停止");
+}
+
+async function toggleOrderBroadcast() {
+  if (orderBroadcast.enabled || orderBroadcast.starting) {
+    await stopOrderBroadcast();
+    return;
+  }
+  await startOrderBroadcast();
+}
+
+function testOrderBroadcastSound() {
+  orderBroadcast.audioMessage = "";
+  if (!prepareBroadcastAudio()) {
+    orderBroadcast.audioMessage = "当前浏览器不支持网页声音播放，请改用新版 Chrome。";
+    showToast(orderBroadcast.audioMessage);
+    return;
+  }
+  enqueueBroadcastSpeech("禾煦店内播报测试正常。", "test");
+  showToast(orderBroadcast.speechSupported ? "已播放测试语音" : "浏览器无语音合成，已播放提示音");
+}
+
+async function handleOrderBroadcastVisibilityChange() {
+  orderBroadcast.visible = !document.hidden;
+  clearOrderBroadcastTimer();
+  if (!orderBroadcast.enabled || !orderBroadcast.visible) return;
+  await acquireOrderBroadcastWakeLock();
+  try {
+    await pollPaidOrderAlerts();
+  } catch (error) {
+    // The status bar exposes the error and the normal retry loop continues.
+  }
+  scheduleOrderBroadcastPoll();
+}
+
+function setupOrderBroadcastRuntime() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  orderBroadcast.visible = !document.hidden;
+  orderBroadcast.wakeLockSupported = "wakeLock" in navigator;
+  orderBroadcast.speechSupported = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+  refreshBroadcastVoices();
+  const synthesis = window.speechSynthesis;
+  if (synthesis?.addEventListener) synthesis.addEventListener("voiceschanged", refreshBroadcastVoices);
+  document.addEventListener("visibilitychange", handleOrderBroadcastVisibilityChange);
+  cleanupOrderBroadcastRuntime = () => {
+    if (synthesis?.removeEventListener) synthesis.removeEventListener("voiceschanged", refreshBroadcastVoices);
+    document.removeEventListener("visibilitychange", handleOrderBroadcastVisibilityChange);
+  };
+}
+
 async function logout() {
+  await stopOrderBroadcast({ silent: true });
   try {
     if (cloudAuth?.signOut) await cloudAuth.signOut();
   } finally {
@@ -2984,6 +3388,7 @@ function setupRuntimeGuards() {
 onMounted(async () => {
   try {
     setupRuntimeGuards();
+    setupOrderBroadcastRuntime();
     loadSavedViews();
     initCloud();
     setCurrentUser(await getSessionUser());
@@ -2997,6 +3402,11 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   cleanupRuntimeGuards?.();
+  cleanupOrderBroadcastRuntime?.();
+  const audioContext = broadcastAudioContext;
+  stopOrderBroadcast({ silent: true }).finally(() => {
+    if (audioContext?.state !== "closed") audioContext?.close().catch(() => {});
+  });
 });
 </script>
 
@@ -3140,6 +3550,47 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </header>
+
+        <section
+          v-if="hasPermission('order.read')"
+          :class="['order-broadcast-bar', `tone-${orderBroadcastStatusTone}`]"
+          aria-label="店内新订单语音播报"
+        >
+          <div class="broadcast-symbol" aria-hidden="true">
+            <Volume2 v-if="orderBroadcast.enabled" :size="22" :stroke-width="1.8" />
+            <VolumeX v-else :size="22" :stroke-width="1.8" />
+          </div>
+          <div class="broadcast-copy" aria-live="polite">
+            <div class="broadcast-title-row">
+              <strong>店内语音播报</strong>
+              <span :class="['broadcast-status', `tone-${orderBroadcastStatusTone}`]">
+                <i aria-hidden="true"></i>{{ orderBroadcastStatusLabel }}
+              </span>
+            </div>
+            <p>{{ orderBroadcastStatusDetail }}</p>
+            <small>
+              最近检查：{{ orderBroadcastLastCheck }}
+              <template v-if="orderBroadcast.lastOrderNo"> · 最近播报：{{ orderBroadcast.lastOrderNo }}（{{ formatDate(orderBroadcast.lastAlertAt) }}）</template>
+              <template v-if="orderBroadcast.queueCount"> · 待播 {{ orderBroadcast.queueCount }} 条</template>
+            </small>
+          </div>
+          <div class="broadcast-actions">
+            <button class="secondary-action icon-action" type="button" @click="testOrderBroadcastSound">
+              <Play :size="15" :stroke-width="1.9" />
+              测试声音
+            </button>
+            <button
+              :class="['broadcast-toggle', 'icon-action', orderBroadcast.enabled || orderBroadcast.starting ? 'secondary-action' : 'primary-action']"
+              type="button"
+              :aria-pressed="orderBroadcast.enabled"
+              @click="toggleOrderBroadcast"
+            >
+              <VolumeX v-if="orderBroadcast.enabled || orderBroadcast.starting" :size="16" :stroke-width="1.9" />
+              <Volume2 v-else :size="16" :stroke-width="1.9" />
+              {{ orderBroadcast.starting ? "取消开启" : (orderBroadcast.enabled ? "停止播报" : "开启播报") }}
+            </button>
+          </div>
+        </section>
 
         <div v-if="state.moduleError" class="error-banner" role="alert">
           <span>当前模块加载失败</span>

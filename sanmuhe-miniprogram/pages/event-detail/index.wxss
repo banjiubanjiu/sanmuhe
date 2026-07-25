@@ -1,7 +1,7 @@
 .event-detail-page {
   min-height: 100vh;
-  /* no bottom spacer — image runs under the fixed bar */
-  padding: 0;
+  /* Fixed bar height (108rpx) plus a card-like 12rpx finishing gap. */
+  padding: 0 0 calc(120rpx + env(safe-area-inset-bottom));
   background: #f4eee4;
 }
 
@@ -21,23 +21,6 @@
   display: block;
   /* keep last part of the poster readable under the bar area */
   vertical-align: top;
-}
-
-/* sits just above the bar; image scrolls behind it */
-.bar-fade {
-  position: fixed;
-  right: 0;
-  bottom: calc(116rpx + env(safe-area-inset-bottom));
-  left: 0;
-  z-index: 28;
-  height: 96rpx;
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(244, 238, 228, 0) 0%,
-    rgba(244, 238, 228, 0.55) 48%,
-    rgba(255, 252, 246, 0.96) 100%
-  );
 }
 
 .detail-safe-bar {

@@ -54,7 +54,32 @@
         value="{{remark}}"
         bindinput="onInput"
       />
-      <view class="pay-hint">确认后通知门店制作，请到柜台扫码付款</view>
+      <view class="payment-title">支付方式</view>
+      <view
+        wx:if="{{isMember}}"
+        class="payment-option {{payMode === 'balance' ? 'active' : ''}} {{!balanceAvailable ? 'disabled' : ''}}"
+        data-mode="balance"
+        bindtap="choosePayMode"
+      >
+        <view class="payment-radio"><view></view></view>
+        <view class="payment-copy">
+          <view>会员余额支付</view>
+          <text>当前余额 ¥{{walletBalance}}{{balanceAvailable ? '，本单默认优先使用' : '，余额不足'}}</text>
+        </view>
+        <view class="payment-amount">-¥{{total}}</view>
+      </view>
+      <view
+        class="payment-option {{payMode === 'manual' ? 'active' : ''}}"
+        data-mode="manual"
+        bindtap="choosePayMode"
+      >
+        <view class="payment-radio"><view></view></view>
+        <view class="payment-copy">
+          <view>柜台扫码付款</view>
+          <text>下单后由门店确认并引导付款</text>
+        </view>
+      </view>
+      <view class="pay-hint">{{payMode === 'balance' ? ('确认后将从会员余额扣除，预计剩余 ¥' + balanceAfter) : '确认后通知门店制作，请到柜台扫码付款'}}</view>
     </view>
 
     <view class="checkout-bar simple">

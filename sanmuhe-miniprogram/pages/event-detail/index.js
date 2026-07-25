@@ -2,9 +2,9 @@ const { events: localEvents } = require("../../data/catalog");
 const { listEvents } = require("../../utils/cloudApi");
 
 const detailImages = {
-  "event-001": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-1.png",
-  "event-002": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-2.png",
-  "event-003": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-3.png"
+  "event-001": "/assets/images/event-yangxin-tea.jpg",
+  "event-002": "/assets/images/event-tea-class.jpg",
+  "event-003": "/assets/images/event-seasonal-tea.jpg"
 };
 
 function normalizeEvent(raw, index) {

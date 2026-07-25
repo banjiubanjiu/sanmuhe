@@ -15,30 +15,40 @@
     <view class="user-copy">
       <view class="user-name">{{user.name}}</view>
       <view class="user-title">{{user.title}}</view>
-      <view class="tier-pill"><text class="tier-crown">♛</text>{{member.tier}}</view>
+      <view class="tier-pill">
+        <image class="tier-crown-icon" src="/assets/icons/crown-gold.png" mode="aspectFit"></image>
+        <text>{{member.isMember ? member.tier : '禾煦茶友'}}</text>
+      </view>
     </view>
-    <view class="chevron" bindtap="goCloudStatus">›</view>
+    <view class="chevron" bindtap="showMemberBenefits">›</view>
   </view>
 
   <view class="member-card" bindtap="showMemberBenefits">
     <image class="member-bg" src="/assets/images/profile-member-card.jpg" mode="aspectFill"></image>
     <view class="member-shade"></view>
     <view class="member-content">
-      <view class="member-copy">
-        <view class="member-title">雅客会员</view>
-        <view class="member-subtitle">会员专享多重权益</view>
+      <view class="member-top">
+        <view class="member-brand">
+          <image class="member-crown" src="/assets/icons/crown-gold.png" mode="aspectFit"></image>
+          <text>{{member.isMember ? member.tier : '禾煦会员'}}</text>
+        </view>
+        <view class="member-rights">尊享权益</view>
+      </view>
+      <view class="member-mid">
+        <view class="member-greeting">{{member.isMember ? '欢迎回来，慢慢喝茶' : '一席茶香，静候相逢'}}</view>
+        <view class="member-hint">{{member.isMember ? '充 500 送 100 · 充 1000 送 250' : '开通会员，享储值礼遇'}}</view>
       </view>
       <view class="member-bottom">
         <view class="member-stat">
-          <text>会员积分</text>
-          <view class="member-stat-number">{{member.points}}</view>
+          <text>{{member.isMember ? '储值余额' : '会员礼遇'}}</text>
+          <view class="member-stat-number">{{member.isMember ? ('¥' + member.balance) : '充值有礼'}}</view>
         </view>
         <view class="member-divider"></view>
         <view class="member-stat">
-          <text>优惠券</text>
-          <view class="member-stat-number">{{member.coupons}}<text>张</text></view>
+          <text>{{member.isMember ? '会员积分' : '茶饮券'}}</text>
+          <view class="member-stat-number">{{member.isMember ? member.points : '每月可领'}}</view>
         </view>
-        <view class="benefit-btn" catchtap="showMemberBenefits">查看权益</view>
+        <view class="benefit-btn" catchtap="showMemberBenefits">{{member.isMember ? '会员中心' : '立即开通'}}</view>
       </view>
     </view>
   </view>
@@ -82,9 +92,17 @@
         </view>
       </view>
     </view>
-    <view wx:if="{{recentOrders.length === 0}}" class="empty-card" bindtap="goHome">
+    <view wx:if="{{recordsLoading && recentOrders.length === 0}}" class="empty-card">
+      <view class="empty-title">正在读取订单</view>
+      <text>请稍候片刻。</text>
+    </view>
+    <view wx:elif="{{recordsError && recentOrders.length === 0}}" class="empty-card error-card" bindtap="retryRecords">
+      <view class="empty-title">订单没有加载出来</view>
+      <text>{{recordsError}}，点击重试。</text>
+    </view>
+    <view wx:elif="{{recentOrders.length === 0}}" class="empty-card" bindtap="goHome">
       <view class="empty-title">暂无订单</view>
-      <text>下单并完成云端提交后会在这里显示。</text>
+      <text>下单后，订单会显示在这里。</text>
     </view>
   </view>
 

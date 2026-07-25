@@ -47,6 +47,35 @@ svg = svg.replace(/stroke="currentColor"/g, 'stroke="#312b23"');
 - Tab bar / bottom safe-bar: compact single-row layouts; avoid stacking duplicate status copy next to icon labels.
 - Prefer reusing existing `assets/icons/*` before adding files; only add when no suitable glyph exists.
 
+## Separate Product Logic From User Copy
+
+Product rules belong in code, specifications, and developer documentation. Customer-facing pages must not explain internal decisions or implementation details.
+
+### Never show customers
+
+- Authentication rationale: “普通点单无需登录”, “只有充值才需要登录”, “无需开通会员也可下单”. Enforce this silently in the flow.
+- System internals: “云端提交”, “后台确认数据”, “自动识别身份”, collection/function names, environment variables, callback or deployment status.
+- Operator/test language: “后台未配置”, “支付参数待配置”, “白名单测试”, “功能联调”, “真实支付已关闭”. Test labels may appear only to explicit internal testers and must clearly say no real charge will occur.
+- Raw backend errors or diagnostics. Map them to a safe user message and retain the technical detail in logs.
+
+### Write instead
+
+- State the benefit: “加入会员，享储值礼遇：充 500 送 100、充 1000 送 250”.
+- State the current user-relevant status: “储值服务暂未开放”, “通知服务暂不可用”.
+- State the next action: “手机号快捷开通”, “选择充值档位”, “查看订单”.
+- If no action is useful, omit the explanation entirely. Do not fill empty space with product-policy copy.
+
+### Required copy review
+
+Before finishing any page change, scan all visible WXML strings plus modal, toast, empty-state, loading, and error copy in the page JavaScript. Ask for every string:
+
+1. Does the customer need this information now?
+2. Is it expressed as a benefit, state, or next action?
+3. Does it avoid developer, operator, test, and architecture terminology?
+4. Does it sound like 禾煦 rather than a product requirements document?
+
+If any answer is no, rewrite or remove the string before handoff.
+
 ## WeChat Development Tools
 
 - `wechat-devtools-cli` is available globally on PATH (also: `/home/colin/tools/wechat-dev-tools/wechat-web-devtools-linux/bin/wechat-devtools-cli`).

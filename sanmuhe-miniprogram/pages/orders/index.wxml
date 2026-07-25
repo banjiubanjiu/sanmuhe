@@ -1,0 +1,91 @@
+<view class="orders-page">
+  <view class="orders-nav">
+    <view class="nav-back" bindtap="goBack">
+      <image src="/assets/icons/back-ink.png" mode="aspectFit"></image>
+    </view>
+    <view class="nav-title">我的订单</view>
+    <view class="nav-balance"></view>
+  </view>
+
+  <view class="orders-intro">
+    <view>
+      <view class="intro-kicker">ORDER JOURNEY</view>
+      <view class="intro-title">{{activeTab === 'all' ? '每一盏茶，都有迹可循' : '正在为你整理订单'}}</view>
+    </view>
+    <view wx:if="{{loaded && !error}}" class="order-total">{{total}} 笔</view>
+  </view>
+
+  <scroll-view class="order-tabs" scroll-x enhanced show-scrollbar="{{false}}">
+    <view class="tabs-inner">
+      <view
+        wx:for="{{tabs}}"
+        wx:key="key"
+        class="order-tab {{activeTab === item.key ? 'is-active' : ''}}"
+        data-tab="{{item.key}}"
+        bindtap="switchTab"
+      >{{item.label}}</view>
+    </view>
+  </scroll-view>
+
+  <view wx:if="{{loading && orders.length === 0}}" class="skeleton-list">
+    <view wx:for="{{skeletons}}" wx:key="*this" class="order-skeleton">
+      <view class="skeleton-head"></view>
+      <view class="skeleton-line wide"></view>
+      <view class="skeleton-line"></view>
+      <view class="skeleton-foot"></view>
+    </view>
+  </view>
+
+  <view wx:elif="{{error && orders.length === 0}}" class="state-panel">
+    <image src="/assets/icons/profile-order.png" mode="aspectFit"></image>
+    <view class="state-title">订单没有加载出来</view>
+    <view class="state-copy">{{error}}</view>
+    <button class="state-action" bindtap="retry">重新加载</button>
+  </view>
+
+  <view wx:elif="{{loaded && orders.length === 0}}" class="state-panel">
+    <image src="/assets/icons/profile-order.png" mode="aspectFit"></image>
+    <view class="state-title">{{activeTab === 'all' ? '还没有订单' : '这个分类暂时没有订单'}}</view>
+    <view class="state-copy">{{activeTab === 'all' ? '选一款喜欢的茶，第一笔订单会出现在这里。' : '切换其他状态，或去茶品页看看。'}}</view>
+    <button class="state-action" bindtap="goShop">去逛茶品</button>
+  </view>
+
+  <view wx:else class="order-stream">
+    <view
+      wx:for="{{orders}}"
+      wx:key="id"
+      class="order-row"
+      data-id="{{item.id}}"
+      bindtap="viewOrder"
+    >
+      <view class="order-row-head">
+        <view>
+          <view class="order-no">{{item.displayId}}</view>
+          <view class="order-time">{{item.createdAtText}}</view>
+        </view>
+        <view class="status-pill status-{{item.statusTone}}">{{item.statusLabel}}</view>
+      </view>
+
+      <view class="order-product">
+        <view class="product-visual">
+          <image wx:if="{{item.previewImage}}" src="{{item.previewImage}}" mode="aspectFill"></image>
+          <image wx:else class="product-fallback" src="/assets/icons/leaf-active.png" mode="aspectFit"></image>
+        </view>
+        <view class="product-copy">
+          <view class="product-summary">{{item.itemSummary}}</view>
+          <view class="product-meta">{{item.deliveryText}} · 共 {{item.itemCount}} 件</view>
+        </view>
+        <view class="order-price">¥{{item.totalText}}</view>
+      </view>
+
+      <view class="order-row-foot">
+        <view class="status-hint">{{item.statusHint}}</view>
+        <view class="detail-link">{{item.canPay ? '继续支付' : (item.canConfirmReceipt ? '确认收货' : '查看详情')}} ›</view>
+      </view>
+    </view>
+
+    <view wx:if="{{loading}}" class="loading-more">正在加载更多订单</view>
+    <view wx:if="{{!loading && !hasMore && orders.length > 0}}" class="list-end">以上是全部订单</view>
+    <view wx:if="{{error && orders.length > 0}}" class="load-more-error" bindtap="retry">{{error}}，点击重试</view>
+  </view>
+</view>

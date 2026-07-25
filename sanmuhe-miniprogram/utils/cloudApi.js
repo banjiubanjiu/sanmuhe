@@ -99,6 +99,13 @@ function requestPayment(payment) {
   });
 }
 
+function requireOk(result, fallbackMessage) {
+  if (!result || result.ok === false) {
+    throw new Error(result && result.message ? result.message : fallbackMessage);
+  }
+  return result;
+}
+
 function payOrder(order) {
   const payload = {
     orderId: order && (order._id || order.orderId || order.id),
@@ -129,22 +136,69 @@ function joinEvent(payload) {
 }
 
 function listMyRecords() {
-  return callCloud("listMyRecords").catch(() => ({
-    orders: [],
-    reservations: [],
-    signups: [],
-    coupons: [],
-    member: null
-  }));
+  return callCloud("listMyRecords").then((result) => requireOk(result, "读取个人记录失败"));
+}
+
+function listMyOrders(payload) {
+  return callCloud("listMyRecords", Object.assign({
+    action: "listOrders",
+    tab: "all",
+    page: 1,
+    pageSize: 10
+  }, payload || {})).then((result) => requireOk(result, "读取订单失败"));
+}
+
+function getMyOrder(orderId) {
+  return callCloud("listMyRecords", {
+    action: "getOrder",
+    orderId
+  }).then((result) => requireOk(result, "读取订单详情失败"));
+}
+
+function updateMyOrder(action, orderId, payload) {
+  return callCloud("listMyRecords", Object.assign({
+    action,
+    orderId
+  }, payload || {})).then((result) => requireOk(result, "订单操作失败"));
 }
 
 function getMemberCenter() {
   return callCloud("memberCenter", { action: "getMemberCenter" }).catch(() => ({
     member: null,
+    wallet: null,
+    plans: [],
+    payment: {
+      realPaymentReady: false,
+      testRechargeEnabled: false
+    },
     userCoupons: [],
     availableCoupons: [],
     subscriptionTemplates: []
   }));
+}
+
+function activateMember(payload) {
+  return callCloud("memberCenter", Object.assign({ action: "activateMember" }, payload || {}));
+}
+
+function simulateMemberRecharge(payload) {
+  return callCloud("memberCenter", Object.assign({ action: "simulateRecharge" }, payload || {}));
+}
+
+function rechargeMember(planId) {
+  return createPayment({
+    action: "createRechargePayment",
+    kind: "memberRecharge",
+    planId
+  }).then((result) => {
+    if (!result || result.ok === false) {
+      throw new Error(result && result.message ? result.message : "发起充值失败");
+    }
+    return requestPayment(result.payment).then((paymentResult) => ({
+      paymentResult,
+      recharge: result
+    }));
+  });
 }
 
 function claimCoupon(couponId) {
@@ -160,17 +214,23 @@ function saveSubscription(subscriptions, templates) {
 }
 
 module.exports = {
+  activateMember,
   createEvent,
   createOrder,
   createPayment,
   createReservation,
   getCatalog,
   getMemberCenter,
+  getMyOrder,
   isCloudReady,
   joinEvent,
   claimCoupon,
   listEvents,
+  listMyOrders,
   listMyRecords,
   payOrder,
-  saveSubscription
+  rechargeMember,
+  saveSubscription,
+  simulateMemberRecharge,
+  updateMyOrder
 };

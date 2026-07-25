@@ -21,6 +21,10 @@ function requiredEnv(name) {
   return value;
 }
 
+function isRealPaymentEnabled() {
+  return String(process.env.REAL_PAYMENT_ENABLED || "").toLowerCase() === "true";
+}
+
 function paymentConfigHealth() {
   const missing = [];
   if (!process.env.WECHAT_PAY_APPID && !process.env.WX_APPID) {
@@ -36,6 +40,9 @@ function paymentConfigHealth() {
       missing.push(name);
     }
   });
+  if (!process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY && !process.env.WECHAT_PAY_PLATFORM_CERTIFICATE) {
+    missing.push("WECHAT_PAY_PLATFORM_PUBLIC_KEY/WECHAT_PAY_PLATFORM_CERTIFICATE");
+  }
   return {
     ready: missing.length === 0,
     missing,
@@ -53,18 +60,18 @@ function normalizePem(value) {
 }
 
 function getPayConfig() {
+  const platformKeyValue = process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY || process.env.WECHAT_PAY_PLATFORM_CERTIFICATE;
+  if (!platformKeyValue) {
+    throw new Error("支付环境变量 WECHAT_PAY_PLATFORM_PUBLIC_KEY/WECHAT_PAY_PLATFORM_CERTIFICATE 未配置");
+  }
   return {
     appid: process.env.WECHAT_PAY_APPID || process.env.WX_APPID || requiredEnv("WECHAT_PAY_APPID"),
     mchid: requiredEnv("WECHAT_PAY_MCH_ID"),
     serialNo: requiredEnv("WECHAT_PAY_CERT_SERIAL_NO"),
     privateKey: normalizePem(requiredEnv("WECHAT_PAY_PRIVATE_KEY")),
     notifyUrl: requiredEnv("WECHAT_PAY_NOTIFY_URL"),
-    platformPublicKey: process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY
-      ? normalizePem(process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY)
-      : "",
-    platformCertificate: process.env.WECHAT_PAY_PLATFORM_CERTIFICATE
-      ? normalizePem(process.env.WECHAT_PAY_PLATFORM_CERTIFICATE)
-      : ""
+    platformPublicKey: process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY ? normalizePem(process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY) : "",
+    platformCertificate: process.env.WECHAT_PAY_PLATFORM_CERTIFICATE ? normalizePem(process.env.WECHAT_PAY_PLATFORM_CERTIFICATE) : ""
   };
 }
 
@@ -180,6 +187,136 @@ async function findOrder(orderId, orderNo, openid) {
   return result.data && result.data[0] ? result.data[0] : null;
 }
 
+async function findActiveMember(openid) {
+  const result = await db.collection("members").where({ _openid: openid }).limit(1).get();
+  const member = result.data && result.data[0];
+  return member && member.status === "active" && member.phone ? member : null;
+}
+
+/** 门店公示储值权益（金额单位：分），支付侧不信任客户端或脏数据金额 */
+const CANONICAL_MEMBERSHIP_PLANS = {
+  "recharge-500": {
+    id: "recharge-500",
+    title: "充 500 送 100",
+    description: "充值 500 元，赠送 100 元，到账 600 元",
+    principalFen: 50000,
+    bonusFen: 10000
+  },
+  "recharge-1000": {
+    id: "recharge-1000",
+    title: "充 1000 送 250",
+    description: "充值 1000 元，赠送 250 元，到账 1250 元",
+    principalFen: 100000,
+    bonusFen: 25000
+  }
+};
+
+async function findRechargePlan(planId) {
+  const id = cleanText(planId, 80);
+  const canonical = CANONICAL_MEMBERSHIP_PLANS[id];
+  if (!canonical) {
+    return null;
+  }
+  const result = await db.collection("membership_plans").where({ id }).limit(1).get();
+  const plan = result.data && result.data[0] ? result.data[0] : null;
+  if (plan && plan.enabled === false) {
+    return null;
+  }
+  // Always credit the published gift amounts, even if DB copy is stale.
+  return Object.assign({}, plan || {}, canonical);
+}
+
+function createRechargeNo() {
+  return `SMHR${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
+}
+
+async function createRechargePayment(event, openid, config) {
+  const member = await findActiveMember(openid);
+  if (!member) {
+    return { ok: false, message: "请先开通会员再充值" };
+  }
+  const plan = await findRechargePlan(event.planId);
+  if (!plan) {
+    return { ok: false, message: "充值档位不存在或已停用" };
+  }
+  const principalFen = Math.max(0, Math.round(Number(plan.principalFen) || 0));
+  const bonusFen = Math.max(0, Math.round(Number(plan.bonusFen) || 0));
+  const totalFen = principalFen + bonusFen;
+  if (principalFen <= 0 || totalFen <= 0) {
+    return { ok: false, message: "充值档位金额无效" };
+  }
+
+  const orderNo = createRechargeNo();
+  const expireAt = new Date(Date.now() + 15 * 60 * 1000);
+  const recharge = await db.collection("recharge_orders").add({
+    data: {
+      _openid: openid,
+      orderNo,
+      memberId: member._id,
+      planId: plan.id,
+      planTitle: plan.title,
+      principalFen,
+      bonusFen,
+      creditFen: totalFen,
+      payAmountFen: principalFen,
+      status: "pending",
+      payStatus: "pending",
+      expireAt,
+      createdAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    }
+  });
+
+  try {
+    const response = await requestWechatPay(config, {
+      appid: config.appid,
+      mchid: config.mchid,
+      description: cleanText(`禾煦会员充值 ${plan.title}`, 127),
+      out_trade_no: orderNo,
+      time_expire: expireAt.toISOString(),
+      attach: `recharge:${recharge._id}`,
+      notify_url: config.notifyUrl,
+      amount: {
+        total: principalFen,
+        currency: "CNY"
+      },
+      payer: {
+        openid
+      }
+    });
+    if (!response.prepay_id) {
+      throw new Error("微信支付未返回预支付单");
+    }
+    await db.collection("recharge_orders").doc(recharge._id).update({
+      data: {
+        prepayId: response.prepay_id,
+        prepayCreatedAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+    return {
+      ok: true,
+      kind: "memberRecharge",
+      rechargeOrderId: recharge._id,
+      orderNo,
+      principalFen,
+      bonusFen,
+      creditFen: totalFen,
+      payment: buildPaymentParams(config, response.prepay_id)
+    };
+  } catch (error) {
+    await db.collection("recharge_orders").doc(recharge._id).update({
+      data: {
+        status: "failed",
+        payStatus: "failed",
+        errorMessage: cleanText(error.message, 200),
+        updatedAt: db.serverDate()
+      }
+    });
+    throw error;
+  }
+}
+
 async function releaseInventory(locks) {
   for (const lock of locks || []) {
     if (!lock.docId || lock.quantity <= 0) {
@@ -253,6 +390,7 @@ exports.main = async (event = {}) => {
     return {
       ok: true,
       name: "createPayment",
+      realPaymentEnabled: isRealPaymentEnabled(),
       paymentConfig,
       message: paymentConfig.ready ? "支付下单配置完整" : `支付下单缺少：${paymentConfig.missing.join("、")}`
     };
@@ -263,6 +401,14 @@ exports.main = async (event = {}) => {
   const orderNo = cleanText(event.orderNo, 32);
 
   try {
+    const rechargeRequest = event.kind === "memberRecharge" || event.action === "createRechargePayment";
+    if (rechargeRequest && !isRealPaymentEnabled()) {
+      return { ok: false, code: "REAL_RECHARGE_DISABLED", message: "会员真实充值尚未开放" };
+    }
+    const config = getPayConfig();
+    if (rechargeRequest) {
+      return await createRechargePayment(event, OPENID, config);
+    }
     const order = await findOrder(orderId, orderNo, OPENID);
     if (!order) {
       return { ok: false, message: "订单不存在" };
@@ -288,7 +434,6 @@ exports.main = async (event = {}) => {
       return { ok: false, message: "订单已超时，请重新下单" };
     }
 
-    const config = getPayConfig();
     const totalFee = Math.round((Number(order.total) || 0) * 100);
     if (totalFee <= 0) {
       return { ok: false, message: "订单金额无效" };
@@ -316,7 +461,12 @@ exports.main = async (event = {}) => {
     }
 
     const payment = buildPaymentParams(config, response.prepay_id);
-    await db.collection("orders").doc(order._id).update({
+    const prepayClaim = await db.collection("orders").where({
+      _id: order._id,
+      _openid: OPENID,
+      status: "待支付",
+      payStatus: order.payStatus
+    }).update({
       data: {
         prepayId: response.prepay_id,
         prepayCreatedAt: db.serverDate(),
@@ -324,6 +474,9 @@ exports.main = async (event = {}) => {
         updatedAt: db.serverDate()
       }
     });
+    if (!prepayClaim.updated) {
+      return { ok: false, message: "订单状态已变化，请刷新后重试" };
+    }
 
     return {
       ok: true,

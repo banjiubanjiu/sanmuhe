@@ -7,8 +7,8 @@
 
   <view class="order-context">
     <view>
-      <view class="context-title">{{tableLabel ? tableLabel : '到店点单'}}</view>
-      <view class="context-copy">{{tableLabel ? '已绑定桌号，结算时会随订单提交' : '扫码桌牌可自动带入桌号'}}</view>
+      <view class="context-title">{{tableLabel ? ('桌号 ' + tableLabel) : '茶饮点单'}}</view>
+      <view class="context-copy">{{tableLabel ? '已绑定本桌，下单将通知门店桌号' : '请扫桌上二维码绑定桌号后再点单'}}</view>
     </view>
     <view class="context-scan" bindtap="scanTable">
       <image src="/assets/icons/scan-ink.png" mode="aspectFit"></image>

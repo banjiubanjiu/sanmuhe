@@ -1,0 +1,347 @@
+.orders-page {
+  min-height: 100vh;
+  padding: 88rpx 28rpx calc(56rpx + env(safe-area-inset-bottom));
+  color: #173b2a;
+  background:
+    radial-gradient(circle at 92% 7%, rgba(198, 166, 106, 0.16), transparent 23%),
+    #f7f4ec;
+}
+
+.orders-nav {
+  height: 72rpx;
+  display: grid;
+  grid-template-columns: 72rpx 1fr 72rpx;
+  align-items: center;
+}
+
+.nav-back {
+  width: 58rpx;
+  height: 58rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-back image {
+  width: 42rpx;
+  height: 42rpx;
+}
+
+.nav-title {
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 40rpx;
+  font-weight: 600;
+  text-align: center;
+}
+
+.orders-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-top: 40rpx;
+  padding: 0 6rpx;
+}
+
+.intro-kicker {
+  color: #9a7445;
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
+  font-size: 20rpx;
+  font-weight: 600;
+  letter-spacing: 3rpx;
+}
+
+.intro-title {
+  margin-top: 12rpx;
+  color: #1d3628;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 38rpx;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.order-total {
+  flex: 0 0 auto;
+  color: #756b5d;
+  font-size: 24rpx;
+}
+
+.order-tabs {
+  width: calc(100% + 56rpx);
+  margin: 34rpx -28rpx 0;
+  white-space: nowrap;
+}
+
+.tabs-inner {
+  display: inline-flex;
+  gap: 12rpx;
+  padding: 0 28rpx 14rpx;
+}
+
+.order-tab {
+  min-height: 64rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 26rpx;
+  color: #756b5d;
+  border: 1rpx solid #e4dccf;
+  border-radius: 999rpx;
+  background: rgba(255, 253, 248, 0.82);
+  font-size: 25rpx;
+}
+
+.order-tab.is-active {
+  color: #fffaf0;
+  border-color: #173b2a;
+  background: #173b2a;
+  font-weight: 600;
+}
+
+.order-stream,
+.skeleton-list {
+  margin-top: 14rpx;
+  border-top: 1rpx solid #e8e1d5;
+}
+
+.order-row {
+  padding: 30rpx 6rpx 28rpx;
+  border-bottom: 1rpx solid #e8e1d5;
+}
+
+.order-row:active {
+  opacity: 0.72;
+}
+
+.order-row-head,
+.order-product,
+.order-row-foot {
+  display: flex;
+  align-items: center;
+}
+
+.order-row-head {
+  justify-content: space-between;
+  gap: 22rpx;
+}
+
+.order-no {
+  color: #3a342c;
+  font-size: 25rpx;
+  font-weight: 600;
+}
+
+.order-time {
+  margin-top: 7rpx;
+  color: #93897b;
+  font-size: 21rpx;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  min-height: 46rpx;
+  display: flex;
+  align-items: center;
+  padding: 0 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.status-active {
+  color: #315d3d;
+  background: #e6efe5;
+}
+
+.status-warning {
+  color: #8b5b22;
+  background: #f5e9d4;
+}
+
+.status-danger {
+  color: #934438;
+  background: #f5e3df;
+}
+
+.status-quiet {
+  color: #706b63;
+  background: #ece9e2;
+}
+
+.status-neutral {
+  color: #665e52;
+  background: #eee8dd;
+}
+
+.order-product {
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.product-visual {
+  width: 116rpx;
+  height: 116rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 116rpx;
+  overflow: hidden;
+  border-radius: 16rpx;
+  background: #ece7dc;
+}
+
+.product-visual image {
+  width: 100%;
+  height: 100%;
+}
+
+.product-visual .product-fallback {
+  width: 52rpx;
+  height: 52rpx;
+  opacity: 0.7;
+}
+
+.product-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.product-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #2d2a25;
+  font-size: 27rpx;
+  font-weight: 600;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.product-meta {
+  margin-top: 9rpx;
+  color: #81786d;
+  font-size: 22rpx;
+}
+
+.order-price {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  color: #6f5635;
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
+  font-size: 29rpx;
+  font-weight: 600;
+}
+
+.order-row-foot {
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.status-hint {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: #756b5d;
+  font-size: 22rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-link {
+  flex: 0 0 auto;
+  color: #234b34;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.state-panel {
+  margin-top: 38rpx;
+  padding: 80rpx 38rpx;
+  text-align: center;
+}
+
+.state-panel image {
+  width: 82rpx;
+  height: 82rpx;
+  opacity: 0.65;
+}
+
+.state-title {
+  margin-top: 24rpx;
+  color: #2d342e;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.state-copy {
+  margin-top: 12rpx;
+  color: #7b7266;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.state-action {
+  min-width: 200rpx;
+  height: 74rpx;
+  margin: 30rpx auto 0;
+  color: #fffaf0;
+  border-radius: 999rpx;
+  background: #173b2a;
+  font-size: 25rpx;
+  font-weight: 600;
+}
+
+.order-skeleton {
+  padding: 30rpx 6rpx;
+  border-bottom: 1rpx solid #e8e1d5;
+}
+
+.skeleton-head,
+.skeleton-line,
+.skeleton-foot {
+  border-radius: 8rpx;
+  background: #eae4d9;
+  animation: pulse 1.2s ease-in-out infinite alternate;
+}
+
+.skeleton-head {
+  width: 38%;
+  height: 28rpx;
+}
+
+.skeleton-line {
+  width: 56%;
+  height: 24rpx;
+  margin-top: 24rpx;
+}
+
+.skeleton-line.wide {
+  width: 86%;
+  height: 34rpx;
+}
+
+.skeleton-foot {
+  width: 72%;
+  height: 22rpx;
+  margin-top: 28rpx;
+}
+
+.loading-more,
+.list-end,
+.load-more-error {
+  padding: 34rpx 0 12rpx;
+  color: #8d8376;
+  font-size: 22rpx;
+  text-align: center;
+}
+
+.load-more-error {
+  color: #934438;
+}
+
+@keyframes pulse {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}

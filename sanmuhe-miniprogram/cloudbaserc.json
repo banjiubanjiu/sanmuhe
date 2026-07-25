@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "envId": "{{env.ENV_ID}}",
+  "envId": "cloudbase-d2gq023qn50e9d82f",
   "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
   "functionRoot": "./cloudfunctions",
   "functions": [
@@ -17,7 +17,13 @@
     {
       "name": "seedDemoData",
       "runtime": "Nodejs16.13",
-      "handler": "index.main"
+      "handler": "index.main",
+      "envVariables": {
+        "SEED_DEMO_ENABLED": "false",
+        "ADMIN_USERNAMES": "admin"
+      },
+      "installDependency": true,
+      "timeout": 60
     },
     {
       "name": "manageCatalog",
@@ -28,9 +34,9 @@
       "memorySize": 256,
       "installDependency": true,
       "envVariables": {
-        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "ADMIN_UIDS": "2055212366319239170",
+        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "ADMIN_UIDS": "",
         "ADMIN_USERNAMES": "admin"
       }
     },
@@ -43,9 +49,9 @@
       "memorySize": 256,
       "installDependency": true,
       "envVariables": {
-        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "ADMIN_UIDS": "2055212366319239170",
+        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "ADMIN_UIDS": "",
         "ADMIN_USERNAMES": "admin"
       }
     },
@@ -61,8 +67,8 @@
         "FREE_SHIPPING_AMOUNT": "0",
         "ORDER_LOCK_MINUTES": "15",
         "SHIPPING_FEE": "0",
-        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM",
-        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM"
+        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM"
       }
     },
     {
@@ -126,8 +132,8 @@
       "memorySize": 256,
       "installDependency": true,
       "envVariables": {
-        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM",
-        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM",
+        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
         "MINIPROGRAM_STATE": "developer"
       }
     },
@@ -140,8 +146,11 @@
       "memorySize": 256,
       "installDependency": true,
       "envVariables": {
-        "ADMIN_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM",
-        "STAFF_OPENIDS": "oQSw140Y4XDHHukqbFCgJ-J3NFcM"
+        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "MEMBER_TEST_MODE": "true",
+        "MEMBER_TEST_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "REAL_PAYMENT_ENABLED": "false"
       }
     }
   ]

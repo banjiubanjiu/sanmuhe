@@ -1,26 +1,24 @@
-const cloudAssetBase = "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la";
-const cloudImage = (path) => `${cloudAssetBase}/${path}`;
-
-// 茶品/茶单主图：亮调高级商拍（云存储 assets/images/product-*.jpg）
+// 茶品/茶单主图：使用小程序本地素材，避免依赖旧云环境 CDN
+const localImage = (path) => path.startsWith("/") ? path : `/${path}`;
 const IMG = {
-  tea001: cloudImage("assets/images/product-tea-001-organic-black.jpg"),
-  tea002: cloudImage("assets/images/product-tea-002-wild-black.jpg"),
-  tea003: cloudImage("assets/images/product-tea-003-aged-white.jpg"),
-  tea004: cloudImage("assets/images/product-tea-004-mtn-white.jpg"),
-  tea005: cloudImage("assets/images/product-tea-005-rougui.jpg"),
-  tea006: cloudImage("assets/images/product-tea-006-aged-rock.jpg"),
-  tea007: cloudImage("assets/images/product-tea-007-floral-dhp.jpg"),
-  tea008: cloudImage("assets/images/product-tea-008-puer.jpg"),
-  tea009: cloudImage("assets/images/product-tea-009-huangzhixiang.jpg"),
-  tea010: cloudImage("assets/images/product-tea-010-gongxiang.jpg"),
-  tea011: cloudImage("assets/images/product-tea-011-mielan.jpg"),
-  tea012: cloudImage("assets/images/product-tea-012-zhilan.jpg"),
-  tea013: cloudImage("assets/images/product-tea-013-jilongkan.jpg"),
-  drink001: cloudImage("assets/images/product-drink-001-chujian.jpg"),
-  drink002: cloudImage("assets/images/product-drink-002-zhiwei.jpg"),
-  drink003: cloudImage("assets/images/product-drink-003-zhencang.jpg"),
-  drink004: cloudImage("assets/images/product-drink-004-pengcha.jpg"),
-  drink005: cloudImage("assets/images/product-drink-005-fangming.jpg")
+  tea001: localImage("assets/images/product-tea-001-organic-black.jpg"),
+  tea002: localImage("assets/images/product-tea-002-wild-black.jpg"),
+  tea003: localImage("assets/images/product-tea-003-aged-white.jpg"),
+  tea004: localImage("assets/images/product-tea-004-mtn-white.jpg"),
+  tea005: localImage("assets/images/product-tea-005-rougui.jpg"),
+  tea006: localImage("assets/images/product-tea-006-aged-rock.jpg"),
+  tea007: localImage("assets/images/product-tea-007-floral-dhp.jpg"),
+  tea008: localImage("assets/images/product-tea-008-puer.jpg"),
+  tea009: localImage("assets/images/product-tea-009-huangzhixiang.jpg"),
+  tea010: localImage("assets/images/product-tea-010-gongxiang.jpg"),
+  tea011: localImage("assets/images/product-tea-011-mielan.jpg"),
+  tea012: localImage("assets/images/product-tea-012-zhilan.jpg"),
+  tea013: localImage("assets/images/product-tea-013-jilongkan.jpg"),
+  drink001: localImage("assets/images/product-drink-001-chujian.jpg"),
+  drink002: localImage("assets/images/product-drink-002-zhiwei.jpg"),
+  drink003: localImage("assets/images/product-drink-003-zhencang.jpg"),
+  drink004: localImage("assets/images/product-drink-004-pengcha.jpg"),
+  drink005: localImage("assets/images/product-drink-005-fangming.jpg")
 };
 
 // 禾煦茶单（门店现点）
@@ -358,7 +356,7 @@ const rooms = [
     capacity: "2人",
     price: 168,
     floor: "安静雅致 ｜ 观山景",
-    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-guanshan.jpg",
+    image: "/assets/images/reservation-hero.jpg",
     features: ["安静雅致", "观山景"],
     color: "#5a844c",
     status: "可预定"
@@ -369,7 +367,7 @@ const rooms = [
     capacity: "2-4人",
     price: 198,
     floor: "庭院茶室 ｜ 临窗听雨",
-    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-tingyu.jpg",
+    image: "/assets/images/reservation-hero.jpg",
     features: ["庭院茶室", "临窗听雨"],
     color: "#6b8050",
     status: "可预定"
@@ -380,7 +378,7 @@ const rooms = [
     capacity: "2人",
     price: 128,
     floor: "书香氛围 ｜ 静谧",
-    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-shuxiang.jpg",
+    image: "/assets/images/reservation-hero.jpg",
     features: ["书香氛围", "静谧"],
     color: "#587249",
     status: "可预定"
@@ -391,7 +389,7 @@ const rooms = [
     capacity: "4-6人",
     price: 148,
     floor: "松林清幽 ｜ 静心小室",
-    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-songfeng.jpg",
+    image: "/assets/images/reservation-hero.jpg",
     features: ["松林清幽", "静心小室"],
     color: "#6d6a42",
     status: "已订满"
@@ -402,7 +400,7 @@ const rooms = [
     capacity: "2-4人",
     price: 138,
     floor: "竹影摇曳 ｜ 清雅怡人",
-    image: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-zhuyun.jpg",
+    image: "/assets/images/reservation-hero.jpg",
     features: ["竹影摇曳", "清雅怡人"],
     color: "#617b4b",
     status: "可预定"
@@ -416,12 +414,12 @@ const events = [
     category: "养心茶会",
     date: "05.25 周六",
     time: "14:00",
-    place: "禾煦・双山店",
-    quota: 30,
+    place: "禾煦",
+    quota: 12,
     signed: 28,
     price: 68,
     image: "/assets/images/event-yangxin-tea.jpg",
-    detailImage: cloudImage("assets/images/event-detail-content-1.png"),
+    detailImage: localImage("assets/images/event-detail-content-1.png"),
     summary: "在茶香与静心中，慢慢安住自己",
     status: "报名中"
   },
@@ -431,12 +429,12 @@ const events = [
     category: "学茶",
     date: "06.01 周六",
     time: "10:00",
-    place: "禾煦・听雨店",
-    quota: 50,
+    place: "禾煦",
+    quota: 10,
     signed: 45,
     price: 0,
     image: "/assets/images/event-tea-class.jpg",
-    detailImage: cloudImage("assets/images/event-detail-content-2.png"),
+    detailImage: localImage("assets/images/event-detail-content-2.png"),
     summary: "从识香、泡茶到品饮，轻松了解基础茶知识",
     status: "报名中"
   },
@@ -446,12 +444,12 @@ const events = [
     category: "时令茶会",
     date: "06.08 周六",
     time: "14:00",
-    place: "禾煦・柏阳毛尖",
-    quota: 20,
+    place: "禾煦",
+    quota: 8,
     signed: 16,
     price: 128,
     image: "/assets/images/event-seasonal-tea.jpg",
-    detailImage: cloudImage("assets/images/event-detail-content-3.png"),
+    detailImage: localImage("assets/images/event-detail-content-3.png"),
     summary: "顺时品茶，感受节气与日常之美",
     status: "报名中"
   }
@@ -464,7 +462,7 @@ const homeSlides = [
     title: "谷雨新茶",
     subtitle: "清润一季",
     summary: "春去夏来，茶韵正清\n山野之气，凝于一杯",
-    image: cloudImage("assets/images/home-carousel-1.jpg"),
+    image: localImage("assets/images/home-carousel-1.jpg"),
     badge: "新",
     linkType: "page",
     linkTarget: "/pages/shop/index",
@@ -477,7 +475,7 @@ const homeSlides = [
     title: "雅室新席",
     subtitle: "静候一盏",
     summary: "茶器、茶席、茶室\n把日常安放得更从容",
-    image: cloudImage("assets/images/home-carousel-2.jpg"),
+    image: localImage("assets/images/home-carousel-2.jpg"),
     badge: "雅",
     linkType: "page",
     linkTarget: "/pages/reservation/index",
@@ -490,7 +488,7 @@ const homeSlides = [
     title: "茶饮上新",
     subtitle: "清甜入夏",
     summary: "现制茶饮，门店自取\n也可与好友同享",
-    image: cloudImage("assets/images/home-carousel-3.jpg"),
+    image: localImage("assets/images/home-carousel-3.jpg"),
     badge: "饮",
     linkType: "page",
     linkTarget: "/pages/shop/index",

@@ -2,6 +2,14 @@
 
 当前项目已经完成代码层云开发迁移：小程序端会优先调用云函数；如果没有配置云环境，则自动使用本地演示数据，方便继续查看页面。
 
+## 当前线上部署
+
+- 云环境：`cloudbase-d2gq023qn50e9d82f`（新小程序 `wx47e7cc7143682291`）。
+- 2026-07-25 已更新 `listMyRecords`：订单分页、详情、取消、确认收货、售后申请和用户归属校验。
+- 2026-07-25 已更新 `createPayment`：增加支付预下单与取消订单的并发保护。
+- 两支函数均为 Event Function，保持原有 Nodejs16.13 运行时、内存、超时和环境变量配置。
+- 真实微信支付仍保持关闭；商户号、证书序列号、商户私钥及微信支付平台公钥/证书配置完整并完成真机验证前，不得开启 `REAL_PAYMENT_ENABLED`。
+
 ## 必填配置
 
 1. 在微信公众平台拿到真实小程序 AppID。
@@ -40,6 +48,9 @@ module.exports = {
 - `createEvent`：发布活动。
 - `joinEvent`：活动报名，防止同一用户重复报名。
 - `listMyRecords`：读取当前用户订单、预约和活动报名。
+- `memberCenter`：会员主动开通、手机号核验、会员资料、储值套餐、测试充值与钱包查询。
+- `createPayment`：普通订单和会员充值的微信支付预下单；缺少支付配置时拒绝真实下单。
+- `wechatPayNotify`：微信支付回调验签、解密、订单确认和会员充值入账。
 - `cleanupSmokeData`：清理「云开发状态」页自动检查产生的测试订单、预约、活动和报名记录。
 
 项目还包含 `cloudbaserc.json`，用于让维护者快速了解当前云开发资源清单。实际部署仍建议优先使用微信开发者工具 CLI 或开发者工具右键部署。
@@ -76,11 +87,25 @@ deploy-cloudfunctions.bat 你的云环境ID
 - `reservations`
 - `events`
 - `event_signups`
+- `members`
+- `membership_plans`
+- `wallet_accounts`
+- `wallet_ledger`
+- `recharge_orders`
 
 建议权限：
 
 - `drinks`、`tea_products`、`rooms`、`events`：公开读，写入走云函数或后台。
 - `orders`、`reservations`、`event_signups`：仅用户读自己的数据，写入走云函数。
+- `members`、`membership_plans`、`wallet_accounts`、`wallet_ledger`、`recharge_orders`：全部仅管理员读写，客户端统一通过云函数访问，避免手机号、账户余额和流水被直接读取或篡改。
+
+## 会员储值测试与上线
+
+- 普通顾客不需要开通会员即可下单；会员权益、充值和余额支付才要求姓名与微信手机号授权。
+- 当前云端套餐为「充 500 送 100」和「充 1000 送 250」，金额由云端 `membership_plans` 校验，客户端提交的金额不会被信任。
+- `MEMBER_TEST_MODE=true` 时，只有 `MEMBER_TEST_OPENIDS`、`ADMIN_OPENIDS` 或 `STAFF_OPENIDS` 中的用户可以模拟充值。
+- 真实充值还需要分别为支付下单函数和支付回调函数安全配置商户号、API v3 密钥、商户私钥、证书序列号、平台公钥/平台证书及回调 URL。密钥只放 CloudBase 环境变量，不写入仓库。
+- 所有真实支付配置与真机小额回调验证完成前，保持 `memberCenter` 与 `createPayment` 的 `REAL_PAYMENT_ENABLED=false`（未配置也按关闭处理）。
 
 ## 开发者工具流程
 

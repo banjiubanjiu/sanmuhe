@@ -55,17 +55,13 @@ function getHeader(headers, name) {
 
 function getPlatformKey() {
   const key = process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY || process.env.WECHAT_PAY_PLATFORM_CERTIFICATE;
-  if (!key && process.env.WECHAT_PAY_SKIP_NOTIFY_VERIFY !== "true") {
+  if (!key) {
     throw new Error("未配置微信支付平台公钥或平台证书，无法验签");
   }
-  return key ? normalizePem(key) : "";
+  return normalizePem(key);
 }
 
 function verifyNotify(headers, rawBody) {
-  if (process.env.WECHAT_PAY_SKIP_NOTIFY_VERIFY === "true") {
-    return true;
-  }
-
   const timestamp = getHeader(headers, "Wechatpay-Timestamp");
   const nonce = getHeader(headers, "Wechatpay-Nonce");
   const signature = getHeader(headers, "Wechatpay-Signature");
@@ -270,15 +266,18 @@ async function updateMemberAfterPaid(order) {
   const pointsEarned = Math.floor(number(order.total) * pointRate);
   const existingResult = await db.collection("members").where({ _openid: openid }).limit(1).get();
   const existing = existingResult.data && existingResult.data[0];
+  if (!existing || existing.status !== "active" || !existing.phone) {
+    return { pointsEarned: 0, tier: "" };
+  }
   const nextTotalSpend = number(existing && existing.totalSpend) + number(order.total);
   const nextPaidOrders = number(existing && existing.paidOrders) + 1;
   const nextPoints = number(existing && existing.points) + pointsEarned;
   const level = getLevelBySpend(nextTotalSpend, getLevelRules(settings));
   const data = {
     _openid: openid,
-    name: existing && existing.name || order.consignee || "禾煦会员",
-    phone: existing && existing.phone || order.phone || "",
-    cardNo: existing && existing.cardNo || `SMH ${String(openid).slice(-6).toUpperCase()}`,
+    name: existing.name || "禾煦会员",
+    phone: existing.phone,
+    cardNo: existing.cardNo || `SMH ${String(openid).slice(-6).toUpperCase()}`,
     tier: level.tier,
     discountRate: level.discountRate,
     points: nextPoints,
@@ -288,13 +287,7 @@ async function updateMemberAfterPaid(order) {
     updatedAt: db.serverDate()
   };
 
-  if (existing && existing._id) {
-    await db.collection("members").doc(existing._id).update({ data });
-  } else {
-    await db.collection("members").add({
-      data: Object.assign({}, data, { createdAt: db.serverDate() })
-    });
-  }
+  await db.collection("members").doc(existing._id).update({ data });
 
   return { pointsEarned, tier: level.tier };
 }
@@ -309,7 +302,109 @@ function sendServiceNotice(kind, openid, payload) {
   }).catch(() => null);
 }
 
+async function findRechargeOrder(outTradeNo) {
+  await ensureCollection("recharge_orders");
+  const result = await db.collection("recharge_orders").where({ orderNo: outTradeNo }).limit(1).get();
+  return result.data && result.data[0] ? result.data[0] : null;
+}
+
+async function handleRechargeSuccess(transaction, recharge) {
+  const paidAmount = transaction.amount && Number(transaction.amount.total);
+  const expectedAmount = Math.max(0, Math.round(Number(recharge.payAmountFen) || 0));
+  if (paidAmount !== expectedAmount) {
+    await db.collection("recharge_orders").doc(recharge._id).update({
+      data: {
+        payStatus: "amount_mismatch",
+        status: "exception",
+        transactionId: transaction.transaction_id || "",
+        errorMessage: `微信支付金额 ${paidAmount} 与充值金额 ${expectedAmount} 不一致`,
+        updatedAt: db.serverDate()
+      }
+    });
+    throw new Error("充值支付金额不一致");
+  }
+  if (recharge.payStatus === "paid") {
+    return;
+  }
+
+  await Promise.all([ensureCollection("wallet_accounts"), ensureCollection("wallet_ledger")]);
+  const walletResult = await db.collection("wallet_accounts").where({
+    _openid: recharge._openid,
+    status: "active"
+  }).limit(1).get();
+  const wallet = walletResult.data && walletResult.data[0];
+  if (!wallet) {
+    throw new Error("充值会员的余额账户不存在");
+  }
+
+  const transactionId = String(transaction.transaction_id || "");
+  if (!transactionId) {
+    throw new Error("微信支付交易号为空");
+  }
+  const processed = Array.isArray(wallet.processedRechargeIds) ? wallet.processedRechargeIds : [];
+  const principalFen = Math.max(0, Math.round(Number(recharge.principalFen) || 0));
+  const bonusFen = Math.max(0, Math.round(Number(recharge.bonusFen) || 0));
+  const creditFen = principalFen + bonusFen;
+  const currentBalanceFen = Math.max(0, Math.round(Number(wallet.balanceFen) || 0));
+
+  if (!processed.includes(transactionId)) {
+    const claim = await db.collection("wallet_accounts").where({
+      _id: wallet._id,
+      _openid: recharge._openid,
+      status: "active",
+      balanceFen: currentBalanceFen
+    }).update({
+      data: {
+        balanceFen: _.inc(creditFen),
+        principalBalanceFen: _.inc(principalFen),
+        bonusBalanceFen: _.inc(bonusFen),
+        totalRechargedFen: _.inc(principalFen),
+        totalBonusFen: _.inc(bonusFen),
+        processedRechargeIds: _.push(transactionId),
+        updatedAt: db.serverDate()
+      }
+    });
+    if (!claim.updated) {
+      throw new Error("余额账户发生并发变化，请等待微信支付重试通知");
+    }
+  }
+
+  await db.collection("wallet_ledger").doc(`wx_${transactionId}`).set({
+    data: {
+      _openid: recharge._openid,
+      walletId: wallet._id,
+      memberId: recharge.memberId || "",
+      rechargeOrderId: recharge._id,
+      rechargeOrderNo: recharge.orderNo,
+      transactionId,
+      type: "wechat_recharge",
+      principalFen,
+      bonusFen,
+      amountFen: creditFen,
+      paidFen: expectedAmount,
+      status: "posted",
+      balanceAfterFen: processed.includes(transactionId) ? null : currentBalanceFen + creditFen,
+      createdAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    }
+  });
+  await db.collection("recharge_orders").doc(recharge._id).update({
+    data: {
+      status: "paid",
+      payStatus: "paid",
+      transactionId,
+      paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
+      updatedAt: db.serverDate()
+    }
+  });
+}
+
 async function handleTransactionSuccess(transaction) {
+  const recharge = await findRechargeOrder(transaction.out_trade_no);
+  if (recharge) {
+    await handleRechargeSuccess(transaction, recharge);
+    return;
+  }
   const order = await findOrder(transaction.out_trade_no);
   if (!order) {
     throw new Error("订单不存在");

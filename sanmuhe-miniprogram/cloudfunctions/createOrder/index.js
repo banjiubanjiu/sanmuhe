@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const { sendWeComOrderNotification } = require("./wecomOrderNotify");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -414,9 +415,24 @@ async function getMemberDiscount(openid, settings, cleanItems) {
   try {
     const existing = await db.collection("members").where({ _openid: openid }).limit(1).get();
     const member = existing.data && existing.data[0];
-    totalSpend = number(member && member.totalSpend);
+    if (!member || member.status !== "active" || !member.phone) {
+      return {
+        isMember: false,
+        tier: "普通顾客",
+        discountRate: 1,
+        eligibleSubtotal: 0,
+        discount: 0
+      };
+    }
+    totalSpend = number(member.totalSpend);
   } catch (error) {
-    totalSpend = 0;
+    return {
+      isMember: false,
+      tier: "普通顾客",
+      discountRate: 1,
+      eligibleSubtotal: 0,
+      discount: 0
+    };
   }
 
   const level = getLevelBySpend(totalSpend, levels);
@@ -427,6 +443,7 @@ async function getMemberDiscount(openid, settings, cleanItems) {
   const discount = discountRate < 1 ? Math.round(eligibleSubtotal * (1 - discountRate)) : 0;
 
   return {
+    isMember: true,
     tier: level.tier,
     discountRate,
     eligibleSubtotal,
@@ -524,13 +541,184 @@ function isManualPayMode(event = {}) {
     source === "cart-confirm";
 }
 
+function isBalancePayMode(event = {}) {
+  const mode = cleanText(event.payMode || event.paymentMode || event.checkoutMode, 20).toLowerCase();
+  return mode === "balance" || mode === "wallet";
+}
+
 function isOnsiteOrder(event = {}, deliveryMethod = "") {
   return deliveryMethod === "onsite" ||
     isManualPayMode(event) ||
     cleanText(event.source, 40).toLowerCase() === "onsite-cart";
 }
 
+function toFen(value) {
+  return Math.max(0, Math.round(number(value) * 100));
+}
+
+function splitWalletDebit(wallet, amountFen) {
+  const principal = Math.max(0, Math.round(Number(wallet.principalBalanceFen) || 0));
+  const bonus = Math.max(0, Math.round(Number(wallet.bonusBalanceFen) || 0));
+  const balance = principal + bonus;
+  if (balance < amountFen) {
+    throw new Error("会员余额不足，请选择柜台付款");
+  }
+  if (!amountFen || !balance) {
+    return { principalFen: 0, bonusFen: 0 };
+  }
+  let principalFen = Math.round(amountFen * principal / balance);
+  let bonusFen = amountFen - principalFen;
+  if (principalFen > principal) {
+    principalFen = principal;
+    bonusFen = amountFen - principalFen;
+  }
+  if (bonusFen > bonus) {
+    bonusFen = bonus;
+    principalFen = amountFen - bonusFen;
+  }
+  return { principalFen, bonusFen };
+}
+
+async function debitWallet(openid, member, orderId, orderNo, total) {
+  if (!member || !member.isMember) {
+    throw new Error("请先开通会员再使用余额支付");
+  }
+  await Promise.all([ensureCollection("wallet_accounts"), ensureCollection("wallet_ledger")]);
+  const result = await db.collection("wallet_accounts").where({ _openid: openid, status: "active" }).limit(1).get();
+  const wallet = result.data && result.data[0];
+  if (!wallet) {
+    throw new Error("未找到可用的会员余额账户");
+  }
+  const amountFen = toFen(total);
+  const currentBalanceFen = Math.max(0, Math.round(Number(wallet.balanceFen) || 0));
+  const debit = splitWalletDebit(wallet, amountFen);
+  const claim = await db.collection("wallet_accounts").where({
+    _id: wallet._id,
+    _openid: openid,
+    status: "active",
+    balanceFen: currentBalanceFen
+  }).update({
+    data: {
+      balanceFen: _.inc(-amountFen),
+      principalBalanceFen: _.inc(-debit.principalFen),
+      bonusBalanceFen: _.inc(-debit.bonusFen),
+      totalSpentFen: _.inc(amountFen),
+      processedOrderIds: _.push(orderNo),
+      updatedAt: db.serverDate()
+    }
+  });
+  if (!claim.updated) {
+    throw new Error("会员余额已发生变化，请重新确认订单");
+  }
+  await db.collection("wallet_ledger").doc(`order_${orderNo}`).set({
+    data: {
+      _openid: openid,
+      walletId: wallet._id,
+      memberId: member._id || "",
+      orderId,
+      orderNo,
+      type: "order_payment",
+      amountFen: -amountFen,
+      principalFen: -debit.principalFen,
+      bonusFen: -debit.bonusFen,
+      status: "posted",
+      balanceAfterFen: currentBalanceFen - amountFen,
+      createdAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    }
+  });
+  return {
+    amountFen,
+    principalFen: debit.principalFen,
+    bonusFen: debit.bonusFen,
+    balanceAfterFen: currentBalanceFen - amountFen
+  };
+}
+
+async function confirmPaidInventory(locks, orderNo) {
+  for (const lock of locks || []) {
+    if (!lock.docId || lock.quantity <= 0) {
+      continue;
+    }
+    const latest = await db.collection(lock.collection).doc(lock.docId).get();
+    const inventory = getInventorySnapshot(latest.data || {});
+    await db.collection(lock.collection).doc(lock.docId).update({
+      data: {
+        lockedStock: _.inc(-lock.quantity),
+        soldStock: _.inc(lock.quantity),
+        updatedAt: db.serverDate()
+      }
+    });
+    await writeInventoryLog({
+      collection: lock.collection,
+      docId: lock.docId,
+      itemId: lock.id || "",
+      itemName: lock.name || "",
+      type: "order_paid",
+      quantity: lock.quantity,
+      beforeStock: inventory.stock,
+      afterStock: inventory.stock,
+      beforeLockedStock: inventory.lockedStock,
+      afterLockedStock: Math.max(0, inventory.lockedStock - lock.quantity),
+      beforeSoldStock: inventory.soldStock,
+      afterSoldStock: inventory.soldStock + lock.quantity,
+      orderNo,
+      operator: "createOrder",
+      note: "会员余额支付确认库存"
+    });
+  }
+}
+
+async function consumeCouponForBalance(coupon, orderId, orderNo) {
+  if (!coupon || !coupon.userCouponId) {
+    return;
+  }
+  await db.collection("user_coupons").doc(coupon.userCouponId).update({
+    data: {
+      status: "已使用",
+      usedOrderId: orderId,
+      usedOrderNo: orderNo,
+      usedAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    }
+  });
+}
+
+function extractTableNo(event = {}, items = []) {
+  const direct = cleanText(event.tableNo || event.table || event.tableLabel, 20);
+  if (direct) {
+    return direct.replace(/^桌号\s*/i, "").replace(/^桌\s*/i, "").slice(0, 20);
+  }
+  const remark = cleanText(event.remark, 200);
+  const fromRemark = remark.match(/桌号\s*([^\s；;，,]+)/);
+  if (fromRemark && fromRemark[1]) {
+    return cleanText(fromRemark[1], 20);
+  }
+  for (let i = 0; i < (items || []).length; i += 1) {
+    const table = cleanText(items[i] && items[i].options && items[i].options.table, 20);
+    if (table) {
+      return table.replace(/^桌号\s*/i, "").replace(/^桌\s*/i, "").slice(0, 20);
+    }
+  }
+  return "";
+}
+
+function buildOrderRemark(tableNo, rawRemark) {
+  const table = cleanText(tableNo, 20);
+  const note = cleanText(rawRemark, 200);
+  const head = table ? `桌号 ${table}` : "";
+  if (head && note) {
+    if (note.indexOf(head) >= 0 || note.indexOf(`桌号${table}`) >= 0) {
+      return note;
+    }
+    return `${head}；${note}`.slice(0, 200);
+  }
+  return head || note;
+}
+
 async function notifyStaffWechat(order = {}) {
+  const tableNo = cleanText(order.tableNo, 20);
+  const remark = buildOrderRemark(tableNo, order.remark) || (tableNo ? `桌号 ${tableNo}` : "柜台扫码付款");
   try {
     const result = await cloud.callFunction({
       name: "serviceNotify",
@@ -540,9 +728,9 @@ async function notifyStaffWechat(order = {}) {
         payload: {
           orderNo: order.orderNo || "",
           total: order.total,
-          status: "待扫码付款",
+          status: order.payStatus === "paid" ? "余额已支付" : "待扫码付款",
           itemSummary: order.itemSummary || "",
-          remark: order.remark || "",
+          remark,
           time: ""
         }
       }
@@ -561,6 +749,10 @@ async function notifyAdmins(order = {}) {
     .map((item) => `${item.name}x${item.quantity}`)
     .join("、")
     .slice(0, 120);
+  const tableNo = cleanText(order.tableNo, 20);
+  const remark = buildOrderRemark(tableNo, order.remark);
+  const tableTip = tableNo ? `桌号 ${tableNo}，` : "";
+  const paidByBalance = order.payStatus === "paid" && order.payMode === "balance";
   const notice = {
     type: "order_created",
     orderNo: order.orderNo || "",
@@ -571,8 +763,9 @@ async function notifyAdmins(order = {}) {
     consignee: order.consignee || "",
     phone: order.phone || "",
     deliveryMethod: order.deliveryMethod || "pickup",
+    tableNo,
     itemSummary,
-    remark: order.remark || "",
+    remark,
     read: false,
     createdAt: db.serverDate()
   };
@@ -590,15 +783,16 @@ async function notifyAdmins(order = {}) {
       data: Object.assign({}, notice, {
         channel: "admin_notice",
         target: "admin",
-        message: `现场点单 ${notice.orderNo} 待确认，合计 ¥${notice.total}，请引导扫码付款。${itemSummary || ""}`
+        message: paidByBalance
+          ? `会员余额订单 ${notice.orderNo} 已支付，${tableTip}合计 ¥${notice.total}，请安排制作。${itemSummary || ""}`
+          : `现场点单 ${notice.orderNo} 待确认，${tableTip}合计 ¥${notice.total}，请引导扫码付款。${itemSummary || ""}`
       })
     });
   } catch (error) {
     // Logging is best-effort.
   }
 
-  const wechat = await notifyStaffWechat(Object.assign({}, notice, { itemSummary }));
-
+  const wechat = await notifyStaffWechat(Object.assign({}, notice, { itemSummary, tableNo, remark, payMode: order.payMode }));
   return {
     adminOpenids: parseList(process.env.ADMIN_OPENIDS).length,
     staffOpenids: parseList(process.env.STAFF_OPENIDS || process.env.ADMIN_OPENIDS).length,
@@ -607,25 +801,46 @@ async function notifyAdmins(order = {}) {
   };
 }
 
+async function notifyWeComOrder(order = {}) {
+  try {
+    return await sendWeComOrderNotification(order);
+  } catch (error) {
+    console.warn(`[wecom-order] ${error.message || "发送失败"}`);
+    return {
+      ok: false,
+      message: error.message || "企业微信新订单提醒发送失败"
+    };
+  }
+}
+
 exports.main = async (event = {}) => {
   if (event.action === "health") {
-    return { ok: true, name: "createOrder" };
+    return {
+      ok: true,
+      name: "createOrder",
+      wecomOrderNotifyConfigured: Boolean(process.env.WECOM_ORDER_WEBHOOK)
+    };
   }
 
   const { OPENID } = cloud.getWXContext();
   let appliedLocks = [];
   let appliedCoupon = null;
+  let createdOrderId = "";
+  let walletDebited = false;
 
   try {
     const { cleanItems, inventoryLocks, subtotal } = await sanitizeItems(event.items);
     const deliveryMethod = normalizeDeliveryMethod(event.deliveryMethod);
+    const balancePay = isBalancePayMode(event);
     const manualPay = isManualPayMode(event);
     const onsiteOrder = isOnsiteOrder(event, deliveryMethod);
+    const tableNo = extractTableNo(event, cleanItems);
+    const orderRemark = buildOrderRemark(tableNo, event.remark);
     const consignee = cleanText(event.consignee || event.pickupName, 40) || (onsiteOrder ? "到店顾客" : "");
     // 现场点单允许非手机号占位；真实手机号仅对非现场订单强制。
     const phone = cleanText(event.phone || event.pickupPhone, 30) || (onsiteOrder ? "现场" : "");
     const address = cleanText(event.address, 180);
-    const pickupNote = cleanText(event.pickupNote, 120);
+    const pickupNote = cleanText(event.pickupNote, 120) || (tableNo ? `桌号 ${tableNo}` : "");
 
     // 现场点单 / 免支付确认：不强制履约联系人；快递与在线支付仍需联系方式。
     if (!onsiteOrder) {
@@ -638,7 +853,7 @@ exports.main = async (event = {}) => {
     }
 
     const orderNo = `SMH${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
-    const lockedUntil = onsiteOrder || manualPay ? null : new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
+    const lockedUntil = onsiteOrder || manualPay || balancePay ? null : new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
     const settings = await readSettings();
     const member = await getMemberDiscount(OPENID, settings, cleanItems);
     const memberDiscount = Math.min(subtotal, member.discount);
@@ -654,8 +869,8 @@ exports.main = async (event = {}) => {
     await ensureCollection("orders");
     appliedLocks = await lockInventory(inventoryLocks, orderNo);
 
-    const orderStatus = onsiteOrder || manualPay ? "待确认" : "待支付";
-    const payStatus = onsiteOrder || manualPay ? "manual" : "pending";
+    const orderStatus = balancePay ? "余额支付处理中" : (onsiteOrder || manualPay ? "待确认" : "待支付");
+    const payStatus = balancePay ? "balance_processing" : (onsiteOrder || manualPay ? "manual" : "pending");
     const finalDeliveryMethod = onsiteOrder ? "onsite" : deliveryMethod;
 
     const addResult = await db.collection("orders").add({
@@ -678,32 +893,67 @@ exports.main = async (event = {}) => {
         phone: phone || (onsiteOrder ? "现场" : ""),
         address: finalDeliveryMethod === "shipping" ? address : "",
         pickupNote: finalDeliveryMethod === "pickup" || finalDeliveryMethod === "onsite" ? pickupNote : "",
-        remark: cleanText(event.remark, 200),
+        tableNo,
+        remark: orderRemark,
         source: cleanText(event.source, 40) || (onsiteOrder ? "onsite-cart" : ""),
         status: orderStatus,
         payStatus,
-        payMode: onsiteOrder || manualPay ? "manual" : "wechat",
-        payHint: onsiteOrder || manualPay ? "现场扫码付款" : "",
-        lockedUntil: onsiteOrder || manualPay ? null : lockedUntil,
+        payMode: balancePay ? "balance" : (onsiteOrder || manualPay ? "manual" : "wechat"),
+        payHint: balancePay ? "会员余额支付" : (onsiteOrder || manualPay ? "现场扫码付款" : ""),
+        lockedUntil: onsiteOrder || manualPay || balancePay ? null : lockedUntil,
         lockReleased: false,
         adminNotified: onsiteOrder || manualPay,
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
       }
     });
+    createdOrderId = addResult._id;
+
+    let walletPayment = null;
+    if (balancePay) {
+      walletPayment = await debitWallet(OPENID, member, addResult._id, orderNo, total);
+      walletDebited = true;
+      await Promise.all([
+        confirmPaidInventory(appliedLocks, orderNo),
+        consumeCouponForBalance(appliedCoupon, addResult._id, orderNo)
+      ]);
+      await db.collection("orders").doc(addResult._id).update({
+        data: {
+          status: "待确认",
+          payStatus: "paid",
+          paidAt: db.serverDate(),
+          walletPayment,
+          updatedAt: db.serverDate()
+        }
+      });
+      appliedLocks = [];
+      appliedCoupon = null;
+    }
+
+    const wecomNotify = await notifyWeComOrder({
+      orderNo,
+      total,
+      status: balancePay ? "待确认" : orderStatus,
+      deliveryMethod: finalDeliveryMethod,
+      tableNo,
+      remark: orderRemark,
+      items: cleanItems
+    });
 
     let adminNotify = null;
-    if (onsiteOrder || manualPay) {
+    if (onsiteOrder || manualPay || balancePay) {
       adminNotify = await notifyAdmins({
         orderId: addResult._id,
         orderNo,
         total,
-        status: orderStatus,
-        payStatus,
+        status: balancePay ? "待确认" : orderStatus,
+        payStatus: balancePay ? "paid" : payStatus,
+        payMode: balancePay ? "balance" : "manual",
         consignee: consignee || "到店顾客",
         phone: phone || "现场",
         deliveryMethod: finalDeliveryMethod,
-        remark: cleanText(event.remark, 200),
+        tableNo,
+        remark: orderRemark,
         items: cleanItems
       });
     }
@@ -718,17 +968,33 @@ exports.main = async (event = {}) => {
       shippingFee,
       total,
       deliveryMethod: finalDeliveryMethod,
-      status: orderStatus,
-      payStatus,
-      payMode: onsiteOrder || manualPay ? "manual" : "wechat",
+      status: balancePay ? "待确认" : orderStatus,
+      payStatus: balancePay ? "paid" : payStatus,
+      payMode: balancePay ? "balance" : (onsiteOrder || manualPay ? "manual" : "wechat"),
+      walletPayment,
       lockedUntil: lockedUntil ? lockedUntil.toISOString() : null,
-      adminNotify
+      adminNotify,
+      wecomNotify
     };
   } catch (error) {
-    if (appliedLocks.length) {
+    if (createdOrderId) {
+      try {
+        await db.collection("orders").doc(createdOrderId).update({
+          data: {
+            status: "支付异常待处理",
+            payStatus: "balance_error",
+            paymentError: error.message || "会员余额支付失败",
+            updatedAt: db.serverDate()
+          }
+        });
+      } catch (updateError) {
+        // Preserve the original error.
+      }
+    }
+    if (appliedLocks.length && !walletDebited) {
       await releaseInventory(appliedLocks);
     }
-    if (appliedCoupon) {
+    if (appliedCoupon && !walletDebited) {
       await releaseUserCoupon(appliedCoupon);
     }
     return {

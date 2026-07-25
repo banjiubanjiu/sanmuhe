@@ -23,7 +23,10 @@ $FunctionNames = @(
   "createEvent",
   "joinEvent",
   "listMyRecords",
-  "cleanupSmokeData"
+  "cleanupSmokeData",
+  "memberCenter",
+  "serviceNotify",
+  "scheduledBackup"
 )
 
 if (-not $EnvId) {

@@ -32,7 +32,7 @@ exports.main = async (event = {}) => {
   const quota = Math.max(1, Math.min(999, Number(event.quota) || 1));
   const price = Math.max(0, Number(event.price) || 0);
   const summary = cleanText(event.summary, 300);
-  const image = cleanText(event.image, 160) || "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-event-spring.jpg";
+  const image = cleanText(event.image, 160) || "/assets/images/event-seasonal-tea.jpg";
   const source = cleanText(event.source, 40);
 
   if (!title || !date || !time || !summary) {

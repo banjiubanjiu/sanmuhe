@@ -1,0 +1,176 @@
+<view class="detail-page {{order ? 'has-action-bar' : ''}}">
+  <view class="detail-nav">
+    <view class="nav-back" bindtap="goBack">
+      <image src="/assets/icons/back-ink.png" mode="aspectFit"></image>
+    </view>
+    <view class="nav-title">订单详情</view>
+    <view class="nav-balance"></view>
+  </view>
+
+  <view wx:if="{{loading && !order}}" class="detail-loading">
+    <view class="loading-mark"></view>
+    <view>正在确认订单状态</view>
+  </view>
+
+  <view wx:elif="{{error && !order}}" class="detail-state">
+    <image src="/assets/icons/profile-order.png" mode="aspectFit"></image>
+    <view class="state-title">订单没有加载出来</view>
+    <view class="state-copy">{{error}}</view>
+    <button class="state-action" bindtap="retry">重新加载</button>
+  </view>
+
+  <block wx:elif="{{order}}">
+    <view class="status-hero status-{{order.statusTone}}">
+      <view class="status-topline">{{order.deliveryText}}</view>
+      <view class="status-title">{{order.statusLabel}}</view>
+      <view class="status-copy">{{order.statusHint}}</view>
+      <view class="status-order-no" bindtap="copyOrderNo">
+        <text>{{order.displayId}}</text>
+        <text class="copy-link">复制</text>
+      </view>
+    </view>
+
+    <view class="detail-surface timeline-section">
+      <view class="section-title">订单进度</view>
+      <view wx:if="{{order.timeline.length > 0}}" class="timeline">
+        <view
+          wx:for="{{order.timeline}}"
+          wx:key="title"
+          class="timeline-row {{item.latest ? 'is-latest' : ''}}"
+        >
+          <view class="timeline-track">
+            <view class="timeline-dot"></view>
+            <view wx:if="{{index < order.timeline.length - 1}}" class="timeline-line"></view>
+          </view>
+          <view class="timeline-copy">
+            <view class="timeline-title">{{item.title}}</view>
+            <view class="timeline-time">{{item.timeText}}</view>
+            <view wx:if="{{item.detail}}" class="timeline-detail">{{item.detail}}</view>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="section-empty">订单提交后，处理进度会显示在这里。</view>
+    </view>
+
+    <view class="detail-surface">
+      <view class="section-title">商品明细</view>
+      <view class="item-list">
+        <view wx:for="{{order.items}}" wx:key="id" class="item-row">
+          <view class="item-image">
+            <image wx:if="{{item.image}}" src="{{item.image}}" mode="aspectFill"></image>
+            <image wx:else class="item-fallback" src="/assets/icons/leaf-active.png" mode="aspectFit"></image>
+          </view>
+          <view class="item-copy">
+            <view class="item-name">{{item.name}}</view>
+            <view wx:if="{{item.optionText}}" class="item-option">{{item.optionText}}</view>
+            <view class="item-quantity">数量 ×{{item.quantity}}</view>
+          </view>
+          <view class="item-price">¥{{item.lineTotalText}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="detail-surface">
+      <view class="section-title">交付信息</view>
+      <view class="info-row">
+        <text>方式</text>
+        <view>{{order.deliveryText}}</view>
+      </view>
+      <view class="info-row">
+        <text>地点</text>
+        <view>{{order.deliveryDetail}}</view>
+      </view>
+      <view wx:if="{{order.consignee}}" class="info-row">
+        <text>联系人</text>
+        <view>{{order.consignee}} {{order.phone}}</view>
+      </view>
+      <view wx:if="{{order.remark}}" class="info-row">
+        <text>备注</text>
+        <view>{{order.remark}}</view>
+      </view>
+      <view wx:if="{{order.canViewLogistics}}" class="logistics-block">
+        <view class="logistics-label">物流信息</view>
+        <view class="logistics-main">
+          <view>
+            <view class="logistics-company">{{order.trackingCompany || '快递配送'}}</view>
+            <view class="tracking-no">{{order.trackingNo}}</view>
+          </view>
+          <button bindtap="copyTrackingNo">复制单号</button>
+        </view>
+      </view>
+    </view>
+
+    <view class="detail-surface amount-section">
+      <view class="section-title">金额明细</view>
+      <view class="amount-row"><text>商品金额</text><view>¥{{order.subtotalText}}</view></view>
+      <view wx:if="{{order.discount > 0}}" class="amount-row saving"><text>优惠</text><view>-¥{{order.discountText}}</view></view>
+      <view wx:if="{{order.shippingFee > 0}}" class="amount-row"><text>配送费</text><view>¥{{order.shippingFeeText}}</view></view>
+      <view class="amount-total"><text>实付</text><view><text>¥</text>{{order.totalText}}</view></view>
+      <view class="created-time">下单时间 {{order.createdAtText}}</view>
+    </view>
+
+    <view wx:if="{{order.afterSaleStatus}}" class="after-sale-status">
+      <view>
+        <view class="after-sale-title">{{order.afterSaleStatus}}</view>
+        <view class="after-sale-copy">{{order.afterSaleNote || order.afterSaleReason || '门店会尽快处理你的申请。'}}</view>
+      </view>
+      <view wx:if="{{order.refundAmount > 0}}" class="refund-amount">¥{{order.refundAmountText}}</view>
+    </view>
+
+    <view wx:if="{{afterSaleOpen}}" class="after-sale-form">
+      <view class="section-title">需要门店协助什么？</view>
+      <textarea
+        value="{{afterSaleReason}}"
+        maxlength="160"
+        placeholder="请说明商品、配送或服务中遇到的问题"
+        bindinput="onAfterSaleReason"
+      ></textarea>
+      <view class="form-actions">
+        <button class="form-cancel" bindtap="toggleAfterSale">暂不申请</button>
+        <button class="form-submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitAfterSale">提交申请</button>
+      </view>
+    </view>
+
+    <view class="secondary-actions">
+      <button bindtap="contactService">
+        <image src="/assets/icons/headset-ink.png" mode="aspectFit"></image>
+        联系门店
+      </button>
+      <button wx:if="{{order.status === '已完成'}}" bindtap="buyAgain">再次购买</button>
+    </view>
+
+    <view class="detail-action-bar">
+      <button
+        wx:if="{{order.canCancel}}"
+        class="danger-action"
+        disabled="{{submitting}}"
+        bindtap="cancelOrder"
+      >取消订单</button>
+      <button
+        wx:if="{{order.canApplyAfterSale && !afterSaleOpen}}"
+        class="secondary-action"
+        disabled="{{submitting}}"
+        bindtap="toggleAfterSale"
+      >申请售后</button>
+      <button
+        wx:if="{{order.canPay}}"
+        class="primary-action"
+        loading="{{submitting}}"
+        disabled="{{submitting}}"
+        bindtap="continuePayment"
+      >继续支付</button>
+      <button
+        wx:elif="{{order.canConfirmReceipt}}"
+        class="primary-action"
+        loading="{{submitting}}"
+        disabled="{{submitting}}"
+        bindtap="confirmReceipt"
+      >确认收货</button>
+      <button
+        wx:elif="{{!order.canCancel && !order.canApplyAfterSale}}"
+        class="primary-action"
+        bindtap="contactService"
+      >联系门店</button>
+    </view>
+  </block>
+</view>

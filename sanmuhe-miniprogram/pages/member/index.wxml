@@ -13,27 +13,98 @@
   </view>
 
   <view class="member-hero-card">
-    <image class="hero-bg" src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg" mode="aspectFill"></image>
+    <image class="hero-bg" src="/assets/images/profile-member-card.jpg" mode="aspectFill"></image>
     <view class="hero-shade"></view>
     <view class="hero-content">
       <view class="hero-top">
-        <view class="tier-name"><text>♕</text>{{member.tier}}</view>
-        <view class="rights-pill"><text>♕</text>尊享权益</view>
+        <view class="tier-name">
+          <image class="tier-icon" src="/assets/icons/crown-gold.png" mode="aspectFit"></image>
+          <text>{{member.isMember ? member.tier : '禾煦茶友'}}</text>
+        </view>
+        <view class="rights-pill">尊享权益</view>
       </view>
       <view class="member-name-row">
-        <view class="member-name">{{member.name}}</view>
-        <view class="leaf-dot">叶</view>
+        <view class="member-name">{{member.isMember ? member.name : '茶友'}}</view>
+        <image class="leaf-mark" src="/assets/icons/leaf-gold.png" mode="aspectFit"></image>
       </view>
       <view class="card-line"></view>
-      <view class="card-no">{{member.cardNo}}</view>
+      <view class="card-no">{{member.isMember ? member.cardNo : 'NO. 静候相逢'}}</view>
       <view class="points-block">
-        <text>会员积分</text>
-        <view>{{member.points}}</view>
+        <text>{{member.isMember ? '储值余额' : '会员礼遇'}}</text>
+        <view class="points-value">{{member.isMember ? ('¥' + wallet.balance) : '充值有礼'}}</view>
       </view>
     </view>
   </view>
 
-  <view class="highlight-card">
+  <view wx:if="{{!member.isMember}}" class="activation-card">
+    <view class="activation-kicker">MEMBERSHIP</view>
+    <view class="activation-title">开通禾煦会员</view>
+    <view class="activation-copy">加入会员，享储值礼遇：充 500 送 100、充 1000 送 250。</view>
+    <input
+      class="activation-input"
+      value="{{nameInput}}"
+      maxlength="20"
+      placeholder="填写姓名或称呼"
+      bindinput="onNameInput"
+    />
+    <view class="agreement-row" bindtap="toggleAgreement">
+      <checkbox checked="{{agreementAccepted}}" color="#315f2f"></checkbox>
+      <text>我已阅读并同意</text>
+      <text class="agreement-link" catchtap="showMemberAgreement">《会员及储值规则》</text>
+      <text>和</text>
+      <text class="agreement-link" catchtap="openPrivacyContract">《用户隐私保护指引》</text>
+    </view>
+
+    <button
+      class="activation-action {{canActivatePhone ? '' : 'is-disabled'}}"
+      open-type="{{canActivatePhone ? 'getPhoneNumber' : ''}}"
+      loading="{{activationSubmitting}}"
+      hover-class="none"
+      bindtap="onActivationTap"
+      bindgetphonenumber="handlePhoneActivation"
+    >手机号快捷开通</button>
+    <view class="activation-note">点击开通后，请按提示同意隐私指引并允许使用手机号。手机号仅用于会员账户识别。</view>
+  </view>
+
+  <view wx:if="{{member.isMember}}" class="wallet-card">
+    <view class="wallet-head">
+      <view>
+        <view class="wallet-label">会员储值余额</view>
+        <view class="wallet-balance"><text>¥</text>{{wallet.balance}}</view>
+      </view>
+      <view class="wallet-phone">{{member.phoneMasked}}</view>
+    </view>
+    <view class="wallet-breakdown">
+      <view><text>本金余额</text><view class="wallet-part-value">¥{{wallet.principalBalance}}</view></view>
+      <view><text>赠送余额</text><view class="wallet-part-value">¥{{wallet.bonusBalance}}</view></view>
+    </view>
+    <block wx:if="{{payment.testRechargeEnabled || payment.realPaymentReady}}">
+      <view class="recharge-title">选择充值档位</view>
+      <view class="plan-list">
+      <view
+        wx:for="{{plans}}"
+        wx:key="id"
+        class="plan-item {{selectedPlanId === item.id ? 'active' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="selectPlan"
+      >
+        <view class="plan-principal">充 ¥{{item.principal}}</view>
+        <view class="plan-total">到账 ¥{{item.total}}</view>
+        <view class="plan-bonus">含赠送 ¥{{item.bonus}}</view>
+      </view>
+      </view>
+      <button
+        class="recharge-action"
+        loading="{{rechargeSubmitting}}"
+        disabled="{{rechargeSubmitting || plans.length === 0}}"
+        bindtap="rechargeMember"
+      >{{payment.testRechargeEnabled ? '模拟充值' : '立即充值'}}</button>
+      <view wx:if="{{payment.testRechargeEnabled}}" class="test-banner">体验环境，充值与余额均为模拟数据。</view>
+    </block>
+    <view wx:else class="test-banner">储值服务即将开放</view>
+  </view>
+
+  <view wx:if="{{member.isMember}}" class="highlight-card">
     <view
       wx:for="{{highlights}}"
       wx:key="title"
@@ -47,13 +118,15 @@
     </view>
   </view>
 
-  <view class="level-card">
+  <view wx:if="{{member.isMember}}" class="level-card">
     <view class="panel-head">
       <view class="panel-title">会员等级</view>
       <view class="panel-link" bindtap="showAllLevels">查看全部等级 ›</view>
     </view>
     <view class="level-row">
-      <view class="level-badge">♕</view>
+      <view class="level-badge">
+        <image src="/assets/icons/crown-gold.png" mode="aspectFit"></image>
+      </view>
       <view class="level-copy">
         <view class="level-title">{{level.current}}</view>
         <view class="progress-track">
@@ -86,7 +159,7 @@
     </view>
   </view>
 
-  <view class="coupon-card">
+  <view wx:if="{{member.isMember}}" class="coupon-card">
     <view class="panel-head">
       <view class="panel-title">可领取优惠券</view>
       <view class="panel-link">{{userCoupons.length}} 张已领取</view>
@@ -109,7 +182,7 @@
     <view wx:if="{{availableCoupons.length === 0}}" class="empty-line">暂无可领取优惠券</view>
   </view>
 
-  <view class="notice-card">
+  <view wx:if="{{member.isMember}}" class="notice-card">
     <view>
       <view class="notice-title">服务通知</view>
       <view class="notice-copy">订阅后可接收支付、发货、预约和活动状态更新。</view>
@@ -142,6 +215,14 @@
       </view>
     </view>
   </view>
+
+  <privacy-gate
+    show="{{privacyGateOpen}}"
+    purpose="{{privacyPurpose}}"
+    contractName="{{privacyContractName}}"
+    bindagree="onPrivacyAgree"
+    bindcancel="onPrivacyCancel"
+  />
 
   <custom-tab-bar force-selected="{{4}}"></custom-tab-bar>
 </view>

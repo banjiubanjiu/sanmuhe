@@ -3,9 +3,6 @@
     <image class="detail-design" src="{{event.detailImage}}" mode="widthFix" bindtap="previewDesign"></image>
   </view>
 
-  <!-- soft fade into the floating bar so image meets chrome without a dead strip -->
-  <view class="bar-fade"></view>
-
   <view class="detail-safe-bar">
     <view class="bar-action" bindtap="contactService">
       <image class="bar-action-icon" src="/assets/icons/service-line.png" mode="aspectFit"></image>

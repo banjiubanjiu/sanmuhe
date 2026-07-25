@@ -1,4 +1,4 @@
 module.exports = {
-  envId: "sanmuhe-env-d3g1nt3jsa1be67e3",
+  envId: "cloudbase-d2gq023qn50e9d82f",
   useCloud: true
 };

@@ -17,20 +17,11 @@ function sortEvents(items) {
   });
 }
 
-async function ensureCollection(name) {
-  try {
-    await db.createCollection(name);
-  } catch (error) {
-    // Existing collections are expected after first setup.
-  }
-}
-
 exports.main = async (event = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "listEvents" };
   }
 
-  await ensureCollection("events");
   let cloudEvents = [];
 
   try {

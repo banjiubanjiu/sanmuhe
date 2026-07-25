@@ -48,7 +48,7 @@
         <text class="member-name">禾煦会员</text>
         <text class="growth-pill">积分自动累计</text>
       </view>
-      <view class="member-meta">支付成功后更新等级、积分与可用优惠券</view>
+      <view class="member-meta">储值礼遇：充 500 送 100 · 充 1000 送 250</view>
     </view>
     <view class="member-link">查看权益 ›</view>
   </view>
@@ -75,10 +75,10 @@
 
   <view class="scene-grid">
     <view class="scene-card room" bindtap="goReservation">
-      <image src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-room-card.jpg" mode="aspectFill"></image>
+      <image src="/assets/images/home-room-card.jpg" mode="aspectFill"></image>
     </view>
     <view class="scene-card event" bindtap="goEvents">
-      <image src="https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-event-card.jpg" mode="aspectFill"></image>
+      <image src="/assets/images/home-event-card.jpg" mode="aspectFill"></image>
     </view>
   </view>
 

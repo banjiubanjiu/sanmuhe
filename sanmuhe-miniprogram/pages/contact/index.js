@@ -2,12 +2,13 @@ const app = getApp({ allowDefault: true });
 const { getCatalog } = require("../../utils/cloudApi");
 
 const fallbackContact = {
-  phone: "0757-8888 8888",
+  phone: "13392268386",
   serviceTime: "10:00 - 21:00",
   store: "禾煦・佛山",
   address: "广东省佛山市",
-  wechat: "SANMUHE0757",
-  heroImage: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-hero-tea.jpg"
+  wechat: "zizi66",
+  heroImage: "/assets/images/reservation-hero.jpg",
+  qrCode: "/assets/images/contact-qr.jpg"
 };
 
 Page({
@@ -43,31 +44,10 @@ Page({
     });
   },
 
-  goBack() {
-    const pages = getCurrentPages();
-    if (pages.length > 1) {
-      wx.navigateBack();
-      return;
-    }
-    wx.switchTab({ url: "/pages/profile/index" });
-  },
-
-  goTab(event) {
-    const url = event.currentTarget.dataset.url;
-    if (!url) {
-      return;
-    }
-    if (url === "/pages/reservation/index") {
-      wx.navigateTo({ url });
-      return;
-    }
-    wx.switchTab({ url });
-  },
-
   openOnlineService() {
     wx.showModal({
       title: "在线客服",
-      content: "当前可通过电话或微信联系门店，微信号 SANMUHE0757 已为你准备好。",
+      content: "当前可通过电话或微信联系门店，微信号 zizi66 已为你准备好。",
       confirmText: "复制微信",
       success: (res) => {
         if (res.confirm) {

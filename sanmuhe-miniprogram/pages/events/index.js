@@ -10,10 +10,10 @@ const eventDisplay = {
     category: "养心茶会",
     date: "5月25日 周六",
     time: "14:00",
-    place: "禾煦・佛山",
+    place: "禾煦",
     quota: 12,
     image: "/assets/images/event-yangxin-tea.jpg",
-    detailImage: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-1.png",
+    detailImage: "/assets/images/event-yangxin-tea.jpg",
     summary: "在茶香与静心中，慢慢安住自己"
   },
   "event-002": {
@@ -21,10 +21,10 @@ const eventDisplay = {
     category: "学茶",
     date: "6月1日 周六",
     time: "10:00",
-    place: "禾煦・佛山",
+    place: "禾煦",
     quota: 10,
     image: "/assets/images/event-tea-class.jpg",
-    detailImage: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-2.png",
+    detailImage: "/assets/images/event-tea-class.jpg",
     summary: "从识香、泡茶到品饮，轻松了解基础茶知识"
   },
   "event-003": {
@@ -32,10 +32,10 @@ const eventDisplay = {
     category: "时令茶会",
     date: "6月8日 周六",
     time: "15:00",
-    place: "禾煦・佛山",
+    place: "禾煦",
     quota: 8,
     image: "/assets/images/event-seasonal-tea.jpg",
-    detailImage: "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-3.png",
+    detailImage: "/assets/images/event-seasonal-tea.jpg",
     summary: "顺时品茶，感受节气与日常之美"
   }
 };
@@ -67,28 +67,57 @@ function normalizeEvents(items) {
   });
 }
 
+function getEventSignature(items) {
+  return items.map((item) => [
+    item.id,
+    item.title,
+    item.category,
+    item.date,
+    item.time,
+    item.place,
+    item.quota,
+    item.image,
+    item.summary
+  ].join("|")).join("||");
+}
+
+const initialEvents = normalizeEvents(events);
+let cachedEvents = initialEvents;
+
 Page({
   data: {
     categories,
     activeCategory: "全部",
-    allEvents: [],
-    events: []
+    allEvents: initialEvents,
+    events: initialEvents
   },
 
   onShow() {
     syncTabBar(this);
+
+    if (getEventSignature(this.data.allEvents) !== getEventSignature(cachedEvents)) {
+      this.applyEvents(cachedEvents);
+    }
+
     listEvents().then((nextEvents) => {
       const allEvents = normalizeEvents(nextEvents && nextEvents.length ? nextEvents : events);
-      this.setData({ allEvents }, () => this.applyFilter());
+      if (getEventSignature(allEvents) === getEventSignature(cachedEvents)) {
+        return;
+      }
+      cachedEvents = allEvents;
+      this.applyEvents(allEvents);
     });
   },
 
-  applyFilter() {
-    const { activeCategory, allEvents } = this.data;
-    const filtered = activeCategory === "全部"
+  applyEvents(allEvents) {
+    const filtered = this.data.activeCategory === "全部"
       ? allEvents
-      : allEvents.filter((item) => item.category === activeCategory);
-    this.setData({ events: filtered });
+      : allEvents.filter((item) => item.category === this.data.activeCategory);
+    this.setData({ allEvents, events: filtered });
+  },
+
+  applyFilter() {
+    this.applyEvents(this.data.allEvents);
   },
 
   changeCategory(event) {

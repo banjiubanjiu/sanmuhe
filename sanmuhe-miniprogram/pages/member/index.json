@@ -2,6 +2,7 @@
   "navigationBarTitleText": "会员中心",
   "navigationStyle": "custom",
   "usingComponents": {
-    "custom-tab-bar": "/custom-tab-bar/index"
+    "custom-tab-bar": "/custom-tab-bar/index",
+    "privacy-gate": "/components/privacy-gate/index"
   }
 }

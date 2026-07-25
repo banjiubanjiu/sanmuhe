@@ -1,16 +1,4 @@
 <view class="page contact-page">
-  <view class="top-space">
-    <view class="nav-capsule">
-      <view class="dots">
-        <text></text>
-        <text></text>
-        <text></text>
-      </view>
-      <view class="capsule-line"></view>
-      <view class="capsule-circle"></view>
-    </view>
-  </view>
-
   <view class="intro">
     <view class="contact-title">联系客服</view>
     <view class="contact-subtitle">有任何关于茶品、茶席与活动的问题，都可以与我们慢慢聊。</view>
@@ -67,13 +55,7 @@
       <view class="card-title">添加微信</view>
       <view class="card-subtitle">预约茶室 / 活动咨询 / 私人茶会</view>
     </view>
-    <view class="qr-box" aria-label="微信二维码">
-      <view
-        wx:for="{{qrCells}}"
-        wx:key="index"
-        class="qr-cell {{item ? 'is-filled' : ''}}"
-      ></view>
-    </view>
+    <image class="qr-image" src="{{contact.qrCode}}" mode="aspectFill" aria-label="微信二维码"></image>
     <view class="card-chevron">›</view>
   </view>
 
@@ -106,26 +88,5 @@
     </view>
   </view>
 
-  <view class="contact-tabbar">
-    <view class="tab-item" data-url="/pages/index/index" bindtap="goTab">
-      <image src="/assets/icons/home-line.png" mode="aspectFit"></image>
-      <text>首页</text>
-    </view>
-    <view class="tab-item" data-url="/pages/shop/index" bindtap="goTab">
-      <image src="/assets/icons/category-line.png" mode="aspectFit"></image>
-      <text>茶品</text>
-    </view>
-    <view class="tab-item" data-url="/pages/events/index" bindtap="goTab">
-      <image src="/assets/icons/events-line.png" mode="aspectFit"></image>
-      <text>活动</text>
-    </view>
-    <view class="tab-item" data-url="/pages/reservation/index" bindtap="goTab">
-      <image src="/assets/icons/profile-room.png" mode="aspectFit"></image>
-      <text>茶席</text>
-    </view>
-    <view class="tab-item active" data-url="/pages/profile/index" bindtap="goTab">
-      <image src="/assets/icons/profile-active.png" mode="aspectFit"></image>
-      <text>我的</text>
-    </view>
-  </view>
+
 </view>

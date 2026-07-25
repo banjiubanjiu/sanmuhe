@@ -10,7 +10,7 @@
         "notes": "古树红茶 / 清香单丛 / 留白白茶 / 顺景普洱",
         "badge": "道",
         "color": "#8d4a2f",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-drink-001-chujian.jpg",
+        "image": "/assets/images/product-drink-001-chujian.jpg",
         "temps": [
           "热"
         ],
@@ -29,7 +29,7 @@
         "notes": "岩茶：花香大红袍 / 十五年陈茶；红茶：有机红茶 / 正山小种；单丛：荒野蜜兰 / 贡香 / 高山蜜兰",
         "badge": "道",
         "color": "#7b4e34",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-drink-002-zhiwei.jpg",
+        "image": "/assets/images/product-drink-002-zhiwei.jpg",
         "temps": [
           "热"
         ],
@@ -48,7 +48,7 @@
         "notes": "马头岩肉桂",
         "badge": "道",
         "color": "#6b3f2f",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-drink-003-zhencang.jpg",
+        "image": "/assets/images/product-drink-003-zhencang.jpg",
         "temps": [
           "热"
         ],
@@ -67,7 +67,7 @@
         "notes": "老白茶 / 熟普 / 养生茶",
         "badge": "壶",
         "color": "#9aa477",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-drink-004-pengcha.jpg",
+        "image": "/assets/images/product-drink-004-pengcha.jpg",
         "temps": [
           "热"
         ],
@@ -86,7 +86,7 @@
         "notes": "玫瑰花茶",
         "badge": "壶",
         "color": "#c17831",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-drink-005-fangming.jpg",
+        "image": "/assets/images/product-drink-005-fangming.jpg",
         "temps": [
           "热",
           "常温"
@@ -112,8 +112,8 @@
         "taste": "香气为花果香与蜜香交织，带点山野气韵。茶汤鲜红明亮、入口甘甜，滋味浓厚，水路细腻，回甘清甜。",
         "stock": 200,
         "color": "#8d4a2f",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-001-organic-black.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-001-organic-black.jpg",
+        "image": "/assets/images/product-tea-001-organic-black.jpg",
+        "thumb": "/assets/images/product-tea-001-organic-black.jpg",
         "detail": "散装与礼盒多种规格可选。建议盖碗冲泡，沸水醒茶后细品花果蜜香。",
         "specs": [
           {
@@ -156,8 +156,8 @@
         "taste": "花香果香浓郁，口感甘甜纯净，汤感细腻。",
         "stock": 80,
         "color": "#7a3f2a",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-002-wild-black.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-002-wild-black.jpg",
+        "image": "/assets/images/product-tea-002-wild-black.jpg",
+        "thumb": "/assets/images/product-tea-002-wild-black.jpg",
         "detail": "体验装小罐，适合初次认识临沧野生红茶风味。",
         "specs": [
           {
@@ -182,8 +182,8 @@
         "taste": "醇、润、甜、陈，十年干仓老寿眉，药枣香突出，茶汤温和不伤胃。",
         "stock": 60,
         "color": "#9aa477",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-003-aged-white.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-003-aged-white.jpg",
+        "image": "/assets/images/product-tea-003-aged-white.jpg",
+        "thumb": "/assets/images/product-tea-003-aged-white.jpg",
         "detail": "十年干仓老寿眉，适合盖碗或煮饮，温和顺口。",
         "specs": [
           {
@@ -208,8 +208,8 @@
         "taste": "高山小白，清甜干净，适合日常浅饮与试泡。",
         "stock": 120,
         "color": "#a8b48a",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-004-mtn-white.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-004-mtn-white.jpg",
+        "image": "/assets/images/product-tea-004-mtn-white.jpg",
+        "thumb": "/assets/images/product-tea-004-mtn-white.jpg",
         "detail": "单泡规格，便于随身携带与门店试饮。",
         "specs": [
           {
@@ -234,8 +234,8 @@
         "taste": "香气辛锐持久，富有层次。干香为辛锐桂皮香、焦糖香，茶汤馥郁、醇厚、绵滑，带有明显的辛辣感，其回甘迅捷，且带有清凉喉韵，尾水清甜如蔗汁。",
         "stock": 40,
         "color": "#7b4e34",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-005-rougui.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-005-rougui.jpg",
+        "image": "/assets/images/product-tea-005-rougui.jpg",
+        "thumb": "/assets/images/product-tea-005-rougui.jpg",
         "detail": "马头岩核心产区手工制作。首泡快速出汤，后续按口感递增。",
         "specs": [
           {
@@ -266,8 +266,8 @@
         "taste": "具药香转参香阶段，梅子花香，汤水滋味绵柔，略带武夷酸感。",
         "stock": 50,
         "color": "#6b3f2f",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-006-aged-rock.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-006-aged-rock.jpg",
+        "image": "/assets/images/product-tea-006-aged-rock.jpg",
+        "thumb": "/assets/images/product-tea-006-aged-rock.jpg",
         "detail": "陈年岩茶，适合慢品老韵与药参香。",
         "specs": [
           {
@@ -292,8 +292,8 @@
         "taste": "花果香馥郁、清幽而细润，似桂花、蜜桃、果甜交织，层次丰富，岩韵明显。入口醇厚顺滑、鲜爽甜润，回甘生津持久，喉韵绵长。",
         "stock": 70,
         "color": "#8a5a3a",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-007-floral-dhp.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-007-floral-dhp.jpg",
+        "image": "/assets/images/product-tea-007-floral-dhp.jpg",
+        "thumb": "/assets/images/product-tea-007-floral-dhp.jpg",
         "detail": "正岩花香路线，适合功夫泡细品岩韵。",
         "specs": [
           {
@@ -318,8 +318,8 @@
         "taste": "陈韵沉稳，适合日常单泡品饮与茶席搭配。",
         "stock": 60,
         "color": "#6b3f2f",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-008-puer.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-008-puer.jpg",
+        "image": "/assets/images/product-tea-008-puer.jpg",
+        "thumb": "/assets/images/product-tea-008-puer.jpg",
         "detail": "2011 年归藏，单泡规格便于品鉴与分享。",
         "specs": [
           {
@@ -344,8 +344,8 @@
         "taste": "黄栀香型单丛，花香清扬，茶汤顺滑。",
         "stock": 55,
         "color": "#8f7f4d",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-009-huangzhixiang.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-009-huangzhixiang.jpg",
+        "image": "/assets/images/product-tea-009-huangzhixiang.jpg",
+        "thumb": "/assets/images/product-tea-009-huangzhixiang.jpg",
         "detail": "体验装与散装罐装可选，盖碗冲泡可闻栀子花香。",
         "specs": [
           {
@@ -376,8 +376,8 @@
         "taste": "鲜、清、雅、甜，标准清香型单丛，花香纯粹高扬；口感清爽无负担，适合偏爱淡香鲜爽口感人群、夏日冲泡。",
         "stock": 50,
         "color": "#7f9d60",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-010-gongxiang.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-010-gongxiang.jpg",
+        "image": "/assets/images/product-tea-010-gongxiang.jpg",
+        "thumb": "/assets/images/product-tea-010-gongxiang.jpg",
         "detail": "清香型代表，夏日与入门单丛优选。",
         "specs": [
           {
@@ -408,8 +408,8 @@
         "taste": "蜜甜浓郁、兰香清雅，入口绵柔醇厚，蜜甜铺满口腔，回甘迅猛持久，喉底留存淡淡兰韵；茶汤顺滑稠糯，耐泡稳定。",
         "stock": 45,
         "color": "#c2a34a",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-011-mielan.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-011-mielan.jpg",
+        "image": "/assets/images/product-tea-011-mielan.jpg",
+        "thumb": "/assets/images/product-tea-011-mielan.jpg",
         "detail": "乌岽高山核心茶园，蜜兰香高扬耐泡。",
         "specs": [
           {
@@ -440,8 +440,8 @@
         "taste": "芝兰清雅，香气细腻，茶汤醇和。",
         "stock": 35,
         "color": "#8f7f4d",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-012-zhilan.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-012-zhilan.jpg",
+        "image": "/assets/images/product-tea-012-zhilan.jpg",
+        "thumb": "/assets/images/product-tea-012-zhilan.jpg",
         "detail": "散装 125g 罐装，适合日常与馈赠。",
         "specs": [
           {
@@ -466,8 +466,8 @@
         "taste": "凤凰单丛名枞风味，香气高锐，岩韵与花蜜交织。",
         "stock": 28,
         "color": "#7b4e34",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-013-jilongkan.jpg",
-        "thumb": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/product-tea-013-jilongkan.jpg",
+        "image": "/assets/images/product-tea-013-jilongkan.jpg",
+        "thumb": "/assets/images/product-tea-013-jilongkan.jpg",
         "detail": "名枞级单丛，125g 罐装。",
         "specs": [
           {
@@ -488,7 +488,7 @@
         "capacity": "2人",
         "price": 168,
         "floor": "安静雅致 ｜ 观山景",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-guanshan.jpg",
+        "image": "/assets/images/reservation-hero.jpg",
         "features": [
           "安静雅致",
           "观山景"
@@ -504,7 +504,7 @@
         "capacity": "2-4人",
         "price": 198,
         "floor": "庭院茶室 ｜ 临窗听雨",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-tingyu.jpg",
+        "image": "/assets/images/reservation-hero.jpg",
         "features": [
           "庭院茶室",
           "临窗听雨"
@@ -520,7 +520,7 @@
         "capacity": "2人",
         "price": 128,
         "floor": "书香氛围 ｜ 静谧",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-shuxiang.jpg",
+        "image": "/assets/images/reservation-hero.jpg",
         "features": [
           "书香氛围",
           "静谧"
@@ -536,7 +536,7 @@
         "capacity": "4-6人",
         "price": 148,
         "floor": "松林清幽 ｜ 静心小室",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-songfeng.jpg",
+        "image": "/assets/images/reservation-hero.jpg",
         "features": [
           "松林清幽",
           "静心小室"
@@ -552,7 +552,7 @@
         "capacity": "2-4人",
         "price": 138,
         "floor": "竹影摇曳 ｜ 清雅怡人",
-        "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/design-room-zhuyun.jpg",
+        "image": "/assets/images/reservation-hero.jpg",
         "features": [
           "竹影摇曳",
           "清雅怡人"
@@ -570,12 +570,12 @@
         "category": "养心茶会",
         "date": "05.25 周六",
         "time": "14:00",
-        "place": "禾煦・双山店",
-        "quota": 30,
+        "place": "禾煦",
+        "quota": 12,
         "signed": 28,
         "price": 68,
         "image": "/assets/images/event-yangxin-tea.jpg",
-        "detailImage": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-1.png",
+        "detailImage": "/assets/images/event-yangxin-tea.jpg",
         "summary": "在茶香与静心中，慢慢安住自己",
         "status": "报名中",
         "visible": true,
@@ -588,12 +588,12 @@
         "category": "学茶",
         "date": "06.01 周六",
         "time": "10:00",
-        "place": "禾煦・听雨店",
-        "quota": 50,
+        "place": "禾煦",
+        "quota": 10,
         "signed": 45,
         "price": 0,
         "image": "/assets/images/event-tea-class.jpg",
-        "detailImage": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-2.png",
+        "detailImage": "/assets/images/event-tea-class.jpg",
         "summary": "从识香、泡茶到品饮，轻松了解基础茶知识",
         "status": "报名中",
         "visible": true,
@@ -606,12 +606,12 @@
         "category": "时令茶会",
         "date": "06.08 周六",
         "time": "14:00",
-        "place": "禾煦・柏阳毛尖",
-        "quota": 20,
+        "place": "禾煦",
+        "quota": 8,
         "signed": 16,
         "price": 128,
         "image": "/assets/images/event-seasonal-tea.jpg",
-        "detailImage": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/event-detail-content-3.png",
+        "detailImage": "/assets/images/event-seasonal-tea.jpg",
         "summary": "顺时品茶，感受节气与日常之美",
         "status": "报名中",
         "visible": true,
@@ -627,7 +627,7 @@
       "title": "谷雨新茶",
       "subtitle": "清润一季",
       "summary": "春去夏来，茶韵正清\n山野之气，凝于一杯",
-      "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-carousel-1.jpg",
+      "image": "/assets/images/home-carousel-1.jpg",
       "badge": "新",
       "linkType": "page",
       "linkTarget": "/pages/shop/index",
@@ -640,7 +640,7 @@
       "title": "雅室新席",
       "subtitle": "静候一盏",
       "summary": "茶器、茶席、茶室\n把日常安放得更从容",
-      "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-carousel-2.jpg",
+      "image": "/assets/images/home-carousel-2.jpg",
       "badge": "雅",
       "linkType": "page",
       "linkTarget": "/pages/reservation/index",
@@ -653,7 +653,7 @@
       "title": "茶饮上新",
       "subtitle": "清甜入夏",
       "summary": "现制茶饮，门店自取\n也可与好友同享",
-      "image": "https://7361-sanmuhe-env-d3g1nt3jsa1be67e3-1316449112.tcb.qcloud.la/assets/images/home-carousel-3.jpg",
+      "image": "/assets/images/home-carousel-3.jpg",
       "badge": "饮",
       "linkType": "page",
       "linkTarget": "/pages/shop/index",

@@ -1,13 +1,25 @@
 const { drinks } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
+const tableUtil = require("../../utils/table");
 
 const categories = ["推荐", "品鉴", "壶茶"];
 
-function parseTableLabel(rawValue) {
-  const decoded = decodeURIComponent(rawValue || "");
-  const tableMatch = decoded.match(/table=([^&]+)/);
-  return tableMatch ? decodeURIComponent(tableMatch[1]) : decoded;
+function bindTable(raw) {
+  const table = tableUtil.parseTableFromRaw(raw) || tableUtil.normalizeTable(raw);
+  if (!table) {
+    return "";
+  }
+  tableUtil.setTableNo(table);
+  try {
+    const app = getApp();
+    if (app && app.globalData) {
+      app.globalData.tableNo = table;
+    }
+  } catch (error) {
+    // ignore
+  }
+  return table;
 }
 
 Page({
@@ -18,21 +30,28 @@ Page({
     filteredDrinks: drinks.filter((item) => item.category === "推荐"),
     tableLabel: "",
     activeDrink: drinks[0],
-    selectedTemp: drinks[0].temps[0],
-    selectedSugar: drinks[0].sugars[0],
+    selectedTemp: drinks[0] && drinks[0].temps ? drinks[0].temps[0] : "热",
+    selectedSugar: drinks[0] && drinks[0].sugars ? drinks[0].sugars[0] : "无糖",
     cartCount: 0,
     cartTotal: 0
   },
 
   onLoad(options) {
-    const table = options.table || options.scene;
+    // Mini-code: query.scene / table; path QR: table=
+    const fromOptions = tableUtil.parseTableFromLaunch(options || {})
+      || tableUtil.parseTableFromRaw((options && (options.table || options.t || options.scene)) || "");
+    const table = bindTable(fromOptions) || tableUtil.getTableNo();
     if (table) {
-      this.setData({ tableLabel: parseTableLabel(table) });
+      this.setData({ tableLabel: table });
     }
     this.loadCatalog();
   },
 
   onShow() {
+    const table = tableUtil.getTableNo();
+    if (table && table !== this.data.tableLabel) {
+      this.setData({ tableLabel: table });
+    }
     this.refreshCart();
   },
 
@@ -48,7 +67,7 @@ Page({
     getCatalog().then((catalog) => {
       const nextDrinks = catalog.fromCloud ? (catalog.drinks || []) : (catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks);
       const filteredDrinks = nextDrinks.filter((item) => item.category === this.data.activeCategory);
-      const activeDrink = nextDrinks.find((item) => item.id === this.data.activeDrink.id) || nextDrinks[0];
+      const activeDrink = nextDrinks.find((item) => item.id === (this.data.activeDrink && this.data.activeDrink.id)) || nextDrinks[0];
       if (!activeDrink) {
         this.setData({
           drinks: [],
@@ -61,10 +80,10 @@ Page({
       }
       this.setData({
         drinks: nextDrinks,
-        filteredDrinks,
+        filteredDrinks: filteredDrinks.length ? filteredDrinks : nextDrinks,
         activeDrink,
-        selectedTemp: activeDrink.temps[0],
-        selectedSugar: activeDrink.sugars[0]
+        selectedTemp: activeDrink.temps && activeDrink.temps[0] ? activeDrink.temps[0] : "热",
+        selectedSugar: activeDrink.sugars && activeDrink.sugars[0] ? activeDrink.sugars[0] : "无糖"
       });
     });
   },
@@ -74,9 +93,13 @@ Page({
       onlyFromCamera: false,
       success: (res) => {
         const result = res.result || "";
-        this.setData({
-          tableLabel: parseTableLabel(result) || result.slice(-8) || "现场茶桌"
-        });
+        const table = bindTable(tableUtil.parseTableFromRaw(result) || result.slice(-8));
+        if (!table) {
+          wx.showToast({ title: "未识别到桌号", icon: "none" });
+          return;
+        }
+        this.setData({ tableLabel: table });
+        wx.showToast({ title: `已绑定 ${table}`, icon: "none" });
       },
       fail: () => {
         wx.showToast({ title: "未完成扫码", icon: "none" });
@@ -93,10 +116,13 @@ Page({
   chooseDrink(event) {
     const id = event.currentTarget.dataset.id;
     const activeDrink = this.data.drinks.find((item) => item.id === id);
+    if (!activeDrink) {
+      return;
+    }
     this.setData({
       activeDrink,
-      selectedTemp: activeDrink.temps[0],
-      selectedSugar: activeDrink.sugars[0]
+      selectedTemp: activeDrink.temps && activeDrink.temps[0] ? activeDrink.temps[0] : "热",
+      selectedSugar: activeDrink.sugars && activeDrink.sugars[0] ? activeDrink.sugars[0] : "无糖"
     });
   },
 
@@ -114,6 +140,7 @@ Page({
       wx.showToast({ title: "暂无可点茶饮", icon: "none" });
       return;
     }
+    const table = tableLabel || tableUtil.getTableNo();
     addToCart({
       id: activeDrink.id,
       type: "drink",
@@ -124,7 +151,7 @@ Page({
       options: {
         temp: selectedTemp,
         sugar: selectedSugar,
-        table: tableLabel
+        table: table || ""
       }
     });
     this.refreshCart();
@@ -137,6 +164,7 @@ Page({
     if (!activeDrink) {
       return;
     }
+    const table = this.data.tableLabel || tableUtil.getTableNo();
     addToCart({
       id: activeDrink.id,
       type: "drink",
@@ -145,15 +173,15 @@ Page({
       color: activeDrink.color,
       image: activeDrink.image,
       options: {
-        temp: activeDrink.temps[0],
-        sugar: activeDrink.sugars[0],
-        table: this.data.tableLabel
+        temp: activeDrink.temps && activeDrink.temps[0] ? activeDrink.temps[0] : "热",
+        sugar: activeDrink.sugars && activeDrink.sugars[0] ? activeDrink.sugars[0] : "无糖",
+        table: table || ""
       }
     });
     this.setData({
       activeDrink,
-      selectedTemp: activeDrink.temps[0],
-      selectedSugar: activeDrink.sugars[0]
+      selectedTemp: activeDrink.temps && activeDrink.temps[0] ? activeDrink.temps[0] : "热",
+      selectedSugar: activeDrink.sugars && activeDrink.sugars[0] ? activeDrink.sugars[0] : "无糖"
     });
     this.refreshCart();
     wx.showToast({ title: "已加入" });

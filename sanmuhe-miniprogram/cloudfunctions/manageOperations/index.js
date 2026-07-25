@@ -10,6 +10,7 @@ const _ = db.command;
 const DASHBOARD_READ_LIMIT = 1000;
 const ANALYTICS_READ_LIMIT = 1000;
 const MARKETING_STATS_LIMIT = 1000;
+const ORDER_ALERT_READ_LIMIT = 50;
 
 function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
@@ -328,6 +329,7 @@ const actionPermissions = {
   getDashboard: "dashboard.read",
   globalSearch: "dashboard.read",
   listOrders: "order.read",
+  listPaidOrderAlerts: "order.read",
   cancelOrder: "order.write",
   confirmManualOrder: "order.write",
   markShipped: "order.write",
@@ -909,6 +911,32 @@ async function listCollection(collection, status, keyword, event, keywordFields 
     event
   });
   return result;
+}
+
+async function listPaidOrderAlerts() {
+  const result = await db.collection("orders")
+    .orderBy("paidAt", "desc")
+    .limit(ORDER_ALERT_READ_LIMIT)
+    .get();
+  const alerts = (result.data || [])
+    .filter((order) => order && order.payStatus === "paid" && toDate(order.paidAt))
+    .map((order) => {
+      const paidAt = toDate(order.paidAt);
+      return {
+        id: cleanText(order._id, 80),
+        orderNo: cleanText(order.orderNo, 40),
+        tableNo: cleanText(order.tableNo, 20),
+        deliveryMethod: cleanText(order.deliveryMethod, 20),
+        status: cleanText(order.status, 30),
+        total: number(order.total),
+        paidAt: paidAt.toISOString()
+      };
+    });
+  return {
+    ok: true,
+    alerts,
+    serverTime: new Date().toISOString()
+  };
 }
 
 async function getByDocId(collection, id) {
@@ -3073,6 +3101,9 @@ exports.main = async (event = {}, context = {}) => {
       const result = await listCollection("orders", status, keyword, event, ["orderNo", "name", "contactName", "consignee", "phone", "mobile", "status"]);
       await writeExportAuditLog(caller, event, action, "订单", result.page);
       return { ok: true, orders: result.items, page: result.page };
+    }
+    if (action === "listPaidOrderAlerts") {
+      return await listPaidOrderAlerts();
     }
     if (action === "cancelOrder") {
       return await cancelOrder(event, caller);

@@ -1,24 +1,27 @@
-const { getMemberCenter, listMyRecords, saveSubscription } = require("../../utils/cloudApi");
+const { listMyRecords } = require("../../utils/cloudApi");
+const { normalizeOrder } = require("../../utils/orderCenter");
 const { syncTabBar } = require("../../utils/tabbar");
 const { withPrivacy } = require("../../utils/privacy");
 
 const defaultUser = {
-  name: "木木",
-  title: "禾煦雅客 · 茶生活会员",
+  name: "禾煦茶友",
+  title: "愿你在此，得一盏清欢",
   avatar: "/assets/images/profile-avatar.jpg"
 };
 
 const defaultMember = {
-  tier: "雅客会员",
+  isMember: false,
+  tier: "普通顾客",
   points: 0,
   coupons: 0,
-  orders: 0
+  orders: 0,
+  balance: "0.00"
 };
 
 const orderShortcutBase = [
   { key: "all", label: "全部订单", icon: "/assets/icons/profile-order.png" },
   { key: "pending", label: "待付款", icon: "/assets/icons/profile-wallet.png" },
-  { key: "usable", label: "待使用", icon: "/assets/icons/profile-clock.png" },
+  { key: "active", label: "进行中", icon: "/assets/icons/profile-clock.png" },
   { key: "afterSale", label: "退款/售后", icon: "/assets/icons/profile-refund.png" }
 ];
 
@@ -28,22 +31,18 @@ const serviceItemsBase = [
   { label: "收货地址", icon: "/assets/icons/profile-pin.png", action: "address" },
   { label: "优惠券", icon: "/assets/icons/profile-coupon.png", action: "coupon" },
   { label: "联系客服", icon: "/assets/icons/profile-headset.png", action: "service" },
-  { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" }
+  { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" },
+  { label: "云开发状态", icon: "/assets/icons/profile-setting.png", action: "status" }
 ];
 
-function buildServices(staffNotice) {
-  const services = serviceItemsBase.slice();
-  if (staffNotice && staffNotice.isStaff && staffNotice.templateId) {
-    services.unshift({
-      label: staffNotice.remaining > 0 ? `接单提醒(${staffNotice.remaining})` : "接单提醒",
-      icon: "/assets/icons/profile-bell.png",
-      action: "staffNotice"
-    });
-  }
-  return services;
+function buildServices() {
+  return serviceItemsBase.slice();
 }
 
 function normalizeRecords(records, type) {
+  if (type === "order") {
+    return (records || []).map(normalizeOrder);
+  }
   return (records || []).map((item, index) => {
     const fallback = `${type}-${index}`;
     const id = item.id || item.orderNo || item._id || fallback;
@@ -59,17 +58,19 @@ function normalizeRecords(records, type) {
   });
 }
 
-function buildOrderShortcuts(orders) {
+function buildOrderShortcuts(orders, summary) {
   return orderShortcutBase.map((item) => {
     let count = 0;
-    if (item.key === "all") {
+    if (summary && summary[item.key] !== undefined) {
+      count = Number(summary[item.key]) || 0;
+    } else if (item.key === "all") {
       count = orders.length;
     } else if (item.key === "pending") {
       count = orders.filter((order) => order.status === "待支付" || order.payStatus === "pending").length;
-    } else if (item.key === "usable") {
+    } else if (item.key === "active") {
       count = orders.filter((order) => ["待发货", "待自提", "已发货", "待确认"].includes(order.status)).length;
     } else if (item.key === "afterSale") {
-      count = orders.filter((order) => /退款|售后|取消|异常/.test(String(order.status || ""))).length;
+      count = orders.filter((order) => order.afterSaleStatus || /退款|售后|异常/.test(String(order.status || ""))).length;
     }
     return Object.assign({}, item, { count });
   });
@@ -108,10 +109,10 @@ function getRecentSignup(signups) {
 function getRecentOrders(orders) {
   return orders.slice(0, 3).map((item) => ({
     id: item.id,
-    title: item.displayId || item.orderNo || "订单",
-    total: item.total || 0,
-    status: item.status || "待支付",
-    meta: (item.items || []).map((line) => `${line.name} x${line.quantity}`).join("，") || item.deliveryText || ""
+    title: item.displayId || "订单",
+    total: item.totalText || "0.00",
+    status: item.statusLabel || item.status || "待处理",
+    meta: item.itemSummary || item.deliveryText || ""
   }));
 }
 
@@ -124,7 +125,7 @@ Page(withPrivacy({
     user: defaultUser,
     member: defaultMember,
     orderShortcuts: buildOrderShortcuts([]),
-    services: buildServices(null),
+    services: buildServices(),
     orders: [],
     reservations: [],
     signups: [],
@@ -132,82 +133,51 @@ Page(withPrivacy({
     recentReservation: null,
     recentSignup: null,
     shippingAddress: "",
-    staffNotice: null
+    recordsLoading: false,
+    recordsError: ""
   },
 
   onShow() {
     syncTabBar(this);
     this.loadRecords();
-    this.loadStaffNotice();
   },
 
   loadRecords() {
+    this.setData({ recordsLoading: true, recordsError: "" });
     listMyRecords().then((records) => {
       const orders = normalizeRecords(records.orders, "order");
       const reservations = normalizeRecords(records.reservations, "reservation");
       const signups = normalizeRecords(records.signups, "signup");
+      const isMember = !!(records.member && records.member.status === "active");
       this.setData({
+        user: isMember ? {
+          name: records.member.name || "禾煦会员",
+          title: `${records.member.tier || "雅客会员"} · 欢迎回来`,
+          avatar: defaultUser.avatar
+        } : defaultUser,
         orders,
         reservations,
         signups,
         member: Object.assign({}, defaultMember, {
-          tier: records.member && records.member.tier || defaultMember.tier,
+          isMember,
+          tier: isMember ? records.member.tier : defaultMember.tier,
           points: records.member && records.member.points !== undefined ? records.member.points : defaultMember.points,
           orders: orders.length,
-          coupons: Array.isArray(records.coupons) ? getUsableCouponCount(records.coupons) : defaultMember.coupons
+          coupons: isMember && Array.isArray(records.coupons) ? getUsableCouponCount(records.coupons) : defaultMember.coupons,
+          balance: isMember && records.wallet ? records.wallet.balance : defaultMember.balance
         }),
-        orderShortcuts: buildOrderShortcuts(orders),
+        orderShortcuts: buildOrderShortcuts(orders, records.orderSummary),
         recentOrders: getRecentOrders(orders),
         recentReservation: getRecentReservation(reservations),
-        recentSignup: getRecentSignup(signups)
+        recentSignup: getRecentSignup(signups),
+        recordsLoading: false,
+        recordsError: ""
       });
-    });
-  },
-
-  loadStaffNotice() {
-    getMemberCenter().then((result) => {
-      const staffNotice = result && result.staffNotice ? result.staffNotice : null;
+    }).catch((error) => {
       this.setData({
-        staffNotice,
-        services: buildServices(staffNotice)
+        recordsLoading: false,
+        recordsError: error && error.message ? error.message : "记录暂时加载失败"
       });
-    }).catch(() => {
-      this.setData({
-        staffNotice: null,
-        services: buildServices(null)
-      });
-    });
-  },
-
-  subscribeStaffNotice() {
-    const staffNotice = this.data.staffNotice || {};
-    const templates = staffNotice.templates || [];
-    const templateId = staffNotice.templateId;
-    if (!staffNotice.isStaff) {
-      wx.showToast({ title: "当前账号不是店员", icon: "none" });
-      return;
-    }
-    if (!templateId) {
-      wx.showToast({ title: "后台未配置店员提醒模板", icon: "none" });
-      return;
-    }
-    wx.requestSubscribeMessage({
-      tmplIds: [templateId],
-      success: (res) => {
-        saveSubscription(res, templates.length ? templates : [{
-          key: "staffOrderTemplateId",
-          name: staffNotice.templateName || "店员新订单提醒",
-          templateId
-        }]).then(() => {
-          wx.showToast({ title: res[templateId] === "accept" ? "接单提醒已开启" : "未授权提醒", icon: "none" });
-          this.loadStaffNotice();
-        }).catch(() => {
-          wx.showToast({ title: "订阅保存失败", icon: "none" });
-        });
-      },
-      fail: () => {
-        wx.showToast({ title: "未完成订阅", icon: "none" });
-      }
     });
   },
 
@@ -215,34 +185,10 @@ Page(withPrivacy({
     wx.switchTab({ url: "/pages/index/index" });
   },
 
-  goCloudStatus() {
-    wx.navigateTo({ url: "/pages/cloud-status/index" });
-  },
-
   handleOrderShortcut(event) {
     const key = event.currentTarget.dataset.key;
-    const orders = this.data.orders;
-    const filtered = orders.filter((order) => {
-      if (key === "pending") {
-        return order.status === "待支付" || order.payStatus === "pending";
-      }
-      if (key === "usable") {
-        return ["待发货", "待自提", "已发货", "待确认"].includes(order.status);
-      }
-      if (key === "afterSale") {
-        return /退款|售后|取消|异常/.test(String(order.status || ""));
-      }
-      return true;
-    });
-    if (!filtered.length) {
-      wx.showToast({ title: "暂无相关订单", icon: "none" });
-      return;
-    }
-    const latest = filtered[0];
-    wx.showModal({
-      title: latest.displayId || "订单记录",
-      content: `${latest.status || "待处理"}｜¥${latest.total || 0}\n${(latest.items || []).map((item) => `${item.name} x${item.quantity}`).join("，") || "订单明细以后台为准"}`,
-      showCancel: false
+    wx.navigateTo({
+      url: `/pages/orders/index?tab=${encodeURIComponent(key || "all")}`
     });
   },
 
@@ -254,11 +200,13 @@ Page(withPrivacy({
       this.loadRecords();
       return;
     }
-    wx.showModal({
-      title: order.displayId || "订单记录",
-      content: `${order.status || "待处理"}｜¥${order.total || 0}\n${(order.items || []).map((item) => `${item.name} x${item.quantity}`).join("，") || "订单明细以后台为准"}`,
-      showCancel: false
+    wx.navigateTo({
+      url: `/pages/order-detail/index?id=${encodeURIComponent(order.id)}`
     });
+  },
+
+  retryRecords() {
+    this.loadRecords();
   },
 
   handleService(event) {
@@ -285,10 +233,6 @@ Page(withPrivacy({
     }
     if (action === "privacy") {
       this.openPrivacyContract();
-      return;
-    }
-    if (action === "staffNotice") {
-      this.subscribeStaffNotice();
       return;
     }
     if (action === "status") {
