@@ -21,71 +21,83 @@ const IMG = {
   drink005: localImage("assets/images/product-drink-005-fangming.jpg")
 };
 
-// 禾煦茶单（门店现点）
+// 禾煦堂饮茶单（门店现点）
 const drinks = [
   {
     id: "drink-001",
     name: "初见",
     category: "推荐",
+    serviceType: "tasting",
     price: 58,
     notes: "古树红茶 / 清香单丛 / 留白白茶 / 顺景普洱",
+    teaGroups: [
+      { name: "本席可选", options: ["古树红茶", "清香单丛", "留白白茶", "顺景普洱"] }
+    ],
     badge: "道",
     color: "#8d4a2f",
     image: IMG.drink001,
-    temps: ["热"],
-    sugars: ["无糖"],
     unit: "道"
   },
   {
     id: "drink-002",
     name: "知味",
     category: "品鉴",
+    serviceType: "tasting",
     price: 78,
     notes: "岩茶：花香大红袍 / 十五年陈茶；红茶：有机红茶 / 正山小种；单丛：荒野蜜兰 / 贡香 / 高山蜜兰",
+    teaGroups: [
+      { name: "岩茶", options: ["花香大红袍", "十五年陈茶"] },
+      { name: "红茶", options: ["有机红茶", "正山小种"] },
+      { name: "单丛", options: ["荒野蜜兰", "贡香", "高山蜜兰"] }
+    ],
     badge: "道",
     color: "#7b4e34",
     image: IMG.drink002,
-    temps: ["热"],
-    sugars: ["无糖"],
     unit: "道"
   },
   {
     id: "drink-003",
     name: "臻藏",
     category: "品鉴",
+    serviceType: "tasting",
     price: 98,
     notes: "马头岩肉桂",
+    teaGroups: [
+      { name: "本席茶品", options: ["马头岩肉桂"] }
+    ],
     badge: "道",
     color: "#6b3f2f",
     image: IMG.drink003,
-    temps: ["热"],
-    sugars: ["无糖"],
     unit: "道"
   },
   {
     id: "drink-004",
     name: "烹茶暖叙",
     category: "壶茶",
+    serviceType: "pot",
     price: 48,
     notes: "老白茶 / 熟普 / 养生茶",
+    teaGroups: [
+      { name: "本壶可选", options: ["老白茶", "熟普", "养生茶"] }
+    ],
     badge: "壶",
     color: "#9aa477",
     image: IMG.drink004,
-    temps: ["热"],
-    sugars: ["无糖"],
     unit: "壶"
   },
   {
     id: "drink-005",
     name: "芳茗润茶",
     category: "壶茶",
+    serviceType: "pot",
     price: 28,
     notes: "玫瑰花茶",
+    teaGroups: [
+      { name: "本壶茶品", options: ["玫瑰花茶"] }
+    ],
     badge: "壶",
     color: "#c17831",
     image: IMG.drink005,
-    temps: ["热", "常温"],
-    sugars: ["无糖"],
     unit: "壶"
   }
 ];
@@ -349,63 +361,11 @@ const teaProducts = [
   }
 ];
 
-const rooms = [
-  {
-    id: "room-001",
-    name: "禾煦・观山店",
-    capacity: "2人",
-    price: 168,
-    floor: "安静雅致 ｜ 观山景",
-    image: "/assets/images/reservation-hero.jpg",
-    features: ["安静雅致", "观山景"],
-    color: "#5a844c",
-    status: "可预定"
-  },
-  {
-    id: "room-002",
-    name: "禾煦・听雨店",
-    capacity: "2-4人",
-    price: 198,
-    floor: "庭院茶室 ｜ 临窗听雨",
-    image: "/assets/images/reservation-hero.jpg",
-    features: ["庭院茶室", "临窗听雨"],
-    color: "#6b8050",
-    status: "可预定"
-  },
-  {
-    id: "room-003",
-    name: "禾煦・书香店",
-    capacity: "2人",
-    price: 128,
-    floor: "书香氛围 ｜ 静谧",
-    image: "/assets/images/reservation-hero.jpg",
-    features: ["书香氛围", "静谧"],
-    color: "#587249",
-    status: "可预定"
-  },
-  {
-    id: "room-004",
-    name: "禾煦・松风店",
-    capacity: "4-6人",
-    price: 148,
-    floor: "松林清幽 ｜ 静心小室",
-    image: "/assets/images/reservation-hero.jpg",
-    features: ["松林清幽", "静心小室"],
-    color: "#6d6a42",
-    status: "已订满"
-  },
-  {
-    id: "room-005",
-    name: "禾煦・竹韵店",
-    capacity: "2-4人",
-    price: 138,
-    floor: "竹影摇曳 ｜ 清雅怡人",
-    image: "/assets/images/reservation-hero.jpg",
-    features: ["竹影摇曳", "清雅怡人"],
-    color: "#617b4b",
-    status: "可预定"
-  }
-];
+// 茶室列表由门店主数据派生（单店），避免再维护多套演示分店
+const { getRooms } = require("./store");
+const rooms = getRooms().map((room) => Object.assign({}, room, {
+  price: room.priceFrom || room.price || 188
+}));
 
 const events = [
   {
@@ -485,9 +445,9 @@ const homeSlides = [
   {
     key: "home-carousel-matcha",
     type: "home_carousel",
-    title: "茶饮上新",
+    title: "堂饮茶单上新",
     subtitle: "清甜入夏",
-    summary: "现制茶饮，门店自取\n也可与好友同享",
+    summary: "一席一味，门店现泡\n与好友从容共饮",
     image: localImage("assets/images/home-carousel-3.jpg"),
     badge: "饮",
     linkType: "page",

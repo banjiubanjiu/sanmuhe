@@ -1,22 +1,28 @@
 {
-  "version": "hexi-catalog-20260722-images",
+  "version": "hexi-catalog-20260725-dinein-menu",
   "collections": {
     "drinks": [
       {
         "id": "drink-001",
         "name": "初见",
         "category": "推荐",
+        "serviceType": "tasting",
         "price": 58,
         "notes": "古树红茶 / 清香单丛 / 留白白茶 / 顺景普洱",
+        "teaGroups": [
+          {
+            "name": "本席可选",
+            "options": [
+              "古树红茶",
+              "清香单丛",
+              "留白白茶",
+              "顺景普洱"
+            ]
+          }
+        ],
         "badge": "道",
         "color": "#8d4a2f",
         "image": "/assets/images/product-drink-001-chujian.jpg",
-        "temps": [
-          "热"
-        ],
-        "sugars": [
-          "无糖"
-        ],
         "unit": "道",
         "visible": true,
         "sort": 10
@@ -25,17 +31,36 @@
         "id": "drink-002",
         "name": "知味",
         "category": "品鉴",
+        "serviceType": "tasting",
         "price": 78,
         "notes": "岩茶：花香大红袍 / 十五年陈茶；红茶：有机红茶 / 正山小种；单丛：荒野蜜兰 / 贡香 / 高山蜜兰",
+        "teaGroups": [
+          {
+            "name": "岩茶",
+            "options": [
+              "花香大红袍",
+              "十五年陈茶"
+            ]
+          },
+          {
+            "name": "红茶",
+            "options": [
+              "有机红茶",
+              "正山小种"
+            ]
+          },
+          {
+            "name": "单丛",
+            "options": [
+              "荒野蜜兰",
+              "贡香",
+              "高山蜜兰"
+            ]
+          }
+        ],
         "badge": "道",
         "color": "#7b4e34",
         "image": "/assets/images/product-drink-002-zhiwei.jpg",
-        "temps": [
-          "热"
-        ],
-        "sugars": [
-          "无糖"
-        ],
         "unit": "道",
         "visible": true,
         "sort": 20
@@ -44,17 +69,20 @@
         "id": "drink-003",
         "name": "臻藏",
         "category": "品鉴",
+        "serviceType": "tasting",
         "price": 98,
         "notes": "马头岩肉桂",
+        "teaGroups": [
+          {
+            "name": "本席茶品",
+            "options": [
+              "马头岩肉桂"
+            ]
+          }
+        ],
         "badge": "道",
         "color": "#6b3f2f",
         "image": "/assets/images/product-drink-003-zhencang.jpg",
-        "temps": [
-          "热"
-        ],
-        "sugars": [
-          "无糖"
-        ],
         "unit": "道",
         "visible": true,
         "sort": 30
@@ -63,17 +91,22 @@
         "id": "drink-004",
         "name": "烹茶暖叙",
         "category": "壶茶",
+        "serviceType": "pot",
         "price": 48,
         "notes": "老白茶 / 熟普 / 养生茶",
+        "teaGroups": [
+          {
+            "name": "本壶可选",
+            "options": [
+              "老白茶",
+              "熟普",
+              "养生茶"
+            ]
+          }
+        ],
         "badge": "壶",
         "color": "#9aa477",
         "image": "/assets/images/product-drink-004-pengcha.jpg",
-        "temps": [
-          "热"
-        ],
-        "sugars": [
-          "无糖"
-        ],
         "unit": "壶",
         "visible": true,
         "sort": 40
@@ -82,18 +115,20 @@
         "id": "drink-005",
         "name": "芳茗润茶",
         "category": "壶茶",
+        "serviceType": "pot",
         "price": 28,
         "notes": "玫瑰花茶",
+        "teaGroups": [
+          {
+            "name": "本壶茶品",
+            "options": [
+              "玫瑰花茶"
+            ]
+          }
+        ],
         "badge": "壶",
         "color": "#c17831",
         "image": "/assets/images/product-drink-005-fangming.jpg",
-        "temps": [
-          "热",
-          "常温"
-        ],
-        "sugars": [
-          "无糖"
-        ],
         "unit": "壶",
         "visible": true,
         "sort": 50
@@ -650,9 +685,9 @@
     {
       "key": "home-carousel-matcha",
       "type": "home_carousel",
-      "title": "茶饮上新",
+      "title": "堂饮茶单上新",
       "subtitle": "清甜入夏",
-      "summary": "现制茶饮，门店自取\n也可与好友同享",
+      "summary": "一席一味，门店现泡\n与好友从容共饮",
       "image": "/assets/images/home-carousel-3.jpg",
       "badge": "饮",
       "linkType": "page",
@@ -665,10 +700,10 @@
     "key": "store",
     "brandName": "禾煦 HEXI TEA",
     "slogan": "禾沐暖光，书茶予安",
-    "storeName": "禾煦・佛山",
-    "address": "广东省佛山市",
-    "phone": "0757-8888 8888",
-    "businessHours": "10:00 - 21:00",
+    "storeName": "禾煦茶书房",
+    "address": "佛山市禅城区石湾镇街道怡翠宏璟P9铺禾煦茶书房",
+    "phone": "13392268386",
+    "businessHours": "周一～周日 9:00～21:30",
     "reservationRule": "请至少提前 30 分钟预约，到店后由茶事人员确认茶席。",
     "paymentEnabled": true,
     "pickupEnabled": true,
@@ -685,6 +720,31 @@
     "levelTwoDiscountRate": 0.95,
     "levelThreeName": "山房会员",
     "levelThreeMinSpend": 5000,
-    "levelThreeDiscountRate": 0.92
-  }
+    "levelThreeDiscountRate": 0.92,
+    "storeId": "store-hexi",
+    "name": "禾煦茶书房",
+    "roomId": "room-001",
+    "maxPeople": 6,
+    "sessionMinutes": 120
+  },
+  "rooms": [
+    {
+      "id": "room-001",
+      "storeId": "store-hexi",
+      "name": "禾煦茶书房",
+      "capacity": "6人以内",
+      "price": 188,
+      "floor": "每场 2 小时 ｜ 6 位以内",
+      "image": "/assets/images/reservation-hero.jpg",
+      "features": [
+        "每场 2 小时",
+        "6 位以内",
+        "赠 2 泡茶"
+      ],
+      "color": "#5a844c",
+      "status": "可预定",
+      "visible": true,
+      "sort": 10
+    }
+  ]
 }

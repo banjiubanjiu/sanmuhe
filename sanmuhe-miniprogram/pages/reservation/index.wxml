@@ -14,7 +14,8 @@
   </view>
 
   <view class="hero-section">
-    <image class="hero-image" src="/assets/images/reservation-hero.jpg" mode="widthFix"></image>
+    <image class="hero-image" src="/assets/images/reservation-hero.jpg" mode="aspectFill"></image>
+    <view class="hero-shade"></view>
   </view>
 
   <view class="booking-panel">
@@ -22,65 +23,157 @@
       <image src="/assets/images/reservation-mountain.jpg" mode="aspectFit"></image>
     </view>
 
-    <view class="room-name">{{selectedRoom.displayName}}</view>
-    <view class="room-city">{{selectedRoom.city}}</view>
-
-    <view class="address-row">
-      <image src="/assets/icons/home-location.png" mode="aspectFit"></image>
-      <view>{{selectedRoom.address}}</view>
-    </view>
-
-    <view class="block-title">选择日期</view>
-    <scroll-view scroll-x class="date-scroll" enhanced show-scrollbar="{{false}}">
-      <view
-        wx:for="{{visibleDays}}"
-        wx:key="value"
-        class="date-card {{selectedDay === item.value ? 'active' : ''}}"
-        data-value="{{item.value}}"
-        bindtap="chooseDay"
-      >
-        <view>{{item.label}}</view>
-        <text>{{item.slashDisplay}}</text>
+    <view class="room-head">
+      <view class="room-overline">
+        <text>PRIVATE TEA ROOM</text>
+        <view></view>
+        <text>01</text>
       </view>
-      <view wx:if="{{visibleDays.length < days.length}}" class="date-card more" bindtap="showMoreDates">
-        <image src="/assets/icons/home-calendar.png" mode="aspectFit"></image>
-        <text>更多日期</text>
-      </view>
-    </scroll-view>
-
-    <view class="time-head">
-      <view class="block-title">选择时间</view>
-      <text>每次体验时长 2 小时</text>
-    </view>
-
-    <view class="time-grid">
-      <view
-        wx:for="{{timeOptions}}"
-        wx:key="value"
-        class="time-card {{selectedTime === item.value ? 'active' : ''}}"
-        data-value="{{item.value}}"
-        bindtap="chooseTime"
-      >
-        <view>{{item.value}}</view>
-        <text>剩余 {{item.seats}} 席</text>
+      <view class="room-name">{{selectedRoom.displayName}}</view>
+      <view class="room-city">{{selectedRoom.city}}</view>
+      <view class="address-row">
+        <image src="/assets/icons/home-location.png" mode="aspectFit"></image>
+        <text>{{selectedRoom.address}}</text>
       </view>
     </view>
 
-    <button class="next-btn" bindtap="openBooking">下一步 <text>→</text></button>
+    <view class="perk-row">
+      <view class="perk-item">每场 2 小时</view>
+      <view class="perk-item">6 位以内</view>
+      <view class="perk-item">赠 2 泡茶</view>
+    </view>
+
+    <view class="section-block">
+      <view class="section-label">
+        <view class="section-title-group">
+          <text class="section-index">01</text>
+          <view class="block-title">选择日期</view>
+        </view>
+      </view>
+      <scroll-view scroll-x class="date-scroll" enhanced show-scrollbar="{{false}}">
+        <view
+          wx:for="{{visibleDays}}"
+          wx:key="value"
+          class="date-card {{selectedDay === item.value ? 'active' : ''}}"
+          data-value="{{item.value}}"
+          bindtap="chooseDay"
+        >
+          <view class="date-week">{{item.label}}</view>
+          <text class="date-num">{{item.slashDisplay}}</text>
+        </view>
+        <view wx:if="{{visibleDays.length < days.length}}" class="date-card more" bindtap="showMoreDates">
+          <image src="/assets/icons/home-calendar.png" mode="aspectFit"></image>
+          <text>更多</text>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view class="section-block">
+      <view class="section-label">
+        <view class="section-title-group">
+          <text class="section-index">02</text>
+          <view class="block-title">选择场次</view>
+        </view>
+        <text class="section-hint">费用含茶席与赠茶</text>
+      </view>
+      <view class="period-row">
+        <view
+          wx:for="{{periods}}"
+          wx:key="id"
+          class="period-chip {{periodId === item.id ? 'active' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="choosePeriod"
+        >
+          <view class="period-top">
+            <text class="period-label">{{item.label}}</text>
+            <text class="period-price">¥{{item.price}}</text>
+          </view>
+          <text class="period-meta">{{item.start}} – {{item.end}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-block">
+      <view class="section-label">
+        <view class="section-title-group">
+          <text class="section-index">03</text>
+          <view class="block-title">选择时间</view>
+        </view>
+        <text class="section-hint">自动顺延 2 小时</text>
+      </view>
+
+      <view class="time-picker-card">
+        <picker
+          mode="multiSelector"
+          range="{{timeRange}}"
+          value="{{timeIndex}}"
+          bindchange="onTimeChange"
+          bindcolumnchange="onTimeColumnChange"
+        >
+          <view class="time-start-row">
+            <view class="time-col">
+              <text class="time-caption">开始</text>
+              <text class="time-value">{{selectedTime || '--:--'}}</text>
+            </view>
+            <view class="time-divider">
+              <view class="time-line"></view>
+              <text class="time-plus">2h</text>
+              <view class="time-line"></view>
+            </view>
+            <view class="time-col is-end">
+              <text class="time-caption">结束</text>
+              <text class="time-value soft">{{selectedEnd || '--:--'}}</text>
+            </view>
+            <text class="time-chevron">›</text>
+          </view>
+        </picker>
+
+        <view class="fee-bar">
+          <view class="fee-left">
+            <text class="fee-label">本场费用</text>
+            <text class="fee-sub">{{selectedPeriodLabel}} · 含赠 2 泡茶（¥78）</text>
+          </view>
+          <text class="fee-price">¥{{selectedPrice}}</text>
+        </view>
+      </view>
+    </view>
+
+    <button class="next-btn" hover-class="none" bindtap="openBooking">
+      <text class="next-main">下一步</text>
+      <text class="next-sub">{{selectedSlotLabel}} · ¥{{selectedPrice}}</text>
+    </button>
   </view>
 
   <view wx:if="{{bookingOpen}}" class="booking-mask" bindtap="closeBooking">
     <view class="booking-sheet" catchtap="noop">
+      <view class="sheet-handle"></view>
       <view class="sheet-head">
-        <view>
-          <view class="sheet-title">{{selectedRoom.displayName}} · {{selectedRoom.city}}</view>
-          <view class="muted">{{selectedDayText}} {{selectedTime}} · {{people}}人</view>
+        <view class="sheet-head-copy">
+          <view class="sheet-title">确认预约信息</view>
+          <view class="sheet-sub">{{selectedRoom.displayName}}</view>
         </view>
         <view class="sheet-close" bindtap="closeBooking">×</view>
       </view>
 
+      <view class="summary-card">
+        <view class="summary-row">
+          <text class="summary-k">日期</text>
+          <text class="summary-v">{{selectedDayText}}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-k">时段</text>
+          <text class="summary-v">{{selectedSlotLabel}} · {{selectedPeriodLabel}}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-k">费用</text>
+          <text class="summary-v price">¥{{selectedPrice}}</text>
+        </view>
+      </view>
+
       <view class="sheet-section people-line">
-        <view class="sheet-label">到店人数</view>
+        <view class="sheet-label">到店人数
+          <text class="sheet-label-hint">限 {{maxPeople}} 位以内</text>
+        </view>
         <view class="people-stepper">
           <view data-step="-1" bindtap="setPeople">−</view>
           <text>{{people}}</text>
@@ -90,15 +183,16 @@
 
       <view class="sheet-section form-fields">
         <input class="field" placeholder="联系人" data-field="name" value="{{name}}" bindinput="onInput" />
-        <input class="field" placeholder="手机号" type="number" data-field="phone" value="{{phone}}" bindinput="onInput" />
-        <textarea class="textarea-field" placeholder="备注，如茶具需求、到店时间说明" data-field="note" value="{{note}}" bindinput="onInput"></textarea>
+        <input class="field" placeholder="手机号" type="number" maxlength="11" data-field="phone" value="{{phone}}" bindinput="onInput" />
+        <textarea class="textarea-field" placeholder="备注（选填）" data-field="note" value="{{note}}" bindinput="onInput"></textarea>
       </view>
 
-      <view class="booking-note">预约提交后由门店人工确认；如时段冲突，后台会拦截并提示重新选择。</view>
+      <view class="booking-note">预约提交后由门店人工确认。含赠 2 泡茶（价值 ¥78）；如时段冲突，请重新选择其他时间。</view>
 
-      <button class="submit-reserve" bindtap="submitReservation">提交预约</button>
+      <button class="submit-reserve" hover-class="none" bindtap="submitReservation">提交预约 · ¥{{selectedPrice}}</button>
     </view>
   </view>
+
   <privacy-gate
     show="{{privacyGateOpen}}"
     purpose="{{privacyPurpose}}"

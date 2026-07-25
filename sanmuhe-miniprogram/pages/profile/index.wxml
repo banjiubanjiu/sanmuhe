@@ -45,7 +45,7 @@
         </view>
         <view class="member-divider"></view>
         <view class="member-stat">
-          <text>{{member.isMember ? '会员积分' : '茶饮券'}}</text>
+          <text>{{member.isMember ? '会员积分' : '品饮券'}}</text>
           <view class="member-stat-number">{{member.isMember ? member.points : '每月可领'}}</view>
         </view>
         <view class="benefit-btn" catchtap="showMemberBenefits">{{member.isMember ? '会员中心' : '立即开通'}}</view>

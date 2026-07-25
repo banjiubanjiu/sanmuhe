@@ -127,8 +127,19 @@ Page(withPrivacy({
   },
 
   onShow() {
+    this.syncMemberTabBar();
     this.loadMemberCenter();
     this.syncPrivacyState();
+  },
+
+  /** 会员中心非 tab 页，内嵌 custom-tab-bar 应固定高亮「我的」 */
+  syncMemberTabBar() {
+    const tabBar = typeof this.selectComponent === "function"
+      ? this.selectComponent("#member-tab-bar")
+      : null;
+    if (tabBar && typeof tabBar.setSelected === "function") {
+      tabBar.setSelected(4);
+    }
   },
 
   syncPrivacyState() {

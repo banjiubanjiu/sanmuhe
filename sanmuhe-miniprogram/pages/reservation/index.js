@@ -1,27 +1,128 @@
-const { rooms } = require("../../data/catalog");
+const { getStore, getTeaRoom, getBookingPolicy } = require("../../data/store");
 const { createReservation, getCatalog } = require("../../utils/cloudApi");
 const { getBookingDays } = require("../../utils/date");
 const { withPrivacy } = require("../../utils/privacy");
 
-const timeOptions = [
-  { value: "10:00", seats: 2 },
-  { value: "12:30", seats: 1 },
-  { value: "15:00", seats: 3 },
-  { value: "17:30", seats: 2 },
-  { value: "20:00", seats: 1 }
-];
-const timeSlots = timeOptions.map((item) => item.value);
 const CONTACT_KEY = "sanmuhe_contact";
+const STORE = getStore();
+const TEA_ROOM = getTeaRoom();
+const BOOKING = getBookingPolicy();
+const SESSION_MINUTES = BOOKING.sessionMinutes;
+const MAX_PEOPLE = BOOKING.maxPeople;
+const PERIODS = BOOKING.periods;
 
-const storeRoom = {
-  id: "room-001",
-  name: "禾煦书茶空间",
-  displayName: "禾煦书茶空间",
-  city: "佛山",
-  address: "广东省佛山市",
-  price: 168,
-  status: "可预定"
-};
+function toMinutes(hhmm) {
+  const parts = String(hhmm || "").split(":");
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return 0;
+  }
+  return hour * 60 + minute;
+}
+
+function fromMinutes(total) {
+  const hour = Math.floor(total / 60);
+  const minute = total % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function getPeriod(periodId) {
+  return PERIODS.find((item) => item.id === periodId) || PERIODS[0];
+}
+
+function earliestStart(period) {
+  return toMinutes(period.start);
+}
+
+function latestStart(period) {
+  return toMinutes(period.end) - SESSION_MINUTES;
+}
+
+function buildHourList(period) {
+  const start = earliestStart(period);
+  const latest = latestStart(period);
+  if (latest < start) {
+    return [];
+  }
+  const hours = [];
+  for (let h = Math.floor(start / 60); h <= Math.floor(latest / 60); h += 1) {
+    hours.push(pad2(h));
+  }
+  return hours;
+}
+
+function buildMinuteList(period, hourStr) {
+  const hour = Number(hourStr);
+  const start = earliestStart(period);
+  const latest = latestStart(period);
+  const minutes = [];
+  for (let m = 0; m < 60; m += 1) {
+    const total = hour * 60 + m;
+    if (total >= start && total <= latest) {
+      minutes.push(pad2(m));
+    }
+  }
+  return minutes;
+}
+
+function buildTimePicker(periodId, preferredTime) {
+  const period = getPeriod(periodId);
+  const hours = buildHourList(period);
+  if (!hours.length) {
+    return {
+      periodId: period.id,
+      timeRange: [[], []],
+      timeIndex: [0, 0],
+      selectedTime: "",
+      selectedEnd: "",
+      selectedPeriod: period.id,
+      selectedPeriodLabel: period.label,
+      selectedPrice: period.price,
+      selectedSlotLabel: ""
+    };
+  }
+
+  let preferredHour = hours[0];
+  let preferredMinute = "00";
+  if (preferredTime && /^\d{1,2}:\d{2}$/.test(preferredTime)) {
+    const parts = preferredTime.split(":");
+    preferredHour = pad2(Number(parts[0]));
+    preferredMinute = pad2(Number(parts[1]));
+  }
+
+  let hourIndex = hours.indexOf(preferredHour);
+  if (hourIndex < 0) {
+    hourIndex = 0;
+  }
+  let minutes = buildMinuteList(period, hours[hourIndex]);
+  if (!minutes.length) {
+    hourIndex = 0;
+    minutes = buildMinuteList(period, hours[hourIndex]);
+  }
+  let minuteIndex = minutes.indexOf(preferredMinute);
+  if (minuteIndex < 0) {
+    minuteIndex = 0;
+  }
+
+  const start = `${hours[hourIndex]}:${minutes[minuteIndex]}`;
+  const end = fromMinutes(toMinutes(start) + SESSION_MINUTES);
+  return {
+    periodId: period.id,
+    timeRange: [hours, minutes],
+    timeIndex: [hourIndex, minuteIndex],
+    selectedTime: start,
+    selectedEnd: end,
+    selectedPeriod: period.id,
+    selectedPeriodLabel: period.label,
+    selectedPrice: period.price,
+    selectedSlotLabel: `${start}–${end}`
+  };
+}
 
 function getDayText(days, value) {
   const day = days.find((item) => item.value === value);
@@ -34,26 +135,39 @@ function decorateDays(days) {
   }));
 }
 
-function buildStoreRoom(room = {}) {
-  return Object.assign({}, storeRoom, room, {
-    id: room.id || storeRoom.id,
-    price: room.price || storeRoom.price,
-    status: room.status || storeRoom.status
+/** 页面展示的茶席：永远锚定本店主数据；仅同步云端营业状态 */
+function resolveTeaRoom(remoteRoom) {
+  const base = getTeaRoom();
+  if (!remoteRoom) {
+    return base;
+  }
+  return Object.assign({}, base, {
+    // 仅状态可被运营侧覆盖；名称/地址以门店主数据为准
+    status: remoteRoom.status || base.status,
+    image: remoteRoom.image || base.image
   });
 }
 
-const defaultRoom = buildStoreRoom(rooms[0]);
+const defaultPicker = buildTimePicker("day", "10:00");
 
 Page(withPrivacy({
   data: {
     days: [],
     visibleDays: [],
-    timeSlots,
-    timeOptions,
-    selectedRoom: defaultRoom,
+    periods: PERIODS,
+    maxPeople: MAX_PEOPLE,
+    selectedRoom: resolveTeaRoom(),
     selectedDay: "",
     selectedDayText: "",
-    selectedTime: "15:00",
+    periodId: defaultPicker.periodId,
+    timeRange: defaultPicker.timeRange,
+    timeIndex: defaultPicker.timeIndex,
+    selectedTime: defaultPicker.selectedTime,
+    selectedEnd: defaultPicker.selectedEnd,
+    selectedPeriod: defaultPicker.selectedPeriod,
+    selectedPeriodLabel: defaultPicker.selectedPeriodLabel,
+    selectedPrice: defaultPicker.selectedPrice,
+    selectedSlotLabel: defaultPicker.selectedSlotLabel,
     people: 2,
     name: "",
     phone: "",
@@ -64,29 +178,97 @@ Page(withPrivacy({
   onLoad() {
     const days = decorateDays(getBookingDays());
     const contact = wx.getStorageSync(CONTACT_KEY) || {};
-    this.setData({
+    const picker = buildTimePicker("day", "10:00");
+    this.setData(Object.assign({
       days,
       visibleDays: days.slice(0, 5),
       selectedDay: days[0].value,
       selectedDayText: getDayText(days, days[0].value),
       name: contact.consignee || contact.name || "",
       phone: contact.phone || ""
-    });
+    }, picker));
     this.loadCatalog();
   },
 
   loadCatalog() {
     getCatalog().then((catalog) => {
-      const sourceRoom = catalog.fromCloud
-        ? (catalog.rooms && catalog.rooms[0] ? catalog.rooms[0] : { id: "", name: "暂无可预约茶室", status: "已订满", price: 0 })
-        : (catalog.rooms && catalog.rooms.length ? catalog.rooms[0] : rooms[0]);
-      this.setData({ selectedRoom: buildStoreRoom(sourceRoom) });
+      const settings = catalog.settings || {};
+      const remoteRoom = catalog.rooms && catalog.rooms[0] ? catalog.rooms[0] : null;
+      // settings 可补充地址等运营字段，但不改门店身份名
+      const room = resolveTeaRoom(remoteRoom);
+      if (settings.address) {
+        room.address = settings.address;
+      }
+      if (settings.city) {
+        room.city = settings.city;
+      }
+      if (catalog.fromCloud && (!catalog.rooms || !catalog.rooms.length)) {
+        room.status = "已订满";
+        room.name = "暂无可预约茶室";
+        room.displayName = "暂无可预约茶室";
+      }
+      this.setData({ selectedRoom: room });
     });
+  },
+
+  applyPicker(periodId, preferredTime) {
+    this.setData(buildTimePicker(periodId, preferredTime));
+  },
+
+  choosePeriod(event) {
+    const periodId = event.currentTarget.dataset.id;
+    if (!periodId || periodId === this.data.periodId) {
+      return;
+    }
+    this.applyPicker(periodId, this.data.selectedTime);
+  },
+
+  onTimeColumnChange(event) {
+    const column = Number(event.detail.column);
+    const row = Number(event.detail.value);
+    const period = getPeriod(this.data.periodId);
+    const hours = this.data.timeRange[0] || [];
+    let hourIndex = this.data.timeIndex[0] || 0;
+    let minuteIndex = this.data.timeIndex[1] || 0;
+
+    if (column === 0) {
+      hourIndex = row;
+      const minutes = buildMinuteList(period, hours[hourIndex]);
+      minuteIndex = Math.min(minuteIndex, Math.max(0, minutes.length - 1));
+      this.setData({
+        timeRange: [hours, minutes],
+        timeIndex: [hourIndex, minuteIndex]
+      });
+      return;
+    }
+
+    if (column === 1) {
+      minuteIndex = row;
+      this.setData({
+        timeIndex: [hourIndex, minuteIndex]
+      });
+    }
+  },
+
+  onTimeChange(event) {
+    const indexes = event.detail.value || [0, 0];
+    const hours = this.data.timeRange[0] || [];
+    const minutes = this.data.timeRange[1] || [];
+    const hour = hours[indexes[0]] || hours[0];
+    const minute = minutes[indexes[1]] || minutes[0];
+    if (!hour || minute === undefined) {
+      return;
+    }
+    this.applyPicker(this.data.periodId, `${hour}:${minute}`);
   },
 
   openBooking() {
     if (this.data.selectedRoom.status === "已订满") {
       wx.showToast({ title: "该茶室已订满", icon: "none" });
+      return;
+    }
+    if (!this.data.selectedTime || !this.data.selectedEnd) {
+      wx.showToast({ title: "请选择开始时间", icon: "none" });
       return;
     }
     this.setData({ bookingOpen: true });
@@ -119,13 +301,9 @@ Page(withPrivacy({
     this.setData({ visibleDays: this.data.days });
   },
 
-  chooseTime(event) {
-    this.setData({ selectedTime: event.currentTarget.dataset.value });
-  },
-
   setPeople(event) {
     const next = this.data.people + Number(event.currentTarget.dataset.step);
-    this.setData({ people: Math.max(1, Math.min(12, next)) });
+    this.setData({ people: Math.max(1, Math.min(MAX_PEOPLE, next)) });
   },
 
   onInput(event) {
@@ -134,7 +312,19 @@ Page(withPrivacy({
   },
 
   submitReservation() {
-    const { selectedRoom, selectedDay, selectedTime, people, name, phone, note } = this.data;
+    const {
+      selectedDay,
+      selectedTime,
+      selectedEnd,
+      selectedPeriod,
+      selectedPeriodLabel,
+      selectedPrice,
+      people,
+      name,
+      phone,
+      note
+    } = this.data;
+
     if (!name || !phone) {
       wx.showToast({ title: "请填写联系人", icon: "none" });
       return;
@@ -143,12 +333,33 @@ Page(withPrivacy({
       wx.showToast({ title: "请填写 11 位手机号", icon: "none" });
       return;
     }
+    if (people > MAX_PEOPLE) {
+      wx.showToast({ title: `每场限 ${MAX_PEOPLE} 位以内`, icon: "none" });
+      return;
+    }
+    if (!selectedTime || !selectedEnd) {
+      wx.showToast({ title: "请选择开始时间", icon: "none" });
+      return;
+    }
 
+    const period = getPeriod(selectedPeriod);
+    const startMins = toMinutes(selectedTime);
+    if (startMins < earliestStart(period) || startMins > latestStart(period)) {
+      wx.showToast({ title: "该开始时间不在可预约范围内", icon: "none" });
+      return;
+    }
+
+    // 客户端只传时段与联系人；门店身份由云函数按 store 主数据落库
     const payload = {
-      roomId: selectedRoom.id,
-      room: selectedRoom.name,
+      storeId: STORE.id,
+      roomId: TEA_ROOM.id,
       day: selectedDay,
       time: selectedTime,
+      endTime: selectedEnd,
+      period: selectedPeriod,
+      periodLabel: selectedPeriodLabel,
+      price: selectedPrice,
+      durationMinutes: SESSION_MINUTES,
       people,
       name,
       phone,
@@ -178,10 +389,10 @@ Page(withPrivacy({
             wx.switchTab({ url: "/pages/profile/index" });
           }
         });
-      }).catch((error) => {
+      }).catch(() => {
         wx.showModal({
           title: "预约未提交",
-          content: error && error.message ? error.message : "当前云服务不可用，请稍后重试。为避免误以为门店已收到预约，本次没有保存为有效预约。",
+          content: "预约服务暂时繁忙，请稍后重试。本次预约尚未提交成功。",
           showCancel: false
         });
       });

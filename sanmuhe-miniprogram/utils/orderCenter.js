@@ -43,7 +43,7 @@ function formatDate(value, fallback = "") {
 
 function optionText(item = {}) {
   const options = item.options || {};
-  return [options.unit, options.temp, options.sugar, options.table ? `桌号 ${options.table}` : ""]
+  return [options.teaChoice, options.unit, options.table ? `桌号 ${options.table}` : ""]
     .filter(Boolean)
     .join(" · ");
 }

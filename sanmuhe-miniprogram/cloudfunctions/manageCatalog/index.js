@@ -339,6 +339,7 @@ function normalizePayload(collection, payload) {
     "name",
     "title",
     "category",
+    "serviceType",
     "notes",
     "badge",
     "color",
@@ -395,11 +396,23 @@ function normalizePayload(collection, payload) {
   if (Array.isArray(source.features)) {
     data.features = source.features.slice(0, 8).map((item) => cleanText(item, 40)).filter(Boolean);
   }
-  if (Array.isArray(source.temps)) {
-    data.temps = source.temps.slice(0, 8).map((item) => cleanText(item, 20)).filter(Boolean);
-  }
-  if (Array.isArray(source.sugars)) {
-    data.sugars = source.sugars.slice(0, 8).map((item) => cleanText(item, 20)).filter(Boolean);
+  if (Array.isArray(source.teaGroups)) {
+    data.teaGroups = source.teaGroups.slice(0, 8).map((group) => {
+      if (!group || typeof group !== "object") {
+        return null;
+      }
+      const name = cleanText(group.name || group.label, 40);
+      const options = Array.isArray(group.options)
+        ? group.options.slice(0, 12).map((item) => cleanText(item && item.name ? item.name : item, 40)).filter(Boolean)
+        : [];
+      if (!options.length) {
+        return null;
+      }
+      return {
+        name: name || "本席可选",
+        options
+      };
+    }).filter(Boolean);
   }
   if (Array.isArray(source.specs)) {
     data.specs = source.specs.slice(0, 12).map((item) => {

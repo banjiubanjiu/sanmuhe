@@ -1,15 +1,15 @@
 <view class="page cart-page {{items.length === 0 ? 'cart-page-empty' : ''}}">
   <view class="page-nav">
     <view class="back-mark" bindtap="goBack">‹</view>
-    <view class="page-title">确认点单</view>
+    <view class="page-title">{{pageTitle}}</view>
     <view class="nav-placeholder"></view>
   </view>
 
   <block wx:if="{{items.length === 0}}">
     <view class="empty-cart">
-      <view class="empty-title">还没有点单</view>
-      <view class="empty-copy">去选几杯茶饮或茶叶，确认后通知门店，到柜台扫码付款即可</view>
-      <button class="empty-action" bindtap="goShop">去点单</button>
+      <view class="empty-title">{{emptyTitle}}</view>
+      <view class="empty-copy">{{emptyCopy}}</view>
+      <button class="empty-action" bindtap="goShop">{{isDineIn ? '返回堂饮茶单' : '去选茶品'}}</button>
     </view>
   </block>
 
@@ -41,6 +41,7 @@
 
     <view class="note-block">
       <input
+        wx:if="{{isDineIn}}"
         class="field"
         placeholder="桌号（选填）"
         data-field="tableNo"
@@ -49,7 +50,7 @@
       />
       <input
         class="field"
-        placeholder="备注，如少冰、打包（选填）"
+        placeholder="{{isDineIn ? '品饮备注（选填）' : '订单备注（选填）'}}"
         data-field="remark"
         value="{{remark}}"
         bindinput="onInput"
@@ -76,10 +77,10 @@
         <view class="payment-radio"><view></view></view>
         <view class="payment-copy">
           <view>柜台扫码付款</view>
-          <text>下单后由门店确认并引导付款</text>
+          <text>{{isDineIn ? '确认茶单后由门店备茶并引导付款' : '确认茶品后由门店备货并引导付款'}}</text>
         </view>
       </view>
-      <view class="pay-hint">{{payMode === 'balance' ? ('确认后将从会员余额扣除，预计剩余 ¥' + balanceAfter) : '确认后通知门店制作，请到柜台扫码付款'}}</view>
+      <view class="pay-hint">{{payMode === 'balance' ? ('确认后将从会员余额扣除，预计剩余 ¥' + balanceAfter) : (isDineIn ? '确认后通知门店备茶，请到柜台扫码付款' : '确认后通知门店备货，请到柜台扫码付款')}}</view>
     </view>
 
     <view class="checkout-bar simple">
@@ -87,7 +88,7 @@
         <view>合计 {{count}} 件</view>
         <text>¥{{total}}</text>
       </view>
-      <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">确认点单</button>
+      <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">{{isDineIn ? '确认茶单' : '确认茶品'}}</button>
     </view>
   </block>
 </view>

@@ -76,15 +76,19 @@ function buildOrderShortcuts(orders, summary) {
   });
 }
 
+const { displayReservationPlace } = require("../../data/store");
+
 function getRecentReservation(reservations) {
   const item = reservations[0];
   if (!item) {
     return null;
   }
+  const timeRange = item.endTime ? `${item.time || ""}–${item.endTime}` : (item.time || "");
   return {
     id: item.id,
-    room: item.room || "茶室预约",
-    dateText: item.day && item.time ? `${item.day} ${item.time}` : item.dateText,
+    // 单店模式：展示门店主数据名（storeName 优先，见 data/store.js）
+    room: displayReservationPlace(item),
+    dateText: item.day && timeRange ? `${item.day} ${timeRange}` : (item.dateText || item.day || ""),
     people: item.people || 2,
     status: item.status || "待确认",
     image: item.image || "/assets/images/reservation-hero.jpg"

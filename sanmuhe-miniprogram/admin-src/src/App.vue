@@ -158,7 +158,7 @@ const tabPermissions = {
 
 const collectionTabs = [
   { key: "tea_products", label: "茶叶" },
-  { key: "drinks", label: "茶饮" },
+  { key: "drinks", label: "堂饮茶单" },
   { key: "rooms", label: "茶室" },
   { key: "events", label: "活动" }
 ];
@@ -234,7 +234,7 @@ const pageTitles = {
   afterSales: ["售后管理", "退款、拒绝、关闭和人工处理记录"],
   inventory: ["库存流水", "库存锁定、释放、扣减和人工调整"],
   customers: ["用户管理", "会员画像、消费与互动记录"],
-  catalog: ["商品管理", "茶叶、茶饮、茶室与活动资料"],
+  catalog: ["商品管理", "茶叶、堂饮茶单、茶室与活动资料"],
   content: ["内容管理", "首页轮播、公告和运营内容"],
   analytics: ["数据统计", "经营走势、转化和热销项目"],
   marketing: ["营销中心", "优惠券和活动计划"],
@@ -3821,7 +3821,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="table-wrap">
               <table>
-                <caption>商品、茶饮、茶室和活动资料列表</caption>
+                <caption>商品、堂饮茶单、茶室和活动资料列表</caption>
                 <thead><tr><th scope="col">资料</th><th scope="col">分类</th><th scope="col">价格</th><th scope="col">库存/名额</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
                 <tbody>
                   <tr
@@ -3859,7 +3859,7 @@ onBeforeUnmount(() => {
               <label><span>标题</span><input v-model="forms.catalog.title"></label>
               <label><span>分类</span><input v-model="forms.catalog.category"></label>
               <label><span>价格</span><input v-model.number="forms.catalog.price" type="number" min="0"></label>
-              <label><span>单位/规格</span><input v-model="forms.catalog.unit" placeholder="杯 / 50g / 份"></label>
+              <label><span>单位/规格</span><input v-model="forms.catalog.unit" placeholder="道 / 壶 / 50g / 份"></label>
               <label><span>库存</span><input v-model.number="forms.catalog.stock" type="number" min="0"></label>
               <label><span>名额</span><input v-model.number="forms.catalog.quota" type="number" min="1"></label>
               <label><span>已报名</span><input v-model.number="forms.catalog.signed" type="number" min="0"></label>
@@ -4065,7 +4065,7 @@ onBeforeUnmount(() => {
           <aside class="panel-card editor-panel">
             <div class="panel-title"><h2>人工调整库存</h2></div>
             <form class="editor-grid" @submit.prevent="adjustInventory">
-              <label><span>类型</span><select v-model="inventoryForm.collection"><option value="tea_products">茶叶</option><option value="drinks">茶饮</option></select></label>
+              <label><span>类型</span><select v-model="inventoryForm.collection"><option value="tea_products">茶叶</option><option value="drinks">堂饮茶单</option></select></label>
               <label><span>商品 ID</span><input v-model="inventoryForm.id" required placeholder="如 tea-001"></label>
               <label><span>调整数量</span><input v-model.number="inventoryForm.delta" type="number" required placeholder="正数增加，负数减少"></label>
               <label class="wide"><span>原因</span><textarea v-model="inventoryForm.note" rows="4" placeholder="盘点、损耗、补货等"></textarea></label>
@@ -4299,7 +4299,7 @@ onBeforeUnmount(() => {
           <article class="panel-card metric-card large">
             <span>已支付订单数</span>
             <strong>{{ numberText(state.analytics?.summary?.orders || 0) }}</strong>
-            <p>含茶品和茶饮订单</p>
+            <p>含零售茶品和堂饮茶单订单</p>
           </article>
           <article class="panel-card metric-card large">
             <span>预约量</span>

@@ -35,8 +35,12 @@
         "text": "首页"
       },
       {
+        "pagePath": "pages/order/index",
+        "text": "点单"
+      },
+      {
         "pagePath": "pages/shop/index",
-        "text": "分类"
+        "text": "茶品"
       },
       {
         "pagePath": "pages/events/index",

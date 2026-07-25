@@ -203,6 +203,7 @@ Page({
       wx.showToast({ title: "这笔订单暂无可再次购买的商品", icon: "none" });
       return;
     }
+    const onlyDineIn = order.items.every((item) => item.type === "drink");
     order.items.forEach((item) => {
       addToCart({
         id: item.id,
@@ -215,9 +216,11 @@ Page({
       });
     });
     wx.showToast({
-      title: "已加入购物车",
+      title: onlyDineIn ? "已加入茶单" : "已加入购物车",
       icon: "success",
-      success: () => wx.navigateTo({ url: "/pages/cart/index" })
+      success: () => wx.navigateTo({
+        url: onlyDineIn ? "/pages/cart/index?mode=dinein" : "/pages/cart/index?mode=retail"
+      })
     });
   }
 });

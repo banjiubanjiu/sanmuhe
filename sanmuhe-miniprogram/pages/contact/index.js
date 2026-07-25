@@ -1,13 +1,15 @@
 const app = getApp({ allowDefault: true });
 const { getCatalog } = require("../../utils/cloudApi");
+const { getStore } = require("../../data/store");
 
+const STORE = getStore();
 const fallbackContact = {
-  phone: "13392268386",
-  serviceTime: "周一～周日 9:00～21:30",
-  store: "禾煦茶书房",
-  address: "佛山市禅城区石湾镇街道怡翠宏璟P9铺禾煦茶书房",
-  wechat: "zizi66",
-  heroImage: "/assets/images/reservation-hero.jpg",
+  phone: STORE.phone,
+  serviceTime: STORE.businessHours,
+  store: STORE.name,
+  address: STORE.address,
+  wechat: STORE.wechat,
+  heroImage: STORE.heroImage || "/assets/images/reservation-hero.jpg",
   qrCode: "/assets/images/contact-qr.jpg"
 };
 

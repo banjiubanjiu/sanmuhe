@@ -1,9 +1,9 @@
-const { drinks, teaProducts } = require("../../data/catalog");
+const { teaProducts } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
-const categoryOrder = ["全部", "茶叶", "红茶", "白茶", "岩茶", "普洱茶", "单丛", "茶饮"];
+const categoryOrder = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单丛"];
 const TARGET_CATEGORY_KEY = "sanmuhe_shop_category";
 
 function normalizeTeaProducts(products) {
@@ -17,23 +17,10 @@ function normalizeTeaProducts(products) {
   }));
 }
 
-function normalizeDrinkProducts(items) {
-  return items.map((item) => Object.assign({}, item, {
-    productType: "drink",
-    category: "茶饮",
-    thumb: item.image,
-    taste: item.notes,
-    origin: item.badge || item.category,
-    unit: item.unit || "杯",
-    availableStock: ""
-  }));
-}
-
 function buildProducts(catalog = {}) {
   const fromCloud = catalog.fromCloud === true;
   const nextTeaProducts = fromCloud ? (catalog.teaProducts || []) : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts);
-  const nextDrinks = fromCloud ? (catalog.drinks || []) : (catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks);
-  return normalizeTeaProducts(nextTeaProducts).concat(normalizeDrinkProducts(nextDrinks));
+  return normalizeTeaProducts(nextTeaProducts);
 }
 
 function buildCategories(products) {
@@ -43,28 +30,18 @@ function buildCategories(products) {
     }
     return result;
   }, []);
-  const hasTeaProducts = products.some((item) => item.productType === "tea");
-  const ordered = categoryOrder.filter((category) => (
-    category === "全部"
-    || (category === "茶叶" && hasTeaProducts)
-    || unique.indexOf(category) >= 0
-  ));
+  const ordered = categoryOrder.filter((category) => category === "全部" || unique.indexOf(category) >= 0);
   const extras = unique.filter((category) => ordered.indexOf(category) < 0);
   return ordered.concat(extras);
 }
 
 Page({
   data: {
-    categories: buildCategories(buildProducts({ teaProducts, drinks })),
+    categories: buildCategories(buildProducts({ teaProducts })),
     activeCategory: "全部",
     keyword: "",
-    products: buildProducts({ teaProducts, drinks }),
-    filteredProducts: buildProducts({ teaProducts, drinks }),
-    drinkSheetOpen: false,
-    selectedDrink: null,
-    selectedTemp: "",
-    selectedSugar: "",
-    drinkTable: "",
+    products: buildProducts({ teaProducts }),
+    filteredProducts: buildProducts({ teaProducts }),
     cartCount: 0,
     cartTotal: 0
   },
@@ -115,9 +92,7 @@ Page({
   applyFilters() {
     const keyword = String(this.data.keyword || "").trim().toLowerCase();
     const filteredProducts = this.data.products.filter((item) => {
-      const categoryMatched = this.data.activeCategory === "全部"
-        || (this.data.activeCategory === "茶叶" && item.productType === "tea")
-        || item.category === this.data.activeCategory;
+      const categoryMatched = this.data.activeCategory === "全部" || item.category === this.data.activeCategory;
       const keywordMatched = !keyword || [
         item.name,
         item.category,
@@ -144,11 +119,6 @@ Page({
   },
 
   viewProduct(event) {
-    const product = this.data.products.find((item) => item.id === event.currentTarget.dataset.id);
-    if (product && product.productType === "drink") {
-      this.openDrinkSheet(product);
-      return;
-    }
     wx.navigateTo({
       url: `/pages/product/index?id=${event.currentTarget.dataset.id}`
     });
@@ -157,10 +127,6 @@ Page({
   addProduct(event) {
     const product = this.data.products.find((item) => item.id === event.currentTarget.dataset.id);
     if (!product) {
-      return;
-    }
-    if (product.productType === "drink") {
-      this.openDrinkSheet(product);
       return;
     }
     // 多规格茶叶进入详情页选择包装与价格
@@ -187,60 +153,8 @@ Page({
     wx.showToast({ title: "已加入" });
   },
 
-  openDrinkSheet(drink) {
-    this.setData({
-      drinkSheetOpen: true,
-      selectedDrink: drink,
-      selectedTemp: drink.temps && drink.temps[0] ? drink.temps[0] : "冷",
-      selectedSugar: drink.sugars && drink.sugars[0] ? drink.sugars[0] : "正常糖",
-      drinkTable: ""
-    });
-  },
-
-  closeDrinkSheet() {
-    this.setData({ drinkSheetOpen: false, selectedDrink: null });
-  },
-
-  noop() {},
-
-  chooseDrinkTemp(event) {
-    this.setData({ selectedTemp: event.currentTarget.dataset.value });
-  },
-
-  chooseDrinkSugar(event) {
-    this.setData({ selectedSugar: event.currentTarget.dataset.value });
-  },
-
-  onDrinkTableInput(event) {
-    this.setData({ drinkTable: event.detail.value });
-  },
-
-  confirmDrink() {
-    const { selectedDrink, selectedTemp, selectedSugar, drinkTable } = this.data;
-    if (!selectedDrink) {
-      return;
-    }
-    addToCart({
-      id: selectedDrink.id,
-      type: "drink",
-      name: selectedDrink.name,
-      price: selectedDrink.price,
-      color: selectedDrink.color,
-      image: selectedDrink.thumb || selectedDrink.image,
-      category: selectedDrink.category,
-      options: {
-        temp: selectedTemp,
-        sugar: selectedSugar,
-        table: String(drinkTable || "").trim()
-      }
-    });
-    this.setData({ drinkSheetOpen: false, selectedDrink: null });
-    this.refreshCart();
-    wx.showToast({ title: "已加入" });
-  },
-
   goCart() {
-    wx.navigateTo({ url: "/pages/cart/index" });
+    wx.navigateTo({ url: "/pages/cart/index?mode=retail" });
   },
 
   goBack() {

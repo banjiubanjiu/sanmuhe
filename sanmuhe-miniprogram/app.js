@@ -27,7 +27,7 @@ function openOrderWithTable(table) {
   wx.reLaunch({
     url,
     fail: () => {
-      wx.navigateTo({ url });
+      wx.switchTab({ url: "/pages/order/index" });
     }
   });
 }

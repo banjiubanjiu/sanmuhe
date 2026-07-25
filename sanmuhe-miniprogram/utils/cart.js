@@ -1,11 +1,44 @@
-const CART_KEY = "sanmuhe_cart";
+const LEGACY_CART_KEY = "sanmuhe_cart";
+const MIGRATION_KEY = "sanmuhe_cart_scopes_migrated";
+const CART_KEYS = {
+  retail: "sanmuhe_cart_retail",
+  dinein: "sanmuhe_cart_dinein"
+};
 
-function getCart() {
-  return wx.getStorageSync(CART_KEY) || [];
+function normalizeMode(mode, item) {
+  if (mode === "dinein" || mode === "retail") {
+    return mode;
+  }
+  return item && item.type === "drink" ? "dinein" : "retail";
 }
 
-function setCart(cart) {
-  wx.setStorageSync(CART_KEY, cart);
+function migrateLegacyCart() {
+  if (wx.getStorageSync(MIGRATION_KEY)) {
+    return;
+  }
+  const legacyCart = wx.getStorageSync(LEGACY_CART_KEY);
+  if (Array.isArray(legacyCart) && legacyCart.length) {
+    const retailCart = wx.getStorageSync(CART_KEYS.retail);
+    const dineinCart = wx.getStorageSync(CART_KEYS.dinein);
+    if (!Array.isArray(retailCart) || !retailCart.length) {
+      wx.setStorageSync(CART_KEYS.retail, legacyCart.filter((item) => item.type !== "drink"));
+    }
+    if (!Array.isArray(dineinCart) || !dineinCart.length) {
+      wx.setStorageSync(CART_KEYS.dinein, legacyCart.filter((item) => item.type === "drink"));
+    }
+  }
+  wx.setStorageSync(MIGRATION_KEY, true);
+}
+
+function getCart(mode = "retail") {
+  migrateLegacyCart();
+  const cart = wx.getStorageSync(CART_KEYS[normalizeMode(mode)]);
+  return Array.isArray(cart) ? cart : [];
+}
+
+function setCart(cart, mode = "retail") {
+  migrateLegacyCart();
+  wx.setStorageSync(CART_KEYS[normalizeMode(mode)], Array.isArray(cart) ? cart : []);
 }
 
 function makeKey(item) {
@@ -14,14 +47,14 @@ function makeKey(item) {
     item.type,
     item.id,
     options.unit || "",
-    options.temp || "",
-    options.sugar || "",
+    options.teaChoice || "",
     options.table || ""
   ].join("|");
 }
 
-function addToCart(item) {
-  const cart = getCart();
+function addToCart(item, mode) {
+  const targetMode = normalizeMode(mode, item);
+  const cart = getCart(targetMode);
   const key = makeKey(item);
   const index = cart.findIndex((entry) => entry.key === key);
   if (index >= 0) {
@@ -32,27 +65,28 @@ function addToCart(item) {
       quantity: item.quantity || 1
     }));
   }
-  setCart(cart);
+  setCart(cart, targetMode);
   return cart;
 }
 
-function updateQuantity(key, quantity) {
-  const next = getCart()
+function updateQuantity(key, quantity, mode = "retail") {
+  const next = getCart(mode)
     .map((entry) => {
       if (entry.key !== key) return entry;
       return Object.assign({}, entry, { quantity });
     })
     .filter((entry) => entry.quantity > 0);
-  setCart(next);
+  setCart(next, mode);
   return next;
 }
 
-function clearCart() {
-  setCart([]);
+function clearCart(mode = "retail") {
+  setCart([], mode);
 }
 
-function getTotal(cart = getCart()) {
-  return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+function getTotal(cart) {
+  const source = Array.isArray(cart) ? cart : getCart();
+  return source.reduce((sum, item) => sum + item.price * item.quantity, 0);
 }
 
 module.exports = {

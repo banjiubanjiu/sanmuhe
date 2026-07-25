@@ -30,8 +30,8 @@
       <view class="card-line"></view>
       <view class="card-no">{{member.isMember ? member.cardNo : 'NO. 静候相逢'}}</view>
       <view class="points-block">
-        <text>{{member.isMember ? '储值余额' : '会员礼遇'}}</text>
-        <view class="points-value">{{member.isMember ? ('¥' + wallet.balance) : '充值有礼'}}</view>
+        <text>{{member.isMember ? '会员积分' : '会员礼遇'}}</text>
+        <view class="points-value">{{member.isMember ? member.points : '充值有礼'}}</view>
       </view>
     </view>
   </view>
@@ -224,5 +224,5 @@
     bindcancel="onPrivacyCancel"
   />
 
-  <custom-tab-bar force-selected="{{4}}"></custom-tab-bar>
+  <custom-tab-bar force-selected="{{4}}" id="member-tab-bar"></custom-tab-bar>
 </view>

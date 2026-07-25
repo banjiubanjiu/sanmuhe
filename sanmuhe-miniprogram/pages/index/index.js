@@ -3,6 +3,8 @@ const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, listEvents } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
+const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
+
 function normalizeCatalog(catalog, eventList) {
   const fromCloud = catalog && catalog.fromCloud;
   return {
@@ -29,9 +31,9 @@ function buildSearchResults(query, catalog) {
     },
     {
       type: "drink",
-      label: "茶饮",
+      label: "堂饮",
       items: catalog.drinks,
-      getMeta: (item) => `${item.category || "茶饮"} · ¥${item.price}`
+      getMeta: (item) => `堂饮茶单 · ¥${item.price}/${item.unit || item.badge || "道"}`
     },
     {
       type: "room",
@@ -112,6 +114,21 @@ function buildHomeSlides(contentSlides, fallbackSlides) {
   return normalized.length ? normalized : fallbackSlides;
 }
 
+function getSlideImageKey(image) {
+  const normalized = String(image || "").split("?")[0].replace(/\\/g, "/");
+  const assetIndex = normalized.indexOf("/assets/");
+  return assetIndex >= 0 ? normalized.slice(assetIndex) : normalized;
+}
+
+function hasSameVisibleSlides(currentSlides, nextSlides) {
+  const current = Array.isArray(currentSlides) ? currentSlides : [];
+  const next = Array.isArray(nextSlides) ? nextSlides : [];
+  return current.length === next.length && current.every((item, index) => (
+    item.id === next[index].id
+    && getSlideImageKey(item.image) === getSlideImageKey(next[index].image)
+  ));
+}
+
 Page({
   data: {
     homeCatalog: normalizeCatalog({ drinks, teaProducts, rooms, events }, events),
@@ -119,7 +136,7 @@ Page({
     heroCurrent: 0,
     quickActions: [
       { key: "tea", title: "茶叶购买", desc: "甄选好茶", icon: "/assets/icons/home-leaf.png" },
-      { key: "drink", title: "茶饮点单", desc: "新鲜现制", icon: "/assets/icons/home-cup.png" },
+      { key: "drink", title: "堂饮茶单", desc: "一席一味", icon: "/assets/icons/home-cup.png" },
       { key: "room", title: "茶室预定", desc: "静享茶时", icon: "/assets/icons/home-house.png" },
       { key: "event", title: "活动发布", desc: "茶事雅集", icon: "/assets/icons/home-calendar.png" }
     ],
@@ -153,20 +170,34 @@ Page({
   },
 
   loadHomeData() {
-    Promise.all([
-      getCatalog(),
-      listEvents()
-    ]).then(([catalogResult, eventList]) => {
-      const homeCatalog = normalizeCatalog(catalogResult || {}, eventList);
+    getCatalog().then((catalogResult) => {
+      const homeCatalog = normalizeCatalog(catalogResult || {}, null);
       const content = catalogResult && catalogResult.content || {};
-      this.setData({
+      const nextHeroSlides = buildHomeSlides(content.homeSlides, this.data.heroSlides);
+      const nextData = {
         homeCatalog,
-        heroSlides: buildHomeSlides(content.homeSlides, this.data.heroSlides),
         featuredDrink: homeCatalog.drinks[0] || drinks[0],
         featuredTea: homeCatalog.teaProducts[0] || teaProducts[0],
         featuredRoom: homeCatalog.rooms[0] || rooms[0],
         nextEvent: homeCatalog.events[0] || events[0],
         recommendTeas: buildSeasonRecommendations(homeCatalog.teaProducts),
+        searchResults: buildSearchResults(this.data.query, homeCatalog)
+      };
+      if (!hasSameVisibleSlides(this.data.heroSlides, nextHeroSlides)) {
+        nextData.heroSlides = nextHeroSlides;
+        nextData.heroCurrent = 0;
+      }
+      this.setData(nextData);
+    });
+
+    listEvents().then((eventList) => {
+      const eventsFromCloud = Array.isArray(eventList) ? eventList : [];
+      const homeCatalog = Object.assign({}, this.data.homeCatalog, {
+        events: eventsFromCloud
+      });
+      this.setData({
+        homeCatalog,
+        nextEvent: eventsFromCloud[0] || events[0],
         searchResults: buildSearchResults(this.data.query, homeCatalog)
       });
     });
@@ -217,8 +248,8 @@ Page({
       return;
     }
     if (type === "drink") {
-      wx.setStorageSync("sanmuhe_shop_category", "茶饮");
-      wx.switchTab({ url: "/pages/shop/index" });
+      wx.setStorageSync(ORDER_DRINK_KEY, id);
+      wx.switchTab({ url: "/pages/order/index" });
       return;
     }
     if (type === "room") {
@@ -246,12 +277,12 @@ Page({
   },
 
   goOrder() {
-    wx.setStorageSync("sanmuhe_shop_category", "茶饮");
-    wx.switchTab({ url: "/pages/shop/index" });
+    wx.switchTab({ url: "/pages/order/index" });
   },
 
   goShop() {
-    wx.setStorageSync("sanmuhe_shop_category", "茶叶");
+    // 茶叶购买：进入分类页并定位到红茶
+    wx.setStorageSync("sanmuhe_shop_category", "红茶");
     wx.switchTab({ url: "/pages/shop/index" });
   },
 
@@ -268,7 +299,7 @@ Page({
   },
 
   goCart() {
-    wx.navigateTo({ url: "/pages/cart/index" });
+    wx.navigateTo({ url: "/pages/cart/index?mode=retail" });
   },
 
   addRecommended(event) {

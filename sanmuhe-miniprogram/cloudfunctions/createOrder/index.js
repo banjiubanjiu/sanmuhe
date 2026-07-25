@@ -70,6 +70,26 @@ function resolveTeaSpec(trusted, unitLabel) {
   };
 }
 
+function getTrustedTeaChoices(trusted) {
+  if (Array.isArray(trusted.teaGroups)) {
+    const choices = trusted.teaGroups.reduce((result, group) => {
+      const options = Array.isArray(group && group.options) ? group.options : [];
+      return result.concat(options.map((item) => cleanText(item && item.name ? item.name : item, 40)).filter(Boolean));
+    }, []);
+    if (choices.length) {
+      return choices;
+    }
+  }
+  return cleanText(trusted.notes, 500)
+    .split(/[；;]/)
+    .reduce((result, segment) => {
+      const value = segment.replace(/^([^：:]+)[：:]/, "");
+      return result.concat(value.split(/[\/、]/));
+    }, [])
+    .map((item) => cleanText(item, 40))
+    .filter(Boolean);
+}
+
 function sanitizeOptions(type, options, trusted) {
   const source = options || {};
   const clean = {};
@@ -80,11 +100,19 @@ function sanitizeOptions(type, options, trusted) {
     return clean;
   }
 
-  if (source.temp) {
-    clean.temp = cleanText(source.temp, 12);
-  }
-  if (source.sugar) {
-    clean.sugar = cleanText(source.sugar, 12);
+  clean.unit = cleanText(trusted.unit || source.unit, 12) || "道";
+  const choices = getTrustedTeaChoices(trusted);
+  const requestedChoice = cleanText(source.teaChoice, 40);
+  if (choices.length) {
+    if (!requestedChoice) {
+      clean.teaChoice = choices.length === 1 ? choices[0] : "到店确认";
+    } else if (choices.includes(requestedChoice)) {
+      clean.teaChoice = requestedChoice;
+    } else {
+      throw new Error("所选茶品已调整，请重新选择");
+    }
+  } else if (requestedChoice) {
+    clean.teaChoice = requestedChoice;
   }
   if (source.table) {
     clean.table = cleanText(source.table, 20);
@@ -166,6 +194,8 @@ async function findTrustedItem(type, id) {
         name: cleanText(item.name, 80),
         price: Math.max(0, Number(item.price) || 0),
         unit: cleanText(item.unit, 40),
+        notes: cleanText(item.notes, 500),
+        teaGroups: Array.isArray(item.teaGroups) ? item.teaGroups : [],
         specs: normalizeTrustedSpecs(item),
         image: cleanText(item.thumb || item.image, 240),
         stock: item.stock,

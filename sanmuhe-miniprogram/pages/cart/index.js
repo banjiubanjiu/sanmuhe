@@ -11,11 +11,11 @@ function formatFen(fen) {
 function getOptionText(item) {
   const options = item.options || {};
   if (item.type === "drink") {
-    return ["大杯", options.temp || "冷饮", options.sugar || "正常糖", options.table ? `桌${options.table}` : ""]
+    return [options.teaChoice || "茶品待选", options.unit || "道", options.table ? `桌号 ${options.table}` : ""]
       .filter(Boolean)
-      .join(" / ");
+      .join(" · ");
   }
-  return [options.unit || item.unit || "默认", item.category || "茶品"].filter(Boolean).join(" / ");
+  return [options.unit || item.unit || "默认", item.category || "茶品"].filter(Boolean).join(" · ");
 }
 
 function enrichCart(cart) {
@@ -54,7 +54,26 @@ Page({
     balanceAfter: "0.00",
     balanceAvailable: false,
     payMode: "manual",
+    mode: "retail",
+    isDineIn: false,
+    pageTitle: "确认茶品",
+    emptyTitle: "还没有选择茶品",
+    emptyCopy: "从茶叶商城选择喜欢的茶品，再来确认本次订单。",
     submitting: false
+  },
+
+  onLoad(options = {}) {
+    const mode = options.mode === "dinein" ? "dinein" : "retail";
+    const isDineIn = mode === "dinein";
+    this.setData({
+      mode,
+      isDineIn,
+      pageTitle: isDineIn ? "确认茶单" : "确认茶品",
+      emptyTitle: isDineIn ? "还没有选择堂饮茶品" : "还没有选择茶品",
+      emptyCopy: isDineIn
+        ? "返回堂饮茶单，选择品饮档位和本次茶品。"
+        : "从茶叶商城选择喜欢的茶品，再来确认本次订单。"
+    });
   },
 
   onShow() {
@@ -63,7 +82,7 @@ Page({
   },
 
   refresh() {
-    const cart = getCart();
+    const cart = getCart(this.data.mode);
     const items = enrichCart(cart);
     const tableNo = resolveTableNo(cart) || this.data.tableNo || "";
     const total = getTotal(cart);
@@ -115,17 +134,17 @@ Page({
   },
 
   decrease(event) {
-    updateQuantity(event.currentTarget.dataset.key, Number(event.currentTarget.dataset.quantity) - 1);
+    updateQuantity(event.currentTarget.dataset.key, Number(event.currentTarget.dataset.quantity) - 1, this.data.mode);
     this.refresh();
   },
 
   increase(event) {
-    updateQuantity(event.currentTarget.dataset.key, Number(event.currentTarget.dataset.quantity) + 1);
+    updateQuantity(event.currentTarget.dataset.key, Number(event.currentTarget.dataset.quantity) + 1, this.data.mode);
     this.refresh();
   },
 
   removeItem(event) {
-    updateQuantity(event.currentTarget.dataset.key, 0);
+    updateQuantity(event.currentTarget.dataset.key, 0, this.data.mode);
     this.refresh();
     wx.showToast({ title: "已移除" });
   },
@@ -143,6 +162,10 @@ Page({
   },
 
   goShop() {
+    if (this.data.isDineIn) {
+      wx.switchTab({ url: "/pages/order/index" });
+      return;
+    }
     wx.setStorageSync(SHOP_CATEGORY_KEY, "全部");
     wx.switchTab({ url: "/pages/shop/index" });
   },
@@ -153,11 +176,15 @@ Page({
       wx.navigateBack();
       return;
     }
+    if (this.data.isDineIn) {
+      wx.switchTab({ url: "/pages/order/index" });
+      return;
+    }
     wx.switchTab({ url: "/pages/shop/index" });
   },
 
   submitOrder() {
-    const { cart, total, tableNo, remark, payMode, submitting } = this.data;
+    const { cart, total, tableNo, remark, payMode, submitting, isDineIn, mode } = this.data;
     if (submitting) {
       return;
     }
@@ -166,7 +193,7 @@ Page({
       return;
     }
 
-    const table = tableUtil.normalizeTable(tableNo) || resolveTableNo(cart);
+    const table = isDineIn ? (tableUtil.normalizeTable(tableNo) || resolveTableNo(cart)) : "";
     if (table) {
       tableUtil.setTableNo(table);
     }
@@ -177,13 +204,13 @@ Page({
       deliveryMethod: "onsite",
       payMode,
       skipPayment: payMode !== "balance",
-      source: "onsite-cart",
+      source: isDineIn ? "dinein-tea-menu" : "retail-tea-catalog",
       consignee: "到店顾客",
       phone: "现场",
       tableNo: table,
       table: table,
       pickupNote: table ? `桌号 ${table}` : "",
-      remark: tableUtil.formatTableRemark(table, note)
+      remark: isDineIn ? tableUtil.formatTableRemark(table, note) : note
     };
 
     this.setData({ submitting: true });
@@ -193,7 +220,7 @@ Page({
         this.setData({ submitting: false });
         return;
       }
-      setCart([]);
+      setCart([], mode);
       this.setData({
         cart: [],
         items: [],

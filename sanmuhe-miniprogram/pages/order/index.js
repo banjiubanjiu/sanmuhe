@@ -1,9 +1,14 @@
 const { drinks } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
+const { normalizeMenuItems } = require("../../utils/teaMenu");
+const { syncTabBar } = require("../../utils/tabbar");
 const tableUtil = require("../../utils/table");
 
-const categories = ["推荐", "品鉴", "壶茶"];
+const DINEIN_CART_MODE = "dinein";
+const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
+const sections = ["品饮", "壶茶"];
+const defaultMenuItems = normalizeMenuItems(drinks);
 
 function bindTable(raw) {
   const table = tableUtil.parseTableFromRaw(raw) || tableUtil.normalizeTable(raw);
@@ -17,73 +22,87 @@ function bindTable(raw) {
       app.globalData.tableNo = table;
     }
   } catch (error) {
-    // ignore
+    // 缓存桌号成功即可，不阻断点茶。
   }
   return table;
 }
 
+function filterBySection(items, section) {
+  return (items || []).filter((item) => item.section === section);
+}
+
 Page({
   data: {
-    categories,
-    activeCategory: "推荐",
-    drinks,
-    filteredDrinks: drinks.filter((item) => item.category === "推荐"),
+    sections,
+    activeSection: "品饮",
+    menuItems: defaultMenuItems,
+    filteredItems: filterBySection(defaultMenuItems, "品饮"),
+    activeDrink: null,
+    activeDrinkId: "",
+    selectedTea: "",
+    sheetVisible: false,
     tableLabel: "",
-    activeDrink: drinks[0],
-    selectedTemp: drinks[0] && drinks[0].temps ? drinks[0].temps[0] : "热",
-    selectedSugar: drinks[0] && drinks[0].sugars ? drinks[0].sugars[0] : "无糖",
+    requestedDrinkId: "",
     cartCount: 0,
     cartTotal: 0
   },
 
-  onLoad(options) {
-    // Mini-code: query.scene / table; path QR: table=
-    const fromOptions = tableUtil.parseTableFromLaunch(options || {})
-      || tableUtil.parseTableFromRaw((options && (options.table || options.t || options.scene)) || "");
+  onLoad(options = {}) {
+    const fromOptions = tableUtil.parseTableFromLaunch(options)
+      || tableUtil.parseTableFromRaw(options.table || options.t || options.scene || "");
     const table = bindTable(fromOptions) || tableUtil.getTableNo();
-    if (table) {
-      this.setData({ tableLabel: table });
-    }
+    this.setData({
+      tableLabel: table || "",
+      requestedDrinkId: decodeURIComponent(options.id || "")
+    });
     this.loadCatalog();
   },
 
   onShow() {
+    syncTabBar(this);
     const table = tableUtil.getTableNo();
     if (table && table !== this.data.tableLabel) {
       this.setData({ tableLabel: table });
+    }
+    const pendingDrinkId = wx.getStorageSync(ORDER_DRINK_KEY);
+    if (pendingDrinkId) {
+      wx.removeStorageSync(ORDER_DRINK_KEY);
+      this.setData({ requestedDrinkId: pendingDrinkId }, () => {
+        const pendingDrink = this.data.menuItems.find((item) => item.id === pendingDrinkId);
+        if (pendingDrink) {
+          this.openServiceById(pendingDrink.id);
+          this.setData({ requestedDrinkId: "" });
+        }
+      });
     }
     this.refreshCart();
   },
 
   refreshCart() {
-    const cart = getCart();
+    const cart = getCart(DINEIN_CART_MODE);
     this.setData({
-      cartCount: cart.reduce((sum, item) => sum + item.quantity, 0),
+      cartCount: cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
       cartTotal: getTotal(cart)
     });
   },
 
   loadCatalog() {
     getCatalog().then((catalog) => {
-      const nextDrinks = catalog.fromCloud ? (catalog.drinks || []) : (catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks);
-      const filteredDrinks = nextDrinks.filter((item) => item.category === this.data.activeCategory);
-      const activeDrink = nextDrinks.find((item) => item.id === (this.data.activeDrink && this.data.activeDrink.id)) || nextDrinks[0];
-      if (!activeDrink) {
-        this.setData({
-          drinks: [],
-          filteredDrinks: [],
-          activeDrink: null,
-          selectedTemp: "",
-          selectedSugar: ""
-        });
-        return;
-      }
+      const source = catalog.fromCloud
+        ? (catalog.drinks || [])
+        : (catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks);
+      const menuItems = normalizeMenuItems(source);
+      const requested = menuItems.find((item) => item.id === this.data.requestedDrinkId);
+      const activeSection = requested ? requested.section : this.data.activeSection;
       this.setData({
-        drinks: nextDrinks,
-        filteredDrinks: filteredDrinks.length ? filteredDrinks : nextDrinks,
-        activeDrink,
-        selectedTemp: activeDrink.temps && activeDrink.temps[0] ? activeDrink.temps[0] : "热",
-        selectedSugar: activeDrink.sugars && activeDrink.sugars[0] ? activeDrink.sugars[0] : "无糖"
+        menuItems,
+        activeSection,
+        filteredItems: filterBySection(menuItems, activeSection)
+      }, () => {
+        if (requested) {
+          this.openServiceById(requested.id);
+          this.setData({ requestedDrinkId: "" });
+        }
       });
     });
   },
@@ -107,63 +126,72 @@ Page({
     });
   },
 
-  changeCategory(event) {
-    const activeCategory = event.currentTarget.dataset.category;
-    const filteredDrinks = this.data.drinks.filter((item) => item.category === activeCategory);
-    this.setData({ activeCategory, filteredDrinks });
+  changeSection(event) {
+    const activeSection = event.currentTarget.dataset.section;
+    this.setData({
+      activeSection,
+      filteredItems: filterBySection(this.data.menuItems, activeSection),
+      activeDrink: null,
+      activeDrinkId: "",
+      selectedTea: "",
+      sheetVisible: false
+    });
   },
 
-  chooseDrink(event) {
-    const id = event.currentTarget.dataset.id;
-    const activeDrink = this.data.drinks.find((item) => item.id === id);
+  openService(event) {
+    this.openServiceById(event.currentTarget.dataset.id);
+  },
+
+  openServiceById(id) {
+    const activeDrink = this.data.menuItems.find((item) => item.id === id);
     if (!activeDrink) {
       return;
     }
+    const defaultChoice = activeDrink.teaChoices[0] || "";
     this.setData({
       activeDrink,
-      selectedTemp: activeDrink.temps && activeDrink.temps[0] ? activeDrink.temps[0] : "热",
-      selectedSugar: activeDrink.sugars && activeDrink.sugars[0] ? activeDrink.sugars[0] : "无糖"
+      activeDrinkId: activeDrink.id,
+      selectedTea: defaultChoice,
+      sheetVisible: true
     });
   },
 
-  chooseTemp(event) {
-    this.setData({ selectedTemp: event.currentTarget.dataset.value });
+  chooseTea(event) {
+    this.setData({ selectedTea: event.currentTarget.dataset.tea });
   },
 
-  chooseSugar(event) {
-    this.setData({ selectedSugar: event.currentTarget.dataset.value });
+  quickAddService(event) {
+    const activeDrink = this.data.menuItems.find((item) => item.id === event.currentTarget.dataset.id);
+    if (!activeDrink) {
+      return;
+    }
+    if (activeDrink.teaChoices.length === 1) {
+      this.addMenuItem(activeDrink, activeDrink.teaChoices[0]);
+      return;
+    }
+    this.openServiceById(activeDrink.id);
   },
+
+  closeSheet() {
+    this.setData({ sheetVisible: false });
+  },
+
+  stopTap() {},
 
   addDrink() {
-    const { activeDrink, selectedTemp, selectedSugar, tableLabel } = this.data;
+    const activeDrink = this.data.activeDrink;
     if (!activeDrink) {
-      wx.showToast({ title: "暂无可点茶饮", icon: "none" });
       return;
     }
-    const table = tableLabel || tableUtil.getTableNo();
-    addToCart({
-      id: activeDrink.id,
-      type: "drink",
-      name: activeDrink.name,
-      price: activeDrink.price,
-      color: activeDrink.color,
-      image: activeDrink.image,
-      options: {
-        temp: selectedTemp,
-        sugar: selectedSugar,
-        table: table || ""
-      }
-    });
-    this.refreshCart();
-    wx.showToast({ title: "已加入" });
+    if (!this.data.selectedTea) {
+      wx.showToast({ title: "请先选择本次茶品", icon: "none" });
+      return;
+    }
+    this.addMenuItem(activeDrink, this.data.selectedTea);
+    this.setData({ sheetVisible: false });
   },
 
-  quickAddDrink(event) {
-    const id = event.currentTarget.dataset.id;
-    const activeDrink = this.data.drinks.find((item) => item.id === id);
-    if (!activeDrink) {
-      return;
-    }
+  addMenuItem(activeDrink, teaChoice) {
     const table = this.data.tableLabel || tableUtil.getTableNo();
     addToCart({
       id: activeDrink.id,
@@ -172,31 +200,22 @@ Page({
       price: activeDrink.price,
       color: activeDrink.color,
       image: activeDrink.image,
+      category: activeDrink.section,
       options: {
-        temp: activeDrink.temps && activeDrink.temps[0] ? activeDrink.temps[0] : "热",
-        sugar: activeDrink.sugars && activeDrink.sugars[0] ? activeDrink.sugars[0] : "无糖",
+        unit: activeDrink.unit,
+        teaChoice,
         table: table || ""
       }
-    });
-    this.setData({
-      activeDrink,
-      selectedTemp: activeDrink.temps && activeDrink.temps[0] ? activeDrink.temps[0] : "热",
-      selectedSugar: activeDrink.sugars && activeDrink.sugars[0] ? activeDrink.sugars[0] : "无糖"
-    });
+    }, DINEIN_CART_MODE);
     this.refreshCart();
-    wx.showToast({ title: "已加入" });
+    wx.showToast({ title: "已加入茶单" });
   },
 
   goCart() {
-    wx.navigateTo({ url: "/pages/cart/index" });
-  },
-
-  goBack() {
-    const pages = getCurrentPages();
-    if (pages.length > 1) {
-      wx.navigateBack();
+    if (!this.data.cartCount) {
+      wx.showToast({ title: "请先选择茶品", icon: "none" });
       return;
     }
-    wx.switchTab({ url: "/pages/index/index" });
+    wx.navigateTo({ url: "/pages/cart/index?mode=dinein" });
   }
 });

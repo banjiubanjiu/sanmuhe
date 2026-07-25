@@ -1,56 +1,119 @@
-<view class="page order-page">
+<view class="page tea-menu-page">
   <view class="page-nav">
-    <view class="back-mark" bindtap="goBack">‹</view>
-    <view class="page-title">茶饮点单</view>
-    <view class="nav-placeholder"></view>
+    <view class="nav-side"></view>
+    <view class="page-title">堂饮点单</view>
+    <view class="nav-side"></view>
   </view>
 
-  <view class="order-context">
-    <view>
-      <view class="context-title">{{tableLabel ? ('桌号 ' + tableLabel) : '茶饮点单'}}</view>
-      <view class="context-copy">{{tableLabel ? '已绑定本桌，下单将通知门店桌号' : '请扫桌上二维码绑定桌号后再点单'}}</view>
+  <view class="table-context">
+    <view class="table-copy">
+      <view class="table-title">{{tableLabel ? (tableLabel + '桌 · 已绑定') : '到店堂饮 · 未绑定桌号'}}</view>
+      <view class="table-note">{{tableLabel ? '茶单将送至当前桌位' : '扫码绑定桌号，门店可更快备茶'}}</view>
     </view>
-    <view class="context-scan" bindtap="scanTable">
+    <view class="scan-action" bindtap="scanTable">
       <image src="/assets/icons/scan-ink.png" mode="aspectFit"></image>
-      <text>扫码</text>
+      <text>{{tableLabel ? '换桌' : '扫码'}}</text>
     </view>
   </view>
 
-  <view class="order-shell">
-    <scroll-view scroll-y class="side-cats">
+  <view class="ordering-shell">
+    <scroll-view scroll-y class="side-sections">
       <view
-        wx:for="{{categories}}"
+        wx:for="{{sections}}"
         wx:key="*this"
-        class="side-cat {{activeCategory === item ? 'active' : ''}}"
-        data-category="{{item}}"
-        bindtap="changeCategory"
-      >{{item}}</view>
+        class="side-section {{activeSection === item ? 'active' : ''}}"
+        data-section="{{item}}"
+        bindtap="changeSection"
+      >
+        <text>{{item}}</text>
+        <view>{{item === '品饮' ? '按道' : '按壶'}}</view>
+      </view>
     </scroll-view>
 
-    <scroll-view scroll-y class="drink-list">
-      <view class="list-heading">{{activeCategory}}</view>
-      <view wx:for="{{filteredDrinks}}" wx:key="id" class="drink-item {{activeDrink.id === item.id ? 'active' : ''}}">
-        <view class="drink-main" data-id="{{item.id}}" bindtap="chooseDrink">
-          <image class="drink-thumb" src="{{item.image}}" mode="aspectFill"></image>
-          <view class="drink-copy">
-            <view class="drink-name">{{item.name}}</view>
-            <view class="drink-note">{{item.notes}}</view>
-            <view class="drink-price">¥{{item.price}}</view>
+    <scroll-view scroll-y class="menu-list">
+      <view class="list-heading">
+        <view>{{activeSection}}</view>
+        <text>{{filteredItems.length}} 项可点</text>
+      </view>
+
+      <view
+        wx:for="{{filteredItems}}"
+        wx:key="id"
+        wx:for-item="service"
+        class="menu-item"
+        data-id="{{service.id}}"
+        bindtap="openService"
+      >
+        <image class="menu-image" src="{{service.image}}" mode="aspectFill"></image>
+        <view class="menu-copy">
+          <view class="menu-name">{{service.name}}</view>
+          <view class="menu-note">{{service.selectionHint}}</view>
+          <view class="menu-bottom">
+            <view class="menu-price"><text>¥</text>{{service.price}}<text class="menu-unit"> / {{service.unit}}</text></view>
           </view>
         </view>
-        <view class="round-add" data-id="{{item.id}}" bindtap="quickAddDrink">+</view>
+        <view class="round-add" data-id="{{service.id}}" catchtap="quickAddService">
+          <image src="/assets/icons/plus-white.png" mode="aspectFit"></image>
+        </view>
       </view>
-      <view wx:if="{{filteredDrinks.length === 0}}" class="empty-list">暂无商品</view>
+
+      <view wx:if="{{filteredItems.length === 0}}" class="empty-menu">
+        <view>本栏茶单暂未开放</view>
+        <text>可切换另一栏查看当前可点茶品</text>
+      </view>
+      <view class="list-safe-space"></view>
     </scroll-view>
   </view>
 
-  <view wx:if="{{cartCount > 0}}" class="order-cart-pill" bindtap="goCart">
-    <view class="cart-icon-large">
-      <image src="/assets/icons/cart-white.png" mode="aspectFit"></image>
-      <text>{{cartCount}}</text>
+  <view class="tea-cart-bar {{cartCount ? '' : 'empty'}}" bindtap="goCart">
+    <view class="tea-cart-icon">
+      <image src="/assets/icons/cart-line.png" mode="aspectFit"></image>
+      <text wx:if="{{cartCount}}">{{cartCount}}</text>
     </view>
-    <view class="bar-title">购物车</view>
-    <view class="bar-total">¥{{cartTotal}}</view>
-    <view class="checkout-chip">确认</view>
+    <view class="tea-cart-copy">
+      <view>{{cartCount ? ('已选 ' + cartCount + ' 项') : '尚未选茶'}}</view>
+      <text>{{cartCount ? ('合计 ¥' + cartTotal) : '选择茶品后可确认茶单'}}</text>
+    </view>
+    <view class="tea-cart-action">去结算</view>
   </view>
+
+  <block wx:if="{{sheetVisible}}">
+    <view class="sheet-mask" bindtap="closeSheet"></view>
+    <view class="tea-sheet" catchtap="stopTap">
+      <view class="sheet-handle"></view>
+      <view class="sheet-head">
+        <view>
+          <view class="sheet-title">{{activeDrink.name}} · 选择茶品</view>
+          <view class="sheet-subtitle">每道选择一款茶品</view>
+        </view>
+        <view class="sheet-close" bindtap="closeSheet">×</view>
+      </view>
+
+      <scroll-view scroll-y class="sheet-options">
+        <view
+          wx:for="{{activeDrink.teaGroups}}"
+          wx:key="name"
+          wx:for-item="teaGroup"
+          class="tea-group"
+        >
+          <view class="tea-group-name">{{teaGroup.name}}</view>
+          <view class="tea-options">
+            <view
+              wx:for="{{teaGroup.options}}"
+              wx:key="*this"
+              wx:for-item="tea"
+              class="tea-option {{selectedTea === tea ? 'active' : ''}}"
+              data-tea="{{tea}}"
+              bindtap="chooseTea"
+            >{{tea}}</view>
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="sheet-footer">
+        <view class="sheet-price"><text>¥</text>{{activeDrink.price}}<text class="sheet-unit"> / {{activeDrink.unit}}</text></view>
+        <button class="add-menu-button" disabled="{{!selectedTea}}" bindtap="addDrink">加入茶单</button>
+      </view>
+    </view>
+  </block>
 </view>
