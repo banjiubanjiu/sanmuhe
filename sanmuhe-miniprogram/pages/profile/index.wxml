@@ -43,7 +43,10 @@
           <text>{{member.isMember ? '尊享' : '充值有礼'}}</text>
         </view>
       </view>
-      <button wx:if="{{!member.isMember}}" class="member-btn" bindtap="showMemberBenefits">
+      <button wx:if="{{member.isMember}}" class="member-btn recharge-btn" bindtap="startRecharge">
+        充值
+      </button>
+      <button wx:elif="{{!member.isMember}}" class="member-btn" bindtap="showMemberBenefits">
         立即开通会员
       </button>
     </view>

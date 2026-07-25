@@ -1,4 +1,4 @@
-const { listMyRecords } = require("../../utils/cloudApi");
+const { listMyRecords, rechargeMember } = require("../../utils/cloudApi");
 const { normalizeOrder } = require("../../utils/orderCenter");
 const { syncTabBar } = require("../../utils/tabbar");
 const { withPrivacy } = require("../../utils/privacy");
@@ -265,13 +265,40 @@ Page(withPrivacy({
   },
 
   showMemberBenefits() {
-    const tip = this.data.member.isMember
-      ? "会员功能已整合到“我的”页面"
-      : "可在“我的”页直接查看会员权益与开通入口";
     wx.showToast({
-      title: tip,
+      title: "会员权益功能已整合到当前页面",
       icon: "none",
       duration: 1500
+    });
+  },
+
+  startRecharge() {
+    const plans = [
+      { name: "充 500 送 100（到账 ¥600）", planId: "plan_500" },
+      { name: "充 1000 送 250（到账 ¥1250）", planId: "plan_1000" }
+    ];
+    wx.showActionSheet({
+      itemList: plans.map((p) => p.name),
+      success: (res) => {
+        const plan = plans[res.tapIndex];
+        if (!plan) return;
+        wx.showModal({
+          title: "确认充值",
+          content: `${plan.name}\n\n支付完成后余额将在片刻内到账。`,
+          success: (modalRes) => {
+            if (!modalRes.confirm) return;
+            wx.showLoading({ title: "充值中" });
+            rechargeMember(plan.planId).then(() => {
+              wx.hideLoading();
+              wx.showToast({ title: "充值成功", icon: "success" });
+              this.loadRecords();
+            }).catch((err) => {
+              wx.hideLoading();
+              wx.showToast({ title: err?.message || "充值未完成", icon: "none" });
+            });
+          }
+        });
+      }
     });
   },
 

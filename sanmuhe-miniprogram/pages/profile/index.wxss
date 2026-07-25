@@ -206,6 +206,12 @@
   border: none;
 }
 
+.recharge-btn {
+  color: #f8f0df;
+  background: rgba(255, 246, 225, 0.16);
+  border: 1rpx solid rgba(246, 217, 161, 0.32);
+}
+
 /* ===== Order section ===== */
 .order-section {
   margin-top: 30rpx;
