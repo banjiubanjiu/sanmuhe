@@ -38,17 +38,6 @@
   display: block;
 }
 
-.photo-count {
-  position: absolute;
-  right: 16rpx;
-  bottom: 16rpx;
-  padding: 6rpx 14rpx;
-  color: #fff;
-  border-radius: 999rpx;
-  background: rgba(0, 0, 0, 0.55);
-  font-size: 22rpx;
-}
-
 .detail-copy {
   padding: 0 18rpx;
 }
@@ -82,22 +71,39 @@
 
 .paragraph {
   margin-top: 16rpx;
+  font-size: 26rpx;
+  line-height: 1.55;
 }
 
-.detail-story {
-  margin-top: 18rpx;
-  padding: 20rpx 22rpx;
-  color: #5b5045;
-  border-radius: 14rpx;
-  background: #fffaf1;
-  font-size: 25rpx;
-  line-height: 1.55;
+.taste-block {
+  margin-top: 16rpx;
+}
+
+.taste-block .paragraph {
+  margin-top: 0;
+}
+
+.paragraph.is-clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.text-toggle {
+  margin-top: 10rpx;
+  color: #4f7d43;
+  font-size: 24rpx;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .detail-price {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  margin-top: 46rpx;
+  gap: 8rpx 12rpx;
+  margin-top: 36rpx;
 }
 
 .detail-price .price {
@@ -113,63 +119,143 @@
   font-size: 24rpx;
 }
 
-.assurance-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10rpx;
-  margin-top: 24rpx;
+.stock-left {
+  margin-left: 0;
 }
 
-.assurance-row view {
-  min-height: 56rpx;
+.assurance-line {
+  margin-top: 18rpx;
+  color: #6f7f68;
+  font-size: 22rpx;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+
+/* 短规格：贴近设计稿的 4 列 pill */
+.spec-row-pill {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.spec-pill {
+  min-height: 72rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #547946;
-  border-radius: 10rpx;
-  background: #edf4ea;
-  font-size: 23rpx;
-  font-weight: 500;
-}
-
-.spec-row {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20rpx;
-  margin-top: 26rpx;
-}
-
-.spec {
-  min-height: 96rpx;
-  padding: 16rpx 12rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6rpx;
+  padding: 0 8rpx;
   color: #333;
   border: 1rpx solid #e5e5e5;
   border-radius: 10rpx;
   background: #fff;
-  font-size: 26rpx;
+  font-size: 28rpx;
+  line-height: 1.2;
   text-align: center;
-  line-height: 1.3;
 }
 
-.spec-price {
-  font-size: 24rpx;
-  color: #8a6a3a;
-}
-
-.spec.active {
+.spec-pill.active {
   color: #4f7d43;
   border-color: #4f7d43;
   background: #f5faf3;
   font-weight: 600;
 }
 
-.spec.active .spec-price {
+/* 长规格：横向滑动 chip */
+.spec-scroll {
+  width: 100%;
+  margin-top: 22rpx;
+  white-space: nowrap;
+}
+
+.spec-chip-row {
+  display: inline-flex;
+  gap: 14rpx;
+  padding: 2rpx 2rpx 8rpx;
+}
+
+.spec-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8rpx;
+  min-width: 168rpx;
+  max-width: 280rpx;
+  min-height: 96rpx;
+  padding: 16rpx 20rpx;
+  color: #333;
+  border: 1rpx solid #e5e5e5;
+  border-radius: 12rpx;
+  background: #fff;
+  box-sizing: border-box;
+  white-space: normal;
+  vertical-align: top;
+}
+
+.spec-chip-title {
+  width: 100%;
+  color: #222;
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.spec-chip-meta {
+  color: #8a6a3a;
+  font-size: 22rpx;
+  line-height: 1.2;
+}
+
+.spec-chip.active {
   color: #4f7d43;
+  border-color: #4f7d43;
+  background: #f5faf3;
+}
+
+.spec-chip.active .spec-chip-title {
+  color: #3d6a34;
+}
+
+.spec-chip.active .spec-chip-meta {
+  color: #4f7d43;
+}
+
+.story-section {
+  margin-top: 36rpx;
+  padding-top: 8rpx;
+  border-top: 1rpx solid #f0eee8;
+}
+
+.story-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.story-head .h2 {
+  margin: 0;
+}
+
+.story-head .text-toggle {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
+.detail-story {
+  margin-top: 16rpx;
+  padding: 20rpx 22rpx;
+  color: #5b5045;
+  border-radius: 14rpx;
+  background: #fffaf1;
+  font-size: 25rpx;
+  line-height: 1.55;
 }
 
 .single-spec {

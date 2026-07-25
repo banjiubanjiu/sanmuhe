@@ -11,53 +11,108 @@ const legacySpecMultipliers = {
   "500g": 10
 };
 
+const TASTE_CLAMP_CHARS = 42;
+
+function isShortSpecLabel(text) {
+  const value = String(text || "").trim();
+  if (!value) {
+    return true;
+  }
+  if (/^\d+(\.\d+)?\s*g$/i.test(value)) {
+    return true;
+  }
+  // 中英文混排按字符数粗判，≤4 视为短标签（如 50g、一泡、小罐）
+  return value.length <= 4;
+}
+
+function pickPillText(spec) {
+  if (isShortSpecLabel(spec.label)) {
+    return spec.label;
+  }
+  if (isShortSpecLabel(spec.weight)) {
+    return spec.weight;
+  }
+  if (isShortSpecLabel(spec.display)) {
+    return spec.display;
+  }
+  return String(spec.label || spec.display || "").slice(0, 4);
+}
+
+function resolveSpecLayout(specs) {
+  if (!specs || specs.length <= 1) {
+    return "single";
+  }
+  // 仅看主标签：不能因 weight 是 50g 就把「纳福礼盒」误判成 pill
+  const allShort = specs.every((spec) => isShortSpecLabel(spec.label));
+  return allShort ? "pill" : "chip";
+}
+
 function normalizeSpecs(product) {
   if (Array.isArray(product.specs) && product.specs.length) {
-    return product.specs.map((spec) => ({
-      label: String(spec.label || spec.unit || product.unit || "默认").trim(),
-      weight: String(spec.weight || "").trim(),
-      price: Math.max(0, Number(spec.price) || 0),
-      stockUnits: Math.max(1, Number(spec.stockUnits) || 1),
-      display: (() => {
-        const label = String(spec.label || spec.unit || product.unit || "默认").trim();
-        const weight = String(spec.weight || "").trim();
-        if (weight && label.indexOf(weight) < 0) {
-          return `${label} · ${weight}`;
-        }
-        return label;
-      })()
-    }));
+    return product.specs.map((spec) => {
+      const label = String(spec.label || spec.unit || product.unit || "默认").trim();
+      const weight = String(spec.weight || "").trim();
+      const display = weight && label.indexOf(weight) < 0 ? `${label} · ${weight}` : label;
+      const item = {
+        label,
+        weight,
+        price: Math.max(0, Number(spec.price) || 0),
+        stockUnits: Math.max(1, Number(spec.stockUnits) || 1),
+        display,
+        pillText: "",
+        chipTitle: label,
+        chipMeta: ""
+      };
+      item.pillText = pickPillText(item);
+      item.chipMeta = weight ? `¥${item.price} · ${weight}` : `¥${item.price}`;
+      return item;
+    });
   }
 
   const unit = product.unit || "50g";
   if (legacySpecMultipliers[unit]) {
-    return Object.keys(legacySpecMultipliers).map((label) => ({
-      label,
-      weight: label,
-      price: Math.round((Number(product.price) || 0) * legacySpecMultipliers[label]),
-      stockUnits: legacySpecMultipliers[label],
-      display: label
-    }));
+    return Object.keys(legacySpecMultipliers).map((label) => {
+      const price = Math.round((Number(product.price) || 0) * legacySpecMultipliers[label]);
+      return {
+        label,
+        weight: label,
+        price,
+        stockUnits: legacySpecMultipliers[label],
+        display: label,
+        pillText: label,
+        chipTitle: label,
+        chipMeta: `¥${price}`
+      };
+    });
   }
 
+  const price = Math.max(0, Number(product.price) || 0);
   return [{
     label: unit,
     weight: "",
-    price: Math.max(0, Number(product.price) || 0),
+    price,
     stockUnits: 1,
-    display: unit
+    display: unit,
+    pillText: unit,
+    chipTitle: unit,
+    chipMeta: `¥${price}`
   }];
 }
 
 function normalizeProduct(product) {
   const specs = normalizeSpecs(product);
   const defaultSpec = specs[0];
+  const taste = String(product.taste || "").trim();
   return Object.assign({}, product, {
     sold: product.soldStock || product.sold || 0,
     availableStock: product.availableStock,
     unit: defaultSpec.label,
     specs,
-    hasMultiSpecs: specs.length > 1
+    hasMultiSpecs: specs.length > 1,
+    specLayout: resolveSpecLayout(specs),
+    taste,
+    tasteExpandable: taste.length > TASTE_CLAMP_CHARS,
+    detail: String(product.detail || "").trim()
   });
 }
 
@@ -77,6 +132,19 @@ function buildContactMeta(product) {
   };
 }
 
+function buildViewState(product, selectedSpecLabel, favored) {
+  const selected = findSpec(product.specs, selectedSpecLabel) || product.specs[0];
+  return Object.assign({
+    product,
+    selectedSpec: selected.label,
+    selectedSpecDisplay: selected.display,
+    displayPrice: selected.price,
+    favored: !!favored,
+    tasteExpanded: false,
+    detailExpanded: false
+  }, buildContactMeta(product));
+}
+
 Page({
   data: {
     product: null,
@@ -85,6 +153,8 @@ Page({
     quantity: 1,
     displayPrice: 0,
     favored: false,
+    tasteExpanded: false,
+    detailExpanded: false,
     contactSessionFrom: "product-detail",
     contactMessageTitle: "茶品咨询",
     contactMessagePath: "pages/product/index",
@@ -93,27 +163,16 @@ Page({
 
   onLoad(options) {
     const product = normalizeProduct(teaProducts.find((item) => item.id === options.id) || teaProducts[0]);
-    const selected = product.specs[0];
-    this.setData(Object.assign({
-      product,
-      selectedSpec: selected.label,
-      selectedSpecDisplay: selected.display,
-      displayPrice: selected.price,
-      favored: isFavorite(product.id)
-    }, buildContactMeta(product)));
+    this.setData(buildViewState(product, product.specs[0].label, isFavorite(product.id)));
     getCatalog().then((catalog) => {
-      const products = catalog.fromCloud ? (catalog.teaProducts || []) : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts);
+      const products = catalog.fromCloud
+        ? (catalog.teaProducts || [])
+        : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts);
       const nextProduct = products.find((item) => item.id === options.id);
       if (nextProduct) {
         const normalized = normalizeProduct(nextProduct);
         const selectedSpec = findSpec(normalized.specs, this.data.selectedSpec) || normalized.specs[0];
-        this.setData(Object.assign({
-          product: normalized,
-          selectedSpec: selectedSpec.label,
-          selectedSpecDisplay: selectedSpec.display,
-          displayPrice: selectedSpec.price,
-          favored: isFavorite(normalized.id)
-        }, buildContactMeta(normalized)));
+        this.setData(buildViewState(normalized, selectedSpec.label, isFavorite(normalized.id)));
       } else if (catalog.fromCloud) {
         this.setData({ product: null });
       }
@@ -131,6 +190,20 @@ Page({
       selectedSpecDisplay: matched.display,
       displayPrice: matched.price
     });
+  },
+
+  toggleTaste() {
+    if (!this.data.product || !this.data.product.tasteExpandable) {
+      return;
+    }
+    this.setData({ tasteExpanded: !this.data.tasteExpanded });
+  },
+
+  toggleDetail() {
+    if (!this.data.product || !this.data.product.detail) {
+      return;
+    }
+    this.setData({ detailExpanded: !this.data.detailExpanded });
   },
 
   changeQuantity(event) {

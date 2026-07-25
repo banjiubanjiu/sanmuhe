@@ -7,7 +7,6 @@
 
   <view class="detail-hero">
     <image src="{{product.image}}" mode="aspectFill"></image>
-    <view class="photo-count">实拍图</view>
   </view>
 
   <view class="section detail-copy">
@@ -16,35 +15,56 @@
       <view class="green-tag">{{product.category}}</view>
     </view>
     <view class="muted detail-meta">产地：{{product.origin}}<text wx:if="{{product.year}}"> ｜ 年份：{{product.year}}</text></view>
-    <view class="muted paragraph">{{product.taste}}</view>
-    <view wx:if="{{product.detail}}" class="detail-story">{{product.detail}}</view>
+
+    <view wx:if="{{product.taste}}" class="taste-block">
+      <view class="muted paragraph {{tasteExpanded || !product.tasteExpandable ? '' : 'is-clamped'}}">{{product.taste}}</view>
+      <view
+        wx:if="{{product.tasteExpandable}}"
+        class="text-toggle"
+        bindtap="toggleTaste"
+      >{{tasteExpanded ? '收起' : '展开'}}</view>
+    </view>
+
     <view class="detail-price">
       <text class="price">¥{{displayPrice}}</text>
       <text class="muted">/{{selectedSpecDisplay}}</text>
       <text class="sold">已售 {{product.sold}}</text>
-      <text wx:if="{{product.availableStock !== undefined}}" class="sold">可售 {{product.availableStock}}</text>
+      <text wx:if="{{product.availableStock !== undefined}}" class="sold stock-left">可售 {{product.availableStock}}</text>
     </view>
 
-    <view class="assurance-row">
-      <view>正品好茶</view>
-      <view>门店自提</view>
-      <view>快递到家</view>
-    </view>
+    <view class="assurance-line">正品好茶 · 门店自提 · 快递到家</view>
 
-    <view wx:if="{{product.hasMultiSpecs}}" class="section">
+    <!-- 短标签：设计稿式 4 列 pill -->
+    <view wx:if="{{product.hasMultiSpecs && product.specLayout === 'pill'}}" class="section">
       <view class="h2">选择规格</view>
-      <view class="spec-row">
+      <view class="spec-row spec-row-pill">
         <view
           wx:for="{{product.specs}}"
           wx:key="label"
-          class="spec {{selectedSpec === item.label ? 'active' : ''}}"
+          class="spec-pill {{selectedSpec === item.label ? 'active' : ''}}"
           data-spec="{{item.label}}"
           bindtap="chooseSpec"
-        >
-          <text>{{item.display}}</text>
-          <text class="spec-price">¥{{item.price}}</text>
-        </view>
+        >{{item.pillText}}</view>
       </view>
+    </view>
+
+    <!-- 长标签：横向滑动 chip，主标题 + 价格/净含量 -->
+    <view wx:if="{{product.hasMultiSpecs && product.specLayout === 'chip'}}" class="section">
+      <view class="h2">选择规格</view>
+      <scroll-view class="spec-scroll" scroll-x show-scrollbar="{{false}}">
+        <view class="spec-chip-row">
+          <view
+            wx:for="{{product.specs}}"
+            wx:key="label"
+            class="spec-chip {{selectedSpec === item.label ? 'active' : ''}}"
+            data-spec="{{item.label}}"
+            bindtap="chooseSpec"
+          >
+            <text class="spec-chip-title">{{item.chipTitle}}</text>
+            <text class="spec-chip-meta">{{item.chipMeta}}</text>
+          </view>
+        </view>
+      </scroll-view>
     </view>
 
     <view wx:if="{{!product.hasMultiSpecs}}" class="section single-spec">
@@ -59,6 +79,15 @@
         <text>{{quantity}}</text>
         <view class="qty-btn" data-step="1" bindtap="changeQuantity">+</view>
       </view>
+    </view>
+
+    <!-- 商品说明下沉，默认折叠，不抢购买路径 -->
+    <view wx:if="{{product.detail}}" class="section story-section">
+      <view class="story-head" bindtap="toggleDetail">
+        <view class="h2">商品说明</view>
+        <text class="text-toggle">{{detailExpanded ? '收起' : '展开'}}</text>
+      </view>
+      <view wx:if="{{detailExpanded}}" class="detail-story">{{product.detail}}</view>
     </view>
   </view>
 
