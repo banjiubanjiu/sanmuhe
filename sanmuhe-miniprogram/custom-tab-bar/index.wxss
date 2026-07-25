@@ -7,9 +7,9 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   padding: 10rpx 10rpx calc(10rpx + env(safe-area-inset-bottom));
-  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", "PingFang SC", "Helvetica Neue", serif;
-  border-top: 1rpx solid #eeeeee;
-  background: #fff;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  border-top: 1rpx solid #e8e1d5;
+  background: #fffdf8;
 }
 
 .tab-item {
@@ -20,13 +20,14 @@
   align-items: center;
   justify-content: center;
   gap: 6rpx;
-  color: #777;
+  color: #665f55;
   font-weight: 500;
 }
 
 .tab-item.active {
-  color: #4f7d43;
+  color: #416d38;
   background: transparent;
+  font-weight: 600;
 }
 
 .tab-image {
@@ -36,6 +37,6 @@
 }
 
 .tab-label {
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.1;
 }

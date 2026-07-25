@@ -1,4 +1,11 @@
 {
+  "description": "Sanmuhe WeChat Mini Program monorepo entry",
+  "miniprogramRoot": "sanmuhe-miniprogram/",
+  "cloudfunctionRoot": "sanmuhe-miniprogram/cloudfunctions/",
+  "compileType": "miniprogram",
+  "appid": "wx47e7cc7143682291",
+  "projectname": "sanmuhe",
+  "libVersion": "3.7.12",
   "setting": {
     "es6": true,
     "postcss": true,
@@ -14,12 +21,39 @@
     "useCompilerPlugins": false,
     "minifyWXML": true
   },
-  "compileType": "miniprogram",
-  "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "sanmuhe-miniprogram/admin"
+      },
+      {
+        "type": "folder",
+        "value": "sanmuhe-miniprogram/admin-src"
+      },
+      {
+        "type": "folder",
+        "value": "sanmuhe-miniprogram/node_modules"
+      },
+      {
+        "type": "folder",
+        "value": "docs"
+      },
+      {
+        "type": "folder",
+        "value": "output"
+      },
+      {
+        "type": "folder",
+        "value": "scripts"
+      }
+    ],
     "include": []
   },
-  "appid": "wx47e7cc7143682291",
-  "editorSetting": {}
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  },
+  "simulatorPluginLibVersion": {},
+  "condition": {}
 }

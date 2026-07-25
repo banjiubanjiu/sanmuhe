@@ -244,7 +244,7 @@ Page({
     }).catch(() => {
       wx.showModal({
         title: "订单未提交",
-        content: "当前网络或云服务不可用，请稍后重试。购物车内容已保留。",
+        content: "暂时未能提交，所选茶品已为你保留，请稍后重试。",
         showCancel: false
       });
       this.setData({ submitting: false });

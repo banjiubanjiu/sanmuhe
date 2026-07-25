@@ -1,15 +1,28 @@
 <view class="page shop-page">
-  <view class="page-nav">
-    <view class="back-mark" bindtap="goBack">‹</view>
-    <view class="page-title">茶叶商城</view>
-    <view class="nav-placeholder"></view>
+  <view class="page-nav" style="padding-top: {{statusBarHeight}}px;">
+    <view class="nav-inner">
+      <view class="nav-placeholder"></view>
+      <view class="page-title">茶叶商城</view>
+      <view class="nav-placeholder"></view>
+    </view>
   </view>
 
   <view class="shop-tools">
     <view class="shop-search">
-      <image src="/assets/icons/search-line.png" mode="aspectFit"></image>
-      <input placeholder="搜索茶名、产地、口感" value="{{keyword}}" bindinput="onSearch" confirm-type="search" />
-      <text wx:if="{{keyword}}" bindtap="clearSearch">×</text>
+      <image src="/assets/icons/search-line.png" mode="aspectFit" aria-hidden="{{true}}"></image>
+      <input
+        placeholder="搜索全部茶品、产地、口感"
+        value="{{keyword}}"
+        bindinput="onSearch"
+        confirm-type="search"
+        aria-label="搜索全部茶品、产地或口感"
+      />
+      <button
+        wx:if="{{keyword}}"
+        class="search-clear"
+        bindtap="clearSearch"
+        aria-label="清除搜索"
+      >×</button>
     </view>
   </view>
 
@@ -21,44 +34,87 @@
         class="side-cat {{activeCategory === item ? 'active' : ''}}"
         data-category="{{item}}"
         bindtap="changeCategory"
+        aria-role="button"
+        aria-label="{{activeCategory === item ? '当前分类：' + item : '查看分类：' + item}}"
       >{{item}}</view>
+      <view class="side-safe {{cartCount > 0 ? 'with-cart' : ''}}"></view>
     </scroll-view>
 
     <scroll-view scroll-y class="goods-list">
-      <view class="list-heading">{{activeCategory}}</view>
+      <view class="result-summary">
+        {{keyword ? '全部茶品的搜索结果' : activeCategory}} · {{filteredProducts.length}} 款
+      </view>
       <view wx:for="{{filteredProducts}}" wx:key="id" class="goods-item">
-        <view class="goods-main" data-id="{{item.id}}" bindtap="viewProduct">
-          <image class="goods-thumb" src="{{item.thumb}}" mode="aspectFill"></image>
+        <view
+          class="goods-main"
+          data-id="{{item.id}}"
+          bindtap="viewProduct"
+          aria-role="button"
+          aria-label="查看{{item.name}}详情，价格{{item.displayPrice}}元{{item.priceSuffix}}"
+        >
+          <image
+            class="goods-thumb"
+            src="{{item.thumb}}"
+            mode="aspectFill"
+            lazy-load="{{true}}"
+            aria-role="img"
+            aria-label="{{item.name}}茶叶图片"
+          ></image>
           <view class="goods-copy">
             <view class="goods-name">{{item.name}}</view>
             <view class="goods-note">{{item.taste}}</view>
             <view class="goods-tags">
               <text>{{item.origin}}</text>
-              <text wx:if="{{item.availableStock !== ''}}">可售 {{item.availableStock}}</text>
+              <text wx:if="{{item.stockHint}}" class="{{item.isSoldOut ? 'stock-sold-out' : 'stock-low'}}">
+                {{item.stockHint}}
+              </text>
             </view>
             <view class="goods-bottom">
-              <view class="goods-price">¥{{item.price}} <text>/ {{item.unit}}</text></view>
+              <view class="goods-price">
+                ¥{{item.displayPrice}}
+                <text>{{item.priceSuffix ? ' ' + item.priceSuffix : ''}} / {{item.unit}}</text>
+              </view>
             </view>
           </view>
         </view>
-        <view class="round-add" data-id="{{item.id}}" catchtap="addProduct">+</view>
+        <view
+          wx:if="{{item.isSoldOut}}"
+          class="product-action sold-out"
+          aria-role="button"
+          aria-label="{{item.name}}已售罄"
+          aria-disabled="true"
+        >售罄</view>
+        <view
+          wx:else
+          class="product-action add-product"
+          data-id="{{item.id}}"
+          catchtap="addProduct"
+          aria-role="button"
+          aria-label="查看{{item.name}}详情"
+        >
+          <image src="/assets/icons/circle-plus-green.png" mode="aspectFit" aria-hidden="{{true}}"></image>
+        </view>
       </view>
       <view wx:if="{{filteredProducts.length === 0}}" class="empty-list">
         <view>暂无匹配茶品</view>
-        <text>换个关键词或查看全部分类</text>
+        <text>可以清除搜索并查看全部茶品</text>
+        <button class="empty-action" bindtap="clearFilters">查看全部茶品</button>
       </view>
+      <view class="list-safe-space {{cartCount > 0 ? 'with-cart' : ''}}"></view>
     </scroll-view>
   </view>
 
-  <view wx:if="{{cartCount > 0}}" class="shop-cart-pill" bindtap="goCart">
-    <view class="shop-cart-icon">
-      <image src="/assets/icons/cart-white.png" mode="aspectFit"></image>
-      <text>{{cartCount}}</text>
-    </view>
-    <view class="shop-cart-copy">
-      <view class="shop-cart-title">购物车 {{cartCount}} 件</view>
-      <view class="shop-cart-meta">合计 ¥{{cartTotal}}</view>
-    </view>
-    <view class="shop-cart-action">确认茶品</view>
-  </view>
+  <cover-view
+    wx:if="{{cartCount > 0}}"
+    class="shop-cart-pill"
+    bindtap="goCart"
+    aria-role="button"
+    aria-label="购物车共{{cartCount}}件，合计{{cartTotal}}元，前往查看购物车"
+  >
+    <cover-view class="shop-cart-copy">
+      <cover-view class="shop-cart-title">购物车 {{cartCount}} 件</cover-view>
+      <cover-view class="shop-cart-meta">合计 ¥{{cartTotal}}</cover-view>
+    </cover-view>
+    <cover-view class="shop-cart-action">查看购物车</cover-view>
+  </cover-view>
 </view>

@@ -1,5 +1,5 @@
 const { drinks } = require("../../data/catalog");
-const { addToCart } = require("../../utils/cart");
+const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { normalizeMenuItems } = require("../../utils/teaMenu");
 const { syncTabBar } = require("../../utils/tabbar");
@@ -7,11 +7,19 @@ const tableUtil = require("../../utils/table");
 
 const DINEIN_CART_MODE = "dinein";
 const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
-const defaultMenuItems = normalizeMenuItems(drinks);
+const defaultMenuItems = decorateTeaOptions(normalizeMenuItems(drinks));
 const localDrinkMap = drinks.reduce((map, item) => {
   map[item.id] = item;
   return map;
 }, {});
+
+function decorateTeaOptions(items) {
+  return (items || []).map((item) => Object.assign({}, item, {
+    teaOptions: (item.teaOptions || []).map((tea) => Object.assign({}, tea, {
+      categoryChars: String(tea.category || "茶品").split("")
+    }))
+  }));
+}
 
 function bindTable(raw) {
   const table = tableUtil.parseTableFromRaw(raw) || tableUtil.normalizeTable(raw);
@@ -43,7 +51,7 @@ function pickDefaultDrink(menuItems, requestedId) {
   return menuItems[0];
 }
 
-// 云端茶单常缺 teaGroups / 图文字段：按 id 用本地目录补齐，避免列表空白
+// 云端茶单常缺 teaGroups / 图文字段：按 id 用本地目录补齐
 function mergeDrinkSource(remoteItems) {
   if (!remoteItems || !remoteItems.length) {
     return drinks.slice();
@@ -67,65 +75,17 @@ function mergeDrinkSource(remoteItems) {
   });
 }
 
-function teaMatchesKeyword(tea, keyword) {
-  if (!keyword) {
-    return true;
-  }
-  const haystack = [
-    tea.name,
-    tea.category,
-    tea.subtitle,
-    tea.groupName,
-    ...(tea.tags || [])
-  ].join(" ").toLowerCase();
-  return haystack.indexOf(keyword) >= 0;
-}
-
-function packageMatchesKeyword(item, keyword) {
-  if (!keyword) {
-    return true;
-  }
-  const packageText = [
-    item.name,
-    item.tagline,
-    item.selectionHint,
-    item.notes
-  ].join(" ").toLowerCase();
-  if (packageText.indexOf(keyword) >= 0) {
-    return true;
-  }
-  return (item.teaOptions || []).some((tea) => teaMatchesKeyword(tea, keyword));
-}
-
-function filterTeaOptions(activeDrink, keyword) {
-  const options = (activeDrink && activeDrink.teaOptions) || [];
-  if (!keyword) {
-    return options;
-  }
-  const packageHit = [
-    activeDrink.name,
-    activeDrink.tagline,
-    activeDrink.selectionHint,
-    activeDrink.notes
-  ].join(" ").toLowerCase().indexOf(keyword) >= 0;
-  if (packageHit) {
-    return options;
-  }
-  return options.filter((tea) => teaMatchesKeyword(tea, keyword));
-}
-
 Page({
   data: {
     statusBarHeight: 20,
-    keyword: "",
     menuItems: defaultMenuItems,
-    sideMenuItems: defaultMenuItems,
     activeDrink: defaultMenuItems[0] || null,
     activeDrinkId: defaultMenuItems[0] ? defaultMenuItems[0].id : "",
-    filteredTeaOptions: (defaultMenuItems[0] && defaultMenuItems[0].teaOptions) || [],
     tableLabel: "",
     requestedDrinkId: "",
-    scrollIntoView: ""
+    scrollIntoView: "",
+    cartCount: 0,
+    cartTotal: 0
   },
 
   onLoad(options = {}) {
@@ -143,6 +103,7 @@ Page({
 
   onShow() {
     syncTabBar(this);
+    this.refreshCart();
     const table = tableUtil.getTableNo();
     if (table && table !== this.data.tableLabel) {
       this.setData({ tableLabel: table });
@@ -169,57 +130,18 @@ Page({
   },
 
   applyCatalog(source) {
-    const menuItems = normalizeMenuItems(source && source.length ? source : drinks);
+    const menuItems = decorateTeaOptions(normalizeMenuItems(source && source.length ? source : drinks));
     const preferredId = this.data.requestedDrinkId || this.data.activeDrinkId;
     const activeDrink = pickDefaultDrink(menuItems, preferredId);
     this.setData({
       menuItems,
       activeDrink,
-      activeDrinkId: activeDrink ? activeDrink.id : "",
-      sideMenuItems: menuItems,
-      filteredTeaOptions: (activeDrink && activeDrink.teaOptions) || []
+      activeDrinkId: activeDrink ? activeDrink.id : ""
     }, () => {
-      this.applyFilters();
       if (this.data.requestedDrinkId && activeDrink && activeDrink.id === this.data.requestedDrinkId) {
         this.setData({ requestedDrinkId: "" });
       }
     });
-  },
-
-  applyFilters() {
-    const keyword = String(this.data.keyword || "").trim().toLowerCase();
-    const menuItems = this.data.menuItems || [];
-    const sideMenuItems = keyword
-      ? menuItems.filter((item) => packageMatchesKeyword(item, keyword))
-      : menuItems;
-
-    let activeDrink = this.data.activeDrink;
-    if (sideMenuItems.length) {
-      const stillVisible = activeDrink && sideMenuItems.some((item) => item.id === activeDrink.id);
-      if (!stillVisible) {
-        activeDrink = sideMenuItems[0];
-      } else {
-        activeDrink = menuItems.find((item) => item.id === activeDrink.id) || sideMenuItems[0];
-      }
-    } else {
-      activeDrink = null;
-    }
-
-    const filteredTeaOptions = filterTeaOptions(activeDrink, keyword);
-    this.setData({
-      sideMenuItems,
-      activeDrink,
-      activeDrinkId: activeDrink ? activeDrink.id : "",
-      filteredTeaOptions
-    });
-  },
-
-  onSearch(event) {
-    this.setData({ keyword: event.detail.value }, () => this.applyFilters());
-  },
-
-  clearSearch() {
-    this.setData({ keyword: "" }, () => this.applyFilters());
   },
 
   scanTable() {
@@ -250,12 +172,10 @@ Page({
     if (!activeDrink) {
       return;
     }
-    const keyword = String(this.data.keyword || "").trim().toLowerCase();
     this.setData({
       activeDrink,
       activeDrinkId: activeDrink.id,
-      filteredTeaOptions: filterTeaOptions(activeDrink, keyword),
-      scrollIntoView: keyword ? "" : "hero"
+      scrollIntoView: "hero"
     });
   },
 
@@ -275,7 +195,7 @@ Page({
 
   addMenuItem(activeDrink, teaChoice) {
     const table = this.data.tableLabel || tableUtil.getTableNo();
-    addToCart({
+    const cart = addToCart({
       id: activeDrink.id,
       type: "drink",
       name: activeDrink.name,
@@ -289,6 +209,23 @@ Page({
         table: table || ""
       }
     }, DINEIN_CART_MODE);
+    this.updateCartSummary(cart);
     wx.showToast({ title: "已加入茶单" });
+  },
+
+  refreshCart() {
+    this.updateCartSummary(getCart(DINEIN_CART_MODE));
+  },
+
+  updateCartSummary(cart) {
+    const source = Array.isArray(cart) ? cart : [];
+    this.setData({
+      cartCount: source.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
+      cartTotal: getTotal(source)
+    });
+  },
+
+  goCart() {
+    wx.navigateTo({ url: "/pages/cart/index?mode=dinein" });
   }
 });

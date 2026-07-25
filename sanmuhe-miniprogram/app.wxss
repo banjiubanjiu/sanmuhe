@@ -1,4 +1,16 @@
 page {
+  --hx-page-background: #fff;
+  --hx-paper: #f7f4ec;
+  --hx-surface: #fffdf8;
+  --hx-ink: #173b2a;
+  --hx-text: #25372e;
+  --hx-muted: #665f55;
+  --hx-line: #e8e1d5;
+  --hx-action: #416d38;
+  --hx-gold: #806a40;
+  --hx-sidebar: #eef2ea;
+  --hx-field: #f4f6f1;
+  --hx-field-line: #dde5d9;
   min-height: 100%;
   color: #233b31;
   background: #f7f7f4;

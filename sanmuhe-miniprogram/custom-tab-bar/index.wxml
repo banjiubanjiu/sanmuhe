@@ -6,8 +6,15 @@
     data-index="{{index}}"
     data-path="{{item.pagePath}}"
     bindtap="switchTab"
+    aria-role="button"
+    aria-label="{{selected === index ? '当前页面：' + item.text : '前往' + item.text}}"
   >
-    <image class="tab-image" src="{{selected === index ? item.activeIcon : item.icon}}" mode="aspectFit"></image>
+    <image
+      class="tab-image"
+      src="{{selected === index ? item.activeIcon : item.icon}}"
+      mode="aspectFit"
+      aria-hidden="{{true}}"
+    ></image>
     <view class="tab-label">{{item.text}}</view>
   </view>
 </view>

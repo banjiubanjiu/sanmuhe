@@ -1,6 +1,6 @@
 .product-page {
   padding: 88rpx 24rpx 188rpx;
-  background: #fff;
+  background: var(--hx-page-background);
 }
 
 .page-nav {
@@ -11,14 +11,14 @@
 }
 
 .back-mark {
-  color: #111;
+  color: var(--hx-ink);
   font-size: 46rpx;
   line-height: 1;
 }
 
 .page-title {
   text-align: center;
-  color: #111;
+  color: var(--hx-ink);
   font-size: 32rpx;
   font-weight: 600;
 }
@@ -58,7 +58,7 @@
 }
 
 .detail-title {
-  color: #111;
+  color: var(--hx-ink);
   font-size: 42rpx;
   font-weight: 600;
   line-height: 1.25;
@@ -66,9 +66,9 @@
 
 .green-tag {
   padding: 6rpx 14rpx;
-  color: #4f7d43;
+  color: var(--hx-action);
   border-radius: 8rpx;
-  background: #edf4ea;
+  background: var(--hx-sidebar);
   font-size: 22rpx;
   font-weight: 500;
 }
@@ -101,7 +101,7 @@
 
 .text-toggle {
   margin-top: 10rpx;
-  color: #4f7d43;
+  color: var(--hx-action);
   font-size: 24rpx;
   font-weight: 500;
   line-height: 1.2;
@@ -116,7 +116,7 @@
 }
 
 .detail-price .price {
-  color: #111;
+  color: var(--hx-ink);
   font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
   font-size: 54rpx;
   font-weight: 600;
@@ -128,13 +128,13 @@
 
 .sold {
   margin-left: auto;
-  color: #777;
+  color: var(--hx-muted);
   font-size: 24rpx;
 }
 
 .assurance-line {
   margin-top: 18rpx;
-  color: #6f7f68;
+  color: var(--hx-muted);
   font-size: 22rpx;
   line-height: 1.4;
   letter-spacing: 0.02em;
@@ -163,10 +163,10 @@
   align-items: center;
   justify-content: center;
   padding: 8rpx 6rpx;
-  color: #333;
-  border: 1rpx solid #e5e5e5;
+  color: var(--hx-text);
+  border: 1rpx solid var(--hx-line);
   border-radius: 10rpx;
-  background: #fff;
+  background: var(--hx-surface);
   font-size: 24rpx;
   line-height: 1.2;
   text-align: center;
@@ -175,9 +175,9 @@
 }
 
 .spec-pill.active {
-  color: #4f7d43;
-  border-color: #4f7d43;
-  background: #f5faf3;
+  color: var(--hx-action);
+  border-color: var(--hx-action);
+  background: var(--hx-sidebar);
   font-weight: 600;
 }
 
@@ -208,10 +208,10 @@
   min-height: 64rpx;
   max-width: 260rpx;
   padding: 12rpx 20rpx;
-  color: #333;
-  border: 1rpx solid #e5e5e5;
+  color: var(--hx-text);
+  border: 1rpx solid var(--hx-line);
   border-radius: 999rpx;
-  background: #fff;
+  background: var(--hx-surface);
   box-sizing: border-box;
   font-size: 24rpx;
   font-weight: 500;
@@ -222,9 +222,9 @@
 }
 
 .spec-chip.active {
-  color: #4f7d43;
-  border-color: #4f7d43;
-  background: #f5faf3;
+  color: var(--hx-action);
+  border-color: var(--hx-action);
+  background: var(--hx-sidebar);
   font-weight: 600;
 }
 
@@ -248,10 +248,10 @@
   align-items: center;
   justify-content: center;
   padding: 0 18rpx;
-  color: #4f7d43;
-  border: 1rpx solid #4f7d43;
+  color: var(--hx-action);
+  border: 1rpx solid var(--hx-action);
   border-radius: 10rpx;
-  background: #f5faf3;
+  background: var(--hx-sidebar);
   font-size: 24rpx;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -270,7 +270,7 @@
   grid-template-columns: 58rpx 112rpx 58rpx;
   height: 58rpx;
   overflow: hidden;
-  border: 1rpx solid #e5e5e5;
+  border: 1rpx solid var(--hx-line);
   border-radius: 10rpx;
 }
 
@@ -279,9 +279,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #111;
+  color: var(--hx-text);
   font-size: 30rpx;
-  border-right: 1rpx solid #e5e5e5;
+  border-right: 1rpx solid var(--hx-line);
 }
 
 .qty-stepper .qty-btn:last-child {
@@ -291,9 +291,9 @@
 .safe-bar {
   gap: 18rpx;
   padding: 18rpx 24rpx calc(18rpx + env(safe-area-inset-bottom));
-  background: #fff;
-  border-top: 1rpx solid #eeeeee;
-  box-shadow: none;
+  background: var(--hx-surface);
+  border-top: 1rpx solid var(--hx-line);
+  box-shadow: 0 -14rpx 40rpx rgba(56, 42, 28, 0.1);
 }
 
 .mini-action {
@@ -305,7 +305,7 @@
   align-items: center;
   justify-content: center;
   gap: 8rpx;
-  color: #333;
+  color: var(--hx-text);
   font-size: 22rpx;
 }
 
@@ -333,7 +333,7 @@
 }
 
 .mini-action.active {
-  color: #4f7d43;
+  color: var(--hx-action);
   font-weight: 500;
 }
 
@@ -356,14 +356,14 @@
 }
 
 .cart-action {
-  color: #4f7d43;
-  border: 2rpx solid #4f7d43;
-  background: #fff;
+  color: var(--hx-action);
+  border: 2rpx solid var(--hx-action);
+  background: var(--hx-surface);
 }
 
 .buy-action {
   color: #fff;
-  background: #4f7d43;
+  background: var(--hx-action);
 }
 
 .product-empty {
@@ -377,11 +377,11 @@
   align-items: center;
   justify-content: center;
   gap: 18rpx;
-  color: #77736b;
+  color: var(--hx-muted);
 }
 
 .empty-title {
-  color: #163a24;
+  color: var(--hx-ink);
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 42rpx;
   font-weight: 600;

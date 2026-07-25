@@ -1,6 +1,6 @@
 .home {
   padding: 88rpx 30rpx calc(142rpx + env(safe-area-inset-bottom));
-  background: #fff;
+  background: var(--hx-page-background);
 }
 
 .home-nav {

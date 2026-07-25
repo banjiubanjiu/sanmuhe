@@ -1,10 +1,10 @@
 .orders-page {
   min-height: 100vh;
   padding: 88rpx 28rpx calc(56rpx + env(safe-area-inset-bottom));
-  color: #173b2a;
+  color: var(--hx-ink);
   background:
     radial-gradient(circle at 92% 7%, rgba(198, 166, 106, 0.16), transparent 23%),
-    #f7f4ec;
+    var(--hx-paper);
 }
 
 .orders-nav {
@@ -28,6 +28,7 @@
 }
 
 .nav-title {
+  color: var(--hx-ink);
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 40rpx;
   font-weight: 600;
@@ -44,7 +45,7 @@
 }
 
 .intro-kicker {
-  color: #9a7445;
+  color: var(--hx-gold);
   font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
   font-size: 20rpx;
   font-weight: 600;
@@ -53,7 +54,7 @@
 
 .intro-title {
   margin-top: 12rpx;
-  color: #1d3628;
+  color: var(--hx-ink);
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 38rpx;
   font-weight: 600;
@@ -62,7 +63,7 @@
 
 .order-total {
   flex: 0 0 auto;
-  color: #756b5d;
+  color: var(--hx-muted);
   font-size: 24rpx;
 }
 
@@ -84,29 +85,29 @@
   align-items: center;
   justify-content: center;
   padding: 0 26rpx;
-  color: #756b5d;
-  border: 1rpx solid #e4dccf;
+  color: var(--hx-muted);
+  border: 1rpx solid var(--hx-line);
   border-radius: 999rpx;
-  background: rgba(255, 253, 248, 0.82);
+  background: var(--hx-surface);
   font-size: 25rpx;
 }
 
 .order-tab.is-active {
   color: #fffaf0;
-  border-color: #173b2a;
-  background: #173b2a;
+  border-color: var(--hx-ink);
+  background: var(--hx-ink);
   font-weight: 600;
 }
 
 .order-stream,
 .skeleton-list {
   margin-top: 14rpx;
-  border-top: 1rpx solid #e8e1d5;
+  border-top: 1rpx solid var(--hx-line);
 }
 
 .order-row {
   padding: 30rpx 6rpx 28rpx;
-  border-bottom: 1rpx solid #e8e1d5;
+  border-bottom: 1rpx solid var(--hx-line);
 }
 
 .order-row:active {
@@ -126,14 +127,14 @@
 }
 
 .order-no {
-  color: #3a342c;
+  color: var(--hx-text);
   font-size: 25rpx;
   font-weight: 600;
 }
 
 .order-time {
   margin-top: 7rpx;
-  color: #93897b;
+  color: var(--hx-muted);
   font-size: 21rpx;
 }
 
@@ -149,8 +150,8 @@
 }
 
 .status-active {
-  color: #315d3d;
-  background: #e6efe5;
+  color: var(--hx-action);
+  background: var(--hx-sidebar);
 }
 
 .status-warning {
@@ -164,13 +165,13 @@
 }
 
 .status-quiet {
-  color: #706b63;
-  background: #ece9e2;
+  color: var(--hx-muted);
+  background: var(--hx-paper);
 }
 
 .status-neutral {
-  color: #665e52;
-  background: #eee8dd;
+  color: var(--hx-muted);
+  background: var(--hx-line);
 }
 
 .order-product {
@@ -209,7 +210,7 @@
 .product-summary {
   display: -webkit-box;
   overflow: hidden;
-  color: #2d2a25;
+  color: var(--hx-text);
   font-size: 27rpx;
   font-weight: 600;
   line-height: 1.5;
@@ -219,7 +220,7 @@
 
 .product-meta {
   margin-top: 9rpx;
-  color: #81786d;
+  color: var(--hx-muted);
   font-size: 22rpx;
 }
 
@@ -242,7 +243,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: #756b5d;
+  color: var(--hx-muted);
   font-size: 22rpx;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -250,7 +251,7 @@
 
 .detail-link {
   flex: 0 0 auto;
-  color: #234b34;
+  color: var(--hx-action);
   font-size: 24rpx;
   font-weight: 600;
 }
@@ -269,7 +270,7 @@
 
 .state-title {
   margin-top: 24rpx;
-  color: #2d342e;
+  color: var(--hx-ink);
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 34rpx;
   font-weight: 600;
@@ -277,7 +278,7 @@
 
 .state-copy {
   margin-top: 12rpx;
-  color: #7b7266;
+  color: var(--hx-muted);
   font-size: 24rpx;
   line-height: 1.6;
 }
@@ -288,7 +289,7 @@
   margin: 30rpx auto 0;
   color: #fffaf0;
   border-radius: 999rpx;
-  background: #173b2a;
+  background: var(--hx-ink);
   font-size: 25rpx;
   font-weight: 600;
 }
@@ -332,7 +333,7 @@
 .list-end,
 .load-more-error {
   padding: 34rpx 0 12rpx;
-  color: #8d8376;
+  color: var(--hx-muted);
   font-size: 22rpx;
   text-align: center;
 }

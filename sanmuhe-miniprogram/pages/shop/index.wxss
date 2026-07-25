@@ -1,40 +1,51 @@
 .shop-page {
-  padding: 88rpx 0 calc(116rpx + env(safe-area-inset-bottom));
-  background: #fff;
+  height: 100vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--hx-text);
+  background: var(--hx-page-background);
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-nav {
-  height: 72rpx;
-  display: grid;
-  grid-template-columns: 72rpx 1fr 72rpx;
-  align-items: center;
+  flex: 0 0 auto;
+  background: var(--hx-page-background);
 }
 
-.back-mark {
-  color: #111;
-  font-size: 46rpx;
-  line-height: 1;
+.nav-inner {
+  height: 88rpx;
+  display: grid;
+  grid-template-columns: 88rpx 1fr 88rpx;
+  align-items: center;
+  padding: 0 20rpx;
 }
 
 .page-title {
   text-align: center;
-  color: #111;
-  font-size: 32rpx;
+  color: var(--hx-ink);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 34rpx;
   font-weight: 600;
+  letter-spacing: 2rpx;
 }
 
 .shop-tools {
-  padding: 18rpx 28rpx 20rpx;
+  flex: 0 0 auto;
+  padding: 12rpx 28rpx 20rpx;
+  background: var(--hx-page-background);
 }
 
 .shop-search {
-  height: 66rpx;
+  height: 88rpx;
   display: flex;
   align-items: center;
   gap: 14rpx;
   padding: 0 24rpx;
   border-radius: 999rpx;
-  background: #f0f0ef;
+  border: 1rpx solid var(--hx-field);
+  background: var(--hx-field);
 }
 
 .shop-search image {
@@ -45,71 +56,72 @@
 .shop-search input {
   flex: 1;
   min-width: 0;
-  height: 66rpx;
-  color: #233b31;
-  font-size: 24rpx;
+  height: 88rpx;
+  color: var(--hx-text);
+  font-size: 26rpx;
 }
 
-.shop-search text {
-  width: 42rpx;
-  height: 42rpx;
+.shop-search input::placeholder {
+  color: var(--hx-muted);
+}
+
+.search-clear {
+  width: 88rpx;
+  height: 88rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #7b786f;
+  color: var(--hx-muted);
   font-size: 34rpx;
   line-height: 1;
+  padding: 0;
+  margin: 0;
+  background: transparent;
 }
 
 .category-shell {
-  position: fixed;
-  top: 270rpx;
-  right: 0;
-  bottom: calc(112rpx + env(safe-area-inset-bottom));
-  left: 0;
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 176rpx minmax(0, 1fr);
+  grid-template-columns: 160rpx minmax(0, 1fr);
   overflow: hidden;
-  background: #fff;
-  border-top: 1rpx solid #eeeeee;
+  background: var(--hx-page-background);
+  border-top: 1rpx solid var(--hx-line);
 }
 
 .side-cats {
   height: 100%;
   min-width: 0;
-  background: #f8f7f5;
+  background: var(--hx-page-background);
 }
 
 .side-cat {
   position: relative;
   width: 100%;
-  min-height: 94rpx;
+  min-height: 100rpx;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 16rpx 0 34rpx;
-  color: #333;
+  padding: 0 16rpx 0 28rpx;
+  color: var(--hx-muted);
   background: transparent;
-  font-size: 27rpx;
+  font-size: 28rpx;
   line-height: 1.2;
   word-break: break-all;
 }
 
 .side-cat.active {
-  color: #244f2a;
-  background: #fff;
+  color: var(--hx-ink);
+  background: var(--hx-page-background);
   font-weight: 600;
 }
 
-.side-cat.active::before {
-  position: absolute;
-  top: 26rpx;
-  bottom: 26rpx;
-  left: 0;
-  width: 6rpx;
-  content: "";
-  border-radius: 999rpx;
-  background: #4f7d43;
+.side-safe {
+  height: calc(120rpx + env(safe-area-inset-bottom));
+}
+
+.side-safe.with-cart {
+  height: calc(280rpx + env(safe-area-inset-bottom));
 }
 
 .goods-list {
@@ -118,16 +130,16 @@
   min-width: 0;
   overflow-x: hidden;
   box-sizing: border-box;
-  padding: 24rpx 24rpx 32rpx;
+  padding: 24rpx 24rpx 0;
 }
 
-.list-heading {
+.result-summary {
   min-width: 0;
   margin-bottom: 16rpx;
   overflow: hidden;
-  color: #111;
-  font-size: 34rpx;
-  font-weight: 600;
+  color: var(--hx-muted);
+  font-size: 24rpx;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -136,9 +148,9 @@
   position: relative;
   width: 100%;
   min-width: 0;
-  min-height: 188rpx;
-  padding: 26rpx 56rpx 26rpx 0;
-  border-bottom: 1rpx solid #eeeeee;
+  min-height: 200rpx;
+  padding: 26rpx 120rpx 26rpx 0;
+  border-bottom: 1rpx solid var(--hx-line);
 }
 
 .goods-main {
@@ -147,6 +159,7 @@
   display: flex;
   gap: 22rpx;
   text-align: left;
+  color: inherit;
 }
 
 .goods-thumb {
@@ -154,7 +167,7 @@
   width: 126rpx;
   height: 126rpx;
   border-radius: 50%;
-  background: #f0eee7;
+  background: var(--hx-paper);
 }
 
 .goods-copy {
@@ -165,7 +178,8 @@
 .goods-name {
   display: -webkit-box;
   overflow: hidden;
-  color: #111;
+  color: var(--hx-ink);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 31rpx;
   font-weight: 600;
   line-height: 1.25;
@@ -177,7 +191,7 @@
 .goods-note {
   margin-top: 10rpx;
   overflow: hidden;
-  color: #777;
+  color: var(--hx-muted);
   font-size: 25rpx;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -196,10 +210,10 @@
   max-width: 100%;
   padding: 4rpx 10rpx;
   overflow: hidden;
-  color: #547946;
+  color: var(--hx-action);
   border-radius: 6rpx;
-  background: #edf4ea;
-  font-size: 20rpx;
+  background: var(--hx-sidebar);
+  font-size: 24rpx;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -214,7 +228,7 @@
 .goods-price {
   min-width: 0;
   overflow: hidden;
-  color: #111;
+  color: var(--hx-ink);
   font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
   font-size: 28rpx;
   font-weight: 600;
@@ -223,32 +237,51 @@
 }
 
 .goods-price text {
-  color: #777;
-  font-size: 22rpx;
+  color: var(--hx-muted);
+  font-size: 24rpx;
   font-weight: 500;
 }
 
-.round-add {
+.product-action {
   position: absolute;
   right: 0;
-  bottom: 44rpx;
-  width: 42rpx;
-  height: 42rpx;
+  bottom: 52rpx;
+  width: 96rpx;
+  height: 88rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  color: #fffaf1;
-  border-radius: 50%;
-  background: #416d38;
-  font-size: 34rpx;
-  font-weight: 400;
-  line-height: 1;
+  color: var(--hx-action);
+  border: 1rpx solid var(--hx-action);
+  border-radius: 999rpx;
+  background: var(--hx-surface);
+  font-size: 24rpx;
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.product-action image {
+  width: 48rpx;
+  height: 48rpx;
+  display: block;
+}
+
+.product-action.add-product {
+  width: 88rpx;
+  border-color: transparent;
+  background: transparent;
+}
+
+.product-action.sold-out {
+  color: var(--hx-muted);
+  border-color: var(--hx-line);
+  background: var(--hx-paper);
+  opacity: 1;
 }
 
 .empty-list {
   padding: 80rpx 0;
-  color: #888;
+  color: var(--hx-muted);
   text-align: center;
   font-size: 26rpx;
 }
@@ -256,8 +289,28 @@
 .empty-list text {
   display: block;
   margin-top: 10rpx;
-  color: #aaa49a;
-  font-size: 22rpx;
+  color: var(--hx-muted);
+  font-size: 24rpx;
+}
+
+.empty-action {
+  min-height: 88rpx;
+  margin: 28rpx auto 0;
+  padding: 0 30rpx;
+  color: #f8f0df;
+  border-radius: 999rpx;
+  background: var(--hx-action);
+  font-size: 25rpx;
+  font-weight: 600;
+  border: none;
+}
+
+.list-safe-space {
+  height: calc(120rpx + env(safe-area-inset-bottom));
+}
+
+.list-safe-space.with-cart {
+  height: calc(300rpx + env(safe-area-inset-bottom));
 }
 
 .shop-cart-pill {
@@ -266,52 +319,25 @@
   bottom: calc(130rpx + env(safe-area-inset-bottom));
   left: 28rpx;
   z-index: 30;
-  display: grid;
-  grid-template-columns: 58rpx minmax(0, 1fr) auto;
+  display: flex;
   gap: 18rpx;
   align-items: center;
   padding: 20rpx 26rpx;
+  min-height: 104rpx;
   color: #f8f0df;
-  background: #233b31;
+  background: var(--hx-ink);
   border-radius: 16rpx;
   box-shadow: 0 16rpx 38rpx rgba(31, 54, 45, 0.24);
 }
 
-.shop-cart-icon {
-  position: relative;
-  width: 54rpx;
-  height: 54rpx;
-}
-
-.shop-cart-icon image {
-  width: 50rpx;
-  height: 50rpx;
-  display: block;
-}
-
-.shop-cart-icon text {
-  position: absolute;
-  top: -16rpx;
-  right: -18rpx;
-  min-width: 28rpx;
-  height: 28rpx;
-  padding: 0 6rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #416d38;
-  border-radius: 999rpx;
-  background: #fff;
-  font-size: 18rpx;
-  font-weight: 600;
-}
-
 .shop-cart-copy {
+  flex: 1;
   min-width: 0;
 }
 
 .shop-cart-title {
   overflow: hidden;
+  font-size: 27rpx;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -327,8 +353,18 @@
 }
 
 .shop-cart-action {
-  min-width: 112rpx;
-  font-size: 24rpx;
+  flex: 0 0 auto;
+  min-width: 132rpx;
+  font-size: 25rpx;
   font-weight: 600;
   text-align: right;
+}
+.goods-tags text.stock-low {
+  color: #765d28;
+  background: #f2e8cd;
+}
+
+.goods-tags text.stock-sold-out {
+  color: #7b4741;
+  background: #f3e2df;
 }

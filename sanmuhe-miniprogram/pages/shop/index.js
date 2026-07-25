@@ -1,5 +1,5 @@
 const { teaProducts } = require("../../data/catalog");
-const { addToCart, getCart, getTotal } = require("../../utils/cart");
+const { getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
@@ -7,14 +7,35 @@ const categoryOrder = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单
 const TARGET_CATEGORY_KEY = "sanmuhe_shop_category";
 
 function normalizeTeaProducts(products) {
-  return products.map((item) => Object.assign({}, item, {
-    productType: "tea",
-    thumb: item.thumb || item.image,
-    sold: item.soldStock || item.sold || 0,
-    availableStock: item.availableStock !== undefined
-      ? item.availableStock
-      : (item.stock !== undefined ? Math.max(0, Number(item.stock) || 0) : "")
-  }));
+  return products.map((item) => {
+    const specs = Array.isArray(item.specs) ? item.specs : [];
+    const availableStock = item.availableStock !== undefined && item.availableStock !== ""
+      ? Math.max(0, Number(item.availableStock) || 0)
+      : (item.stock !== undefined ? Math.max(0, Number(item.stock) || 0) : "");
+    const hasMultipleSpecs = specs.length > 1;
+    const isSoldOut = availableStock !== "" && availableStock <= 0;
+    const specPrices = specs
+      .map((spec) => Number(spec && spec.price))
+      .filter((price) => Number.isFinite(price) && price >= 0);
+    const displayPrice = specPrices.length
+      ? Math.min(...specPrices)
+      : Math.max(0, Number(item.price) || 0);
+    const stockHint = isSoldOut
+      ? "已售罄"
+      : (availableStock !== "" && availableStock <= 10 ? `仅余 ${availableStock} 件` : "");
+
+    return Object.assign({}, item, {
+      productType: "tea",
+      thumb: item.thumb || item.image,
+      sold: item.soldStock || item.sold || 0,
+      availableStock,
+      hasMultipleSpecs,
+      isSoldOut,
+      displayPrice,
+      priceSuffix: hasMultipleSpecs ? "起" : "",
+      stockHint
+    });
+  });
 }
 
 function buildProducts(catalog = {}) {
@@ -43,10 +64,13 @@ Page({
     products: buildProducts({ teaProducts }),
     filteredProducts: buildProducts({ teaProducts }),
     cartCount: 0,
-    cartTotal: 0
+    cartTotal: 0,
+    statusBarHeight: 20
   },
 
   onLoad() {
+    const systemInfo = wx.getSystemInfoSync();
+    this.setData({ statusBarHeight: systemInfo.statusBarHeight || 20 });
     this.loadCatalog();
   },
 
@@ -74,6 +98,11 @@ Page({
           ? this.data.activeCategory
           : "全部"
       }, () => this.applyFilters());
+    }).catch(() => {
+      wx.showToast({
+        title: "茶品暂未更新，已显示现有内容",
+        icon: "none"
+      });
     });
   },
 
@@ -107,20 +136,55 @@ Page({
 
   changeCategory(event) {
     const activeCategory = event.currentTarget.dataset.category;
-    this.setData({ activeCategory }, () => this.applyFilters());
+    this.setData({
+      activeCategory,
+      keyword: ""
+    }, () => this.applyFilters());
   },
 
   onSearch(event) {
-    this.setData({ keyword: event.detail.value }, () => this.applyFilters());
+    const keyword = event.detail.value;
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+    }
+    this.setData({
+      keyword,
+      activeCategory: String(keyword || "").trim() ? "全部" : this.data.activeCategory
+    });
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = null;
+      this.applyFilters();
+    }, 120);
   },
 
   clearSearch() {
     this.setData({ keyword: "" }, () => this.applyFilters());
   },
 
+  clearFilters() {
+    this.setData({
+      keyword: "",
+      activeCategory: "全部"
+    }, () => this.applyFilters());
+  },
+
+  onUnload() {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
+  },
+
   viewProduct(event) {
+    this.openProductDetail(event.currentTarget.dataset.id);
+  },
+
+  openProductDetail(productId) {
+    if (!productId) {
+      return;
+    }
     wx.navigateTo({
-      url: `/pages/product/index?id=${event.currentTarget.dataset.id}`
+      url: `/pages/product/index?id=${encodeURIComponent(productId)}`
     });
   },
 
@@ -129,35 +193,14 @@ Page({
     if (!product) {
       return;
     }
-    // 多规格茶叶进入详情页选择包装与价格
-    if (Array.isArray(product.specs) && product.specs.length > 1) {
-      wx.navigateTo({
-        url: `/pages/product/index?id=${product.id}`
-      });
+    if (product.isSoldOut) {
+      wx.showToast({ title: "这款茶暂时售罄", icon: "none" });
       return;
     }
-    const defaultSpec = Array.isArray(product.specs) && product.specs[0] ? product.specs[0] : null;
-    addToCart({
-      id: product.id,
-      type: "tea",
-      name: product.name,
-      price: defaultSpec ? defaultSpec.price : product.price,
-      color: product.color,
-      image: product.thumb || product.image,
-      category: product.category,
-      options: {
-        unit: defaultSpec ? defaultSpec.label : product.unit
-      }
-    });
-    this.refreshCart();
-    wx.showToast({ title: "已加入" });
+    this.openProductDetail(product.id);
   },
 
   goCart() {
     wx.navigateTo({ url: "/pages/cart/index?mode=retail" });
-  },
-
-  goBack() {
-    wx.switchTab({ url: "/pages/index/index" });
   }
 });
