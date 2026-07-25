@@ -27,14 +27,13 @@
 
     <view class="detail-price">
       <text class="price">¥{{displayPrice}}</text>
-      <text class="muted">/{{selectedSpecDisplay}}</text>
+      <text wx:if="{{priceUnit}}" class="muted price-unit">/{{priceUnit}}</text>
       <text class="sold">已售 {{product.sold}}</text>
-      <text wx:if="{{product.availableStock !== undefined}}" class="sold stock-left">可售 {{product.availableStock}}</text>
     </view>
 
     <view class="assurance-line">正品好茶 · 门店自提 · 快递到家</view>
 
-    <!-- 短标签：设计稿式 4 列 pill -->
+    <!-- 短标签：设计稿式 4 列 pill，仅名称 -->
     <view wx:if="{{product.hasMultiSpecs && product.specLayout === 'pill'}}" class="section">
       <view class="h2">选择规格</view>
       <view class="spec-row spec-row-pill">
@@ -48,7 +47,7 @@
       </view>
     </view>
 
-    <!-- 长标签：横向滑动 chip，主标题 + 价格/净含量 -->
+    <!-- 长标签：横向滑动，仅规格名；价格与克数只在上方主价行 -->
     <view wx:if="{{product.hasMultiSpecs && product.specLayout === 'chip'}}" class="section">
       <view class="h2">选择规格</view>
       <scroll-view class="spec-scroll" scroll-x show-scrollbar="{{false}}">
@@ -59,17 +58,14 @@
             class="spec-chip {{selectedSpec === item.label ? 'active' : ''}}"
             data-spec="{{item.label}}"
             bindtap="chooseSpec"
-          >
-            <text class="spec-chip-title">{{item.chipTitle}}</text>
-            <text class="spec-chip-meta">{{item.chipMeta}}</text>
-          </view>
+          >{{item.chipTitle}}</view>
         </view>
       </scroll-view>
     </view>
 
     <view wx:if="{{!product.hasMultiSpecs}}" class="section single-spec">
       <view class="h2">规格</view>
-      <view class="single-spec-pill">{{selectedSpecDisplay}}</view>
+      <view class="single-spec-pill">{{product.specs[0].chipTitle || selectedSpecDisplay}}</view>
     </view>
 
     <view class="section qty-section">
@@ -81,14 +77,7 @@
       </view>
     </view>
 
-    <!-- 商品说明下沉，默认折叠，不抢购买路径 -->
-    <view wx:if="{{product.detail}}" class="section story-section">
-      <view class="story-head" bindtap="toggleDetail">
-        <view class="h2">商品说明</view>
-        <text class="text-toggle">{{detailExpanded ? '收起' : '展开'}}</text>
-      </view>
-      <view wx:if="{{detailExpanded}}" class="detail-story">{{product.detail}}</view>
-    </view>
+
   </view>
 
   <view class="safe-bar">

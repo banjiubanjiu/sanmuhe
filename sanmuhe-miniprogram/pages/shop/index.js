@@ -3,7 +3,7 @@ const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
-const categoryOrder = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单丛", "茶饮"];
+const categoryOrder = ["全部", "茶叶", "红茶", "白茶", "岩茶", "普洱茶", "单丛", "茶饮"];
 const TARGET_CATEGORY_KEY = "sanmuhe_shop_category";
 
 function normalizeTeaProducts(products) {
@@ -43,7 +43,12 @@ function buildCategories(products) {
     }
     return result;
   }, []);
-  const ordered = categoryOrder.filter((category) => category === "全部" || unique.indexOf(category) >= 0);
+  const hasTeaProducts = products.some((item) => item.productType === "tea");
+  const ordered = categoryOrder.filter((category) => (
+    category === "全部"
+    || (category === "茶叶" && hasTeaProducts)
+    || unique.indexOf(category) >= 0
+  ));
   const extras = unique.filter((category) => ordered.indexOf(category) < 0);
   return ordered.concat(extras);
 }
@@ -110,7 +115,9 @@ Page({
   applyFilters() {
     const keyword = String(this.data.keyword || "").trim().toLowerCase();
     const filteredProducts = this.data.products.filter((item) => {
-      const categoryMatched = this.data.activeCategory === "全部" || item.category === this.data.activeCategory;
+      const categoryMatched = this.data.activeCategory === "全部"
+        || (this.data.activeCategory === "茶叶" && item.productType === "tea")
+        || item.category === this.data.activeCategory;
       const keywordMatched = !keyword || [
         item.name,
         item.category,

@@ -251,6 +251,7 @@ Page({
   },
 
   goShop() {
+    wx.setStorageSync("sanmuhe_shop_category", "茶叶");
     wx.switchTab({ url: "/pages/shop/index" });
   },
 

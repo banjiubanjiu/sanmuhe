@@ -38,6 +38,24 @@ function pickPillText(spec) {
   return String(spec.label || spec.display || "").slice(0, 4);
 }
 
+/** 价格行短单位：优先净含量，避免与规格名重复 */
+function pickPriceUnit(spec) {
+  const weight = String((spec && spec.weight) || "").trim();
+  if (weight) {
+    return weight;
+  }
+  const label = String((spec && spec.label) || "").trim();
+  if (isShortSpecLabel(label)) {
+    return label;
+  }
+  // 从标签里抠克重，如 50g/小罐
+  const matched = label.match(/(\d+(?:\.\d+)?\s*g)/i);
+  if (matched) {
+    return matched[1].replace(/\s+/g, "");
+  }
+  return label;
+}
+
 function resolveSpecLayout(specs) {
   if (!specs || specs.length <= 1) {
     return "single";
@@ -60,11 +78,10 @@ function normalizeSpecs(product) {
         stockUnits: Math.max(1, Number(spec.stockUnits) || 1),
         display,
         pillText: "",
-        chipTitle: label,
-        chipMeta: ""
+        // 规格区只展示名称，价格/克数只出现在主价格行
+        chipTitle: label
       };
       item.pillText = pickPillText(item);
-      item.chipMeta = weight ? `¥${item.price} · ${weight}` : `¥${item.price}`;
       return item;
     });
   }
@@ -80,8 +97,7 @@ function normalizeSpecs(product) {
         stockUnits: legacySpecMultipliers[label],
         display: label,
         pillText: label,
-        chipTitle: label,
-        chipMeta: `¥${price}`
+        chipTitle: label
       };
     });
   }
@@ -94,8 +110,7 @@ function normalizeSpecs(product) {
     stockUnits: 1,
     display: unit,
     pillText: unit,
-    chipTitle: unit,
-    chipMeta: `¥${price}`
+    chipTitle: unit
   }];
 }
 
@@ -112,7 +127,6 @@ function normalizeProduct(product) {
     specLayout: resolveSpecLayout(specs),
     taste,
     tasteExpandable: taste.length > TASTE_CLAMP_CHARS,
-    detail: String(product.detail || "").trim()
   });
 }
 
@@ -138,10 +152,10 @@ function buildViewState(product, selectedSpecLabel, favored) {
     product,
     selectedSpec: selected.label,
     selectedSpecDisplay: selected.display,
+    priceUnit: pickPriceUnit(selected),
     displayPrice: selected.price,
     favored: !!favored,
-    tasteExpanded: false,
-    detailExpanded: false
+    tasteExpanded: false
   }, buildContactMeta(product));
 }
 
@@ -150,11 +164,11 @@ Page({
     product: null,
     selectedSpec: "",
     selectedSpecDisplay: "",
+    priceUnit: "",
     quantity: 1,
     displayPrice: 0,
     favored: false,
     tasteExpanded: false,
-    detailExpanded: false,
     contactSessionFrom: "product-detail",
     contactMessageTitle: "茶品咨询",
     contactMessagePath: "pages/product/index",
@@ -188,6 +202,7 @@ Page({
     this.setData({
       selectedSpec: matched.label,
       selectedSpecDisplay: matched.display,
+      priceUnit: pickPriceUnit(matched),
       displayPrice: matched.price
     });
   },
@@ -197,13 +212,6 @@ Page({
       return;
     }
     this.setData({ tasteExpanded: !this.data.tasteExpanded });
-  },
-
-  toggleDetail() {
-    if (!this.data.product || !this.data.product.detail) {
-      return;
-    }
-    this.setData({ detailExpanded: !this.data.detailExpanded });
   },
 
   changeQuantity(event) {

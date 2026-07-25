@@ -113,14 +113,14 @@
   font-weight: 600;
 }
 
+.price-unit {
+  font-size: 26rpx;
+}
+
 .sold {
   margin-left: auto;
   color: #777;
   font-size: 24rpx;
-}
-
-.stock-left {
-  margin-left: 0;
 }
 
 .assurance-line {
@@ -176,86 +176,28 @@
 
 .spec-chip {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  gap: 8rpx;
-  min-width: 168rpx;
-  max-width: 280rpx;
-  min-height: 96rpx;
-  padding: 16rpx 20rpx;
+  min-height: 72rpx;
+  max-width: 320rpx;
+  padding: 14rpx 24rpx;
   color: #333;
   border: 1rpx solid #e5e5e5;
-  border-radius: 12rpx;
+  border-radius: 999rpx;
   background: #fff;
   box-sizing: border-box;
-  white-space: normal;
+  font-size: 26rpx;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
   vertical-align: top;
-}
-
-.spec-chip-title {
-  width: 100%;
-  color: #222;
-  font-size: 24rpx;
-  font-weight: 600;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.spec-chip-meta {
-  color: #8a6a3a;
-  font-size: 22rpx;
-  line-height: 1.2;
 }
 
 .spec-chip.active {
   color: #4f7d43;
   border-color: #4f7d43;
   background: #f5faf3;
-}
-
-.spec-chip.active .spec-chip-title {
-  color: #3d6a34;
-}
-
-.spec-chip.active .spec-chip-meta {
-  color: #4f7d43;
-}
-
-.story-section {
-  margin-top: 36rpx;
-  padding-top: 8rpx;
-  border-top: 1rpx solid #f0eee8;
-}
-
-.story-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.story-head .h2 {
-  margin: 0;
-}
-
-.story-head .text-toggle {
-  margin-top: 0;
-  flex-shrink: 0;
-}
-
-.detail-story {
-  margin-top: 16rpx;
-  padding: 20rpx 22rpx;
-  color: #5b5045;
-  border-radius: 14rpx;
-  background: #fffaf1;
-  font-size: 25rpx;
-  line-height: 1.55;
+  font-weight: 600;
 }
 
 .single-spec {
