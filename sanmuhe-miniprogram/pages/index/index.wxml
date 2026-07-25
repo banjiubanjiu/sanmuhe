@@ -81,15 +81,6 @@
     </view>
   </view>
 
-  <view class="scene-grid">
-    <view class="scene-card room" bindtap="goReservation">
-      <image src="/assets/images/home-room-card.jpg" mode="aspectFill"></image>
-    </view>
-    <view class="scene-card event" bindtap="goEvents">
-      <image src="/assets/images/home-event-card.jpg" mode="aspectFill"></image>
-    </view>
-  </view>
-
   <view wx:if="{{cartCount > 0}}" class="floating-cart" bindtap="goCart">
     <view>
       <view class="cart-title">购物车 {{cartCount}} 件</view>

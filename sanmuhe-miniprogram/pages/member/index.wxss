@@ -690,6 +690,21 @@
   font-size: 25rpx;
   font-weight: 600;
   line-height: 62rpx;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice-action {
+  width: 100%;
+  max-width: 100%;
+  padding: 0 12rpx;
+  box-sizing: border-box;
+}
+
+.notice-action::after {
+  display: none;
 }
 
 .coupon-action[disabled] {

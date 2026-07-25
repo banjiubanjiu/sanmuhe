@@ -100,9 +100,11 @@
   justify-content: flex-start;
   padding: 0 16rpx 0 28rpx;
   color: var(--hx-muted);
-  font-size: 28rpx;
+  font-size: 24rpx;
   line-height: 1.2;
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .side-cat.active {

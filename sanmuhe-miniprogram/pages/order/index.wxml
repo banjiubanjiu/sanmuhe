@@ -40,8 +40,9 @@
         <view class="hero-card" id="hero">
           <image
             class="hero-image"
-            src="{{activeDrink.image}}"
+            src="{{activeDrink.heroImage || activeDrink.image}}"
             mode="aspectFill"
+            lazy-load="{{false}}"
             aria-role="img"
             aria-label="{{activeDrink.name}}茶席"
           ></image>

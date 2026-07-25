@@ -7,6 +7,13 @@ const tableUtil = require("../../utils/table");
 
 const DINEIN_CART_MODE = "dinein";
 const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
+const ORDER_HERO_IMAGE_BY_DRINK_ID = {
+  "drink-001": "/assets/images/order-hero-001-chujian.jpg",
+  "drink-002": "/assets/images/order-hero-002-zhiwei.jpg",
+  "drink-003": "/assets/images/order-hero-003-zhencang.jpg",
+  "drink-004": "/assets/images/order-hero-004-pengcha.jpg",
+  "drink-005": "/assets/images/order-hero-005-fangming.jpg"
+};
 const defaultMenuItems = decorateTeaOptions(normalizeMenuItems(drinks));
 const localDrinkMap = drinks.reduce((map, item) => {
   map[item.id] = item;
@@ -15,6 +22,7 @@ const localDrinkMap = drinks.reduce((map, item) => {
 
 function decorateTeaOptions(items) {
   return (items || []).map((item) => Object.assign({}, item, {
+    heroImage: ORDER_HERO_IMAGE_BY_DRINK_ID[item.id] || item.image,
     teaOptions: (item.teaOptions || []).map((tea) => Object.assign({}, tea, {
       categoryChars: String(tea.category || "茶品").split("")
     }))
