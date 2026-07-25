@@ -129,8 +129,8 @@ const PACKAGE_IMAGE_BY_ASSET = Object.keys(PACKAGE_SLIDE_IMAGE_BY_KEY).reduce((m
 }, {});
 
 /**
- * 云端图与包内图实质相同时，继续用包内路径。
- * 避免同一张图从 /assets/... 换成 tcb CDN 触发 image 重载闪动。
+ * 轮播图一律优先包内本地路径。
+ * 云存储当前套餐 ACL 为 PRIVATE，cloud:// 真机/预览常加载失败。
  */
 function resolveSlideImage(image, key) {
   const remote = String(image || "").trim();
@@ -138,6 +138,7 @@ function resolveSlideImage(image, key) {
   if (!remote) {
     return packageByKey || "";
   }
+  // 已是本地包内路径
   if (remote.indexOf("/assets/") === 0) {
     return remote;
   }
@@ -148,12 +149,23 @@ function resolveSlideImage(image, key) {
   if (PACKAGE_IMAGE_BY_ASSET[remoteKey]) {
     return PACKAGE_IMAGE_BY_ASSET[remoteKey];
   }
-  // 仅文件名与包内资源一致时也视为同源（CDN 不带 /assets/ 前缀的情况）
+  // 仅文件名与包内资源一致时也视为同源（cloud:// 与 CDN）
   if (packageByKey) {
     const packageFile = String(getSlideImageKey(packageByKey).split("/").pop() || "").toLowerCase();
     if (packageFile && packageFile === remoteKey) {
       return packageByKey;
     }
+  }
+  // 常见轮播文件名回落
+  if (remoteKey && /^home-carousel-[123]\.(jpe?g|png|webp)$/i.test(remoteKey)) {
+    return `/assets/images/${remoteKey.replace(/\.png$/i, ".jpg")}`;
+  }
+  // 云路径无法映射时，宁可回落包内默认，不展示裂图
+  if (packageByKey) {
+    return packageByKey;
+  }
+  if (remote.indexOf("cloud://") === 0 || remote.indexOf("http") === 0) {
+    return (homeSlides[0] && homeSlides[0].image) || "/assets/images/home-carousel-1.jpg";
   }
   return remote;
 }
@@ -215,12 +227,15 @@ function writeCachedHomeSlides(slides) {
 }
 
 function getInitialHeroSlides() {
-  // 冷启动：优先上次已验证的轮播，避免每次都先本地再跳云端
+  // 冷启动：优先上次已验证的轮播；始终 resolve 到包内路径，清理历史 cloud:// 缓存
   const cached = readCachedHomeSlides();
   if (cached && cached.length) {
-    return cached.map((item) => Object.assign({}, item, {
+    const resolved = cached.map((item) => Object.assign({}, item, {
       image: resolveSlideImage(item.image, item.id)
-    }));
+    })).filter((item) => item.image && item.image.indexOf("/assets/") === 0);
+    if (resolved.length) {
+      return resolved;
+    }
   }
   return buildHomeSlides(homeSlides, []);
 }

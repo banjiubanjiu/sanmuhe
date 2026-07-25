@@ -6,8 +6,30 @@
 .page-nav {
   height: 72rpx;
   display: grid;
-  grid-template-columns: 120rpx 1fr 120rpx;
+  grid-template-columns: 88rpx 1fr 88rpx;
   align-items: center;
+}
+
+.back-btn {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.back-btn-hover {
+  opacity: 0.75;
+}
+
+.back-mark {
+  color: #173b2a;
+  font-size: 48rpx;
+  font-weight: 300;
+  line-height: 1;
+  margin-top: -4rpx;
 }
 
 .page-title {
@@ -19,32 +41,9 @@
   text-align: center;
 }
 
-.nav-capsule {
-  height: 54rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  justify-self: end;
-  padding: 0 14rpx;
-  border: 1rpx solid #e6dfd2;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.nav-capsule text {
-  width: 8rpx;
-  height: 8rpx;
-  border-radius: 50%;
-  background: #111;
-}
-
-.nav-capsule view {
-  width: 36rpx;
-  height: 36rpx;
-  margin-left: 12rpx;
-  border: 6rpx solid #111;
-  border-radius: 50%;
+.nav-side-right {
+  width: 88rpx;
+  height: 64rpx;
 }
 
 .event-intro {

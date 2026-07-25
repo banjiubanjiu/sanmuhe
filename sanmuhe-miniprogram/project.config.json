@@ -2,50 +2,25 @@
   "description": "Sanmuhe WeChat Mini Program",
   "packOptions": {
     "ignore": [
-      {
-        "type": "folder",
-        "value": "admin"
-      },
-      {
-        "type": "folder",
-        "value": "admin-src"
-      },
-      {
-        "type": "folder",
-        "value": "node_modules"
-      },
-      {
-        "type": "folder",
-        "value": "cloudfunctions"
-      },
-      {
-        "type": "folder",
-        "value": "scripts"
-      },
-      {
-        "type": "folder",
-        "value": "docs"
-      },
-      {
-        "type": "file",
-        "value": "package-lock.json"
-      },
-      {
-        "type": "file",
-        "value": "package.json"
-      },
-      {
-        "type": "file",
-        "value": "vite.config.mjs"
-      },
-      {
-        "type": "file",
-        "value": "README.md"
-      },
-      {
-        "type": "file",
-        "value": "AGENTS.md"
-      }
+      { "type": "folder", "value": "admin" },
+      { "type": "folder", "value": "admin-src" },
+      { "type": "folder", "value": "node_modules" },
+      { "type": "folder", "value": "cloudfunctions" },
+      { "type": "folder", "value": "scripts" },
+      { "type": "folder", "value": "docs" },
+      { "type": "folder", "value": "assets/images/.orig-backup" },
+      { "type": "glob", "value": "admin/**/*" },
+      { "type": "glob", "value": "admin-src/**/*" },
+      { "type": "glob", "value": "node_modules/**/*" },
+      { "type": "glob", "value": "assets/images/.orig-backup/**/*" },
+      { "type": "glob", "value": "**/*.md" },
+      { "type": "glob", "value": "**/*.map" },
+      { "type": "file", "value": "package-lock.json" },
+      { "type": "file", "value": "package.json" },
+      { "type": "file", "value": "vite.config.mjs" },
+      { "type": "file", "value": "cloudbaserc.json" },
+      { "type": "file", "value": "README.md" },
+      { "type": "file", "value": "AGENTS.md" }
     ],
     "include": []
   },
@@ -63,7 +38,7 @@
     "uglifyFileName": false,
     "checkInvalidKey": true,
     "checkSiteMap": true,
-    "uploadWithSourceMap": true,
+    "uploadWithSourceMap": false,
     "compileHotReLoad": false,
     "lazyloadPlaceholderEnable": false,
     "useMultiFrameRuntime": true,

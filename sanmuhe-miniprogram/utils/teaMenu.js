@@ -72,101 +72,103 @@ const DEFAULT_PACKAGE_TAGLINES = {
   "芳茗润茶": "芳华入盏，温润于心"
 };
 
-// 堂饮茶款展示信息：侧栏点档位后右侧卡片用
+const { localImage } = require("../config/assets");
+
+// 堂饮茶款展示信息：侧栏点档位后右侧卡片用（图走云存储）
 const TEA_OPTION_META = {
   "古树红茶": {
     category: "红茶",
-    image: "/assets/images/product-tea-001-organic-black.jpg",
+    image: localImage("assets/images/product-tea-001-organic-black.jpg"),
     subtitle: "花果蜜香 · 汤色红亮",
     tags: ["花香", "甘甜", "醇厚"]
   },
   "清香单丛": {
     category: "乌龙茶",
-    image: "/assets/images/product-tea-010-gongxiang.jpg",
+    image: localImage("assets/images/product-tea-010-gongxiang.jpg"),
     subtitle: "清香高扬 · 鲜爽回甘",
     tags: ["清香", "花香", "鲜爽"]
   },
   "留白白茶": {
     category: "白茶",
-    image: "/assets/images/product-tea-004-mtn-white.jpg",
+    image: localImage("assets/images/product-tea-004-mtn-white.jpg"),
     subtitle: "清甜干净 · 余韵绵长",
     tags: ["清润", "醇和", "余韵"]
   },
   "顺景普洱": {
     category: "普洱茶",
-    image: "/assets/images/product-tea-008-puer.jpg",
+    image: localImage("assets/images/product-tea-008-puer.jpg"),
     subtitle: "陈韵沉稳 · 汤感醇厚",
     tags: ["醇厚", "木香", "回甘"]
   },
   "花香大红袍": {
     category: "岩茶",
-    image: "/assets/images/product-tea-007-floral-dhp.jpg",
+    image: localImage("assets/images/product-tea-007-floral-dhp.jpg"),
     subtitle: "花果馥郁 · 岩韵分明",
     tags: ["花香", "岩韵", "回甘"]
   },
   "十五年陈茶": {
     category: "岩茶",
-    image: "/assets/images/product-tea-006-aged-rock.jpg",
+    image: localImage("assets/images/product-tea-006-aged-rock.jpg"),
     subtitle: "药香转参 · 汤水绵柔",
     tags: ["陈韵", "药香", "绵柔"]
   },
   "有机红茶": {
     category: "红茶",
-    image: "/assets/images/product-tea-001-organic-black.jpg",
+    image: localImage("assets/images/product-tea-001-organic-black.jpg"),
     subtitle: "花果蜜香 · 水路细腻",
     tags: ["有机", "花果", "甘甜"]
   },
   "正山小种": {
     category: "红茶",
-    image: "/assets/images/product-tea-002-wild-black.jpg",
+    image: localImage("assets/images/product-tea-002-wild-black.jpg"),
     subtitle: "松烟底韵 · 甜润顺口",
     tags: ["红茶", "甜润", "顺口"]
   },
   "荒野蜜兰": {
     category: "单丛",
-    image: "/assets/images/product-tea-011-mielan.jpg",
+    image: localImage("assets/images/product-tea-011-mielan.jpg"),
     subtitle: "蜜甜浓郁 · 兰香清雅",
     tags: ["蜜兰", "回甘", "耐泡"]
   },
   "贡香": {
     category: "单丛",
-    image: "/assets/images/product-tea-010-gongxiang.jpg",
+    image: localImage("assets/images/product-tea-010-gongxiang.jpg"),
     subtitle: "清香纯粹 · 夏日鲜爽",
     tags: ["清香", "鲜雅", "甘甜"]
   },
   "高山蜜兰": {
     category: "单丛",
-    image: "/assets/images/product-tea-011-mielan.jpg",
+    image: localImage("assets/images/product-tea-011-mielan.jpg"),
     subtitle: "高山蜜韵 · 汤感稠糯",
     tags: ["高山", "蜜香", "稠糯"]
   },
   "马头岩肉桂": {
     category: "岩茶",
-    image: "/assets/images/product-tea-005-rougui.jpg",
+    image: localImage("assets/images/product-tea-005-rougui.jpg"),
     subtitle: "辛锐桂皮香 · 喉韵清凉",
     tags: ["名岩", "辛锐", "回甘"]
   },
   "老白茶": {
     category: "白茶",
-    image: "/assets/images/product-tea-003-aged-white.jpg",
+    image: localImage("assets/images/product-tea-003-aged-white.jpg"),
     subtitle: "醇润陈香 · 温和不伤胃",
     tags: ["陈香", "醇润", "煮饮"]
   },
   "熟普": {
     category: "普洱茶",
-    image: "/assets/images/product-tea-008-puer.jpg",
+    image: localImage("assets/images/product-tea-008-puer.jpg"),
     subtitle: "温润醇和 · 一壶从容",
     tags: ["醇和", "温润", "耐泡"]
   },
   "养生茶": {
     category: "花茶",
-    image: "/assets/images/product-drink-004-pengcha.jpg",
+    image: localImage("assets/images/product-drink-004-pengcha.jpg"),
     subtitle: "温和调养 · 宜日常暖饮",
     tags: ["温和", "暖饮", "日常"]
   },
   "玫瑰花茶": {
     category: "花茶",
-    image: "/assets/images/product-drink-005-fangming.jpg",
+    image: localImage("assets/images/product-drink-005-fangming.jpg"),
     subtitle: "玫瑰清芳 · 温润于心",
     tags: ["花香", "清甜", "润燥"]
   }
@@ -217,7 +219,7 @@ function shortTagsFromText(text, max = 3) {
 }
 
 function buildTeaOptions(item, teaGroups) {
-  const fallbackImage = item.image || "/assets/images/product-drink-001-chujian.jpg";
+  const fallbackImage = item.image || localImage("assets/images/product-drink-001-chujian.jpg");
   return teaGroups.reduce((result, group) => {
     group.options.forEach((name) => {
       const meta = TEA_OPTION_META[name] || {};

@@ -1,4 +1,5 @@
 const { drinks, teaProducts, rooms, events, homeSlides } = require("../data/catalog");
+const { localImage } = require("../config/assets");
 
 function getFallbackCatalog() {
   return {
@@ -14,6 +15,24 @@ function getFallbackCatalog() {
   };
 }
 
+function withCloudImages(item) {
+  if (!item || typeof item !== "object") {
+    return item;
+  }
+  const next = Object.assign({}, item);
+  // localImage：云路径尽量映射回包内，避免 PRIVATE 存储裂图
+  if (next.image) {
+    next.image = localImage(next.image);
+  }
+  if (next.thumb) {
+    next.thumb = localImage(next.thumb);
+  }
+  if (next.detailImage) {
+    next.detailImage = localImage(next.detailImage);
+  }
+  return next;
+}
+
 function mergeById(remoteItems, localItems) {
   const localMap = localItems.reduce((map, item) => {
     map[item.id] = item;
@@ -23,9 +42,9 @@ function mergeById(remoteItems, localItems) {
   const remoteIds = {};
   const mergedRemote = (remoteItems || []).map((item) => {
     remoteIds[item.id] = true;
-    return Object.assign({}, localMap[item.id] || {}, item);
+    return withCloudImages(Object.assign({}, localMap[item.id] || {}, item));
   });
-  const localOnly = localItems.filter((item) => !remoteIds[item.id]);
+  const localOnly = localItems.filter((item) => !remoteIds[item.id]).map(withCloudImages);
   return mergedRemote.concat(localOnly);
 }
 
@@ -38,7 +57,7 @@ function fillFromLocal(remoteItems, localItems) {
   return (remoteItems || []).map((item) => {
     const local = localMap[item.id];
     if (!local) {
-      return item;
+      return withCloudImages(item);
     }
     const merged = Object.assign({}, local, item);
     // 云端缺结构化茶款时，保留本地 teaGroups
@@ -60,7 +79,7 @@ function fillFromLocal(remoteItems, localItems) {
     if (!merged.image && local.image) {
       merged.image = local.image;
     }
-    return merged;
+    return withCloudImages(merged);
   });
 }
 

@@ -1,5 +1,5 @@
-// 茶品/茶单主图：使用小程序本地素材，避免依赖旧云环境 CDN
-const localImage = (path) => path.startsWith("/") ? path : `/${path}`;
+// 茶品/茶单主图：走云存储 cloud://（mp-assets/），不占小程序 2MB 主包
+const { localImage } = require("../config/assets");
 const IMG = {
   tea001: localImage("assets/images/product-tea-001-organic-black.jpg"),
   tea002: localImage("assets/images/product-tea-002-wild-black.jpg"),
@@ -388,8 +388,8 @@ const events = [
     quota: 12,
     signed: 28,
     price: 68,
-    image: "/assets/images/event-yangxin-tea.jpg",
-    detailImage: localImage("assets/images/event-detail-content-1.png"),
+    image: localImage("assets/images/event-yangxin-tea.jpg"),
+    detailImage: localImage("assets/images/event-yangxin-tea.jpg"),
     summary: "在茶香与静心中，慢慢安住自己",
     status: "报名中"
   },
@@ -403,8 +403,8 @@ const events = [
     quota: 10,
     signed: 45,
     price: 0,
-    image: "/assets/images/event-tea-class.jpg",
-    detailImage: localImage("assets/images/event-detail-content-2.png"),
+    image: localImage("assets/images/event-tea-class.jpg"),
+    detailImage: localImage("assets/images/event-tea-class.jpg"),
     summary: "从识香、泡茶到品饮，轻松了解基础茶知识",
     status: "报名中"
   },
@@ -418,8 +418,8 @@ const events = [
     quota: 8,
     signed: 16,
     price: 128,
-    image: "/assets/images/event-seasonal-tea.jpg",
-    detailImage: localImage("assets/images/event-detail-content-3.png"),
+    image: localImage("assets/images/event-seasonal-tea.jpg"),
+    detailImage: localImage("assets/images/event-seasonal-tea.jpg"),
     summary: "顺时品茶，感受节气与日常之美",
     status: "报名中"
   }

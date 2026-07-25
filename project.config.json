@@ -19,34 +19,26 @@
       "outputPath": ""
     },
     "useCompilerPlugins": false,
-    "minifyWXML": true
+    "minifyWXML": true,
+    "uploadWithSourceMap": false
   },
   "packOptions": {
     "ignore": [
-      {
-        "type": "folder",
-        "value": "sanmuhe-miniprogram/admin"
-      },
-      {
-        "type": "folder",
-        "value": "sanmuhe-miniprogram/admin-src"
-      },
-      {
-        "type": "folder",
-        "value": "sanmuhe-miniprogram/node_modules"
-      },
-      {
-        "type": "folder",
-        "value": "docs"
-      },
-      {
-        "type": "folder",
-        "value": "output"
-      },
-      {
-        "type": "folder",
-        "value": "scripts"
-      }
+      { "type": "folder", "value": "admin" },
+      { "type": "folder", "value": "admin-src" },
+      { "type": "folder", "value": "node_modules" },
+      { "type": "folder", "value": "scripts" },
+      { "type": "folder", "value": "docs" },
+      { "type": "glob", "value": "admin/**/*" },
+      { "type": "glob", "value": "admin-src/**/*" },
+      { "type": "glob", "value": "node_modules/**/*" },
+      { "type": "glob", "value": "assets/images/.orig-backup/**/*" },
+      { "type": "glob", "value": "**/*.md" },
+      { "type": "glob", "value": "**/*.map" },
+      { "type": "file", "value": "package-lock.json" },
+      { "type": "file", "value": "package.json" },
+      { "type": "file", "value": "vite.config.mjs" },
+      { "type": "file", "value": "cloudbaserc.json" }
     ],
     "include": []
   },

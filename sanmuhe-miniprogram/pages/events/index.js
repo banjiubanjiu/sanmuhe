@@ -125,6 +125,16 @@ Page({
   },
 
   goBack() {
+    const pages = getCurrentPages();
+    if (pages.length > 1) {
+      wx.navigateBack({
+        delta: 1,
+        fail: () => {
+          wx.switchTab({ url: "/pages/index/index" });
+        }
+      });
+      return;
+    }
     wx.switchTab({ url: "/pages/index/index" });
   },
 

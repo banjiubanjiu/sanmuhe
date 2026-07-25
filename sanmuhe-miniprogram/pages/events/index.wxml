@@ -1,13 +1,10 @@
 <view class="page events-page">
   <view class="page-nav">
-    <view class="nav-placeholder"></view>
-    <view class="page-title">茶事活动</view>
-    <view class="nav-capsule">
-      <text></text>
-      <text></text>
-      <text></text>
-      <view></view>
+    <view class="back-btn" bindtap="goBack" hover-class="back-btn-hover">
+      <text class="back-mark">‹</text>
     </view>
+    <view class="page-title">茶事活动</view>
+    <view class="nav-side-right"></view>
   </view>
 
   <view class="event-intro">
