@@ -76,7 +76,7 @@ Page({
       wx.navigateBack();
       return;
     }
-    wx.switchTab({ url: "/pages/events/index" });
+    wx.redirectTo({ url: "/pages/events/index" });
   },
 
   previewDesign() {

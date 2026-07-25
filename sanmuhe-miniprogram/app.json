@@ -43,10 +43,6 @@
         "text": "茶品"
       },
       {
-        "pagePath": "pages/events/index",
-        "text": "活动"
-      },
-      {
         "pagePath": "pages/profile/index",
         "text": "我的"
       }

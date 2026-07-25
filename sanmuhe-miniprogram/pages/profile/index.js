@@ -220,7 +220,7 @@ Page(withPrivacy({
       return;
     }
     if (action === "events") {
-      wx.switchTab({ url: "/pages/events/index" });
+      wx.navigateTo({ url: "/pages/events/index" });
       return;
     }
     if (action === "address") {
@@ -273,6 +273,6 @@ Page(withPrivacy({
   },
 
   goEvents() {
-    wx.switchTab({ url: "/pages/events/index" });
+    wx.navigateTo({ url: "/pages/events/index" });
   }
 }));

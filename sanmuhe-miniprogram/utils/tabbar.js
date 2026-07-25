@@ -2,7 +2,6 @@ const tabBarRoutes = [
   "pages/index/index",
   "pages/order/index",
   "pages/shop/index",
-  "pages/events/index",
   "pages/profile/index"
 ];
 
