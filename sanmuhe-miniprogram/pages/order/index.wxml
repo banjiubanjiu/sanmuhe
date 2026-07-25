@@ -1,119 +1,100 @@
 <view class="page tea-menu-page">
-  <view class="page-nav">
-    <view class="nav-side"></view>
-    <view class="page-title">堂饮点单</view>
-    <view class="nav-side"></view>
+  <view class="page-nav" style="padding-top: {{statusBarHeight}}px;">
+    <view class="nav-inner">
+      <view class="nav-side">
+        <view class="table-chip" bindtap="scanTable">
+          <image src="/assets/icons/scan-ink.png" mode="aspectFit"></image>
+          <text>{{tableLabel ? tableLabel : '扫桌'}}</text>
+        </view>
+      </view>
+      <view class="page-title">堂饮点单</view>
+      <view class="nav-side nav-side-right"></view>
+    </view>
   </view>
 
-  <view class="table-context">
-    <view class="table-copy">
-      <view class="table-title">{{tableLabel ? (tableLabel + '桌 · 已绑定') : '到店堂饮 · 未绑定桌号'}}</view>
-      <view class="table-note">{{tableLabel ? '茶单将送至当前桌位' : '扫码绑定桌号，门店可更快备茶'}}</view>
-    </view>
-    <view class="scan-action" bindtap="scanTable">
-      <image src="/assets/icons/scan-ink.png" mode="aspectFit"></image>
-      <text>{{tableLabel ? '换桌' : '扫码'}}</text>
+  <view class="order-tools">
+    <view class="order-search">
+      <image src="/assets/icons/search-line.png" mode="aspectFit"></image>
+      <input
+        placeholder="搜索茶名、茶类、口感"
+        value="{{keyword}}"
+        bindinput="onSearch"
+        confirm-type="search"
+      />
+      <text wx:if="{{keyword}}" bindtap="clearSearch">×</text>
     </view>
   </view>
 
   <view class="ordering-shell">
-    <scroll-view scroll-y class="side-sections">
+    <scroll-view scroll-y class="side-cats">
       <view
-        wx:for="{{sections}}"
-        wx:key="*this"
-        class="side-section {{activeSection === item ? 'active' : ''}}"
-        data-section="{{item}}"
-        bindtap="changeSection"
-      >
-        <text>{{item}}</text>
-        <view>{{item === '品饮' ? '按道' : '按壶'}}</view>
-      </view>
+        wx:for="{{sideMenuItems}}"
+        wx:key="id"
+        class="side-cat {{activeDrinkId === item.id ? 'active' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="selectPackage"
+      >{{item.name}}</view>
+      <view class="side-safe"></view>
     </scroll-view>
 
-    <scroll-view scroll-y class="menu-list">
-      <view class="list-heading">
-        <view>{{activeSection}}</view>
-        <text>{{filteredItems.length}} 项可点</text>
-      </view>
-
-      <view
-        wx:for="{{filteredItems}}"
-        wx:key="id"
-        wx:for-item="service"
-        class="menu-item"
-        data-id="{{service.id}}"
-        bindtap="openService"
-      >
-        <image class="menu-image" src="{{service.image}}" mode="aspectFill"></image>
-        <view class="menu-copy">
-          <view class="menu-name">{{service.name}}</view>
-          <view class="menu-note">{{service.selectionHint}}</view>
-          <view class="menu-bottom">
-            <view class="menu-price"><text>¥</text>{{service.price}}<text class="menu-unit"> / {{service.unit}}</text></view>
+    <scroll-view
+      scroll-y
+      class="goods-list"
+      scroll-into-view="{{scrollIntoView}}"
+      scroll-with-animation
+    >
+      <block wx:if="{{activeDrink}}">
+        <view class="hero-card" id="hero" wx:if="{{!keyword}}">
+          <image class="hero-image" src="{{activeDrink.image}}" mode="aspectFill"></image>
+          <view class="hero-mask"></view>
+          <view class="hero-copy">
+            <view class="hero-name">{{activeDrink.name}}</view>
+            <view class="hero-price">{{activeDrink.price}}元/{{activeDrink.unit}}</view>
+            <view class="hero-line"></view>
+            <view class="hero-hint">{{activeDrink.selectionHint}}</view>
+            <view class="hero-tagline">{{activeDrink.tagline}}</view>
           </view>
         </view>
-        <view class="round-add" data-id="{{service.id}}" catchtap="quickAddService">
-          <image src="/assets/icons/plus-white.png" mode="aspectFit"></image>
+
+        <view class="list-heading">
+          {{keyword ? ('搜索结果（' + filteredTeaOptions.length + '）') : ('可选茶款（' + filteredTeaOptions.length + '款）')}}
         </view>
+
+        <view
+          wx:for="{{filteredTeaOptions}}"
+          wx:key="name"
+          wx:for-item="tea"
+          class="goods-item"
+        >
+          <view class="goods-main">
+            <image class="goods-thumb" src="{{tea.image}}" mode="aspectFill"></image>
+            <view class="goods-copy">
+              <view class="goods-name">{{tea.name}}</view>
+              <view class="goods-note">{{tea.subtitle}}</view>
+              <view class="goods-tags">
+                <text>{{tea.category}}</text>
+                <text wx:for="{{tea.tags}}" wx:key="*this" wx:for-item="tag">{{tag}}</text>
+              </view>
+              <view class="goods-bottom">
+                <view class="goods-price">¥{{activeDrink.price}} <text>/ {{activeDrink.unit}}</text></view>
+              </view>
+            </view>
+          </view>
+          <view class="round-add" data-tea="{{tea.name}}" catchtap="addTea">+</view>
+        </view>
+
+        <view wx:if="{{!filteredTeaOptions.length}}" class="empty-list">
+          <view>{{keyword ? '未找到相关茶款' : '本席暂无可选茶款'}}</view>
+          <text>{{keyword ? '换个关键词或清空搜索' : '请切换左侧档位查看其他茶席'}}</text>
+        </view>
+      </block>
+
+      <view wx:else class="empty-list">
+        <view>{{keyword ? '未找到相关茶席' : '茶单加载中'}}</view>
+        <text>{{keyword ? '换个关键词试试' : '请稍候'}}</text>
       </view>
 
-      <view wx:if="{{filteredItems.length === 0}}" class="empty-menu">
-        <view>本栏茶单暂未开放</view>
-        <text>可切换另一栏查看当前可点茶品</text>
-      </view>
       <view class="list-safe-space"></view>
     </scroll-view>
   </view>
-
-  <view class="tea-cart-bar {{cartCount ? '' : 'empty'}}" bindtap="goCart">
-    <view class="tea-cart-icon">
-      <image src="/assets/icons/cart-line.png" mode="aspectFit"></image>
-      <text wx:if="{{cartCount}}">{{cartCount}}</text>
-    </view>
-    <view class="tea-cart-copy">
-      <view>{{cartCount ? ('已选 ' + cartCount + ' 项') : '尚未选茶'}}</view>
-      <text>{{cartCount ? ('合计 ¥' + cartTotal) : '选择茶品后可确认茶单'}}</text>
-    </view>
-    <view class="tea-cart-action">去结算</view>
-  </view>
-
-  <block wx:if="{{sheetVisible}}">
-    <view class="sheet-mask" bindtap="closeSheet"></view>
-    <view class="tea-sheet" catchtap="stopTap">
-      <view class="sheet-handle"></view>
-      <view class="sheet-head">
-        <view>
-          <view class="sheet-title">{{activeDrink.name}} · 选择茶品</view>
-          <view class="sheet-subtitle">每道选择一款茶品</view>
-        </view>
-        <view class="sheet-close" bindtap="closeSheet">×</view>
-      </view>
-
-      <scroll-view scroll-y class="sheet-options">
-        <view
-          wx:for="{{activeDrink.teaGroups}}"
-          wx:key="name"
-          wx:for-item="teaGroup"
-          class="tea-group"
-        >
-          <view class="tea-group-name">{{teaGroup.name}}</view>
-          <view class="tea-options">
-            <view
-              wx:for="{{teaGroup.options}}"
-              wx:key="*this"
-              wx:for-item="tea"
-              class="tea-option {{selectedTea === tea ? 'active' : ''}}"
-              data-tea="{{tea}}"
-              bindtap="chooseTea"
-            >{{tea}}</view>
-          </view>
-        </view>
-      </scroll-view>
-
-      <view class="sheet-footer">
-        <view class="sheet-price"><text>¥</text>{{activeDrink.price}}<text class="sheet-unit"> / {{activeDrink.unit}}</text></view>
-        <button class="add-menu-button" disabled="{{!selectedTea}}" bindtap="addDrink">加入茶单</button>
-      </view>
-    </view>
-  </block>
 </view>

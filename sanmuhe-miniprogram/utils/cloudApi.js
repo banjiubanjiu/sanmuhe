@@ -29,11 +29,51 @@ function mergeById(remoteItems, localItems) {
   return mergedRemote.concat(localOnly);
 }
 
+// 云端记录覆盖本地，但用本地补齐缺失字段（如 teaGroups / tagline）
+function fillFromLocal(remoteItems, localItems) {
+  const localMap = localItems.reduce((map, item) => {
+    map[item.id] = item;
+    return map;
+  }, {});
+  return (remoteItems || []).map((item) => {
+    const local = localMap[item.id];
+    if (!local) {
+      return item;
+    }
+    const merged = Object.assign({}, local, item);
+    // 云端缺结构化茶款时，保留本地 teaGroups
+    if ((!Array.isArray(item.teaGroups) || !item.teaGroups.length) && local.teaGroups) {
+      merged.teaGroups = local.teaGroups;
+    }
+    if (!merged.tagline && local.tagline) {
+      merged.tagline = local.tagline;
+    }
+    if (!merged.brewStyle && local.brewStyle) {
+      merged.brewStyle = local.brewStyle;
+    }
+    if (!merged.serviceType && local.serviceType) {
+      merged.serviceType = local.serviceType;
+    }
+    if (!merged.unit && local.unit) {
+      merged.unit = local.unit;
+    }
+    if (!merged.image && local.image) {
+      merged.image = local.image;
+    }
+    return merged;
+  });
+}
+
 function normalizeCatalogList(source, key, localItems, trustRemote) {
+  const remote = Array.isArray(source[key]) ? source[key] : [];
   if (trustRemote) {
-    return Array.isArray(source[key]) ? source[key] : [];
+    // 云端可见列表为空时回退本地，避免前台被刷成空白
+    if (!remote.length) {
+      return localItems.slice();
+    }
+    return fillFromLocal(remote, localItems);
   }
-  return mergeById(source[key] && source[key].length ? source[key] : localItems, localItems);
+  return mergeById(remote.length ? remote : localItems, localItems);
 }
 
 function enrichCatalog(catalog, options = {}) {

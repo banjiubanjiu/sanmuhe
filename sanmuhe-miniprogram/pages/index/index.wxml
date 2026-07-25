@@ -9,11 +9,13 @@
     circular="{{true}}"
     interval="3600"
     duration="520"
+    easing-function="easeOutCubic"
     bindchange="onHeroChange"
   >
     <swiper-item wx:for="{{heroSlides}}" wx:key="id">
       <view class="hero-slide">
-        <image class="hero-image" src="{{item.image}}" mode="aspectFill"></image>
+        <!-- 首屏轮播禁止懒加载，避免先空白再出图的一晃 -->
+        <image class="hero-image" src="{{item.image}}" mode="aspectFill" lazy-load="{{false}}"></image>
       </view>
     </swiper-item>
   </swiper>

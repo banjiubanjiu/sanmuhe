@@ -95,29 +95,90 @@ function buildSeasonRecommendations(products) {
   }));
 }
 
-function buildHomeSlides(contentSlides, fallbackSlides) {
-  const slides = Array.isArray(contentSlides) ? contentSlides : [];
-  const normalized = slides
-    .filter((item) => item && item.visible !== false && item.image)
-    .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
-    .map((item, index) => ({
-      id: item.key || item.id || `content-slide-${index}`,
-      image: item.image,
-      titleTop: item.title || "",
-      titleBottom: item.subtitle || "",
-      descTop: item.summary || "",
-      descBottom: "",
-      seal: item.badge || "茶",
-      linkType: item.linkType || "",
-      linkTarget: item.linkTarget || ""
-    }));
-  return normalized.length ? normalized : fallbackSlides;
-}
+// 轮播图行业通用：首屏稳定图源 + 同源不替换，避免「本地 → CDN」二次 setData 闪一下。
+const HOME_SLIDES_CACHE_KEY = "sanmuhe_home_slides_v1";
 
 function getSlideImageKey(image) {
   const normalized = String(image || "").split("?")[0].replace(/\\/g, "/");
+  if (!normalized) {
+    return "";
+  }
   const assetIndex = normalized.indexOf("/assets/");
-  return assetIndex >= 0 ? normalized.slice(assetIndex) : normalized;
+  if (assetIndex >= 0) {
+    return normalized.slice(assetIndex);
+  }
+  // cloud://env/xxx/file.jpg 或 CDN 自定义路径：退化为文件名比较
+  const fileName = normalized.split("/").filter(Boolean).pop() || "";
+  return fileName.toLowerCase();
+}
+
+const PACKAGE_SLIDE_IMAGE_BY_KEY = (homeSlides || []).reduce((map, item) => {
+  if (item && item.key && item.image) {
+    map[item.key] = item.image;
+  }
+  return map;
+}, {});
+
+const PACKAGE_IMAGE_BY_ASSET = Object.keys(PACKAGE_SLIDE_IMAGE_BY_KEY).reduce((map, key) => {
+  const image = PACKAGE_SLIDE_IMAGE_BY_KEY[key];
+  const assetPath = getSlideImageKey(image);
+  if (assetPath) {
+    map[assetPath] = image;
+  }
+  return map;
+}, {});
+
+/**
+ * 云端图与包内图实质相同时，继续用包内路径。
+ * 避免同一张图从 /assets/... 换成 tcb CDN 触发 image 重载闪动。
+ */
+function resolveSlideImage(image, key) {
+  const remote = String(image || "").trim();
+  const packageByKey = key ? PACKAGE_SLIDE_IMAGE_BY_KEY[key] : "";
+  if (!remote) {
+    return packageByKey || "";
+  }
+  if (remote.indexOf("/assets/") === 0) {
+    return remote;
+  }
+  const remoteKey = getSlideImageKey(remote);
+  if (packageByKey && getSlideImageKey(packageByKey) === remoteKey) {
+    return packageByKey;
+  }
+  if (PACKAGE_IMAGE_BY_ASSET[remoteKey]) {
+    return PACKAGE_IMAGE_BY_ASSET[remoteKey];
+  }
+  // 仅文件名与包内资源一致时也视为同源（CDN 不带 /assets/ 前缀的情况）
+  if (packageByKey) {
+    const packageFile = String(getSlideImageKey(packageByKey).split("/").pop() || "").toLowerCase();
+    if (packageFile && packageFile === remoteKey) {
+      return packageByKey;
+    }
+  }
+  return remote;
+}
+
+function buildHomeSlides(contentSlides, fallbackSlides) {
+  const slides = Array.isArray(contentSlides) ? contentSlides : [];
+  const normalized = slides
+    .filter((item) => item && item.visible !== false && (item.image || PACKAGE_SLIDE_IMAGE_BY_KEY[item.key]))
+    .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+    .map((item, index) => {
+      const id = item.key || item.id || `content-slide-${index}`;
+      return {
+        id,
+        image: resolveSlideImage(item.image, item.key || id),
+        titleTop: item.title || "",
+        titleBottom: item.subtitle || "",
+        descTop: item.summary || "",
+        descBottom: "",
+        seal: item.badge || "茶",
+        linkType: item.linkType || "",
+        linkTarget: item.linkTarget || ""
+      };
+    })
+    .filter((item) => item.image);
+  return normalized.length ? normalized : (fallbackSlides || []);
 }
 
 function hasSameVisibleSlides(currentSlides, nextSlides) {
@@ -126,13 +187,48 @@ function hasSameVisibleSlides(currentSlides, nextSlides) {
   return current.length === next.length && current.every((item, index) => (
     item.id === next[index].id
     && getSlideImageKey(item.image) === getSlideImageKey(next[index].image)
+    && String(item.image || "") === String(next[index].image || "")
   ));
+}
+
+function readCachedHomeSlides() {
+  try {
+    const cached = wx.getStorageSync(HOME_SLIDES_CACHE_KEY);
+    if (!Array.isArray(cached) || !cached.length) {
+      return null;
+    }
+    const valid = cached.every((item) => item && item.id && item.image);
+    return valid ? cached : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeCachedHomeSlides(slides) {
+  try {
+    if (Array.isArray(slides) && slides.length) {
+      wx.setStorageSync(HOME_SLIDES_CACHE_KEY, slides);
+    }
+  } catch (error) {
+    // storage 满或不可用时忽略，不影响展示
+  }
+}
+
+function getInitialHeroSlides() {
+  // 冷启动：优先上次已验证的轮播，避免每次都先本地再跳云端
+  const cached = readCachedHomeSlides();
+  if (cached && cached.length) {
+    return cached.map((item) => Object.assign({}, item, {
+      image: resolveSlideImage(item.image, item.id)
+    }));
+  }
+  return buildHomeSlides(homeSlides, []);
 }
 
 Page({
   data: {
     homeCatalog: normalizeCatalog({ drinks, teaProducts, rooms, events }, events),
-    heroSlides: buildHomeSlides(homeSlides, []),
+    heroSlides: getInitialHeroSlides(),
     heroCurrent: 0,
     quickActions: [
       { key: "tea", title: "茶叶购买", desc: "甄选好茶", icon: "/assets/icons/home-leaf.png" },
@@ -173,6 +269,7 @@ Page({
     getCatalog().then((catalogResult) => {
       const homeCatalog = normalizeCatalog(catalogResult || {}, null);
       const content = catalogResult && catalogResult.content || {};
+      // 云端与包内同源时 resolve 为包内路径，src 不变则 swiper 不重载
       const nextHeroSlides = buildHomeSlides(content.homeSlides, this.data.heroSlides);
       const nextData = {
         homeCatalog,
@@ -185,8 +282,10 @@ Page({
       };
       if (!hasSameVisibleSlides(this.data.heroSlides, nextHeroSlides)) {
         nextData.heroSlides = nextHeroSlides;
-        nextData.heroCurrent = 0;
+        // 不强制归零：避免轮播已在滑动时被重置造成「一晃」
       }
+      // 缓存已解析后的稳定图源，供下次冷启动首屏直接使用
+      writeCachedHomeSlides(nextHeroSlides);
       this.setData(nextData);
     });
 

@@ -30,6 +30,8 @@ const drinks = [
     serviceType: "tasting",
     price: 58,
     notes: "古树红茶 / 清香单丛 / 留白白茶 / 顺景普洱",
+    tagline: "初识好茶，邂逅本真之味",
+    brewStyle: "热泡茶",
     teaGroups: [
       { name: "本席可选", options: ["古树红茶", "清香单丛", "留白白茶", "顺景普洱"] }
     ],
@@ -45,6 +47,8 @@ const drinks = [
     serviceType: "tasting",
     price: 78,
     notes: "岩茶：花香大红袍 / 十五年陈茶；红茶：有机红茶 / 正山小种；单丛：荒野蜜兰 / 贡香 / 高山蜜兰",
+    tagline: "细品层次，感知茶中真味",
+    brewStyle: "热泡茶",
     teaGroups: [
       { name: "岩茶", options: ["花香大红袍", "十五年陈茶"] },
       { name: "红茶", options: ["有机红茶", "正山小种"] },
@@ -62,6 +66,8 @@ const drinks = [
     serviceType: "tasting",
     price: 98,
     notes: "马头岩肉桂",
+    tagline: "臻选名岩，珍藏一味",
+    brewStyle: "热泡茶",
     teaGroups: [
       { name: "本席茶品", options: ["马头岩肉桂"] }
     ],
@@ -77,6 +83,8 @@ const drinks = [
     serviceType: "pot",
     price: 48,
     notes: "老白茶 / 熟普 / 养生茶",
+    tagline: "一壶暖茶，从容叙旧",
+    brewStyle: "热泡茶",
     teaGroups: [
       { name: "本壶可选", options: ["老白茶", "熟普", "养生茶"] }
     ],
@@ -92,6 +100,8 @@ const drinks = [
     serviceType: "pot",
     price: 28,
     notes: "玫瑰花茶",
+    tagline: "芳华入盏，温润于心",
+    brewStyle: "热泡茶",
     teaGroups: [
       { name: "本壶茶品", options: ["玫瑰花茶"] }
     ],
