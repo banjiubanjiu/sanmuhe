@@ -265,7 +265,14 @@ Page(withPrivacy({
   },
 
   showMemberBenefits() {
-    wx.navigateTo({ url: "/pages/member/index" });
+    const tip = this.data.member.isMember
+      ? "会员功能已整合到“我的”页面"
+      : "可在“我的”页直接查看会员权益与开通入口";
+    wx.showToast({
+      title: tip,
+      icon: "none",
+      duration: 1500
+    });
   },
 
   goReservation() {

@@ -394,7 +394,7 @@ Page({
   },
 
   goMember() {
-    wx.navigateTo({ url: "/pages/member/index" });
+    wx.switchTab({ url: "/pages/profile/index" });
   },
 
   goCart() {

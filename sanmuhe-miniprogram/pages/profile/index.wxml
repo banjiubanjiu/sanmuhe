@@ -8,107 +8,72 @@
   <view class="profile-head">
     <view class="avatar-wrap">
       <image class="avatar" src="{{user.avatar}}" mode="aspectFill"></image>
-      <view class="avatar-badge">
-        <image src="/assets/icons/profile-active.png" mode="aspectFit"></image>
-      </view>
     </view>
     <view class="user-copy">
       <view class="user-name">{{user.name}}</view>
       <view class="user-title">{{user.title}}</view>
-      <view class="tier-pill">
-        <image class="tier-crown-icon" src="/assets/icons/crown-gold.png" mode="aspectFit"></image>
-        <text>{{member.isMember ? member.tier : '禾煦茶友'}}</text>
-      </view>
     </view>
-    <view class="chevron" bindtap="showMemberBenefits">›</view>
-  </view>
-
-  <view class="member-card" bindtap="showMemberBenefits">
-    <image class="member-bg" src="/assets/images/profile-member-card.jpg" mode="aspectFill"></image>
-    <view class="member-shade"></view>
-    <view class="member-content">
-      <view class="member-top">
-        <view class="member-brand">
-          <image class="member-crown" src="/assets/icons/crown-gold.png" mode="aspectFit"></image>
-          <text>{{member.isMember ? member.tier : '禾煦会员'}}</text>
-        </view>
-        <view class="member-rights">尊享权益</view>
-      </view>
-      <view class="member-mid">
-        <view class="member-greeting">{{member.isMember ? '欢迎回来，慢慢喝茶' : '一席茶香，静候相逢'}}</view>
-        <view class="member-hint">{{member.isMember ? '充 500 送 100 · 充 1000 送 250' : '开通会员，享储值礼遇'}}</view>
-      </view>
-      <view class="member-bottom">
-        <view class="member-stat">
-          <text>{{member.isMember ? '储值余额' : '会员礼遇'}}</text>
-          <view class="member-stat-number">{{member.isMember ? ('¥' + member.balance) : '充值有礼'}}</view>
-        </view>
-        <view class="member-divider"></view>
-        <view class="member-stat">
-          <text>{{member.isMember ? '会员积分' : '品饮券'}}</text>
-          <view class="member-stat-number">{{member.isMember ? member.points : '每月可领'}}</view>
-        </view>
-        <view class="benefit-btn" catchtap="showMemberBenefits">{{member.isMember ? '会员中心' : '立即开通'}}</view>
-      </view>
+    <view class="head-extra">
+      <view class="tier-pill">{{member.isMember ? member.tier : '禾煦茶友'}}</view>
     </view>
   </view>
 
-  <view class="order-panel">
-    <view
-      wx:for="{{orderShortcuts}}"
-      wx:key="key"
-      class="order-shortcut"
-      data-key="{{item.key}}"
-      bindtap="handleOrderShortcut"
-    >
-      <view class="order-icon-wrap">
-        <image class="order-icon" src="{{item.icon}}" mode="aspectFit"></image>
-        <text wx:if="{{item.count > 0}}" class="count-dot">{{item.count}}</text>
+  <view id="member-card" class="member-card">
+    <view class="member-card-inner">
+      <view class="member-card-top">
+        <view class="member-card-title">{{member.isMember ? '禾煦会员卡' : '禾煦会员'}}</view>
+        <view class="member-card-badge">{{member.isMember ? '会员' : '体验卡'}}</view>
       </view>
-      <text>{{item.label}}</text>
+      <view class="member-card-divider"></view>
+      <view class="member-card-name-row">
+        <text class="member-card-name">{{member.isMember ? (member.name || user.name) : '茶友'}}</text>
+        <text class="member-card-level">{{member.isMember ? (member.tier || '禾煦会员') : '开通即享积分/储值'}}</text>
+      </view>
+      <view class="member-card-stats">
+        <view class="member-kv">
+          <text>积分</text>
+          <text>{{member.points || 0}}</text>
+        </view>
+        <view class="member-kv">
+          <text>储值</text>
+          <text>{{member.isMember ? ('¥' + member.balance) : '—'}}</text>
+        </view>
+        <view class="member-kv">
+          <text>权益</text>
+          <text>{{member.isMember ? '尊享' : '充值有礼'}}</text>
+        </view>
+      </view>
+      <button wx:if="{{!member.isMember}}" class="member-btn" bindtap="showMemberBenefits">
+        立即开通会员
+      </button>
     </view>
   </view>
 
-  <view class="recent-panel">
-    <view class="panel-head">
-      <view class="panel-title">最近订单</view>
-      <view class="panel-link" data-key="all" bindtap="handleOrderShortcut">全部订单 ›</view>
+  <view class="order-section">
+    <view class="section-header">
+      <view class="section-title">我的订单</view>
+      <view class="section-link" bindtap="handleOrderShortcut" data-key="all">全部订单 ›</view>
     </view>
-    <view wx:if="{{recentOrders.length > 0}}">
+    <view class="order-shortcuts">
       <view
-        wx:for="{{recentOrders}}"
-        wx:key="id"
-        class="order-record"
-        data-id="{{item.id}}"
-        bindtap="viewOrderRecord"
+        wx:for="{{orderShortcuts}}"
+        wx:key="key"
+        class="order-shortcut-item"
+        data-key="{{item.key}}"
+        bindtap="handleOrderShortcut"
       >
-        <view>
-          <view class="order-record-title">{{item.title}}</view>
-          <view class="order-record-meta">{{item.meta}}</view>
+        <view class="order-shortcut-icon">
+          <image src="{{item.icon}}" mode="aspectFit"></image>
         </view>
-        <view class="order-record-side">
-          <text>¥{{item.total}}</text>
-          <view>{{item.status}}</view>
-        </view>
+        <text class="order-label">{{item.label}}</text>
+        <text wx:if="{{item.count > 0}}" class="order-count">{{item.count}}</text>
       </view>
-    </view>
-    <view wx:if="{{recordsLoading && recentOrders.length === 0}}" class="empty-card">
-      <view class="empty-title">正在读取订单</view>
-      <text>请稍候片刻。</text>
-    </view>
-    <view wx:elif="{{recordsError && recentOrders.length === 0}}" class="empty-card error-card" bindtap="retryRecords">
-      <view class="empty-title">订单没有加载出来</view>
-      <text>{{recordsError}}，点击重试。</text>
-    </view>
-    <view wx:elif="{{recentOrders.length === 0}}" class="empty-card" bindtap="goHome">
-      <view class="empty-title">暂无订单</view>
-      <text>下单后，订单会显示在这里。</text>
     </view>
   </view>
 
-  <view class="service-panel">
-    <view class="panel-title">我的服务</view>
-    <view class="service-grid">
+  <view class="section">
+    <view class="section-title">快捷服务</view>
+    <view class="service-list">
       <view
         wx:for="{{services}}"
         wx:key="label"
@@ -116,70 +81,10 @@
         data-action="{{item.action}}"
         bindtap="handleService"
       >
-        <view class="service-icon-wrap">
-          <image class="service-icon" src="{{item.icon}}" mode="aspectFit"></image>
-        </view>
-        <text>{{item.label}}</text>
+        <image class="service-icon" src="{{item.icon}}" mode="aspectFit"></image>
+        <text class="service-label">{{item.label}}</text>
+        <text class="service-arrow">›</text>
       </view>
-    </view>
-    <view wx:if="{{shippingAddress}}" class="address-line">{{shippingAddress}}</view>
-  </view>
-
-  <view class="recent-panel">
-    <view class="panel-head">
-      <view class="panel-title">最近预约</view>
-      <view class="panel-link" bindtap="goReservation">全部预约 ›</view>
-    </view>
-    <view wx:if="{{recentReservation}}" class="recent-card" bindtap="goReservation">
-      <image class="recent-image" src="{{recentReservation.image}}" mode="aspectFill"></image>
-      <view class="recent-copy">
-        <view class="recent-title">{{recentReservation.room}}</view>
-        <view class="recent-line">
-          <image src="/assets/icons/clock-line.png" mode="aspectFit"></image>
-          <text>{{recentReservation.dateText}}</text>
-        </view>
-        <view class="recent-line">
-          <image src="/assets/icons/users-line.png" mode="aspectFit"></image>
-          <text>人数：{{recentReservation.people}}人</text>
-        </view>
-      </view>
-      <view class="recent-status">
-        <text>{{recentReservation.status}}</text>
-        <view>查看详情</view>
-      </view>
-    </view>
-    <view wx:if="{{!recentReservation}}" class="empty-card" bindtap="goReservation">
-      <view class="empty-title">暂无茶室预约</view>
-      <text>选择日期和时段后，门店会人工确认。</text>
-    </view>
-  </view>
-
-  <view class="recent-panel">
-    <view class="panel-head">
-      <view class="panel-title">最近活动</view>
-      <view class="panel-link" bindtap="goEvents">全部活动 ›</view>
-    </view>
-    <view wx:if="{{recentSignup}}" class="recent-card" bindtap="goEvents">
-      <image class="recent-image" src="{{recentSignup.image}}" mode="aspectFill"></image>
-      <view class="recent-copy">
-        <view class="recent-title">{{recentSignup.title}}</view>
-        <view class="recent-line">
-          <image src="/assets/icons/clock-line.png" mode="aspectFit"></image>
-          <text>{{recentSignup.dateText}}</text>
-        </view>
-        <view class="recent-line">
-          <image src="/assets/icons/map-pin-line.png" mode="aspectFit"></image>
-          <text>{{recentSignup.place}}</text>
-        </view>
-      </view>
-      <view class="recent-status">
-        <text>{{recentSignup.status}}</text>
-        <view>查看详情</view>
-      </view>
-    </view>
-    <view wx:if="{{!recentSignup}}" class="empty-card" bindtap="goEvents">
-      <view class="empty-title">暂无活动报名</view>
-      <text>茶会、讲座和体验活动可在线提交报名。</text>
     </view>
   </view>
 
