@@ -231,10 +231,10 @@ Page({
     heroSlides: getInitialHeroSlides(),
     heroCurrent: 0,
     quickActions: [
-      { key: "tea", title: "茶叶购买", desc: "甄选好茶", icon: "/assets/icons/home-leaf.png" },
-      { key: "drink", title: "堂饮茶单", desc: "一席一味", icon: "/assets/icons/home-cup.png" },
-      { key: "room", title: "茶室预定", desc: "静享茶时", icon: "/assets/icons/home-house.png" },
-      { key: "event", title: "沙龙活动", desc: "茶事雅集", icon: "/assets/icons/home-calendar.png" }
+      { key: "tea", title: "茶叶购买", desc: "甄选好茶", icon: "/assets/images/home-quick-tea.png" },
+      { key: "drink", title: "堂饮茶单", desc: "一席一味", icon: "/assets/images/home-quick-drink.png" },
+      { key: "room", title: "茶室预定", desc: "静享茶时", icon: "/assets/images/home-quick-room.png" },
+      { key: "event", title: "沙龙活动", desc: "茶事雅集", icon: "/assets/images/home-quick-event.png" }
     ],
     featuredDrink: drinks[0],
     featuredTea: teaProducts[0],

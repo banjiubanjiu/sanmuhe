@@ -1,6 +1,12 @@
 <view class="page home">
   <view class="home-nav">
-    <view class="brand-title">禾煦</view>
+    <image
+      class="brand-lockup"
+      src="/assets/images/home-brand-lockup.png"
+      mode="widthFix"
+      aria-role="img"
+      aria-label="禾煦茶印，一杯好茶，日日相伴"
+    ></image>
   </view>
 
   <swiper
