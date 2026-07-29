@@ -254,6 +254,55 @@
   opacity: 0.9;
 }
 
+/* ===== Staff subscribe notice ===== */
+.staff-notice-card {
+  margin-top: 28rpx;
+  padding: 24rpx 22rpx;
+  border-radius: 22rpx;
+  background: linear-gradient(135deg, #f4f8f4 0%, #eef5ef 100%);
+  border: 1rpx solid rgba(47, 90, 63, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  box-shadow: 0 8rpx 24rpx rgba(45, 40, 31, 0.04);
+}
+
+.staff-notice-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.staff-notice-title {
+  color: #1d3628;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.staff-notice-desc {
+  margin-top: 8rpx;
+  color: #5f6f64;
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.staff-notice-btn {
+  flex: 0 0 auto;
+  margin: 0;
+  min-height: 64rpx;
+  padding: 0 22rpx;
+  line-height: 64rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(180deg, #2f5a3f 0%, #234a34 100%);
+  color: #f7f1e4;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.staff-notice-btn::after {
+  border: none;
+}
+
 /* ===== Order section ===== */
 .order-section {
   margin-top: 28rpx;

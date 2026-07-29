@@ -1,4 +1,4 @@
-const { listMyRecords, rechargeMember } = require("../../utils/cloudApi");
+const { getMemberCenter, listMyRecords, saveSubscription } = require("../../utils/cloudApi");
 const { normalizeOrder } = require("../../utils/orderCenter");
 const { syncTabBar } = require("../../utils/tabbar");
 const { withPrivacy } = require("../../utils/privacy");
@@ -138,12 +138,64 @@ Page(withPrivacy({
     recentSignup: null,
     shippingAddress: "",
     recordsLoading: false,
-    recordsError: ""
+    recordsError: "",
+    staffNotice: null,
+    staffSubscribeSubmitting: false
   },
 
   onShow() {
     syncTabBar(this);
     this.loadRecords();
+    this.loadStaffNotice();
+  },
+
+  loadStaffNotice() {
+    getMemberCenter().then((result) => {
+      const staffNotice = result && result.staffNotice ? result.staffNotice : null;
+      this.setData({ staffNotice });
+    }).catch(() => {
+      this.setData({ staffNotice: null });
+    });
+  },
+
+  /** 店员授权订阅消息：每次允许后可累计发送次数 */
+  subscribeStaffOrders() {
+    if (this.data.staffSubscribeSubmitting) {
+      return;
+    }
+    const staffNotice = this.data.staffNotice || {};
+    const templates = staffNotice.templates || [];
+    const tmplIds = templates.map((item) => item.templateId).filter(Boolean);
+    if (!staffNotice.isStaff) {
+      wx.showToast({ title: "当前账号不是店员", icon: "none" });
+      return;
+    }
+    if (!tmplIds.length) {
+      wx.showToast({ title: "店员通知模板未配置", icon: "none" });
+      return;
+    }
+    this.setData({ staffSubscribeSubmitting: true });
+    wx.requestSubscribeMessage({
+      tmplIds,
+      success: (res) => {
+        const accepted = tmplIds.some((id) => res && res[id] === "accept");
+        saveSubscription(res, templates).then(() => {
+          wx.showToast({
+            title: accepted ? "接单提醒已开启" : "未授权提醒",
+            icon: accepted ? "success" : "none"
+          });
+          this.loadStaffNotice();
+        }).catch(() => {
+          wx.showToast({ title: "订阅保存失败", icon: "none" });
+        }).finally(() => {
+          this.setData({ staffSubscribeSubmitting: false });
+        });
+      },
+      fail: () => {
+        this.setData({ staffSubscribeSubmitting: false });
+        wx.showToast({ title: "未完成授权", icon: "none" });
+      }
+    });
   },
 
   loadRecords() {
@@ -265,7 +317,7 @@ Page(withPrivacy({
   },
 
   goMember() {
-    wx.showToast({ title: "会员功能已整合到当前页面", icon: "none" });
+    wx.navigateTo({ url: "/pages/member/index" });
   },
 
   onMemberCardAction() {
@@ -273,41 +325,17 @@ Page(withPrivacy({
       this.startRecharge();
       return;
     }
-    wx.showToast({ title: "请先开通会员后再充值", icon: "none" });
+    this.showMemberBenefits();
   },
 
   showMemberBenefits() {
-    wx.showToast({ title: "会员功能已整合到当前页面", icon: "none" });
+    // 开通会员：进入会员中心（手机号快捷开通）
+    wx.navigateTo({ url: "/pages/member/index" });
   },
 
   startRecharge() {
-    const plans = [
-      { name: "充 500 送 100（到账 ¥600）", planId: "recharge-500" },
-      { name: "充 1000 送 250（到账 ¥1250）", planId: "recharge-1000" }
-    ];
-    wx.showActionSheet({
-      itemList: plans.map((p) => p.name),
-      success: (res) => {
-        const plan = plans[res.tapIndex];
-        if (!plan) return;
-        wx.showModal({
-          title: "确认充值",
-          content: `${plan.name}\n\n支付完成后余额将在片刻内到账。`,
-          success: (modalRes) => {
-            if (!modalRes.confirm) return;
-            wx.showLoading({ title: "充值中" });
-            rechargeMember(plan.planId).then(() => {
-              wx.hideLoading();
-              wx.showToast({ title: "充值成功", icon: "success" });
-              this.loadRecords();
-            }).catch((err) => {
-              wx.hideLoading();
-              wx.showToast({ title: (err && err.message) || "充值未完成", icon: "none" });
-            });
-          }
-        });
-      }
-    });
+    // 充值档位选择与支付/模拟充值均在会员中心完成
+    wx.navigateTo({ url: "/pages/member/index?focus=recharge" });
   },
 
   goReservation() {

@@ -330,6 +330,7 @@ const actionPermissions = {
   globalSearch: "dashboard.read",
   listOrders: "order.read",
   listPaidOrderAlerts: "order.read",
+  listStoreVoiceAlerts: "order.read",
   cancelOrder: "order.write",
   confirmManualOrder: "order.write",
   markShipped: "order.write",
@@ -914,24 +915,152 @@ async function listCollection(collection, status, keyword, event, keywordFields 
 }
 
 async function listPaidOrderAlerts() {
-  const result = await db.collection("orders")
-    .orderBy("paidAt", "desc")
-    .limit(ORDER_ALERT_READ_LIMIT)
-    .get();
-  const alerts = (result.data || [])
-    .filter((order) => order && order.payStatus === "paid" && toDate(order.paidAt))
-    .map((order) => {
-      const paidAt = toDate(order.paidAt);
-      return {
-        id: cleanText(order._id, 80),
-        orderNo: cleanText(order.orderNo, 40),
-        tableNo: cleanText(order.tableNo, 20),
-        deliveryMethod: cleanText(order.deliveryMethod, 20),
-        status: cleanText(order.status, 30),
-        total: number(order.total),
-        paidAt: paidAt.toISOString()
-      };
+  // 兼容旧后台：只返回已付款商品单
+  const full = await listStoreVoiceAlerts();
+  return {
+    ok: true,
+    alerts: (full.alerts || []).filter((item) => item.kind === "order_paid"),
+    serverTime: full.serverTime
+  };
+}
+
+/**
+ * 店内语音播报数据源：
+ * - order_new：待支付/新下单
+ * - order_paid：已支付
+ * - recharge：会员充值入账
+ */
+async function listStoreVoiceAlerts() {
+  await ensureCollection("orders");
+  await ensureCollection("recharge_orders");
+
+  let orderRows = [];
+  try {
+    const paidResult = await db.collection("orders")
+      .orderBy("paidAt", "desc")
+      .limit(ORDER_ALERT_READ_LIMIT)
+      .get();
+    orderRows = orderRows.concat(paidResult.data || []);
+  } catch (error) {
+    // paidAt 索引缺失时降级
+  }
+
+  try {
+    const createdResult = await db.collection("orders")
+      .orderBy("createdAt", "desc")
+      .limit(ORDER_ALERT_READ_LIMIT)
+      .get();
+    const existing = new Set(orderRows.map((row) => row._id));
+    (createdResult.data || []).forEach((row) => {
+      if (!existing.has(row._id)) {
+        orderRows.push(row);
+      }
     });
+  } catch (error) {
+    // createdAt 排序失败则忽略
+  }
+
+  const alerts = [];
+
+  orderRows.forEach((order) => {
+    if (!order) return;
+    const orderNo = cleanText(order.orderNo, 40);
+    const tableNo = cleanText(order.tableNo, 20);
+    const deliveryMethod = cleanText(order.deliveryMethod, 20);
+    const status = cleanText(order.status, 30);
+    const total = number(order.total);
+    const id = cleanText(order._id, 80);
+    const paidAt = toDate(order.paidAt);
+    const createdAt = toDate(order.createdAt) || paidAt;
+
+    if (order.payStatus === "paid" && paidAt) {
+      alerts.push({
+        id,
+        kind: "order_paid",
+        orderNo,
+        tableNo,
+        deliveryMethod,
+        status,
+        total,
+        eventAt: paidAt.toISOString(),
+        paidAt: paidAt.toISOString()
+      });
+      return;
+    }
+
+    // 未支付新单：用于「新订单」语音（余额已付不会走到这里）
+    if (
+      (order.payStatus === "pending" || status === "待支付" || status === "待确认")
+      && order.payStatus !== "paid"
+      && createdAt
+    ) {
+      // 待确认且未付：到店单；待支付：待微信付款
+      alerts.push({
+        id,
+        kind: "order_new",
+        orderNo,
+        tableNo,
+        deliveryMethod,
+        status,
+        total,
+        eventAt: createdAt.toISOString(),
+        paidAt: createdAt.toISOString()
+      });
+    }
+  });
+
+  try {
+    const rechargeResult = await db.collection("recharge_orders")
+      .orderBy("updatedAt", "desc")
+      .limit(30)
+      .get();
+    (rechargeResult.data || []).forEach((row) => {
+      if (!row || row.payStatus !== "paid") return;
+      const eventAt = toDate(row.paidAt) || toDate(row.updatedAt) || toDate(row.createdAt);
+      if (!eventAt) return;
+      alerts.push({
+        id: cleanText(row._id, 80),
+        kind: "recharge",
+        orderNo: cleanText(row.orderNo, 40),
+        tableNo: "",
+        deliveryMethod: "",
+        status: "已支付",
+        total: Math.max(0, Math.round(Number(row.payAmountFen) || 0)) / 100,
+        planTitle: cleanText(row.planTitle, 40),
+        eventAt: eventAt.toISOString(),
+        paidAt: eventAt.toISOString()
+      });
+    });
+  } catch (error) {
+    try {
+      const rechargeResult = await db.collection("recharge_orders")
+        .orderBy("createdAt", "desc")
+        .limit(30)
+        .get();
+      (rechargeResult.data || []).forEach((row) => {
+        if (!row || row.payStatus !== "paid") return;
+        const eventAt = toDate(row.paidAt) || toDate(row.createdAt);
+        if (!eventAt) return;
+        alerts.push({
+          id: cleanText(row._id, 80),
+          kind: "recharge",
+          orderNo: cleanText(row.orderNo, 40),
+          tableNo: "",
+          deliveryMethod: "",
+          status: "已支付",
+          total: Math.max(0, Math.round(Number(row.payAmountFen) || 0)) / 100,
+          planTitle: cleanText(row.planTitle, 40),
+          eventAt: eventAt.toISOString(),
+          paidAt: eventAt.toISOString()
+        });
+      });
+    } catch (innerError) {
+      // recharge 集合或索引不可用时跳过
+    }
+  }
+
+  alerts.sort((left, right) => new Date(left.eventAt || left.paidAt).getTime() - new Date(right.eventAt || right.paidAt).getTime());
+
   return {
     ok: true,
     alerts,
@@ -3104,6 +3233,9 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "listPaidOrderAlerts") {
       return await listPaidOrderAlerts();
+    }
+    if (action === "listStoreVoiceAlerts") {
+      return await listStoreVoiceAlerts();
     }
     if (action === "cancelOrder") {
       return await cancelOrder(event, caller);

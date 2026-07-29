@@ -295,10 +295,10 @@ async function sendNotice(event = {}) {
     return { ok: true, skipped: true, reason: "notice_disabled" };
   }
 
-  // 店员提醒模板未单独配置时，允许回退到订单支付模板（字段结构一致：thing/amount/phrase/time）。
+  // 店员提醒：设置 → 硬编码店员模板 → 支付成功模板
   let templateId = cleanText(settings[config.templateKey], 80);
   if (!templateId && kind === "orderStaffNew") {
-    templateId = cleanText(settings.orderPaidTemplateId, 80);
+    templateId = STAFF_ORDER_TEMPLATE_ID || cleanText(settings.orderPaidTemplateId, 80);
   }
   if (!templateId) {
     await logNotice({ kind, openid, status: "skipped", reason: "missing_template" });
@@ -391,12 +391,35 @@ async function notifyStaff(event = {}) {
 
 exports.main = async (event = {}) => {
   if (event.action === "health") {
-    return { ok: true, name: "serviceNotify" };
+    const settings = await readSettings();
+    return {
+      ok: true,
+      name: "serviceNotify",
+      staffOpenidCount: getStaffOpenids().length,
+      staffTemplateId: cleanText(settings.staffOrderTemplateId, 80) || STAFF_ORDER_TEMPLATE_ID,
+      staffNoticeEnabled: settings.staffOrderNoticeEnabled !== false,
+      miniprogramState: process.env.MINIPROGRAM_STATE || "formal"
+    };
   }
 
   try {
     if (event.action === "notifyStaff") {
       return await notifyStaff(event);
+    }
+    // 联调：在店员已授权后，直接发一条测试订阅消息
+    if (event.action === "testStaffNotify") {
+      return await notifyStaff({
+        kind: "orderStaffNew",
+        openids: event.openids,
+        payload: {
+          orderNo: cleanText(event.orderNo, 32) || `TEST${Date.now()}`,
+          itemSummary: cleanText(event.itemSummary, 20) || "联调测试商品",
+          remark: cleanText(event.remark, 20) || "订阅消息测试",
+          status: cleanText(event.status, 5) || "测试",
+          total: event.total != null ? event.total : 0.01,
+          time: ""
+        }
+      });
     }
     return await sendNotice(event);
   } catch (error) {

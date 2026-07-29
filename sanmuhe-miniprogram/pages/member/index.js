@@ -76,8 +76,9 @@ function buildLevel(memberInfo = {}) {
   };
 }
 
-/** 会员储值权益以门店公示为准：充 500 送 100、充 1000 送 250 */
+/** 会员储值权益以门店公示为准；含联调测试档 */
 const benefitDetails = [
+  { title: "测试 0.01 元", desc: "联调测试档位，实付 0.01 元到账（无赠送）", icon: "/assets/icons/profile-wallet.png" },
   { title: "充 500 送 100", desc: "充值 500 元，赠送 100 元，到账 600 元", icon: "/assets/icons/profile-wallet.png" },
   { title: "充 1000 送 250", desc: "充值 1000 元，赠送 250 元，到账 1250 元", icon: "/assets/icons/profile-star.png" },
   { title: "余额即享支付", desc: "储值余额可在结算时直接使用", icon: "/assets/icons/profile-coupon.png" },
@@ -98,16 +99,70 @@ function pickRecommendations() {
     }));
 }
 
+const DEFAULT_PLANS = [
+  {
+    id: "recharge-0.01",
+    title: "测试 0.01 元",
+    description: "联调测试档位，实付 0.01 元，到账 0.01 元（无赠送）",
+    principal: "0.01",
+    bonus: "0.00",
+    total: "0.01"
+  },
+  {
+    id: "recharge-500",
+    title: "充 500 送 100",
+    description: "充值 500 元，赠送 100 元，到账 600 元",
+    principal: "500.00",
+    bonus: "100.00",
+    total: "600.00"
+  },
+  {
+    id: "recharge-1000",
+    title: "充 1000 送 250",
+    description: "充值 1000 元，赠送 250 元，到账 1250 元",
+    principal: "1000.00",
+    bonus: "250.00",
+    total: "1250.00"
+  }
+];
+
+function getSelectedPlanLabel(plans, planId) {
+  const plan = (plans || []).find((item) => item.id === planId);
+  if (!plan) {
+    return "";
+  }
+  if (plan.principal != null && plan.total != null) {
+    return `充 ¥${plan.principal} · 到账 ¥${plan.total}`;
+  }
+  return plan.title || plan.description || "";
+}
+
+function getRechargeButtonText(memberInfo, payment) {
+  if (!(memberInfo && memberInfo.isMember)) {
+    return "请先开通会员";
+  }
+  // 真实支付就绪时优先走微信支付，避免白名单测试模式挡住真机联调
+  if (payment && payment.realPaymentReady) {
+    return "微信支付充值";
+  }
+  if (payment && payment.testRechargeEnabled) {
+    return "确认模拟充值";
+  }
+  return "暂不可充值";
+}
+
 Page(withPrivacy({
   data: {
     member,
     wallet: emptyWallet,
-    plans: [],
+    plans: DEFAULT_PLANS,
     payment: {
       realPaymentReady: false,
-      testRechargeEnabled: false
+      testRechargeEnabled: true
     },
-    selectedPlanId: "",
+    selectedPlanId: "recharge-0.01",
+    selectedPlanLabel: getSelectedPlanLabel(DEFAULT_PLANS, "recharge-0.01"),
+    rechargeButtonText: getRechargeButtonText(member, { testRechargeEnabled: true }),
     nameInput: "",
     agreementAccepted: false,
     activationReady: false,
@@ -124,6 +179,10 @@ Page(withPrivacy({
     loadingMember: false,
     privacyPurpose: MEMBER_PRIVACY_PURPOSE,
     privacyReady: false
+  },
+
+  onLoad(options = {}) {
+    this.focusRecharge = String(options.focus || "") === "recharge";
   },
 
   onShow() {
@@ -184,13 +243,22 @@ Page(withPrivacy({
     this.setData({ loadingMember: true });
     getMemberCenter().then((result) => {
       const memberInfo = Object.assign({}, member, result.member || {});
-      const plans = result.plans || [];
+      const remotePlans = result.plans || [];
+      const plans = remotePlans.length ? remotePlans : DEFAULT_PLANS;
+      const payment = Object.assign(
+        { realPaymentReady: false, testRechargeEnabled: true },
+        result.payment || {}
+      );
+      // 云端若返回 false，但测试模式应仍允许本地默认 true 由云函数控制；此处信任云函数
+      const selectedPlanId = this.data.selectedPlanId || (plans[0] && plans[0].id) || "";
       this.setData({
         member: memberInfo,
         wallet: Object.assign({}, emptyWallet, result.wallet || {}),
         plans,
-        payment: Object.assign({ realPaymentReady: false, testRechargeEnabled: false }, result.payment || {}),
-        selectedPlanId: this.data.selectedPlanId || (plans[0] && plans[0].id) || "",
+        payment,
+        selectedPlanId,
+        selectedPlanLabel: getSelectedPlanLabel(plans, selectedPlanId),
+        rechargeButtonText: getRechargeButtonText(memberInfo, payment),
         nameInput: this.data.nameInput || (memberInfo.isMember ? memberInfo.name : ""),
         level: buildLevel(memberInfo),
         benefitDetails,
@@ -206,6 +274,26 @@ Page(withPrivacy({
       });
       this.refreshActivationState();
       this.syncPrivacyState();
+      if (this.focusRecharge) {
+        this.focusRecharge = false;
+        setTimeout(() => {
+          wx.pageScrollTo({
+            selector: "#wallet-card",
+            duration: 280
+          });
+        }, 200);
+      }
+    }).catch(() => {
+      // 云函数失败时仍展示本地档位，避免“无入口”
+      const plans = DEFAULT_PLANS;
+      const payment = { realPaymentReady: false, testRechargeEnabled: true };
+      this.setData({
+        plans,
+        payment,
+        selectedPlanId: plans[0].id,
+        selectedPlanLabel: getSelectedPlanLabel(plans, plans[0].id),
+        rechargeButtonText: getRechargeButtonText(this.data.member, payment)
+      });
     }).finally(() => {
       this.setData({ loadingMember: false });
     });
@@ -224,7 +312,7 @@ Page(withPrivacy({
   showMemberAgreement() {
     wx.showModal({
       title: "会员及储值规则",
-      content: "当前储值礼遇：充 500 送 100、充 1000 送 250。充值本金与赠送金额分别记账，余额仅限禾煦消费使用。退款及赠送金额处理以门店公示规则为准；如需帮助，请联系门店。",
+      content: "当前储值礼遇：充 500 送 100、充 1000 送 250；另有联调测试档 0.01 元。充值本金与赠送金额分别记账，余额仅限禾煦消费使用。退款及赠送金额处理以门店公示规则为准；如需帮助，请联系门店。",
       showCancel: false
     });
   },
@@ -292,51 +380,38 @@ Page(withPrivacy({
   },
 
   selectPlan(event) {
-    this.setData({ selectedPlanId: event.currentTarget.dataset.id || "" });
+    const selectedPlanId = event.currentTarget.dataset.id || "";
+    this.setData({
+      selectedPlanId,
+      selectedPlanLabel: getSelectedPlanLabel(this.data.plans, selectedPlanId)
+    });
   },
 
-  rechargeMember() {
-    if (this.data.rechargeSubmitting) {
-      return;
-    }
-    const planId = this.data.selectedPlanId;
-    if (!planId) {
-      wx.showToast({ title: "请选择充值档位", icon: "none" });
-      return;
-    }
-    if (!this.data.payment.testRechargeEnabled && !this.data.payment.realPaymentReady) {
-      wx.showModal({
-        title: "储值服务暂未开放",
-        content: "敬请期待。",
-        showCancel: false
-      });
-      return;
-    }
-    const plan = this.data.plans.find((item) => item.id === planId);
-    if (!this.data.payment.testRechargeEnabled && this.data.payment.realPaymentReady) {
-      wx.showModal({
-        title: "确认会员充值",
-        content: `${plan ? plan.description : "当前充值档位"}\n支付完成后，余额将在片刻内到账。`,
-        success: (modalResult) => {
-          if (!modalResult.confirm) {
-            return;
-          }
-          this.setData({ rechargeSubmitting: true });
-          rechargeMember(planId).then(() => {
-            wx.showToast({ title: "支付结果确认中", icon: "none" });
-            setTimeout(() => this.loadMemberCenter(), 1500);
-          }).catch((error) => {
-            wx.showToast({ title: error.message || "充值未完成", icon: "none" });
-          }).finally(() => {
-            this.setData({ rechargeSubmitting: false });
-          });
+  startRealRecharge(planId, plan) {
+    wx.showModal({
+      title: "确认微信支付充值",
+      content: `${plan ? plan.description : "当前充值档位"}\n将调起微信支付，成功后余额自动到账。`,
+      success: (modalResult) => {
+        if (!modalResult.confirm) {
+          return;
         }
-      });
-      return;
-    }
+        this.setData({ rechargeSubmitting: true });
+        rechargeMember(planId).then(() => {
+          wx.showToast({ title: "支付结果确认中", icon: "none" });
+          setTimeout(() => this.loadMemberCenter(), 1500);
+        }).catch((error) => {
+          wx.showToast({ title: error.message || "充值未完成", icon: "none" });
+        }).finally(() => {
+          this.setData({ rechargeSubmitting: false });
+        });
+      }
+    });
+  },
+
+  startSimulateRecharge(planId, plan) {
     wx.showModal({
       title: "确认模拟充值",
-      content: `${plan ? plan.description : "当前充值档位"}\n体验余额仅用于测试，不会产生真实扣款。`,
+      content: `${plan ? plan.description : "当前充值档位"}\n体验余额仅用于测试，不会真实扣款。`,
       success: (modalResult) => {
         if (!modalResult.confirm) {
           return;
@@ -345,7 +420,7 @@ Page(withPrivacy({
         this.setData({ rechargeSubmitting: true });
         simulateMemberRecharge({ planId, requestId }).then((result) => {
           if (!result || result.ok === false) {
-            throw new Error(result && result.message || "模拟充值失败");
+            throw new Error((result && result.message) || "模拟充值失败");
           }
           wx.showToast({ title: "模拟余额已到账" });
           return this.loadMemberCenter();
@@ -356,6 +431,65 @@ Page(withPrivacy({
         });
       }
     });
+  },
+
+  rechargeMember() {
+    if (this.data.rechargeSubmitting) {
+      return;
+    }
+    if (!this.data.member || !this.data.member.isMember) {
+      wx.showToast({ title: "请先开通会员", icon: "none" });
+      wx.pageScrollTo({ scrollTop: 0, duration: 240 });
+      return;
+    }
+    const planId = this.data.selectedPlanId;
+    if (!planId) {
+      wx.showToast({ title: "请选择充值档位", icon: "none" });
+      return;
+    }
+    const plan = this.data.plans.find((item) => item.id === planId);
+    const canTest = !!(this.data.payment && this.data.payment.testRechargeEnabled);
+    const canReal = !!(this.data.payment && this.data.payment.realPaymentReady);
+
+    if (!canTest && !canReal) {
+      wx.showModal({
+        title: "暂不可充值",
+        content: "真实微信支付尚未配置（createPayment 密钥 + REAL_PAYMENT_ENABLED）。开发环境请确认 MEMBER_TEST_MODE=true。",
+        showCancel: false
+      });
+      return;
+    }
+
+    // 真实支付优先：白名单模拟仅作为未配密钥时的兜底，不再挡住真机微信支付
+    if (canReal) {
+      this.startRealRecharge(planId, plan);
+      return;
+    }
+
+    this.startSimulateRecharge(planId, plan);
+  },
+
+  /** 白名单用户在真实支付已开时，仍可手动走模拟入账（不扣款） */
+  simulateRechargeOnly() {
+    if (this.data.rechargeSubmitting) {
+      return;
+    }
+    if (!this.data.member || !this.data.member.isMember) {
+      wx.showToast({ title: "请先开通会员", icon: "none" });
+      return;
+    }
+    const canTest = !!(this.data.payment && this.data.payment.testRechargeEnabled);
+    if (!canTest) {
+      wx.showToast({ title: "当前账号未开放模拟充值", icon: "none" });
+      return;
+    }
+    const planId = this.data.selectedPlanId;
+    if (!planId) {
+      wx.showToast({ title: "请选择充值档位", icon: "none" });
+      return;
+    }
+    const plan = this.data.plans.find((item) => item.id === planId);
+    this.startSimulateRecharge(planId, plan);
   },
 
   goBack() {

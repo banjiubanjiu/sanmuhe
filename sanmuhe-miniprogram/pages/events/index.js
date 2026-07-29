@@ -13,7 +13,7 @@ const eventDisplay = {
     place: "禾煦",
     quota: 12,
     image: "/assets/images/event-yangxin-tea.jpg",
-    detailImage: "/assets/images/event-yangxin-tea.jpg",
+    detailImage: "/assets/images/event-detail-content-1.jpg",
     summary: "在茶香与静心中，慢慢安住自己"
   },
   "event-002": {
@@ -24,7 +24,7 @@ const eventDisplay = {
     place: "禾煦",
     quota: 10,
     image: "/assets/images/event-tea-class.jpg",
-    detailImage: "/assets/images/event-tea-class.jpg",
+    detailImage: "/assets/images/event-detail-content-2.jpg",
     summary: "从识香、泡茶到品饮，轻松了解基础茶知识"
   },
   "event-003": {
@@ -35,7 +35,7 @@ const eventDisplay = {
     place: "禾煦",
     quota: 8,
     image: "/assets/images/event-seasonal-tea.jpg",
-    detailImage: "/assets/images/event-seasonal-tea.jpg",
+    detailImage: "/assets/images/event-detail-content-3.jpg",
     summary: "顺时品茶，感受节气与日常之美"
   }
 };

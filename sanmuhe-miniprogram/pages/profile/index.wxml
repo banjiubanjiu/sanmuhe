@@ -79,6 +79,23 @@
     </view>
   </view>
 
+  <view wx:if="{{staffNotice && staffNotice.isStaff}}" class="staff-notice-card">
+    <view class="staff-notice-copy">
+      <view class="staff-notice-title">店员接单提醒</view>
+      <view class="staff-notice-desc">
+        {{staffNotice.remaining > 0
+          ? ('剩余可提醒 ' + staffNotice.remaining + ' 次，新订单将推送到微信服务通知')
+          : '授权后，顾客下单/付款时微信会提醒你'}}
+      </view>
+    </view>
+    <button
+      class="staff-notice-btn"
+      loading="{{staffSubscribeSubmitting}}"
+      disabled="{{staffSubscribeSubmitting}}"
+      bindtap="subscribeStaffOrders"
+    >{{staffNotice.remaining > 0 ? '续期授权' : '开启提醒'}}</button>
+  </view>
+
   <view class="section">
     <view class="section-title">快捷服务</view>
     <view class="service-list">

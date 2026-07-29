@@ -7,14 +7,12 @@
     {
       "name": "getOpenId",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "envVariables": {}
+      "handler": "index.main"
     },
     {
       "name": "getCatalog",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "envVariables": {}
+      "handler": "index.main"
     },
     {
       "name": "seedDemoData",
@@ -80,21 +78,13 @@
       "timeout": 30,
       "installDependency": true,
       "envVariables": {
-        "REAL_PAYMENT_ENABLED": "true",
-        "WECHAT_PAY_APPID": "wx47e7cc7143682291",
-        "WECHAT_PAY_MCH_ID": "1748659941",
-        "WECHAT_PAY_NOTIFY_URL": "https://cloudbase-d2gq023qn50e9d82f.service.tcloudbase.com/wechatPayNotify"
+        "REAL_PAYMENT_ENABLED": "false"
       }
     },
     {
       "name": "wechatPayNotify",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "timeout": 30,
-      "installDependency": true,
-      "envVariables": {
-        "WECHAT_PAY_PUBLIC_KEY_ID": "PUB_KEY_ID_0117486599412026072600292052001801"
-      }
+      "type": "HTTP"
     },
     {
       "name": "releaseOrderLocks",
@@ -106,44 +96,37 @@
           "type": "timer",
           "config": "0 */5 * * * * *"
         }
-      ],
-      "envVariables": {}
+      ]
     },
     {
       "name": "createReservation",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "envVariables": {}
+      "handler": "index.main"
     },
     {
       "name": "listEvents",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "envVariables": {}
+      "handler": "index.main"
     },
     {
       "name": "createEvent",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "envVariables": {}
+      "handler": "index.main"
     },
     {
       "name": "joinEvent",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "envVariables": {}
+      "handler": "index.main"
     },
     {
       "name": "listMyRecords",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "envVariables": {}
+      "handler": "index.main"
     },
     {
       "name": "cleanupSmokeData",
       "runtime": "Nodejs16.13",
-      "handler": "index.main",
-      "envVariables": {}
+      "handler": "index.main"
     },
     {
       "name": "serviceNotify",
@@ -154,8 +137,8 @@
       "memorySize": 256,
       "installDependency": true,
       "envVariables": {
-        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
+        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
         "MINIPROGRAM_STATE": "developer"
       }
     },
@@ -172,8 +155,7 @@
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "MEMBER_TEST_MODE": "true",
         "MEMBER_TEST_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "REAL_PAYMENT_ENABLED": "true",
-        "MEMBER_TEST_STRICT": "false"
+        "REAL_PAYMENT_ENABLED": "false"
       }
     }
   ]

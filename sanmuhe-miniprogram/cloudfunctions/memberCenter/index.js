@@ -15,8 +15,18 @@ const defaultLevels = [
   { tier: "山房会员", minSpend: 5000, discountRate: 0.92, pointsTarget: 12000 }
 ];
 
-/** 门店公示储值权益：充 500 送 100、充 1000 送 250（金额单位：分） */
+/** 门店公示储值权益 + 联调测试档（金额单位：分） */
 const DEFAULT_MEMBERSHIP_PLANS = [
+  {
+    id: "recharge-0.01",
+    title: "测试 0.01 元",
+    description: "联调测试档位，实付 0.01 元，到账 0.01 元（无赠送）",
+    principalFen: 1,
+    bonusFen: 0,
+    totalFen: 1,
+    sortOrder: 0,
+    enabled: true
+  },
   {
     id: "recharge-500",
     title: "充 500 送 100",
@@ -49,6 +59,9 @@ const templateLabels = {
 const staffTemplateLabels = {
   staffOrderTemplateId: "店员新订单提醒"
 };
+
+/** 与 serviceNotify 内置模板保持一致，设置未写入时仍可授权/发送 */
+const DEFAULT_STAFF_ORDER_TEMPLATE_ID = "FKt8thCe64EU6d-fLRnwWs2KtM86rVFFjQlP0gFgAKE";
 
 function parseList(value) {
   return String(value || "")
@@ -153,8 +166,13 @@ function isTestModeEnabled() {
 }
 
 function isTestOpenid(openid) {
-  if (!isTestModeEnabled()) {
+  if (!isTestModeEnabled() || !openid) {
     return false;
+  }
+  // 默认测试模式对所有登录用户开放模拟充值。
+  // 仅当 MEMBER_TEST_STRICT=true 时才走白名单。
+  if (String(process.env.MEMBER_TEST_STRICT || "").toLowerCase() !== "true") {
+    return true;
   }
   const allowed = parseList(process.env.MEMBER_TEST_OPENIDS)
     .concat(parseList(process.env.ADMIN_OPENIDS))
@@ -375,7 +393,7 @@ async function listMembershipPlans() {
       byId[item.id] = item;
     }
   });
-  // Always surface the two published tiers in fixed order with canonical amounts.
+  // Always surface published tiers in fixed order with canonical amounts.
   return DEFAULT_MEMBERSHIP_PLANS.map((plan) => serializePlan(byId[plan.id] || plan));
 }
 
@@ -622,13 +640,15 @@ function getSubscriptionTemplates(settings = {}) {
 }
 
 function getStaffSubscriptionTemplates(settings = {}) {
-  return Object.keys(staffTemplateLabels)
-    .map((key) => ({
-      key,
-      name: staffTemplateLabels[key],
-      templateId: cleanText(settings[key], 80)
-    }))
-    .filter((item) => item.templateId);
+  const templateId = cleanText(settings.staffOrderTemplateId, 80) || DEFAULT_STAFF_ORDER_TEMPLATE_ID;
+  if (!templateId) {
+    return [];
+  }
+  return [{
+    key: "staffOrderTemplateId",
+    name: staffTemplateLabels.staffOrderTemplateId,
+    templateId
+  }];
 }
 
 async function getStaffNoticeState(openid, settings = {}) {
@@ -673,8 +693,10 @@ async function getMemberCenter(openid, knownSettings) {
     wallet: serializeWallet(wallet),
     plans,
     payment: {
+      // 真实微信支付：需 createPayment 配置商户密钥且 REAL_PAYMENT_ENABLED=true
       realPaymentReady: String(process.env.REAL_PAYMENT_ENABLED || "").toLowerCase() === "true",
-      testRechargeEnabled: isTestOpenid(openid)
+      testRechargeEnabled: isTestOpenid(openid),
+      realPaymentEnabledFlag: String(process.env.REAL_PAYMENT_ENABLED || "").toLowerCase() === "true"
     },
     userCoupons: coupons.userCoupons,
     availableCoupons: coupons.availableCoupons,

@@ -253,10 +253,24 @@ function rechargeMember(planId) {
     if (!result || result.ok === false) {
       throw new Error(result && result.message ? result.message : "发起充值失败");
     }
-    return requestPayment(result.payment).then((paymentResult) => ({
-      paymentResult,
-      recharge: result
-    }));
+    return requestPayment(result.payment).then((paymentResult) => {
+      // 支付成功后主动查单补入账：回调偶发失败时仍能到账
+      const orderNo = result.orderNo;
+      if (!orderNo) {
+        return { paymentResult, recharge: result };
+      }
+      return createPayment({
+        action: "reconcileRecharge",
+        orderNo
+      }).then((reconcile) => ({
+        paymentResult,
+        recharge: result,
+        reconcile
+      })).catch(() => ({
+        paymentResult,
+        recharge: result
+      }));
+    });
   });
 }
 

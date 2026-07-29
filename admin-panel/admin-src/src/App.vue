@@ -564,7 +564,7 @@ const orderBroadcastStatusDetail = computed(() => {
   if (orderBroadcast.starting) return "正在建立最新已付款订单基线，不会补播开启前的旧订单。";
   if (orderBroadcast.audioMessage) return orderBroadcast.audioMessage;
   if (orderBroadcast.error) return `最近检查失败：${orderBroadcast.error}`;
-  if (!orderBroadcast.enabled) return "连接普通蓝牙音箱后点击开启；仅播报支付已确认的订单。";
+  if (!orderBroadcast.enabled) return "连接普通蓝牙音箱后点击开启。语音：新订单 / 订单已支付 / 会员充值。";
   if (!orderBroadcast.visible) return "页面进入后台后浏览器可能暂停检查；回到本页会立即补查。";
   if (orderBroadcast.wakeMessage) return orderBroadcast.wakeMessage;
   return orderBroadcast.wakeLockActive
@@ -1645,7 +1645,7 @@ function processBroadcastSpeechQueue() {
   const voice = preferredBroadcastVoice();
   if (voice) utterance.voice = voice;
   utterance.lang = voice?.lang || "zh-CN";
-  utterance.rate = 0.94;
+  utterance.rate = 0.88;
   utterance.pitch = 1;
   utterance.volume = 1;
   utterance.onend = () => finish();
@@ -1671,7 +1671,7 @@ function enqueueBroadcastSpeech(text, kind = "order") {
 }
 
 function orderAlertKey(alert = {}) {
-  return `${alert.id || alert.orderNo || "order"}:${alert.paidAt || "paid"}`;
+  return `${alert.kind || "order"}:${alert.id || alert.orderNo || "order"}:${alert.eventAt || alert.paidAt || "paid"}`;
 }
 
 function rememberOrderAlert(alert) {
@@ -1683,11 +1683,16 @@ function rememberOrderAlert(alert) {
   }
 }
 
+/** 店内短语音：尽量简短，TTS 更稳、更好懂 */
 function orderAlertSpeech(alert = {}) {
   const tableNo = String(alert.tableNo || "").trim();
-  return tableNo
-    ? `禾煦收到新的已付款订单，桌号${tableNo}，请及时处理。`
-    : "禾煦收到新的已付款订单，请及时处理。";
+  if (alert.kind === "recharge") {
+    return "会员充值";
+  }
+  if (alert.kind === "order_paid") {
+    return tableNo ? `订单已支付，桌号${tableNo}` : "订单已支付";
+  }
+  return tableNo ? `新订单，桌号${tableNo}` : "新订单";
 }
 
 async function pollPaidOrderAlerts({ baseline = false } = {}) {
@@ -1695,11 +1700,20 @@ async function pollPaidOrderAlerts({ baseline = false } = {}) {
   const sessionId = broadcastSessionId;
   orderBroadcast.polling = true;
   try {
-    const result = await callFunction("manageOperations", { action: "listPaidOrderAlerts" });
+    let result;
+    try {
+      result = await callFunction("manageOperations", { action: "listStoreVoiceAlerts" });
+    } catch (error) {
+      result = await callFunction("manageOperations", { action: "listPaidOrderAlerts" });
+    }
     if (sessionId !== broadcastSessionId) return;
     const alerts = (Array.isArray(result.alerts) ? result.alerts : [])
-      .filter((alert) => alert && alert.paidAt)
-      .sort((left, right) => new Date(left.paidAt).getTime() - new Date(right.paidAt).getTime());
+      .filter((alert) => alert && (alert.eventAt || alert.paidAt))
+      .map((alert) => Object.assign({}, alert, {
+        kind: alert.kind || "order_paid",
+        eventAt: alert.eventAt || alert.paidAt
+      }))
+      .sort((left, right) => new Date(left.eventAt).getTime() - new Date(right.eventAt).getTime());
 
     if (baseline) {
       seenOrderAlertKeys.clear();
@@ -1707,7 +1721,7 @@ async function pollPaidOrderAlerts({ baseline = false } = {}) {
     } else {
       alerts.filter((alert) => !seenOrderAlertKeys.has(orderAlertKey(alert))).forEach((alert) => {
         rememberOrderAlert(alert);
-        orderBroadcast.lastAlertAt = alert.paidAt;
+        orderBroadcast.lastAlertAt = alert.eventAt || alert.paidAt;
         orderBroadcast.lastOrderNo = alert.orderNo || alert.id || "新订单";
         enqueueBroadcastSpeech(orderAlertSpeech(alert), "order");
       });
@@ -1804,9 +1818,9 @@ async function startOrderBroadcast() {
     orderBroadcast.enabled = true;
     orderBroadcast.starting = false;
     await acquireOrderBroadcastWakeLock();
-    enqueueBroadcastSpeech("禾煦店内新订单播报已开启。", "test");
+    enqueueBroadcastSpeech("播报已开启", "test");
     scheduleOrderBroadcastPoll();
-    showToast("店内播报已开启，只提醒新产生的已付款订单");
+    showToast("店内播报已开启：新订单 / 已支付 / 充值");
   } catch (error) {
     if (sessionId !== broadcastSessionId) return;
     orderBroadcast.enabled = false;
@@ -1855,8 +1869,16 @@ function testOrderBroadcastSound() {
     showToast(orderBroadcast.audioMessage);
     return;
   }
-  enqueueBroadcastSpeech("禾煦店内播报测试正常。", "test");
-  showToast(orderBroadcast.speechSupported ? "已播放测试语音" : "浏览器无语音合成，已播放提示音");
+  enqueueBroadcastSpeech("新订单", "test");
+  window.setTimeout(() => {
+    if (orderBroadcast.enabled || true) {
+      enqueueBroadcastSpeech("订单已支付", "test");
+    }
+  }, 900);
+  window.setTimeout(() => {
+    enqueueBroadcastSpeech("会员充值", "test");
+  }, 1800);
+  showToast(orderBroadcast.speechSupported ? "已播放：新订单 / 已支付 / 充值" : "浏览器无语音合成，已播放提示音");
 }
 
 async function handleOrderBroadcastVisibilityChange() {

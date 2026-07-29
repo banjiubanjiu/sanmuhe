@@ -519,7 +519,7 @@ async function lockUserCoupon(openid, couponUserId, orderNo, lockedUntil, payabl
     }
   });
 
-  if (!claim.updated) {
+  if (dbUpdatedCount(claim) <= 0) {
     throw new Error("优惠券已被使用或锁定");
   }
 
@@ -586,6 +586,20 @@ function toFen(value) {
   return Math.max(0, Math.round(number(value) * 100));
 }
 
+/** 兼容 wx-server-sdk / CloudBase：update 结果可能是 stats.updated 或 updated */
+function dbUpdatedCount(result) {
+  if (!result) {
+    return 0;
+  }
+  if (result.stats && result.stats.updated != null) {
+    return Number(result.stats.updated) || 0;
+  }
+  if (result.updated != null) {
+    return Number(result.updated) || 0;
+  }
+  return 0;
+}
+
 function splitWalletDebit(wallet, amountFen) {
   const principal = Math.max(0, Math.round(Number(wallet.principalBalanceFen) || 0));
   const bonus = Math.max(0, Math.round(Number(wallet.bonusBalanceFen) || 0));
@@ -620,8 +634,35 @@ async function debitWallet(openid, member, orderId, orderNo, total) {
     throw new Error("未找到可用的会员余额账户");
   }
   const amountFen = toFen(total);
-  const currentBalanceFen = Math.max(0, Math.round(Number(wallet.balanceFen) || 0));
-  const debit = splitWalletDebit(wallet, amountFen);
+  // 云数据库可能返回 Number 或 { $numberInt }，统一转数字
+  const currentBalanceFen = Math.max(0, Math.round(Number(wallet.balanceFen && wallet.balanceFen.$numberInt != null
+    ? wallet.balanceFen.$numberInt
+    : wallet.balanceFen) || 0));
+  const principalNow = Math.max(0, Math.round(Number(wallet.principalBalanceFen && wallet.principalBalanceFen.$numberInt != null
+    ? wallet.principalBalanceFen.$numberInt
+    : wallet.principalBalanceFen) || 0));
+  const bonusNow = Math.max(0, Math.round(Number(wallet.bonusBalanceFen && wallet.bonusBalanceFen.$numberInt != null
+    ? wallet.bonusBalanceFen.$numberInt
+    : wallet.bonusBalanceFen) || 0));
+  const walletNorm = Object.assign({}, wallet, {
+    balanceFen: currentBalanceFen,
+    principalBalanceFen: principalNow,
+    bonusBalanceFen: bonusNow
+  });
+  const debit = splitWalletDebit(walletNorm, amountFen);
+
+  // 幂等：同一 orderNo 已扣过则直接返回成功，避免重复扣款
+  const existingLedger = await db.collection("wallet_ledger").doc(`order_${orderNo}`).get().catch(() => null);
+  if (existingLedger && existingLedger.data && existingLedger.data.status === "posted") {
+    return {
+      amountFen: Math.abs(Number(existingLedger.data.amountFen) || amountFen),
+      principalFen: Math.abs(Number(existingLedger.data.principalFen) || debit.principalFen),
+      bonusFen: Math.abs(Number(existingLedger.data.bonusFen) || debit.bonusFen),
+      balanceAfterFen: existingLedger.data.balanceAfterFen,
+      idempotent: true
+    };
+  }
+
   const claim = await db.collection("wallet_accounts").where({
     _id: wallet._id,
     _openid: openid,
@@ -637,26 +678,44 @@ async function debitWallet(openid, member, orderId, orderNo, total) {
       updatedAt: db.serverDate()
     }
   });
-  if (!claim.updated) {
+  if (dbUpdatedCount(claim) <= 0) {
     throw new Error("会员余额已发生变化，请重新确认订单");
   }
-  await db.collection("wallet_ledger").doc(`order_${orderNo}`).set({
-    data: {
-      _openid: openid,
-      walletId: wallet._id,
-      memberId: member._id || "",
-      orderId,
-      orderNo,
-      type: "order_payment",
-      amountFen: -amountFen,
-      principalFen: -debit.principalFen,
-      bonusFen: -debit.bonusFen,
-      status: "posted",
-      balanceAfterFen: currentBalanceFen - amountFen,
-      createdAt: db.serverDate(),
-      updatedAt: db.serverDate()
+  try {
+    await db.collection("wallet_ledger").doc(`order_${orderNo}`).set({
+      data: {
+        _openid: openid,
+        walletId: wallet._id,
+        memberId: member._id || "",
+        orderId,
+        orderNo,
+        type: "order_payment",
+        amountFen: -amountFen,
+        principalFen: -debit.principalFen,
+        bonusFen: -debit.bonusFen,
+        status: "posted",
+        balanceAfterFen: currentBalanceFen - amountFen,
+        createdAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (ledgerError) {
+    // 流水写入失败则尝试回滚扣款，避免只扣钱不落单
+    try {
+      await db.collection("wallet_accounts").doc(wallet._id).update({
+        data: {
+          balanceFen: _.inc(amountFen),
+          principalBalanceFen: _.inc(debit.principalFen),
+          bonusBalanceFen: _.inc(debit.bonusFen),
+          totalSpentFen: _.inc(-amountFen),
+          updatedAt: db.serverDate()
+        }
+      });
+    } catch (rollbackError) {
+      // 保留原始错误
     }
-  });
+    throw new Error(ledgerError.message || "余额流水写入失败，请重试");
+  }
   return {
     amountFen,
     principalFen: debit.principalFen,
@@ -852,6 +911,20 @@ exports.main = async (event = {}) => {
     };
   }
 
+  if (event.action === "testWeComNotify") {
+    try {
+      const { sendWeComTestNotification } = require("./wecomOrderNotify");
+      const result = await sendWeComTestNotification();
+      return Object.assign({ ok: true, name: "createOrder" }, result);
+    } catch (error) {
+      return {
+        ok: false,
+        code: "WECOM_TEST_FAILED",
+        message: error && error.message ? error.message : "企业微信测试失败"
+      };
+    }
+  }
+
   const { OPENID } = cloud.getWXContext();
   let appliedLocks = [];
   let appliedCoupon = null;
@@ -964,6 +1037,9 @@ exports.main = async (event = {}) => {
       orderNo,
       total,
       status: balancePay ? "待确认" : orderStatus,
+      payStatus: balancePay ? "paid" : payStatus,
+      payMode: balancePay ? "余额支付" : (onsiteOrder || manualPay ? "到店确认" : "待微信支付"),
+      event: balancePay ? "order_paid" : "order_created",
       deliveryMethod: finalDeliveryMethod,
       tableNo,
       remark: orderRemark,

@@ -22,3 +22,7 @@ project.private.config.json
 /sanmuhe-preview-check.png
 /sanmuhe-preview-order.png
 /sanmuhe-ui-preview.png
+
+# 支付密钥与证书（切勿提交）
+.secrets/
+**/.secrets/

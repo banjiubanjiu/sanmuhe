@@ -13,6 +13,7 @@
     "pages/event-edit/index",
     "pages/cloud-status/index",
     "pages/contact/index",
+    "pages/member/index",
     "pages/profile/index"
   ],
   "window": {

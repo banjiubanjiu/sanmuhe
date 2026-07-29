@@ -2,9 +2,9 @@ const { events: localEvents } = require("../../data/catalog");
 const { listEvents } = require("../../utils/cloudApi");
 
 const detailImages = {
-  "event-001": "/assets/images/event-yangxin-tea.jpg",
-  "event-002": "/assets/images/event-tea-class.jpg",
-  "event-003": "/assets/images/event-seasonal-tea.jpg"
+  "event-001": "/assets/images/event-detail-content-1.jpg",
+  "event-002": "/assets/images/event-detail-content-2.jpg",
+  "event-003": "/assets/images/event-detail-content-3.jpg"
 };
 
 function normalizeEvent(raw, index) {

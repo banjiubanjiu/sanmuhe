@@ -389,7 +389,7 @@ const events = [
     signed: 28,
     price: 68,
     image: localImage("assets/images/event-yangxin-tea.jpg"),
-    detailImage: localImage("assets/images/event-yangxin-tea.jpg"),
+    detailImage: localImage("assets/images/event-detail-content-1.jpg"),
     summary: "在茶香与静心中，慢慢安住自己",
     status: "报名中"
   },
@@ -404,7 +404,7 @@ const events = [
     signed: 45,
     price: 0,
     image: localImage("assets/images/event-tea-class.jpg"),
-    detailImage: localImage("assets/images/event-tea-class.jpg"),
+    detailImage: localImage("assets/images/event-detail-content-2.jpg"),
     summary: "从识香、泡茶到品饮，轻松了解基础茶知识",
     status: "报名中"
   },
@@ -419,7 +419,7 @@ const events = [
     signed: 16,
     price: 128,
     image: localImage("assets/images/event-seasonal-tea.jpg"),
-    detailImage: localImage("assets/images/event-seasonal-tea.jpg"),
+    detailImage: localImage("assets/images/event-detail-content-3.jpg"),
     summary: "顺时品茶，感受节气与日常之美",
     status: "报名中"
   }

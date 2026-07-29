@@ -373,17 +373,18 @@
 }
 
 .plan-item {
+  position: relative;
   min-width: 0;
-  padding: 22rpx 18rpx;
+  padding: 22rpx 18rpx 26rpx;
   border: 1rpx solid rgba(242, 216, 162, 0.28);
-  border-radius: 14rpx;
+  border-radius: 16rpx;
   background: rgba(255, 250, 241, 0.06);
 }
 
 .plan-item.active {
-  border-color: #e0bb73;
-  background: rgba(224, 187, 115, 0.16);
-  box-shadow: inset 0 0 0 2rpx rgba(224, 187, 115, 0.18);
+  border-color: #e8c988;
+  background: linear-gradient(165deg, rgba(232, 201, 136, 0.22) 0%, rgba(232, 201, 136, 0.08) 100%);
+  box-shadow: inset 0 0 0 1rpx rgba(232, 201, 136, 0.25);
 }
 
 .plan-principal {
@@ -404,13 +405,71 @@
   font-size: 21rpx;
 }
 
+.plan-check {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+  padding: 2rpx 10rpx;
+  color: #2a3a24;
+  border-radius: 999rpx;
+  background: linear-gradient(180deg, #f7e7bf 0%, #e0bb73 100%);
+  font-size: 18rpx;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .wallet-card .recharge-action {
-  color: #233b31;
-  background: #e0bb73;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 92rpx;
+  margin-top: 28rpx;
+  color: #2a3a24;
+  border-radius: 999rpx;
+  background: linear-gradient(180deg, #f7e7bf 0%, #e0bb73 100%);
+  box-shadow: 0 12rpx 28rpx rgba(18, 28, 18, 0.16);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.wallet-card .recharge-action::after {
+  border: none;
+}
+
+.recharge-action-hover {
+  opacity: 0.92;
+}
+
+.recharge-action-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+  line-height: 1.15;
+}
+
+.recharge-action-label {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.recharge-action-hint {
+  color: rgba(42, 58, 36, 0.72);
+  font-size: 22rpx;
+  font-weight: 500;
 }
 
 .wallet-card .test-banner {
   color: rgba(255, 246, 224, 0.62);
+}
+
+.simulate-link {
+  margin-top: 18rpx;
+  text-align: center;
+  color: rgba(255, 246, 224, 0.55);
+  font-size: 22rpx;
+  text-decoration: underline;
+  text-underline-offset: 4rpx;
 }
 
 .highlight-card,

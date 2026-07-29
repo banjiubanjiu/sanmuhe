@@ -1,6 +1,10 @@
 const http = require("http");
 const crypto = require("crypto");
 const cloud = require("wx-server-sdk");
+const {
+  sendWeComOrderNotification,
+  sendWeComRechargeNotification
+} = require("./wecomOrderNotify");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -23,11 +27,43 @@ async function ensureCollection(name) {
 }
 
 function normalizePem(value) {
-  const text = String(value || "").replace(/\\n/g, "\n").trim();
-  if (text.includes("-----BEGIN")) {
-    return text;
+  let text = String(value || "").trim();
+  if (!text) {
+    return "";
   }
-  return Buffer.from(text, "base64").toString("utf8");
+  if (!text.includes("-----BEGIN") && /^[A-Za-z0-9+/=\s]+$/.test(text) && text.length > 80) {
+    try {
+      const decoded = Buffer.from(text.replace(/\s+/g, ""), "base64").toString("utf8");
+      if (decoded.includes("-----BEGIN")) {
+        text = decoded;
+      }
+    } catch (error) {
+      // keep original
+    }
+  }
+  text = text.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  if (text.includes("-----BEGIN") && !text.includes("\n")) {
+    text = text
+      .replace(/-----BEGIN ([A-Z0-9 ]+)-----/g, "-----BEGIN $1-----\n")
+      .replace(/-----END ([A-Z0-9 ]+)-----/g, "\n-----END $1-----");
+    const match = text.match(/-----BEGIN [A-Z0-9 ]+-----\n([\s\S]*?)\n-----END [A-Z0-9 ]+-----/);
+    if (match) {
+      const body = match[1].replace(/\s+/g, "");
+      const wrapped = body.match(/.{1,64}/g).join("\n");
+      text = text.replace(match[1], wrapped);
+    }
+  }
+  if (text.includes("-----BEGIN") && text.includes("\n")) {
+    const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+    const begin = lines[0];
+    const end = lines[lines.length - 1];
+    if (begin.startsWith("-----BEGIN") && end.startsWith("-----END")) {
+      const body = lines.slice(1, -1).join("").replace(/\s+/g, "");
+      const wrapped = body.match(/.{1,64}/g) || [];
+      text = [begin, ...wrapped, end].join("\n");
+    }
+  }
+  return text.trim();
 }
 
 function sendJson(res, statusCode, data) {
@@ -302,6 +338,35 @@ function sendServiceNotice(kind, openid, payload) {
   }).catch(() => null);
 }
 
+function notifyStaffPaidOrder(order = {}) {
+  if (!cloud.callFunction) {
+    return Promise.resolve();
+  }
+  const itemSummary = (order.items || [])
+    .map((item) => `${item.name || "商品"}x${item.quantity || 1}`)
+    .join("、")
+    .slice(0, 20) || "已付款订单";
+  const tableNo = String(order.tableNo || "").trim();
+  const remark = tableNo
+    ? `桌号 ${tableNo}`.slice(0, 20)
+    : String(order.remark || "微信支付已确认").slice(0, 20);
+  return cloud.callFunction({
+    name: "serviceNotify",
+    data: {
+      action: "notifyStaff",
+      kind: "orderStaffNew",
+      payload: {
+        orderNo: order.orderNo || "",
+        total: order.total,
+        status: "已支付",
+        itemSummary,
+        remark,
+        time: ""
+      }
+    }
+  }).catch(() => null);
+}
+
 async function findRechargeOrder(outTradeNo) {
   await ensureCollection("recharge_orders");
   const result = await db.collection("recharge_orders").where({ orderNo: outTradeNo }).limit(1).get();
@@ -364,7 +429,10 @@ async function handleRechargeSuccess(transaction, recharge) {
         updatedAt: db.serverDate()
       }
     });
-    if (!claim.updated) {
+    const updatedCount = claim && claim.stats && claim.stats.updated != null
+      ? Number(claim.stats.updated)
+      : Number(claim && claim.updated);
+    if (!updatedCount) {
       throw new Error("余额账户发生并发变化，请等待微信支付重试通知");
     }
   }
@@ -397,6 +465,19 @@ async function handleRechargeSuccess(transaction, recharge) {
       updatedAt: db.serverDate()
     }
   });
+
+  try {
+    await sendWeComRechargeNotification({
+      orderNo: recharge.orderNo,
+      planTitle: recharge.planTitle,
+      planId: recharge.planId,
+      payAmountFen: expectedAmount,
+      creditFen,
+      transactionId
+    });
+  } catch (error) {
+    // best-effort staff channel
+  }
 }
 
 async function handleTransactionSuccess(transaction) {
@@ -477,55 +558,125 @@ async function handleTransactionSuccess(transaction) {
     status: getPaidStatus(order),
     time: transaction.success_time || ""
   });
+  // 支付成功后再提醒店员（下单时可能只推了「待付款」）
+  await notifyStaffPaidOrder(order);
+  // 企业微信群：店员主通道
+  try {
+    await sendWeComOrderNotification({
+      orderNo: order.orderNo,
+      total: order.total,
+      status: getPaidStatus(order),
+      payStatus: "paid",
+      payMode: "微信支付",
+      event: "order_paid",
+      deliveryMethod: order.deliveryMethod,
+      tableNo: order.tableNo,
+      remark: order.remark,
+      items: order.items
+    });
+  } catch (error) {
+    // best-effort
+  }
 }
 
-async function handleNotify(req, res) {
-  const rawBody = await readBody(req);
-  if (!verifyNotify(req.headers, rawBody)) {
-    sendJson(res, 401, { code: "FAIL", message: "签名错误" });
-    return;
+function httpResponse(statusCode, data) {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8"
+    },
+    body: JSON.stringify(data)
+  };
+}
+
+function normalizeEventHeaders(headers = {}) {
+  const normalized = {};
+  Object.keys(headers || {}).forEach((key) => {
+    normalized[String(key).toLowerCase()] = headers[key];
+  });
+  return normalized;
+}
+
+function extractRawBody(event = {}) {
+  if (typeof event.body === "string") {
+    return event.isBase64Encoded
+      ? Buffer.from(event.body, "base64").toString("utf8")
+      : event.body;
+  }
+  if (event.body && typeof event.body === "object") {
+    return JSON.stringify(event.body);
+  }
+  if (typeof event === "string") {
+    return event;
+  }
+  return "";
+}
+
+async function processNotifyPayload(headers, rawBody) {
+  if (!verifyNotify(headers, rawBody)) {
+    return httpResponse(401, { code: "FAIL", message: "签名错误" });
   }
 
   let notify;
   try {
     notify = JSON.parse(rawBody);
   } catch (error) {
-    sendJson(res, 400, { code: "FAIL", message: "回调报文不是合法 JSON" });
-    return;
+    return httpResponse(400, { code: "FAIL", message: "回调报文不是合法 JSON" });
   }
 
   if (notify.event_type !== "TRANSACTION.SUCCESS") {
-    sendJson(res, 200, { code: "SUCCESS", message: "忽略非支付成功通知" });
-    return;
+    return httpResponse(200, { code: "SUCCESS", message: "忽略非支付成功通知" });
   }
 
-  try {
-    const transaction = decryptResource(notify.resource);
-    if (transaction.trade_state !== "SUCCESS") {
-      sendJson(res, 200, { code: "SUCCESS", message: "忽略非成功交易状态" });
-      return;
-    }
-    await handleTransactionSuccess(transaction);
-    sendJson(res, 200, { code: "SUCCESS", message: "成功" });
-  } catch (error) {
-    sendJson(res, 500, { code: "FAIL", message: error.message || "回调处理失败" });
+  const transaction = decryptResource(notify.resource);
+  if (transaction.trade_state !== "SUCCESS") {
+    return httpResponse(200, { code: "SUCCESS", message: "忽略非成功交易状态" });
   }
+  await handleTransactionSuccess(transaction);
+  return httpResponse(200, { code: "SUCCESS", message: "成功" });
 }
 
-const server = http.createServer((req, res) => {
-  if (req.method === "GET") {
-    sendJson(res, 200, { ok: true, name: "wechatPayNotify" });
-    return;
+/**
+ * CloudBase「HTTP 访问服务」走 Event 云函数：
+ * event.httpMethod / event.headers / event.body
+ */
+exports.main = async (event = {}, context = {}) => {
+  try {
+    const method = String(event.httpMethod || event.requestContext && event.requestContext.httpMethod || "POST").toUpperCase();
+    if (method === "GET") {
+      return httpResponse(200, { ok: true, name: "wechatPayNotify", mode: "event" });
+    }
+    if (method !== "POST") {
+      return httpResponse(405, { code: "FAIL", message: "Method Not Allowed" });
+    }
+    const headers = normalizeEventHeaders(event.headers || {});
+    const rawBody = extractRawBody(event);
+    return await processNotifyPayload(headers, rawBody);
+  } catch (error) {
+    return httpResponse(500, { code: "FAIL", message: error && error.message ? error.message : "回调处理失败" });
   }
+};
 
-  if (req.method !== "POST") {
-    sendJson(res, 405, { code: "FAIL", message: "Method Not Allowed" });
-    return;
-  }
-
-  handleNotify(req, res).catch((error) => {
-    sendJson(res, 500, { code: "FAIL", message: error.message || "Server Error" });
+// 兼容仍以 HTTP 函数（scf_bootstrap 监听 9000）部署的环境
+if (require.main === module || process.env.SCF_HTTP_SERVER === "1") {
+  const server = http.createServer((req, res) => {
+    if (req.method === "GET") {
+      sendJson(res, 200, { ok: true, name: "wechatPayNotify", mode: "http-server" });
+      return;
+    }
+    if (req.method !== "POST") {
+      sendJson(res, 405, { code: "FAIL", message: "Method Not Allowed" });
+      return;
+    }
+    readBody(req)
+      .then((rawBody) => processNotifyPayload(req.headers, rawBody))
+      .then((result) => {
+        res.writeHead(result.statusCode || 200, result.headers || { "Content-Type": "application/json" });
+        res.end(result.body || "");
+      })
+      .catch((error) => {
+        sendJson(res, 500, { code: "FAIL", message: error.message || "Server Error" });
+      });
   });
-});
-
-server.listen(9000);
+  server.listen(9000);
+}
