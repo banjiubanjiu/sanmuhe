@@ -709,7 +709,7 @@ async function createReservationPayment(event, openid, config) {
     return { ok: false, message: "预约不存在" };
   }
   if (reservation.status !== "待支付") {
-    return { ok: false, message: `预约当前状态不可支付（${reservation.status || "未知"）` };
+    return { ok: false, message: `预约当前状态不可支付（${reservation.status || "未知"}）` };
   }
   if (reservation.payStatus === "paid") {
     return { ok: false, message: "预约已支付" };

@@ -37,7 +37,7 @@ App({
     brand: "禾煦",
     storeName: "禾煦书茶空间",
     storeAddress: "广东省佛山市",
-    servicePhone: "0757-8888 8888",
+    servicePhone: "18038768716",
     cloudReady: false,
     cloudEnv: "",
     tableNo: ""

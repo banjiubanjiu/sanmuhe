@@ -15,7 +15,7 @@ const store = {
   city: "佛山・禅城",
   address: "佛山市禅城区石湾镇街道怡翠宏璟P9铺禾煦茶书房",
   shortAddress: "石湾镇街道怡翠宏璟P9铺禾煦茶书房",
-  phone: "13392268386",
+  phone: "18038768716",
   wechat: "zizi66",
   businessHours: "周一～周日 9:00～21:30",
   heroImage: "/assets/images/reservation-hero.jpg"

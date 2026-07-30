@@ -5,7 +5,7 @@ const {
   sendWeComOrderNotification,
   sendWeComRechargeNotification
 } = require("./wecomOrderNotify");
-const { sendWeComReservationNotification } = require("../createReservation/wecomReservationNotify");
+const { sendWeComReservationNotification } = require("./wecomReservationNotify");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV

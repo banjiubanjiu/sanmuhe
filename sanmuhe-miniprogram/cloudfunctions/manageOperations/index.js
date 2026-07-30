@@ -1323,9 +1323,12 @@ async function updateReservation(event, caller) {
   if (!id || !status) {
     return { ok: false, message: "缺少预约 ID 或状态" };
   }
-  const allowedStatuses = ["待确认", "已确认", "已完成", "已取消"];
+  const allowedStatuses = ["待支付", "已确认", "已完成", "已取消"];
   if (!allowedStatuses.includes(status)) {
     return { ok: false, message: "预约状态不支持" };
+  }
+  if (status === "待支付") {
+    return { ok: false, message: "不能手动将预约设为待支付" };
   }
   const adminNote = cleanText(event.adminNote, 300);
   if (status === "已取消" && !adminNote) {
