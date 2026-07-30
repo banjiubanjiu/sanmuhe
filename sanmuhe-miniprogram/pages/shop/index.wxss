@@ -272,6 +272,20 @@
   background: transparent;
 }
 
+/* 多规格：文案按钮，避免「+」却只跳转的误导 */
+.product-action.select-spec {
+  min-width: 120rpx;
+  width: auto;
+  padding: 0 20rpx;
+  height: 64rpx;
+  bottom: 56rpx;
+  font-size: 22rpx;
+  letter-spacing: 1rpx;
+  color: var(--hx-action);
+  border-color: var(--hx-action);
+  background: var(--hx-surface);
+}
+
 .product-action.sold-out {
   color: var(--hx-muted);
   border-color: var(--hx-line);

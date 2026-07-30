@@ -85,12 +85,20 @@
           aria-disabled="true"
         >售罄</view>
         <view
+          wx:elif="{{item.hasMultipleSpecs}}"
+          class="product-action select-spec"
+          data-id="{{item.id}}"
+          catchtap="addProduct"
+          aria-role="button"
+          aria-label="{{item.actionAriaLabel}}"
+        >选规格</view>
+        <view
           wx:else
           class="product-action add-product"
           data-id="{{item.id}}"
           catchtap="addProduct"
           aria-role="button"
-          aria-label="查看{{item.name}}详情"
+          aria-label="{{item.actionAriaLabel}}"
         >
           <image src="/assets/icons/circle-plus-green.png" mode="aspectFit" aria-hidden="{{true}}"></image>
         </view>

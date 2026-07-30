@@ -1,10 +1,29 @@
 const { teaProducts } = require("../../data/catalog");
-const { getCart, getTotal } = require("../../utils/cart");
+const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
 const categoryOrder = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单丛"];
 const TARGET_CATEGORY_KEY = "sanmuhe_shop_category";
+const RETAIL_MODE = "retail";
+
+/** 列表直加：取唯一规格；无 specs 时回退商品默认 unit/price */
+function resolveDefaultSpec(product) {
+  const specs = Array.isArray(product.specs) ? product.specs : [];
+  if (specs.length >= 1) {
+    const spec = specs[0] || {};
+    const label = String(spec.label || product.unit || "默认").trim() || "默认";
+    const price = Number(spec.price);
+    return {
+      label,
+      price: Number.isFinite(price) && price >= 0 ? price : Math.max(0, Number(product.price) || 0)
+    };
+  }
+  return {
+    label: String(product.unit || "默认").trim() || "默认",
+    price: Math.max(0, Number(product.price) || 0)
+  };
+}
 
 function normalizeTeaProducts(products) {
   return products.map((item) => {
@@ -33,7 +52,11 @@ function normalizeTeaProducts(products) {
       isSoldOut,
       displayPrice,
       priceSuffix: hasMultipleSpecs ? "起" : "",
-      stockHint
+      stockHint,
+      actionLabel: hasMultipleSpecs ? "选规格" : "加购",
+      actionAriaLabel: hasMultipleSpecs
+        ? `选择${item.name}的规格`
+        : `将${item.name}加入购物车`
     });
   });
 }
@@ -81,9 +104,9 @@ Page({
   },
 
   refreshCart() {
-    const cart = getCart();
+    const cart = getCart(RETAIL_MODE);
     this.setData({
-      cartCount: cart.reduce((sum, item) => sum + item.quantity, 0),
+      cartCount: cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
       cartTotal: getTotal(cart)
     });
   },
@@ -197,10 +220,35 @@ Page({
       wx.showToast({ title: "这款茶暂时售罄", icon: "none" });
       return;
     }
-    this.openProductDetail(product.id);
+    // 多规格：必须先选规格（进详情；半屏可后续再做）
+    if (product.hasMultipleSpecs) {
+      this.openProductDetail(product.id);
+      return;
+    }
+    // 单规格 / 无可选规格：列表直接加入零售购物车
+    const defaultSpec = resolveDefaultSpec(product);
+    if (!(defaultSpec.price > 0)) {
+      wx.showToast({ title: "该茶品暂不可购", icon: "none" });
+      return;
+    }
+    addToCart({
+      id: product.id,
+      type: "tea",
+      name: product.name,
+      price: defaultSpec.price,
+      color: product.color,
+      image: product.thumb || product.image,
+      category: product.category,
+      quantity: 1,
+      options: {
+        unit: defaultSpec.label
+      }
+    }, RETAIL_MODE);
+    this.refreshCart();
+    wx.showToast({ title: "已加入购物车", icon: "success" });
   },
 
   goCart() {
-    wx.navigateTo({ url: "/pages/cart/index?mode=retail" });
+    wx.navigateTo({ url: `/pages/cart/index?mode=${RETAIL_MODE}` });
   }
 });
