@@ -1064,41 +1064,45 @@ exports.main = async (event = {}) => {
 
     const finalStatus = balancePay ? "待确认" : orderStatus;
     const finalPayStatus = balancePay ? "paid" : payStatus;
-    const wecomNotify = await notifyWeComOrder({
-      orderNo,
-      total,
-      status: finalStatus,
-      payStatus: finalPayStatus,
-      // 传规范化渠道码，企微文案会展开成「怎么付 + 去哪查」
-      payMode: payModeValue,
-      event: balancePay ? "order_paid" : "order_created",
-      deliveryMethod: finalDeliveryMethod,
-      source: cleanText(event.source, 40) || (onsiteOrder ? "dinein-tea-menu" : "retail-tea-catalog"),
-      tableNo,
-      remark: orderRemark,
-      items: cleanItems,
-      consignee: consignee || "",
-      phone: phone || "",
-      address: address || "",
-      transactionId: walletPayment && walletPayment.transactionId ? walletPayment.transactionId : ""
-    });
-
+    // 微信支付：先付成功再通知门店（回调 wechatPayNotify 再推）；未付款不报「新订单」
+    let wecomNotify = null;
     let adminNotify = null;
-    if (manualPay || balancePay || wechatPay) {
-      adminNotify = await notifyAdmins({
-        orderId: addResult._id,
+    if (!wechatPay) {
+      wecomNotify = await notifyWeComOrder({
         orderNo,
         total,
         status: finalStatus,
         payStatus: finalPayStatus,
+        // 传规范化渠道码，企微文案会展开成「怎么付 + 去哪查」
         payMode: payModeValue,
-        consignee: consignee || "到店顾客",
-        phone: phone || "现场",
+        event: balancePay ? "order_paid" : "order_created",
         deliveryMethod: finalDeliveryMethod,
+        source: cleanText(event.source, 40) || (onsiteOrder ? "dinein-tea-menu" : "retail-tea-catalog"),
         tableNo,
         remark: orderRemark,
-        items: cleanItems
+        items: cleanItems,
+        consignee: consignee || "",
+        phone: phone || "",
+        address: address || "",
+        transactionId: walletPayment && walletPayment.transactionId ? walletPayment.transactionId : ""
       });
+
+      if (manualPay || balancePay) {
+        adminNotify = await notifyAdmins({
+          orderId: addResult._id,
+          orderNo,
+          total,
+          status: finalStatus,
+          payStatus: finalPayStatus,
+          payMode: payModeValue,
+          consignee: consignee || "到店顾客",
+          phone: phone || "现场",
+          deliveryMethod: finalDeliveryMethod,
+          tableNo,
+          remark: orderRemark,
+          items: cleanItems
+        });
+      }
     }
 
     return {

@@ -173,12 +173,37 @@ function payOrder(order) {
 
   return createPayment(payload).then((result) => {
     if (!result || result.ok === false) {
-      throw new Error(result && result.message ? result.message : "发起支付失败");
+      const err = new Error(result && result.message ? result.message : "发起支付失败");
+      err.code = result && result.code;
+      err.order = result;
+      throw err;
     }
-    return requestPayment(result.payment).then((paymentResult) => ({
+    if (!result.payment || !result.payment.timeStamp || !result.payment.paySign) {
+      throw new Error("支付参数不完整，请稍后重试");
+    }
+    // package 关键字偶发丢失时回退 prepayPackage
+    const packageValue = result.payment.package || result.payment.prepayPackage || "";
+    if (!packageValue || !String(packageValue).startsWith("prepay_id=")) {
+      throw new Error("支付参数缺少 prepay_id，请稍后重试");
+    }
+    // 小程序收银台要求字段均为字符串
+    const payment = {
+      timeStamp: String(result.payment.timeStamp),
+      nonceStr: String(result.payment.nonceStr || ""),
+      package: String(packageValue),
+      signType: result.payment.signType || "RSA",
+      paySign: String(result.payment.paySign || "")
+    };
+    return requestPayment(payment).then((paymentResult) => ({
       paymentResult,
       order: result
-    }));
+    })).catch((error) => {
+      const msg = (error && (error.errMsg || error.message)) || "支付未完成";
+      const err = new Error(msg);
+      err.raw = error;
+      err.order = result;
+      throw err;
+    });
   });
 }
 

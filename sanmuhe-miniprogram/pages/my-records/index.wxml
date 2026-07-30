@@ -1,0 +1,64 @@
+<view class="page my-records-page">
+  <view class="records-nav">
+    <view class="nav-back" bindtap="goBack">
+      <image src="/assets/icons/back-ink.png" mode="aspectFit"></image>
+    </view>
+    <view class="nav-title">我的记录</view>
+    <view class="nav-placeholder"></view>
+  </view>
+
+  <scroll-view class="records-tabs" scroll-x enhanced show-scrollbar="{{false}}">
+    <view class="tabs-inner">
+      <view
+        wx:for="{{tabs}}"
+        wx:key="key"
+        class="records-tab {{activeTab === item.key ? 'is-active' : ''}}"
+        data-tab="{{item.key}}"
+        bindtap="switchTab"
+      >{{item.label}}</view>
+    </view>
+  </scroll-view>
+
+  <view wx:if="{{loading && !reservations.length && !signups.length}}" class="records-list loading">
+    <view wx:for="[1,2,3]" wx:key="*this" class="record-skeleton">
+      <view class="skeleton-image"></view>
+      <view class="skeleton-body">
+        <view class="skeleton-line wide"></view>
+        <view class="skeleton-line"></view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:elif="{{error && !reservations.length && !signups.length}}" class="state-panel">
+    <image src="/assets/icons/profile-order.png" mode="aspectFit"></image>
+    <view class="state-title">记录加载失败</view>
+    <view class="state-copy">{{error}}</view>
+    <button class="state-action" bindtap="retry">重新加载</button>
+  </view>
+
+  <view wx:elif="{{loaded && (activeTab === 'reservation' ? !reservations.length : !signups.length)}}" class="state-panel">
+    <image src="{{activeTab === 'reservation' ? '/assets/images/reservation-hero.jpg' : '/assets/images/event-yangxin-tea.jpg'}}" mode="aspectFit"></image>
+    <view class="state-title">{{activeTab === 'reservation' ? '还没有茶室预约' : '还没有活动报名'}}</view>
+    <view class="state-copy">{{activeTab === 'reservation' ? '预约一席茶室，享受片刻清闲。' : '关注近期茶事活动，期待与你相遇。'}}</view>
+  </view>
+
+  <view wx:else class="records-list">
+    <view
+      wx:for="{{activeTab === 'reservation' ? reservations : signups}}"
+      wx:key="id"
+      class="record-row"
+    >
+      <view class="record-image">
+        <image src="{{item.image}}" mode="aspectFill"></image>
+      </view>
+      <view class="record-body">
+        <view class="record-title-row">
+          <text class="record-title">{{item.title}}</text>
+          <text class="record-status">{{item.status}}</text>
+        </view>
+        <view class="record-meta">{{item.meta}}</view>
+        <view class="record-sub">{{item.subMeta}}</view>
+      </view>
+    </view>
+  </view>
+</view>

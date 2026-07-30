@@ -26,9 +26,8 @@ const orderShortcutBase = [
 ];
 
 const serviceItemsBase = [
-  { label: "茶室预约", icon: "/assets/icons/profile-room.png", action: "reservation" },
-  { label: "活动报名", icon: "/assets/icons/profile-calendar.png", action: "events" },
-  { label: "收货地址", icon: "/assets/icons/profile-pin.png", action: "address" },
+  { label: "我的预约", icon: "/assets/icons/profile-room.png", action: "myReservations" },
+  { label: "我的活动", icon: "/assets/icons/profile-calendar.png", action: "myEvents" },
   { label: "优惠券", icon: "/assets/icons/profile-coupon.png", action: "coupon" },
   { label: "联系客服", icon: "/assets/icons/profile-headset.png", action: "service" },
   { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" }
@@ -136,7 +135,6 @@ Page(withPrivacy({
     recentOrders: [],
     recentReservation: null,
     recentSignup: null,
-    shippingAddress: "",
     recordsLoading: false,
     recordsError: "",
     staffNotice: null,
@@ -267,16 +265,12 @@ Page(withPrivacy({
 
   handleService(event) {
     const action = event.currentTarget.dataset.action;
-    if (action === "reservation") {
-      wx.navigateTo({ url: "/pages/reservation/index" });
+    if (action === "myReservations") {
+      wx.navigateTo({ url: "/pages/my-records/index?tab=reservation" });
       return;
     }
-    if (action === "events") {
-      wx.navigateTo({ url: "/pages/events/index" });
-      return;
-    }
-    if (action === "address") {
-      this.chooseAddress();
+    if (action === "myEvents") {
+      wx.navigateTo({ url: "/pages/my-records/index?tab=event" });
       return;
     }
     if (action === "coupon") {
@@ -292,24 +286,6 @@ Page(withPrivacy({
       return;
     }
     this.showMemberBenefits();
-  },
-
-  chooseAddress() {
-    this.requestPrivacy("我们需要读取你的微信收货地址，用于订单配送、售后服务和下次下单时快速填写。").then((accepted) => {
-      if (!accepted) {
-        return;
-      }
-      wx.chooseAddress({
-        success: (res) => {
-          const address = `${res.provinceName}${res.cityName}${res.countyName}${res.detailInfo}`;
-          this.setData({ shippingAddress: address });
-          wx.showToast({ title: "地址已选择", icon: "success" });
-        },
-        fail: () => {
-          wx.showToast({ title: "未选择地址", icon: "none" });
-        }
-      });
-    });
   },
 
   goMember() {

@@ -137,9 +137,28 @@ function decryptResource(resource) {
   return JSON.parse(decoded);
 }
 
+/** 兼容 wx-server-sdk：update 结果可能是 stats.updated 或 updated */
+function dbUpdatedCount(result) {
+  if (!result) {
+    return 0;
+  }
+  if (result.stats && result.stats.updated != null) {
+    return Number(result.stats.updated) || 0;
+  }
+  if (result.updated != null) {
+    return Number(result.updated) || 0;
+  }
+  return 0;
+}
+
 async function findOrder(outTradeNo) {
   const result = await db.collection("orders").where({ orderNo: outTradeNo }).limit(1).get();
-  return result.data && result.data[0] ? result.data[0] : null;
+  const row = result.data && result.data[0] ? result.data[0] : null;
+  if (!row) {
+    return null;
+  }
+  // 查询结果应含 _id；兜底用 attach 场景由调用方补
+  return row;
 }
 
 function inventorySnapshot(item = {}) {
@@ -213,7 +232,13 @@ async function confirmInventory(locks, orderNo) {
 }
 
 function getPaidStatus(order) {
-  return order.deliveryMethod === "pickup" ? "待自提" : "待发货";
+  if (order.deliveryMethod === "pickup") {
+    return "待自提";
+  }
+  if (order.deliveryMethod === "onsite") {
+    return "待确认";
+  }
+  return "待发货";
 }
 
 function cents(value) {
@@ -521,6 +546,10 @@ async function handleTransactionSuccess(transaction) {
     return;
   }
 
+  if (!order._id) {
+    throw new Error("订单缺少 _id，无法确认支付");
+  }
+
   const claim = await db.collection("orders").where({
     _id: order._id,
     payStatus: "pending",
@@ -532,8 +561,15 @@ async function handleTransactionSuccess(transaction) {
     }
   });
 
-  if (claim.updated === 0) {
-    return;
+  // 与余额扣款同一坑：勿用 claim.updated，应用 stats.updated
+  if (dbUpdatedCount(claim) <= 0) {
+    // 可能并发已在处理；再读一次，已 confirming/paid 则直接返回
+    const latest = await db.collection("orders").doc(order._id).get();
+    const status = latest.data || {};
+    if (status.payStatus === "paid" || status.payStatus === "confirming") {
+      return;
+    }
+    throw new Error("订单支付确认抢占失败，等待微信重试通知");
   }
 
   await confirmInventory(order.inventoryLocks, order.orderNo);

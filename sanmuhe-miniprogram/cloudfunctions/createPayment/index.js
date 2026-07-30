@@ -34,6 +34,38 @@ function isRealPaymentEnabled() {
   return String(process.env.REAL_PAYMENT_ENABLED || "").toLowerCase() === "true";
 }
 
+/** 兼容 wx-server-sdk：update 结果可能是 stats.updated 或 updated */
+function dbUpdatedCount(result) {
+  if (!result) {
+    return 0;
+  }
+  if (result.stats && result.stats.updated != null) {
+    return Number(result.stats.updated) || 0;
+  }
+  if (result.updated != null) {
+    return Number(result.updated) || 0;
+  }
+  return 0;
+}
+
+function numberField(value) {
+  if (value == null) {
+    return 0;
+  }
+  if (typeof value === "object") {
+    if (value.$numberInt != null) {
+      return Number(value.$numberInt) || 0;
+    }
+    if (value.$numberDouble != null) {
+      return Number(value.$numberDouble) || 0;
+    }
+    if (value.$numberLong != null) {
+      return Number(value.$numberLong) || 0;
+    }
+  }
+  return Number(value) || 0;
+}
+
 function paymentConfigHealth() {
   const missing = [];
   if (!process.env.WECHAT_PAY_APPID && !process.env.WX_APPID) {
@@ -338,19 +370,30 @@ async function findOrder(orderId, orderNo, openid) {
   if (orderId) {
     try {
       const result = await db.collection("orders").doc(orderId).get();
+      // doc().get() 有时不带回 _id，后续 update 必须用显式 id
       if (result.data && result.data._openid === openid) {
-        return result.data;
+        return Object.assign({ _id: orderId }, result.data, { _id: orderId });
       }
     } catch (error) {
       // Fall through to orderNo lookup.
     }
   }
 
+  if (!orderNo) {
+    return null;
+  }
   const result = await db.collection("orders").where({
     _openid: openid,
     orderNo
   }).limit(1).get();
-  return result.data && result.data[0] ? result.data[0] : null;
+  const row = result.data && result.data[0] ? result.data[0] : null;
+  if (!row) {
+    return null;
+  }
+  if (!row._id && orderId) {
+    row._id = orderId;
+  }
+  return row;
 }
 
 async function findActiveMember(openid) {
@@ -552,13 +595,60 @@ function buildPaymentParams(config, prepayId) {
     config.privateKey
   );
 
+  // prepayPackage 与 package 同值：部分通道/序列化对 package 关键字不友好时前端可回退
   return {
     timeStamp,
     nonceStr,
     package: packageValue,
+    prepayPackage: packageValue,
     signType: "RSA",
     paySign
   };
+}
+
+async function saveOrderPrepay(orderId, openid, prepayId) {
+  if (!orderId || !prepayId) {
+    return false;
+  }
+  const payload = {
+    prepayId,
+    prepayCreatedAt: db.serverDate(),
+    payStatus: "pending",
+    updatedAt: db.serverDate()
+  };
+  try {
+    const byWhere = await db.collection("orders").where({
+      _id: orderId,
+      _openid: openid,
+      status: "待支付"
+    }).update({ data: payload });
+    if (dbUpdatedCount(byWhere) > 0) {
+      return true;
+    }
+  } catch (error) {
+    // fall through
+  }
+  try {
+    await db.collection("orders").doc(orderId).update({ data: payload });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function resolveExpireAt(order) {
+  let expireAt = order && order.lockedUntil
+    ? new Date(order.lockedUntil)
+    : new Date(Date.now() + 15 * 60 * 1000);
+  if (Number.isNaN(expireAt.getTime())) {
+    expireAt = new Date(Date.now() + 15 * 60 * 1000);
+  }
+  // 微信要求 time_expire 至少晚于当前约 1 分钟；剩余不足 2 分钟则顺延
+  const minExpire = Date.now() + 2 * 60 * 1000;
+  if (expireAt.getTime() < minExpire) {
+    expireAt = new Date(minExpire + 3 * 60 * 1000);
+  }
+  return expireAt;
 }
 
 function requestWechatPayGet(config, path) {
@@ -884,8 +974,12 @@ exports.main = async (event = {}) => {
     if (order.payStatus === "paid") {
       return { ok: false, message: "订单已支付" };
     }
-    if (order.status !== "待支付" || order.payStatus === "expired") {
-      return { ok: false, message: "订单当前状态不可支付" };
+    // 允许 pending / 空状态待支付；拒绝 manual/expired/paid
+    if (order.status !== "待支付") {
+      return { ok: false, message: `订单当前状态不可支付（${order.status || "未知"}）` };
+    }
+    if (order.payStatus && order.payStatus !== "pending" && order.payStatus !== "failed") {
+      return { ok: false, message: `订单支付状态不可用（${order.payStatus}）` };
     }
     if (isExpired(order)) {
       await releaseInventory(order.inventoryLocks);
@@ -902,55 +996,134 @@ exports.main = async (event = {}) => {
       return { ok: false, message: "订单已超时，请重新下单" };
     }
 
-    const totalFee = Math.round((Number(order.total) || 0) * 100);
+    const totalFee = Math.round(numberField(order.total) * 100);
     if (totalFee <= 0) {
       return { ok: false, message: "订单金额无效" };
     }
 
-    const response = await requestWechatPay(config, {
-      appid: config.appid,
-      mchid: config.mchid,
-      description: buildDescription(order),
-      out_trade_no: order.orderNo,
-      time_expire: new Date(order.lockedUntil).toISOString(),
-      attach: order._id,
-      notify_url: config.notifyUrl,
-      amount: {
-        total: totalFee,
-        currency: "CNY"
-      },
-      payer: {
-        openid: OPENID
+    // 已有预支付单：先查微信；SUCCESS 补标已付，NOTPAY 重签调起，CLOSED 重新下单
+    if (order.prepayId) {
+      try {
+        const trade = await queryWechatTransactionByOutTradeNo(config, order.orderNo);
+        const state = String(trade.trade_state || "").toUpperCase();
+        if (state === "SUCCESS") {
+          return {
+            ok: false,
+            code: "ALREADY_PAID_ON_WECHAT",
+            message: "微信侧已支付成功，正在同步订单状态，请稍后刷新",
+            tradeState: state,
+            orderId: order._id,
+            orderNo: order.orderNo
+          };
+        }
+        if (state === "NOTPAY" || state === "USERPAYING") {
+          const payment = buildPaymentParams(config, order.prepayId);
+          return {
+            ok: true,
+            orderId: order._id,
+            orderNo: order.orderNo,
+            total: numberField(order.total),
+            payment,
+            reusedPrepay: true,
+            tradeState: state
+          };
+        }
+        // CLOSED / REVOKED / PAYERROR 等：清掉本地 prepay，走新建
+        await db.collection("orders").doc(order._id).update({
+          data: {
+            prepayId: _.remove(),
+            prepayCreatedAt: _.remove(),
+            lastClosedTradeState: state,
+            updatedAt: db.serverDate()
+          }
+        });
+      } catch (queryError) {
+        // 查单失败时仍尝试用原 prepay 调起，兼容网络抖动
+        const payment = buildPaymentParams(config, order.prepayId);
+        return {
+          ok: true,
+          orderId: order._id,
+          orderNo: order.orderNo,
+          total: numberField(order.total),
+          payment,
+          reusedPrepay: true,
+          queryWarning: queryError && queryError.message ? queryError.message : "query_failed"
+        };
       }
-    });
+    }
+
+    const expireAt = resolveExpireAt(order);
+
+    let response;
+    try {
+      response = await requestWechatPay(config, {
+        appid: config.appid,
+        mchid: config.mchid,
+        description: buildDescription(order),
+        out_trade_no: order.orderNo,
+        time_expire: expireAt.toISOString(),
+        attach: String(order._id || orderId || "").slice(0, 128),
+        notify_url: config.notifyUrl,
+        amount: {
+          total: totalFee,
+          currency: "CNY"
+        },
+        payer: {
+          openid: OPENID
+        }
+      });
+    } catch (prepayError) {
+      const msg = (prepayError && prepayError.message) || "微信支付下单失败";
+      // 商户单号已存在：尽量查单后复用
+      if (/已存在|ORDER_CLOSED|out_trade_no|FREQUENCY_LIMITED|ORDERPAID/i.test(msg) || /201|已支付/.test(msg)) {
+        try {
+          const trade = await queryWechatTransactionByOutTradeNo(config, order.orderNo);
+          const state = String(trade.trade_state || "").toUpperCase();
+          if (state === "SUCCESS") {
+            return {
+              ok: false,
+              code: "ALREADY_PAID_ON_WECHAT",
+              message: "该订单微信侧已支付，请刷新订单状态",
+              tradeState: state
+            };
+          }
+          if ((state === "NOTPAY" || state === "USERPAYING") && (trade.prepay_id || order.prepayId)) {
+            const prepayId = trade.prepay_id || order.prepayId;
+            await saveOrderPrepay(order._id, OPENID, prepayId);
+            return {
+              ok: true,
+              orderId: order._id,
+              orderNo: order.orderNo,
+              total: numberField(order.total),
+              payment: buildPaymentParams(config, prepayId),
+              reusedPrepay: true,
+              tradeState: state
+            };
+          }
+        } catch (ignore) {
+          // fall through
+        }
+      }
+      return {
+        ok: false,
+        code: "CREATE_PAYMENT_ERROR",
+        message: msg
+      };
+    }
 
     if (!response.prepay_id) {
       return { ok: false, message: "微信支付未返回预支付单" };
     }
 
     const payment = buildPaymentParams(config, response.prepay_id);
-    const prepayClaim = await db.collection("orders").where({
-      _id: order._id,
-      _openid: OPENID,
-      status: "待支付",
-      payStatus: order.payStatus
-    }).update({
-      data: {
-        prepayId: response.prepay_id,
-        prepayCreatedAt: db.serverDate(),
-        payStatus: "pending",
-        updatedAt: db.serverDate()
-      }
-    });
-    if (!prepayClaim.updated) {
-      return { ok: false, message: "订单状态已变化，请刷新后重试" };
-    }
+    // 写库失败也不阻断收银台；回调按 out_trade_no 入账
+    await saveOrderPrepay(order._id, OPENID, response.prepay_id);
 
     return {
       ok: true,
       orderId: order._id,
       orderNo: order.orderNo,
-      total: order.total,
+      total: numberField(order.total),
       payment
     };
   } catch (error) {

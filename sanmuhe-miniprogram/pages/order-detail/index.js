@@ -78,17 +78,39 @@ Page({
       return;
     }
     this.setData({ submitting: true });
-    payOrder(this.data.order).then(() => {
-      wx.showToast({ title: "正在确认支付结果", icon: "none" });
-      setTimeout(() => {
-        this.setData({ submitting: false });
-        this.loadOrder({ silent: true });
-      }, 1200);
+    const order = this.data.order;
+    payOrder({
+      _id: order._id || order.id,
+      orderId: order._id || order.id,
+      orderNo: order.orderNo
+    }).then(() => {
+      wx.showModal({
+        title: "支付成功",
+        content: "付款已完成，订单即将生效，门店会尽快处理。",
+        showCancel: false,
+        success: () => {
+          this.setData({ submitting: false });
+          this.loadOrder({ silent: true });
+        }
+      });
     }).catch((error) => {
-      const message = error && error.errMsg && /cancel/.test(error.errMsg)
-        ? "已取消支付，可稍后继续"
-        : (error && error.message ? error.message : "暂时无法发起支付");
-      wx.showToast({ title: message, icon: "none" });
+      const raw = (error && (error.errMsg || error.message)) || "";
+      const cancelled = /cancel|取消/i.test(raw);
+      const alreadyPaid = error && error.code === "ALREADY_PAID_ON_WECHAT";
+      const message = cancelled
+        ? "已取消支付，订单尚未成功，可再次点「继续支付」"
+        : (alreadyPaid
+          ? "微信已收款，正在同步为已支付订单"
+          : (error && error.message ? error.message : "暂时无法发起支付"));
+      if (alreadyPaid) {
+        wx.showToast({ title: message, icon: "none" });
+      } else {
+        wx.showModal({
+          title: cancelled ? "支付已取消" : "请先完成支付",
+          content: message,
+          showCancel: false
+        });
+      }
       this.setData({ submitting: false });
       this.loadOrder({ silent: true });
     });

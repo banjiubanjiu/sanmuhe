@@ -78,8 +78,8 @@ function statusCopy(order = {}) {
   }
   const copies = {
     "待支付": order.paymentStarted
-      ? "支付单已创建，可继续支付；如需取消请联系门店"
-      : "请在订单有效期内完成支付",
+      ? "尚未支付成功，请继续完成付款；付款成功后订单才生效"
+      : "请先完成支付，付款成功后订单才会通知门店",
     "待确认": "门店正在确认本次订单",
     "待发货": "商品备货完成后将安排发出",
     "待自提": "请凭订单号到店取茶",
@@ -183,9 +183,10 @@ function normalizeOrder(order = {}) {
     totalText: money(order.total),
     refundAmountText: money(order.refundAmount),
     canPay: order.status === "待支付" && order.payStatus !== "paid",
+    // 未付款均可取消（含已预下单）；付成功后不可取消
     canCancel: ["待支付", "待确认"].includes(order.status)
       && order.payStatus !== "paid"
-      && !order.paymentStarted,
+      && order.payStatus !== "confirming",
     canConfirmReceipt: order.deliveryMethod === "shipping" && order.status === "已发货",
     canApplyAfterSale: paidOrFulfilling
       && order.status !== "已取消"

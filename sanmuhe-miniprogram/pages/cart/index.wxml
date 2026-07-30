@@ -151,7 +151,7 @@
         <view class="payment-radio"><view></view></view>
         <view class="payment-copy">
           <view>微信支付</view>
-          <text>确认后调起微信收银台，在线付款</text>
+          <text>先完成付款，支付成功后订单才生效并通知门店</text>
         </view>
         <view class="payment-amount">¥{{total}}</view>
       </view>

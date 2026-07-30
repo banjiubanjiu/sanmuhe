@@ -13,7 +13,8 @@
     "pages/event-edit/index",
     "pages/contact/index",
     "pages/member/index",
-    "pages/profile/index"
+    "pages/profile/index",
+    "pages/my-records/index"
   ],
   "window": {
     "navigationBarTitleText": "禾煦",

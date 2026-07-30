@@ -380,7 +380,7 @@ Page(withPrivacy({
         return null;
       }
 
-      // 微信支付：先落单再调起收银台
+      // 微信支付：技术上需先落「待支付」单号再调起收银台；业务上只有付成功才算订单成功
       if (payMode === "wechat") {
         return payOrder({
           _id: result.id,
@@ -388,13 +388,23 @@ Page(withPrivacy({
           orderNo: result.orderNo
         }).then(() => ({ result, paid: "wechat" }))
           .catch((error) => {
-            // 订单已创建，支付取消/失败仍可稍后在订单详情继续付
             const msg = (error && error.errMsg) || (error && error.message) || "";
             const cancelled = /cancel|取消/i.test(msg);
+            const alreadyPaid = error && error.code === "ALREADY_PAID_ON_WECHAT";
+            if (alreadyPaid) {
+              return { result, paid: "wechat" };
+            }
+            const detail = msg
+              .replace(/^requestPayment:fail\s*/i, "")
+              .replace(/^cloud\.callFunction:fail\s*/i, "")
+              .trim();
             return {
               result,
               paid: "pending",
-              payError: cancelled ? "已取消支付，可在订单详情继续付款" : (msg || "支付未完成，可在订单详情继续付款")
+              cancelled,
+              payError: cancelled
+                ? "你已取消支付，订单尚未成功。可继续付款，或稍后在「我的订单」处理。"
+                : (`${detail || "支付未完成"}。订单尚未成功，请继续完成付款。`)
             };
           });
       }
@@ -407,7 +417,44 @@ Page(withPrivacy({
       if (!outcome) {
         return;
       }
-      const { result, paid, payError } = outcome;
+      const { result, paid, payError, cancelled } = outcome;
+      const delivery = isDineIn
+        ? (table ? `桌号 ${table}` : "堂饮")
+        : (this.data.deliveryMethod === "shipping" ? "快递邮寄" : "到店自提");
+      const orderId = result.id || result._id || "";
+
+      // 微信支付未完成：不算订单成功，不清空购物车语义上仍属「未成交」；
+      // 但库存已锁在待支付单上，清空购物车避免重复下单，引导继续支付。
+      if (paid === "pending") {
+        setCart([], mode);
+        this.setData({
+          cart: [],
+          items: [],
+          total: 0,
+          count: 0,
+          tableNo: table || "",
+          remark: "",
+          submitting: false
+        });
+        wx.showModal({
+          title: cancelled ? "支付已取消" : "请先完成支付",
+          content: `${payError || "支付未完成，订单尚未成功。"}\n单号 ${result.orderNo || ""}（${delivery}）`,
+          confirmText: "继续支付",
+          cancelText: "稍后再说",
+          success: (modal) => {
+            if (modal.confirm && orderId) {
+              wx.navigateTo({
+                url: `/pages/order-detail/index?id=${encodeURIComponent(orderId)}`
+              });
+              return;
+            }
+            wx.switchTab({ url: "/pages/profile/index" });
+          }
+        });
+        return;
+      }
+
+      // 已付款 / 柜台单：成交后才清空并提示成功
       setCart([], mode);
       this.setData({
         cart: [],
@@ -418,20 +465,14 @@ Page(withPrivacy({
         remark: "",
         submitting: false
       });
-      const delivery = isDineIn
-        ? (table ? `桌号 ${table}` : "堂饮")
-        : (this.data.deliveryMethod === "shipping" ? "快递邮寄" : "到店自提");
       let title = "下单成功";
       let content = `订单 ${result.orderNo || ""}（${delivery}）已通知门店。请到柜台扫码付款。`;
       if (paid === "balance") {
-        title = "余额支付成功";
-        content = `订单 ${result.orderNo || ""}（${delivery}）已从会员余额扣除 ¥${Number(result.total || 0).toFixed(2)}。`;
+        title = "支付成功";
+        content = `订单 ${result.orderNo || ""}（${delivery}）已从会员余额支付 ¥${Number(result.total || 0).toFixed(2)}，门店将尽快处理。`;
       } else if (paid === "wechat") {
         title = "支付成功";
         content = `订单 ${result.orderNo || ""}（${delivery}）已支付成功，门店将尽快处理。`;
-      } else if (paid === "pending") {
-        title = "订单已创建";
-        content = `订单 ${result.orderNo || ""}（${delivery}）已生成。${payError || "可在订单详情继续微信支付。"}`;
       }
       wx.showModal({
         title,

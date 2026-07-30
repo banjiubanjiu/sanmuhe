@@ -109,12 +109,48 @@ const drinks = [
     color: "#c17831",
     image: IMG.drink005,
     unit: "壶"
+  },
+  {
+    id: "drink-test-001",
+    name: "支付测试·茶饮",
+    category: "测试",
+    serviceType: "tasting",
+    price: 0.01,
+    notes: "仅用于微信支付联调，实付 0.01 元",
+    tagline: "联调小额，勿当正式菜品售卖",
+    brewStyle: "热泡茶",
+    teaGroups: [
+      { name: "测试茶品", options: ["测试红茶"] }
+    ],
+    badge: "测",
+    color: "#6b7280",
+    image: IMG.drink001,
+    unit: "道"
   }
 ];
 
 // 禾煦茶品目录（零售茶叶，价格与规格来自官方目录）
 // specs: { label 展示名, weight 净含量说明, price 售价, stockUnits 扣库存单位 }
 const teaProducts = [
+  {
+    id: "tea-test-001",
+    name: "支付测试·茶叶",
+    category: "测试",
+    year: "2026",
+    price: 0.01,
+    unit: "测试装",
+    origin: "联调专用",
+    roast: "—",
+    taste: "仅用于微信支付联调，实付 0.01 元，非正式售卖商品。",
+    stock: 9999,
+    color: "#6b7280",
+    image: IMG.tea001,
+    thumb: IMG.tea001,
+    detail: "支付联调测试商品。正式营业前请在后台下架。",
+    specs: [
+      { label: "测试装", weight: "1g", price: 0.01, stockUnits: 1 }
+    ]
+  },
   {
     id: "tea-001",
     name: "有机红茶",

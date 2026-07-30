@@ -1,0 +1,191 @@
+.my-records-page {
+  min-height: 100vh;
+  background: #f9f4eb;
+  padding-bottom: 40rpx;
+}
+
+.records-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24rpx 32rpx;
+  background: #f7f1e6;
+}
+
+.nav-back {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-back image {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.nav-title {
+  font-size: 34rpx;
+  font-weight: 500;
+  color: #233b31;
+}
+
+.nav-placeholder {
+  width: 64rpx;
+}
+
+.records-tabs {
+  background: #f7f1e6;
+  padding: 0 32rpx 24rpx;
+}
+
+.tabs-inner {
+  display: flex;
+  gap: 32rpx;
+}
+
+.records-tab {
+  font-size: 30rpx;
+  color: #716656;
+  padding-bottom: 12rpx;
+  border-bottom: 4rpx solid transparent;
+}
+
+.records-tab.is-active {
+  color: #233b31;
+  font-weight: 500;
+  border-bottom-color: #5a844c;
+}
+
+.records-list {
+  padding: 24rpx 32rpx;
+}
+
+.record-row {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 4rpx 20rpx rgba(35, 59, 49, 0.04);
+}
+
+.record-image {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+  flex-shrink: 0;
+  margin-right: 24rpx;
+  background: #f0ece3;
+}
+
+.record-image image {
+  width: 100%;
+  height: 100%;
+}
+
+.record-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.record-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.record-title {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #233b31;
+}
+
+.record-status {
+  font-size: 24rpx;
+  color: #5a844c;
+}
+
+.record-meta {
+  font-size: 26rpx;
+  color: #716656;
+  margin-bottom: 8rpx;
+}
+
+.record-sub {
+  font-size: 24rpx;
+  color: #9e968a;
+}
+
+.record-skeleton {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.skeleton-image {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 16rpx;
+  background: #f0ece3;
+  margin-right: 24rpx;
+}
+
+.skeleton-body {
+  flex: 1;
+}
+
+.skeleton-line {
+  height: 28rpx;
+  background: #f0ece3;
+  border-radius: 8rpx;
+  margin-bottom: 16rpx;
+}
+
+.skeleton-line.wide {
+  width: 60%;
+}
+
+.state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120rpx 64rpx;
+  text-align: center;
+}
+
+.state-panel image {
+  width: 200rpx;
+  height: 200rpx;
+  border-radius: 20rpx;
+  margin-bottom: 32rpx;
+}
+
+.state-title {
+  font-size: 32rpx;
+  color: #233b31;
+  margin-bottom: 12rpx;
+}
+
+.state-copy {
+  font-size: 26rpx;
+  color: #716656;
+  margin-bottom: 32rpx;
+}
+
+.state-action {
+  font-size: 28rpx;
+  color: #fff;
+  background: #5a844c;
+  border-radius: 40rpx;
+  padding: 16rpx 48rpx;
+  line-height: 1.5;
+}
