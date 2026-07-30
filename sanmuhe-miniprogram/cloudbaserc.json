@@ -113,7 +113,10 @@
       "name": "createReservation",
       "runtime": "Nodejs16.13",
       "handler": "index.main",
-      "envVariables": {}
+      "envVariables": {
+        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY"
+      }
     },
     {
       "name": "listEvents",

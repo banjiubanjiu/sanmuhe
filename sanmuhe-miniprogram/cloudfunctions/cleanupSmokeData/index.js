@@ -56,11 +56,11 @@ exports.main = async (event = {}) => {
 
   const cleanupJobs = [
     ["orders", { _openid: OPENID, source: SMOKE_SOURCE }],
-    ["orders", { _openid: OPENID, remark: "云开发状态页自动检查" }],
+    ["orders", { _openid: OPENID, remark: "开发阶段自动检查" }],
     ["reservations", { _openid: OPENID, source: SMOKE_SOURCE }],
-    ["reservations", { _openid: OPENID, note: "云开发状态页自动检查" }],
+    ["reservations", { _openid: OPENID, note: "开发阶段自动检查" }],
     ["events", { _openid: OPENID, source: SMOKE_SOURCE }],
-    ["events", { _openid: OPENID, summary: "云开发状态页自动检查活动" }],
+    ["events", { _openid: OPENID, summary: "开发阶段自动检查活动" }],
     ["event_signups", { _openid: OPENID, source: SMOKE_SOURCE }]
   ];
 

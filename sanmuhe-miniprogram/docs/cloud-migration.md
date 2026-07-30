@@ -40,7 +40,7 @@ module.exports = {
 
 - `getOpenId`：验证云函数和微信登录态。
 - `getCatalog`：读取云端茶饮、茶叶、茶室、活动和首页内容；云端为空时返回空列表，生产数据应由后台保存或导入到云数据库。
-- `seedDemoData`：把默认茶饮、茶叶、茶室和活动写入云数据库。
+- `seedDemoData`：把默认茶饮、茶叶、茶室和活动写入云数据库（仅开发/初始化使用，上线后通常不需要保留在前端入口）。
 - `manageCatalog`：后台商品、茶室和活动的列表、详情、新增、更新、下架/删除和恢复。
 - `createOrder`：创建茶饮/茶叶订单。
 - `createReservation`：创建茶室预约，并检查同一茶室时段冲突。
@@ -51,7 +51,7 @@ module.exports = {
 - `memberCenter`：会员主动开通、手机号核验、会员资料、储值套餐、测试充值与钱包查询。
 - `createPayment`：普通订单和会员充值的微信支付预下单；缺少支付配置时拒绝真实下单。
 - `wechatPayNotify`：微信支付回调验签、解密、订单确认和会员充值入账。
-- `cleanupSmokeData`：清理「云开发状态」页自动检查产生的测试订单、预约、活动和报名记录。
+- `cleanupSmokeData`：清理开发阶段自动检查产生的测试订单、预约、活动和报名记录（仅开发使用）。
 
 项目还包含 `cloudbaserc.json`，用于让维护者快速了解当前云开发资源清单。实际部署仍建议优先使用微信开发者工具 CLI 或开发者工具右键部署。
 
@@ -72,9 +72,7 @@ deploy-cloudfunctions.bat 你的云环境ID
 
 该脚本会调用微信开发者工具 CLI 一次性部署全部云函数，并启用云端安装依赖。
 
-部署后可以进入「云开发状态」页面，先检查 `getOpenId`，再点击「写入默认商品和活动」。该按钮会调用 `seedDemoData`，把示例数据写入 `drinks`、`tea_products`、`rooms`、`events` 集合。
-
-「运行云端写入检查」会依次调用 `createOrder`、`createReservation`、`createEvent`、`joinEvent`、`listMyRecords`、`manageCatalog`，用于确认订单、预约、活动发布、活动报名、我的记录和商品/活动管理链路都能写入并读回云数据库。检查记录会带 `source: cloud-status-smoke` 标记，跑完后可点「清理自动检查记录」，调用 `cleanupSmokeData` 删除当前用户的自动检查数据。
+首次部署后，可在 CloudBase 控制台云函数测试页直接调用 `seedDemoData` 写入示例数据到 `drinks`、`tea_products`、`rooms`、`events` 集合；正式上线前建议通过经营后台录入真实商品与活动内容，不再依赖示例数据。
 
 ## 数据集合
 
@@ -123,13 +121,12 @@ Windows 里双击项目上级目录的：
 
 - `sanmuhe-cloudfunctions-deploy.log`：云函数部署输出。
 
-## 云开发状态检查
+## 部署后验证
 
-项目里已添加 `pages/cloud-status/index`。打开小程序后进入「我的禾煦」，点击「云状态」，再点击「检查 getOpenId 云函数」。
+部署完成后，建议按以下顺序验证：
 
-- 如果成功，会显示当前用户 `openid` 和 AppID。
-- 如果提示未配置 envId，先运行 `configure-cloud.bat`。
-- 如果提示云函数调用失败，先部署 `getOpenId`，再检查云函数日志。
-- 如果默认商品没有出现在云数据库，确认 `seedDemoData` 已部署，再点击「写入默认商品和活动」。
-- 如果云端写入检查失败，确认 11 个云函数都已部署，再查看 `downloads\sanmuhe-cloudfunctions-deploy.log` 和微信开发者工具云函数日志。
-- 如果多次运行写入检查，跑完后点「清理自动检查记录」，避免测试数据混入真实订单、预约和活动。
+1. 在云开发控制台云函数测试页调用 `getOpenId`，确认返回当前用户 `openid` 和 `appid`。
+2. 如果提示未配置 envId，先运行 `configure-cloud.bat` 或手动填写 `config/cloud.js` 的 `envId`。
+3. 如果云函数调用失败，先部署 `getOpenId`，再检查云函数日志。
+4. 首次初始化数据时，可在云函数测试页调用 `seedDemoData`；正式上线后通过经营后台录入真实数据。
+5. 若之前运行过写入检查产生了测试数据，可在云函数测试页调用 `cleanupSmokeData` 清理。

@@ -2,25 +2,82 @@
   "description": "Sanmuhe WeChat Mini Program",
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "admin" },
-      { "type": "folder", "value": "admin-src" },
-      { "type": "folder", "value": "node_modules" },
-      { "type": "folder", "value": "cloudfunctions" },
-      { "type": "folder", "value": "scripts" },
-      { "type": "folder", "value": "docs" },
-      { "type": "folder", "value": "assets/images/.orig-backup" },
-      { "type": "glob", "value": "admin/**/*" },
-      { "type": "glob", "value": "admin-src/**/*" },
-      { "type": "glob", "value": "node_modules/**/*" },
-      { "type": "glob", "value": "assets/images/.orig-backup/**/*" },
-      { "type": "glob", "value": "**/*.md" },
-      { "type": "glob", "value": "**/*.map" },
-      { "type": "file", "value": "package-lock.json" },
-      { "type": "file", "value": "package.json" },
-      { "type": "file", "value": "vite.config.mjs" },
-      { "type": "file", "value": "cloudbaserc.json" },
-      { "type": "file", "value": "README.md" },
-      { "type": "file", "value": "AGENTS.md" }
+      {
+        "type": "folder",
+        "value": "admin"
+      },
+      {
+        "type": "folder",
+        "value": "admin-src"
+      },
+      {
+        "type": "folder",
+        "value": "node_modules"
+      },
+      {
+        "type": "folder",
+        "value": "cloudfunctions"
+      },
+      {
+        "type": "folder",
+        "value": "scripts"
+      },
+      {
+        "type": "folder",
+        "value": "docs"
+      },
+      {
+        "type": "folder",
+        "value": "assets/images/.orig-backup"
+      },
+      {
+        "type": "glob",
+        "value": "admin/**/*"
+      },
+      {
+        "type": "glob",
+        "value": "admin-src/**/*"
+      },
+      {
+        "type": "glob",
+        "value": "node_modules/**/*"
+      },
+      {
+        "type": "glob",
+        "value": "assets/images/.orig-backup/**/*"
+      },
+      {
+        "type": "glob",
+        "value": "**/*.md"
+      },
+      {
+        "type": "glob",
+        "value": "**/*.map"
+      },
+      {
+        "type": "file",
+        "value": "package-lock.json"
+      },
+      {
+        "type": "file",
+        "value": "package.json"
+      },
+      {
+        "type": "file",
+        "value": "vite.config.mjs"
+      },
+      {
+        "type": "file",
+        "value": "cloudbaserc.json"
+      },
+      {
+        "type": "file",
+        "value": "README.md"
+      },
+      {
+        "type": "file",
+        "value": "AGENTS.md"
+      }
     ],
     "include": []
   },
@@ -61,7 +118,7 @@
     "localPlugins": false,
     "disableUseStrict": false,
     "useCompilerPlugins": false,
-    "condition": false,
+    "condition": true,
     "swc": false,
     "disableSWC": true
   },
@@ -75,5 +132,8 @@
     "tabIndent": "insertSpaces",
     "tabSize": 2
   },
-  "simulatorPluginLibVersion": {}
+  "simulatorPluginLibVersion": {
+    "wxext14566970e7e9f62": "2.27.3"
+  },
+  "projectArchitecture": "multiPlatform"
 }

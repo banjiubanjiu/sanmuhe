@@ -31,8 +31,7 @@ const serviceItemsBase = [
   { label: "收货地址", icon: "/assets/icons/profile-pin.png", action: "address" },
   { label: "优惠券", icon: "/assets/icons/profile-coupon.png", action: "coupon" },
   { label: "联系客服", icon: "/assets/icons/profile-headset.png", action: "service" },
-  { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" },
-  { label: "云开发状态", icon: "/assets/icons/profile-setting.png", action: "status" }
+  { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" }
 ];
 
 function buildServices() {
@@ -61,10 +60,11 @@ function normalizeRecords(records, type) {
 function buildOrderShortcuts(orders, summary) {
   return orderShortcutBase.map((item) => {
     let count = 0;
-    if (summary && summary[item.key] !== undefined) {
+    // 行业通用：角标只表示「待用户处理」数量；「全部订单」永不显示红点/数字
+    if (item.key === "all") {
+      count = 0;
+    } else if (summary && summary[item.key] !== undefined) {
       count = Number(summary[item.key]) || 0;
-    } else if (item.key === "all") {
-      count = orders.length;
     } else if (item.key === "pending") {
       count = orders.filter((order) => order.status === "待支付" || order.payStatus === "pending").length;
     } else if (item.key === "active") {
@@ -289,10 +289,6 @@ Page(withPrivacy({
     }
     if (action === "privacy") {
       this.openPrivacyContract();
-      return;
-    }
-    if (action === "status") {
-      wx.navigateTo({ url: "/pages/cloud-status/index" });
       return;
     }
     this.showMemberBenefits();

@@ -14,7 +14,8 @@ const requiredPages = [
   "pages/reservation/index",
   "pages/events/index",
   "pages/event-edit/index",
-  "pages/cloud-status/index",
+  "pages/contact/index",
+  "pages/member/index",
   "pages/profile/index"
 ];
 
@@ -214,24 +215,7 @@ for (const page of requiredPages) {
 const appPagesOk = requiredPages.every((page) => appJson.pages.includes(page));
 results.push(status("app.json pages", appPagesOk, `${appJson.pages.length} registered pages`));
 
-if (exists("sanmuhe-miniprogram/pages/cloud-status/index.js") && exists("sanmuhe-miniprogram/pages/cloud-status/index.wxml")) {
-  const cloudStatusJs = readText("sanmuhe-miniprogram/pages/cloud-status/index.js");
-  const cloudStatusWxml = readText("sanmuhe-miniprogram/pages/cloud-status/index.wxml");
-  const smokeFunctions = [
-    "createOrder",
-    "createReservation",
-    "createEvent",
-    "joinEvent",
-    "listMyRecords",
-    "manageCatalog",
-    "cleanupSmokeData"
-  ];
-  const smokeWiringOk = smokeFunctions.every((name) => cloudStatusJs.includes(`name: "${name}"`)) &&
-    cloudStatusJs.includes("runSmokeTest") &&
-    cloudStatusWxml.includes("运行云端写入检查") &&
-    cloudStatusWxml.includes("检查商品/活动管理");
-  results.push(status("cloud status smoke test wiring", smokeWiringOk, smokeWiringOk ? "order/reservation/event/signup/records/catalog covered" : "missing smoke test wiring"));
-}
+
 
 for (const fn of requiredFunctions) {
   const fnOk = exists(`sanmuhe-miniprogram/cloudfunctions/${fn}/index.js`) &&
@@ -446,11 +430,11 @@ const eventSignupCapacityOk = eventsJs.includes("canJoin") &&
 results.push(status("event signup capacity flow", eventSignupCapacityOk, eventSignupCapacityOk ? "signup disables full/joined events and increments cloud signed count" : "event signup capacity or count update missing"));
 
 const createEventJs = readText("sanmuhe-miniprogram/cloudfunctions/createEvent/index.js");
-const cloudStatusJs = readText("sanmuhe-miniprogram/pages/cloud-status/index.js");
 const createJoinIdOk = createEventJs.includes("const eventId = `event-cloud-${Date.now()}`") &&
   createEventJs.includes("id: eventId") &&
   createEventJs.includes("docId: addResult._id") &&
-  cloudStatusJs.includes("const eventId = data.id");
+  joinEventJs.includes("event.eventId") &&
+  joinEventJs.includes('where({ id: eventId })');
 results.push(status("create event returns joinable id", createJoinIdOk, createJoinIdOk ? "createEvent returns business id used by joinEvent" : "createEvent may return doc _id that joinEvent cannot count"));
 
 const reservationFallbackCopyOk = reservationJs.includes("预约已临时保存在本机，云端恢复后请重新提交确认。") &&
@@ -472,15 +456,11 @@ const orderDynamicCatalogOk = createOrderJs.includes("findTrustedItem") &&
   createOrderJs.includes("await sanitizeItems");
 results.push(status("order backend dynamic catalog pricing", orderDynamicCatalogOk, orderDynamicCatalogOk ? "createOrder trusts cloud catalog first and falls back to built-in prices" : "createOrder only accepts hard-coded products"));
 
-const cloudStatusWxmlFull = readText("sanmuhe-miniprogram/pages/cloud-status/index.wxml");
 const cleanupSmokeJs = readText("sanmuhe-miniprogram/cloudfunctions/cleanupSmokeData/index.js");
-const smokeCleanupOk = cloudStatusJs.includes("source: smokeSource") &&
-  cloudStatusJs.includes("cleanupSmokeData") &&
-  cloudStatusWxmlFull.includes("清理自动检查记录") &&
-  cleanupSmokeJs.includes("cloud-status-smoke") &&
+const smokeCleanupOk = cleanupSmokeJs.includes("cloud-status-smoke") &&
   cleanupSmokeJs.includes("removeByQuery") &&
   cleanupSmokeJs.includes("event_signups");
-results.push(status("cloud smoke cleanup flow", smokeCleanupOk, smokeCleanupOk ? "cloud status smoke writes are tagged and cleanupSmokeData removes test orders/reservations/events/signups" : "cloud status smoke checks may leave uncleanable test data"));
+results.push(status("cloud smoke cleanup flow", smokeCleanupOk, smokeCleanupOk ? "cleanupSmokeData removes test orders/reservations/events/signups" : "cleanupSmokeData may leave uncleanable test data"));
 
 if (exists("sanmuhe-miniprogram/cloudbaserc.json")) {
   const cloudbaseRc = readJson("sanmuhe-miniprogram/cloudbaserc.json");
@@ -550,7 +530,7 @@ const auditCovered = [
   "已从 docs 设计图裁切并接入茶饮、茶叶、茶室、活动、会员中心图片素材，商品和活动数据携带 image/thumb 字段。",
   "本地小程序代码已接入 wx.cloud 初始化和云函数调用。",
   `云函数目录、${requiredFunctions.length} 个云函数和 cloudbaserc 资源清单已存在。`,
-  "云状态页已包含订单、预约、活动、报名、我的记录和商品/活动管理的一键云端检查。",
+  "云函数健康检查与测试数据清理能力已保留在云端，不再向顾客暴露开发调试用页面。",
   "Windows 侧只保留配置、预检、云函数部署和打开微信开发者工具入口；二维码预览和浏览器预览冗余入口已移除。"
 ];
 const auditMissing = [];

@@ -1,5 +1,5 @@
 const { getStore, getTeaRoom, getBookingPolicy } = require("../../data/store");
-const { createReservation, getCatalog } = require("../../utils/cloudApi");
+const { createReservation, getCatalog, listReservedSlots } = require("../../utils/cloudApi");
 const { getBookingDays } = require("../../utils/date");
 const { withPrivacy } = require("../../utils/privacy");
 
@@ -35,6 +35,22 @@ function getPeriod(periodId) {
   return PERIODS.find((item) => item.id === periodId) || PERIODS[0];
 }
 
+function isSlotReserved(startTime, endTime, reservedSlots) {
+  const startMins = toMinutes(startTime);
+  const endMins = endTime ? toMinutes(endTime) : startMins + SESSION_MINUTES;
+  if (startMins >= endMins) {
+    return false;
+  }
+  return (reservedSlots || []).some((slot) => {
+    const s = toMinutes(slot.time);
+    const e = slot.endTime ? toMinutes(slot.endTime) : s + (slot.durationMinutes || SESSION_MINUTES);
+    if (s >= e) {
+      return false;
+    }
+    return startMins < e && endMins > s;
+  });
+}
+
 function earliestStart(period) {
   return toMinutes(period.start);
 }
@@ -43,7 +59,7 @@ function latestStart(period) {
   return toMinutes(period.end) - SESSION_MINUTES;
 }
 
-function buildHourList(period) {
+function buildHourList(period, reservedSlots) {
   const start = earliestStart(period);
   const latest = latestStart(period);
   if (latest < start) {
@@ -51,12 +67,17 @@ function buildHourList(period) {
   }
   const hours = [];
   for (let h = Math.floor(start / 60); h <= Math.floor(latest / 60); h += 1) {
-    hours.push(pad2(h));
+    const hourStr = pad2(h);
+    // 只要该小时内存在任意可用分钟，就保留该小时列
+    const minutes = buildMinuteList(period, hourStr, reservedSlots);
+    if (minutes.length) {
+      hours.push(hourStr);
+    }
   }
   return hours;
 }
 
-function buildMinuteList(period, hourStr) {
+function buildMinuteList(period, hourStr, reservedSlots) {
   const hour = Number(hourStr);
   const start = earliestStart(period);
   const latest = latestStart(period);
@@ -64,15 +85,19 @@ function buildMinuteList(period, hourStr) {
   for (let m = 0; m < 60; m += 1) {
     const total = hour * 60 + m;
     if (total >= start && total <= latest) {
-      minutes.push(pad2(m));
+      const time = `${pad2(hour)}:${pad2(m)}`;
+      const end = fromMinutes(total + SESSION_MINUTES);
+      if (!isSlotReserved(time, end, reservedSlots)) {
+        minutes.push(pad2(m));
+      }
     }
   }
   return minutes;
 }
 
-function buildTimePicker(periodId, preferredTime) {
+function buildTimePicker(periodId, preferredTime, reservedSlots) {
   const period = getPeriod(periodId);
-  const hours = buildHourList(period);
+  const hours = buildHourList(period, reservedSlots);
   if (!hours.length) {
     return {
       periodId: period.id,
@@ -99,28 +124,35 @@ function buildTimePicker(periodId, preferredTime) {
   if (hourIndex < 0) {
     hourIndex = 0;
   }
-  let minutes = buildMinuteList(period, hours[hourIndex]);
-  if (!minutes.length) {
-    hourIndex = 0;
-    minutes = buildMinuteList(period, hours[hourIndex]);
+  let minutes = buildMinuteList(period, hours[hourIndex], reservedSlots);
+
+  // 若首选小时已约满，跳到下一个有可用分钟的小时
+  let fallbackHourIndex = hourIndex;
+  while (!minutes.length && fallbackHourIndex < hours.length - 1) {
+    fallbackHourIndex += 1;
+    minutes = buildMinuteList(period, hours[fallbackHourIndex], reservedSlots);
   }
+  if (minutes.length) {
+    hourIndex = fallbackHourIndex;
+  }
+
   let minuteIndex = minutes.indexOf(preferredMinute);
   if (minuteIndex < 0) {
     minuteIndex = 0;
   }
 
-  const start = `${hours[hourIndex]}:${minutes[minuteIndex]}`;
-  const end = fromMinutes(toMinutes(start) + SESSION_MINUTES);
+  const start = minutes.length ? `${hours[hourIndex]}:${minutes[minuteIndex]}` : "";
+  const end = start ? fromMinutes(toMinutes(start) + SESSION_MINUTES) : "";
   return {
     periodId: period.id,
     timeRange: [hours, minutes],
-    timeIndex: [hourIndex, minuteIndex],
+    timeIndex: minutes.length ? [hourIndex, minuteIndex] : [0, 0],
     selectedTime: start,
     selectedEnd: end,
     selectedPeriod: period.id,
     selectedPeriodLabel: period.label,
     selectedPrice: period.price,
-    selectedSlotLabel: `${start}–${end}`
+    selectedSlotLabel: start ? `${start}–${end}` : ""
   };
 }
 
@@ -148,7 +180,7 @@ function resolveTeaRoom(remoteRoom) {
   });
 }
 
-const defaultPicker = buildTimePicker("day", "10:00");
+const defaultPicker = buildTimePicker("day", "10:00", []);
 
 Page(withPrivacy({
   data: {
@@ -168,6 +200,7 @@ Page(withPrivacy({
     selectedPeriodLabel: defaultPicker.selectedPeriodLabel,
     selectedPrice: defaultPicker.selectedPrice,
     selectedSlotLabel: defaultPicker.selectedSlotLabel,
+    reservedSlots: [],
     people: 2,
     name: "",
     phone: "",
@@ -178,16 +211,39 @@ Page(withPrivacy({
   onLoad() {
     const days = decorateDays(getBookingDays());
     const contact = wx.getStorageSync(CONTACT_KEY) || {};
+    const selectedDay = days[0].value;
     const picker = buildTimePicker("day", "10:00");
     this.setData(Object.assign({
       days,
       visibleDays: days.slice(0, 5),
-      selectedDay: days[0].value,
-      selectedDayText: getDayText(days, days[0].value),
+      selectedDay,
+      selectedDayText: getDayText(days, selectedDay),
       name: contact.consignee || contact.name || "",
       phone: contact.phone || ""
     }, picker));
     this.loadCatalog();
+    this.loadReservedSlots(selectedDay);
+  },
+
+  loadReservedSlots(day) {
+    if (!day) {
+      return;
+    }
+    listReservedSlots({
+      day,
+      roomId: TEA_ROOM.id,
+      storeId: STORE.id
+    }).then((result) => {
+      if (!result || result.ok === false) {
+        return;
+      }
+      const reservedSlots = Array.isArray(result.slots) ? result.slots : [];
+      // 用当前时段和已预约记录重建时间选择器，自动跳过被占用的时段
+      const picker = buildTimePicker(this.data.periodId, this.data.selectedTime, reservedSlots);
+      this.setData(Object.assign({ reservedSlots }, picker));
+    }).catch(() => {
+      // 读取失败不影响现有选择，仅不做禁用
+    });
   },
 
   loadCatalog() {
@@ -212,7 +268,7 @@ Page(withPrivacy({
   },
 
   applyPicker(periodId, preferredTime) {
-    this.setData(buildTimePicker(periodId, preferredTime));
+    this.setData(buildTimePicker(periodId, preferredTime, this.data.reservedSlots));
   },
 
   choosePeriod(event) {
@@ -228,12 +284,13 @@ Page(withPrivacy({
     const row = Number(event.detail.value);
     const period = getPeriod(this.data.periodId);
     const hours = this.data.timeRange[0] || [];
+    const reservedSlots = this.data.reservedSlots;
     let hourIndex = this.data.timeIndex[0] || 0;
     let minuteIndex = this.data.timeIndex[1] || 0;
 
     if (column === 0) {
       hourIndex = row;
-      const minutes = buildMinuteList(period, hours[hourIndex]);
+      const minutes = buildMinuteList(period, hours[hourIndex], reservedSlots);
       minuteIndex = Math.min(minuteIndex, Math.max(0, minutes.length - 1));
       this.setData({
         timeRange: [hours, minutes],
@@ -295,6 +352,7 @@ Page(withPrivacy({
       selectedDay,
       selectedDayText: getDayText(this.data.days, selectedDay)
     });
+    this.loadReservedSlots(selectedDay);
   },
 
   showMoreDates() {
@@ -346,6 +404,11 @@ Page(withPrivacy({
     const startMins = toMinutes(selectedTime);
     if (startMins < earliestStart(period) || startMins > latestStart(period)) {
       wx.showToast({ title: "该开始时间不在可预约范围内", icon: "none" });
+      return;
+    }
+    if (isSlotReserved(selectedTime, selectedEnd, this.data.reservedSlots)) {
+      wx.showToast({ title: "该时段已被预约，请重新选择", icon: "none" });
+      this.loadReservedSlots(selectedDay);
       return;
     }
 

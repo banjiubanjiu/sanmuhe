@@ -18,18 +18,8 @@
     </view>
   </view>
 
-  <!-- 微信官方客服会话：需公众平台已绑定客服人员 -->
-  <button
-    class="contact-card online-card contact-service-btn"
-    open-type="contact"
-    session-from="{{sessionFrom}}"
-    show-message-card="{{true}}"
-    send-message-title="{{sendMessageTitle}}"
-    send-message-path="{{sendMessagePath}}"
-    send-message-img="{{sendMessageImg}}"
-    hover-class="none"
-    bindcontact="handleContact"
-  >
+  <!-- 视觉与其它入口统一；button 仅作透明点击层以支持 open-type="contact" -->
+  <view class="contact-card online-card">
     <view class="icon-wrap">
       <view class="chat-icon">
         <view class="chat-dot"></view>
@@ -41,8 +31,16 @@
       <view class="card-title">在线客服</view>
       <view class="card-subtitle">订单 / 茶品 / 茶室 / 活动咨询</view>
     </view>
-    <view class="consult-pill">立即咨询 <text>›</text></view>
-  </button>
+    <view class="card-action online-action">去咨询 <text>›</text></view>
+    <button
+      class="contact-hit"
+      open-type="contact"
+      session-from="{{sessionFrom}}"
+      show-message-card="{{false}}"
+      hover-class="none"
+      bindcontact="handleContact"
+    ></button>
+  </view>
 
   <view class="contact-card" bindtap="callPhone">
     <view class="icon-wrap">

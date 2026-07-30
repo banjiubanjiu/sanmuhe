@@ -186,6 +186,10 @@ function createReservation(payload) {
   return callCloud("createReservation", payload);
 }
 
+function listReservedSlots(payload) {
+  return callCloud("createReservation", Object.assign({ action: "listReservedSlots" }, payload || {}));
+}
+
 function createEvent(payload) {
   return callCloud("createEvent", payload);
 }
@@ -301,6 +305,7 @@ module.exports = {
   listEvents,
   listMyOrders,
   listMyRecords,
+  listReservedSlots,
   payOrder,
   rechargeMember,
   saveSubscription,

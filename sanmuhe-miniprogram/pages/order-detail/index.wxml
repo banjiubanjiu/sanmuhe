@@ -135,7 +135,7 @@
       <button
         open-type="contact"
         session-from="{{contactSessionFrom}}"
-        show-message-card="{{true}}"
+        show-message-card="{{false}}"
         send-message-title="{{contactMessageTitle}}"
         send-message-path="{{contactMessagePath}}"
         send-message-img="{{contactMessageImg}}"
@@ -180,7 +180,7 @@
         class="primary-action"
         open-type="contact"
         session-from="{{contactSessionFrom}}"
-        show-message-card="{{true}}"
+        show-message-card="{{false}}"
         send-message-title="{{contactMessageTitle}}"
         send-message-path="{{contactMessagePath}}"
         send-message-img="{{contactMessageImg}}"

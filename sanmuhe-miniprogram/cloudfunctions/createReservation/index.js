@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const { sendWeComReservationNotification, sendWeComTestNotification } = require("./wecomReservationNotify");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -32,6 +33,174 @@ function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
 
+function number(value) {
+  return Math.max(0, Number(value) || 0);
+}
+
+function parseList(value) {
+  return String(value || "")
+    .split(/[,\n;]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toMinutes(hhmm) {
+  const parts = String(hhmm || "").split(":");
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return 0;
+  }
+  return hour * 60 + minute;
+}
+
+function fromMinutes(total) {
+  const hour = Math.floor(Math.max(0, total) / 60);
+  const minute = Math.max(0, total) % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function resolveReservationRange(record = {}, fallbackSessionMinutes = 120) {
+  const start = cleanText(record.time, 12);
+  let end = cleanText(record.endTime, 12);
+  const session = Math.max(30, Number(record.durationMinutes) || fallbackSessionMinutes);
+  if (!end && start) {
+    end = fromMinutes(toMinutes(start) + session);
+  }
+  return {
+    start,
+    end,
+    startMins: toMinutes(start),
+    endMins: toMinutes(end)
+  };
+}
+
+function rangesOverlap(aStartMins, aEndMins, bStartMins, bEndMins) {
+  // 区间左闭右开：start <= x < end
+  const aStart = Number(aStartMins) || 0;
+  const aEnd = Number(aEndMins) || aStart;
+  const bStart = Number(bStartMins) || 0;
+  const bEnd = Number(bEndMins) || bStart;
+  if (aStart >= aEnd || bStart >= bEnd) {
+    return false;
+  }
+  return aStart < bEnd && aEnd > bStart;
+}
+
+async function findConflictingReservations(day, roomId, storeId, startTime, endTime, fallbackSessionMinutes) {
+  const baseQuery = {
+    day,
+    status: _.nin(["已取消", "cancelled"])
+  };
+  if (storeId) {
+    baseQuery.storeId = storeId;
+  }
+  if (roomId) {
+    baseQuery.roomId = roomId;
+  }
+
+  const result = await db.collection("reservations").where(baseQuery).get();
+  const records = result.data || [];
+
+  const newStartMins = toMinutes(startTime);
+  const newEndMins = endTime ? toMinutes(endTime) : newStartMins + fallbackSessionMinutes;
+
+  return records.filter((record) => {
+    const range = resolveReservationRange(record, fallbackSessionMinutes);
+    if (!range.start) {
+      return false;
+    }
+    return rangesOverlap(newStartMins, newEndMins, range.startMins, range.endMins);
+  });
+}
+
+async function listReservedSlots(day, roomId, storeId, fallbackSessionMinutes) {
+  const baseQuery = {
+    day,
+    status: _.nin(["已取消", "cancelled"])
+  };
+  if (storeId) {
+    baseQuery.storeId = storeId;
+  }
+  if (roomId) {
+    baseQuery.roomId = roomId;
+  }
+
+  const result = await db.collection("reservations").where(baseQuery).get();
+  const records = result.data || [];
+
+  return records
+    .map((record) => {
+      const range = resolveReservationRange(record, fallbackSessionMinutes);
+      if (!range.start) {
+        return null;
+      }
+      return {
+        time: range.start,
+        endTime: range.end,
+        durationMinutes: Math.max(30, Number(record.durationMinutes) || fallbackSessionMinutes)
+      };
+    })
+    .filter(Boolean);
+}
+
+async function notifyAdmins(reservation = {}) {
+  const notice = {
+    type: "reservation_created",
+    reservationId: reservation.reservationId || "",
+    storeName: cleanText(reservation.storeName, 40),
+    roomId: cleanText(reservation.roomId, 40),
+    day: cleanText(reservation.day, 20),
+    time: cleanText(reservation.time, 12),
+    endTime: cleanText(reservation.endTime, 12),
+    people: number(reservation.people),
+    name: cleanText(reservation.name, 40),
+    phone: cleanText(reservation.phone, 30),
+    note: cleanText(reservation.note, 160),
+    status: cleanText(reservation.status, 12) || "待确认",
+    read: false,
+    createdAt: db.serverDate()
+  };
+
+  try {
+    await ensureCollection("admin_notices");
+    await db.collection("admin_notices").add({ data: notice });
+  } catch (error) {
+    // Notice board is best-effort; reservation creation should still succeed.
+  }
+
+  try {
+    await ensureCollection("notification_logs");
+    await db.collection("notification_logs").add({
+      data: Object.assign({}, notice, {
+        channel: "admin_notice",
+        target: "admin",
+        message: `茶室预约 ${notice.day} ${notice.time}，${notice.name} ${notice.phone}，${notice.people} 位，请确认。`
+      })
+    });
+  } catch (error) {
+    // Logging is best-effort.
+  }
+
+  return {
+    adminOpenids: parseList(process.env.ADMIN_OPENIDS).length,
+    staffOpenids: parseList(process.env.STAFF_OPENIDS || process.env.ADMIN_OPENIDS).length,
+    noticeWritten: true
+  };
+}
+
+async function notifyWeCom(reservation = {}) {
+  try {
+    return await sendWeComReservationNotification(reservation);
+  } catch (error) {
+    console.warn(`[wecom-reservation] ${error.message || "发送失败"}`);
+    return {
+      ok: false,
+      message: error.message || "企业微信茶室预约提醒发送失败"
+    };
+  }
+}
+
 async function resolveStore() {
   try {
     await ensureCollection("store_settings");
@@ -55,11 +224,52 @@ async function resolveStore() {
 
 exports.main = async (event = {}) => {
   if (event.action === "health") {
-    return { ok: true, name: "createReservation" };
+    return {
+      ok: true,
+      name: "createReservation",
+      wecomReservationNotifyConfigured: Boolean(process.env.WECOM_RESERVATION_WEBHOOK || process.env.WECOM_ORDER_WEBHOOK)
+    };
+  }
+
+  if (event.action === "testWeComNotify") {
+    try {
+      const result = await sendWeComTestNotification();
+      return Object.assign({ ok: true, name: "createReservation" }, result);
+    } catch (error) {
+      return {
+        ok: false,
+        code: "WECOM_TEST_FAILED",
+        message: error && error.message ? error.message : "企业微信测试失败"
+      };
+    }
+  }
+
+  const store = await resolveStore();
+  const storeId = store.storeId;
+  const roomId = cleanText(event.roomId, 40) || store.roomId;
+
+  if (event.action === "listReservedSlots") {
+    const day = cleanText(event.day, 20);
+    if (!day) {
+      return { ok: false, message: "请选择日期" };
+    }
+    try {
+      const slots = await listReservedSlots(day, roomId, storeId, store.sessionMinutes);
+      return {
+        ok: true,
+        day,
+        roomId,
+        slots
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error.message || "读取已预约时段失败"
+      };
+    }
   }
 
   const { OPENID } = cloud.getWXContext();
-  const store = await resolveStore();
 
   const day = cleanText(event.day, 20);
   const time = cleanText(event.time, 12);
@@ -74,9 +284,6 @@ exports.main = async (event = {}) => {
   const note = cleanText(event.note, 200);
   const source = cleanText(event.source, 40);
 
-  // 单店：roomId 默认本店茶席；名称永远用服务端门店名
-  const roomId = cleanText(event.roomId, 40) || store.roomId;
-  const storeId = store.storeId;
   const storeName = store.storeName;
 
   if (!day || !time || !name || !phone) {
@@ -88,29 +295,17 @@ exports.main = async (event = {}) => {
 
   await ensureCollection("reservations");
 
-  const conflict = await db.collection("reservations").where({
-    storeId,
-    roomId,
+  const conflicting = await findConflictingReservations(
     day,
+    roomId,
+    storeId,
     time,
-    status: _.nin(["已取消", "cancelled"])
-  }).count();
+    endTime,
+    store.sessionMinutes
+  );
 
-  if (conflict.total > 0) {
-    return { ok: false, message: "该时段已被预约" };
-  }
-
-  // 兼容旧冲突键（历史数据可能只有 roomId）
-  if (!conflict.total) {
-    const legacyConflict = await db.collection("reservations").where({
-      roomId,
-      day,
-      time,
-      status: _.nin(["已取消", "cancelled"])
-    }).count();
-    if (legacyConflict.total > 0) {
-      return { ok: false, message: "该时段已被预约" };
-    }
+  if (conflicting.length > 0) {
+    return { ok: false, message: "该时段已被预约或与其他预约重叠" };
   }
 
   const addResult = await db.collection("reservations").add({
@@ -140,10 +335,33 @@ exports.main = async (event = {}) => {
     }
   });
 
+  const reservationSnapshot = {
+    reservationId: addResult._id,
+    storeName,
+    roomId,
+    day,
+    time,
+    endTime,
+    periodLabel,
+    price,
+    people,
+    name,
+    phone,
+    note,
+    status: "待确认"
+  };
+
+  const [wecomNotify, adminNotify] = await Promise.all([
+    notifyWeCom(reservationSnapshot),
+    notifyAdmins(reservationSnapshot)
+  ]);
+
   return {
     ok: true,
     id: addResult._id,
     storeName,
-    roomId
+    roomId,
+    wecomNotify,
+    adminNotify
   };
 };

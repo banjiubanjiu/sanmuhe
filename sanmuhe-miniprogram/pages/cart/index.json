@@ -1,4 +1,7 @@
 {
   "navigationBarTitleText": "确认点单",
-  "navigationStyle": "custom"
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "privacy-gate": "/components/privacy-gate/index"
+  }
 }

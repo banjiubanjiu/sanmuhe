@@ -567,12 +567,17 @@ async function handleTransactionSuccess(transaction) {
       total: order.total,
       status: getPaidStatus(order),
       payStatus: "paid",
-      payMode: "微信支付",
+      payMode: "wechat",
       event: "order_paid",
       deliveryMethod: order.deliveryMethod,
+      source: order.source || "",
       tableNo: order.tableNo,
       remark: order.remark,
-      items: order.items
+      items: order.items,
+      consignee: order.consignee || "",
+      phone: order.phone || "",
+      address: order.address || "",
+      transactionId: transaction.transaction_id || order.transactionId || ""
     });
   } catch (error) {
     // best-effort

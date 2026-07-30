@@ -576,10 +576,22 @@ function isBalancePayMode(event = {}) {
   return mode === "balance" || mode === "wallet";
 }
 
+function isWechatPayMode(event = {}) {
+  const mode = cleanText(event.payMode || event.paymentMode || event.checkoutMode, 20).toLowerCase();
+  return mode === "wechat" ||
+    mode === "wx" ||
+    mode === "wxpay" ||
+    mode === "jsapi" ||
+    mode === "online";
+}
+
 function isOnsiteOrder(event = {}, deliveryMethod = "") {
-  return deliveryMethod === "onsite" ||
-    isManualPayMode(event) ||
-    cleanText(event.source, 40).toLowerCase() === "onsite-cart";
+  // 仅堂饮/现场点单算 onsite；商城自提是 pickup，邮寄是 shipping
+  const source = cleanText(event.source, 40).toLowerCase();
+  if (deliveryMethod === "onsite") {
+    return true;
+  }
+  return source === "onsite-cart" || source === "dinein-tea-menu";
 }
 
 function toFen(value) {
@@ -935,8 +947,14 @@ exports.main = async (event = {}) => {
     const { cleanItems, inventoryLocks, subtotal } = await sanitizeItems(event.items);
     const deliveryMethod = normalizeDeliveryMethod(event.deliveryMethod);
     const balancePay = isBalancePayMode(event);
-    const manualPay = isManualPayMode(event);
-    const onsiteOrder = isOnsiteOrder(event, deliveryMethod);
+    const wechatPay = isWechatPayMode(event) || (
+      !balancePay &&
+      !isManualPayMode(event) &&
+      event.skipPayment !== true
+    );
+    // 柜台付款：显式 manual / skipPayment，且不是余额/微信
+    const manualPay = !balancePay && !wechatPay && isManualPayMode(event);
+    const onsiteOrder = isOnsiteOrder(event, deliveryMethod) || deliveryMethod === "onsite";
     const tableNo = extractTableNo(event, cleanItems);
     const orderRemark = buildOrderRemark(tableNo, event.remark);
     const consignee = cleanText(event.consignee || event.pickupName, 40) || (onsiteOrder ? "到店顾客" : "");
@@ -956,7 +974,10 @@ exports.main = async (event = {}) => {
     }
 
     const orderNo = `SMH${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
-    const lockedUntil = onsiteOrder || manualPay || balancePay ? null : new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
+    // 微信支付需库存锁定与支付超时；余额/柜台到店不锁超时
+    const lockedUntil = wechatPay
+      ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000)
+      : null;
     const settings = await readSettings();
     const member = await getMemberDiscount(OPENID, settings, cleanItems);
     const memberDiscount = Math.min(subtotal, member.discount);
@@ -972,9 +993,17 @@ exports.main = async (event = {}) => {
     await ensureCollection("orders");
     appliedLocks = await lockInventory(inventoryLocks, orderNo);
 
-    const orderStatus = balancePay ? "余额支付处理中" : (onsiteOrder || manualPay ? "待确认" : "待支付");
-    const payStatus = balancePay ? "balance_processing" : (onsiteOrder || manualPay ? "manual" : "pending");
+    const orderStatus = balancePay
+      ? "余额支付处理中"
+      : (wechatPay ? "待支付" : "待确认");
+    const payStatus = balancePay
+      ? "balance_processing"
+      : (wechatPay ? "pending" : "manual");
     const finalDeliveryMethod = onsiteOrder ? "onsite" : deliveryMethod;
+    const payModeValue = balancePay ? "balance" : (wechatPay ? "wechat" : "manual");
+    const payHint = balancePay
+      ? "会员余额支付"
+      : (wechatPay ? "微信支付" : "现场扫码付款");
 
     const addResult = await db.collection("orders").add({
       data: {
@@ -1001,11 +1030,11 @@ exports.main = async (event = {}) => {
         source: cleanText(event.source, 40) || (onsiteOrder ? "onsite-cart" : ""),
         status: orderStatus,
         payStatus,
-        payMode: balancePay ? "balance" : (onsiteOrder || manualPay ? "manual" : "wechat"),
-        payHint: balancePay ? "会员余额支付" : (onsiteOrder || manualPay ? "现场扫码付款" : ""),
-        lockedUntil: onsiteOrder || manualPay || balancePay ? null : lockedUntil,
+        payMode: payModeValue,
+        payHint,
+        lockedUntil,
         lockReleased: false,
-        adminNotified: onsiteOrder || manualPay,
+        adminNotified: !wechatPay,
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
       }
@@ -1033,28 +1062,36 @@ exports.main = async (event = {}) => {
       appliedCoupon = null;
     }
 
+    const finalStatus = balancePay ? "待确认" : orderStatus;
+    const finalPayStatus = balancePay ? "paid" : payStatus;
     const wecomNotify = await notifyWeComOrder({
       orderNo,
       total,
-      status: balancePay ? "待确认" : orderStatus,
-      payStatus: balancePay ? "paid" : payStatus,
-      payMode: balancePay ? "余额支付" : (onsiteOrder || manualPay ? "到店确认" : "待微信支付"),
+      status: finalStatus,
+      payStatus: finalPayStatus,
+      // 传规范化渠道码，企微文案会展开成「怎么付 + 去哪查」
+      payMode: payModeValue,
       event: balancePay ? "order_paid" : "order_created",
       deliveryMethod: finalDeliveryMethod,
+      source: cleanText(event.source, 40) || (onsiteOrder ? "dinein-tea-menu" : "retail-tea-catalog"),
       tableNo,
       remark: orderRemark,
-      items: cleanItems
+      items: cleanItems,
+      consignee: consignee || "",
+      phone: phone || "",
+      address: address || "",
+      transactionId: walletPayment && walletPayment.transactionId ? walletPayment.transactionId : ""
     });
 
     let adminNotify = null;
-    if (onsiteOrder || manualPay || balancePay) {
+    if (manualPay || balancePay || wechatPay) {
       adminNotify = await notifyAdmins({
         orderId: addResult._id,
         orderNo,
         total,
-        status: balancePay ? "待确认" : orderStatus,
-        payStatus: balancePay ? "paid" : payStatus,
-        payMode: balancePay ? "balance" : "manual",
+        status: finalStatus,
+        payStatus: finalPayStatus,
+        payMode: payModeValue,
         consignee: consignee || "到店顾客",
         phone: phone || "现场",
         deliveryMethod: finalDeliveryMethod,
@@ -1074,9 +1111,9 @@ exports.main = async (event = {}) => {
       shippingFee,
       total,
       deliveryMethod: finalDeliveryMethod,
-      status: balancePay ? "待确认" : orderStatus,
-      payStatus: balancePay ? "paid" : payStatus,
-      payMode: balancePay ? "balance" : (onsiteOrder || manualPay ? "manual" : "wechat"),
+      status: finalStatus,
+      payStatus: finalPayStatus,
+      payMode: payModeValue,
       walletPayment,
       lockedUntil: lockedUntil ? lockedUntil.toISOString() : null,
       adminNotify,

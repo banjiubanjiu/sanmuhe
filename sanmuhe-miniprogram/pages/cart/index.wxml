@@ -28,9 +28,21 @@
             <view class="row-bottom">
               <view class="row-price">¥{{item.price}}</view>
               <view class="stepper">
-                <button class="step-btn" data-key="{{item.key}}" data-quantity="{{item.quantity}}" bindtap="decrease">−</button>
+                <view
+                  class="step-btn"
+                  hover-class="step-btn-hover"
+                  data-key="{{item.key}}"
+                  data-quantity="{{item.quantity}}"
+                  bindtap="decrease"
+                >−</view>
                 <text class="qty">{{item.quantity}}</text>
-                <button class="step-btn" data-key="{{item.key}}" data-quantity="{{item.quantity}}" bindtap="increase">+</button>
+                <view
+                  class="step-btn"
+                  hover-class="step-btn-hover"
+                  data-key="{{item.key}}"
+                  data-quantity="{{item.quantity}}"
+                  bindtap="increase"
+                >+</view>
               </view>
             </view>
           </view>
@@ -40,6 +52,68 @@
     </view>
 
     <view class="note-block">
+      <!-- 商城：配送方式 -->
+      <block wx:if="{{!isDineIn}}">
+        <view class="payment-title">配送方式</view>
+        <view
+          class="payment-option {{deliveryMethod === 'pickup' ? 'active' : ''}}"
+          data-method="pickup"
+          bindtap="chooseDelivery"
+        >
+          <view class="payment-radio"><view></view></view>
+          <view class="payment-copy">
+            <view>到店自提</view>
+            <text>{{storeAddress}}</text>
+          </view>
+        </view>
+        <view
+          class="payment-option {{deliveryMethod === 'shipping' ? 'active' : ''}}"
+          data-method="shipping"
+          bindtap="chooseDelivery"
+        >
+          <view class="payment-radio"><view></view></view>
+          <view class="payment-copy">
+            <view>快递邮寄</view>
+            <text>需选择微信收货地址</text>
+          </view>
+        </view>
+
+        <view wx:if="{{deliveryMethod === 'shipping'}}" class="address-block">
+          <view class="address-head">
+            <view class="payment-title address-title">收货地址</view>
+            <view class="address-pick" bindtap="chooseAddress">{{hasAddress ? '更换地址' : '选择微信地址'}}</view>
+          </view>
+          <view wx:if="{{hasAddress}}" class="address-card">
+            <view class="address-name">{{consignee}}　{{phone}}</view>
+            <view class="address-detail">{{address}}</view>
+          </view>
+          <view wx:else class="address-empty" bindtap="chooseAddress">请选择收货地址 ›</view>
+        </view>
+
+        <view wx:if="{{deliveryMethod === 'pickup'}}" class="address-block">
+          <view class="payment-title address-title">自提信息</view>
+          <view class="address-card soft">
+            <view class="address-detail">自提点：{{storeAddress}}</view>
+          </view>
+          <input
+            class="field"
+            placeholder="联系人姓名（必填）"
+            data-field="consignee"
+            value="{{consignee}}"
+            bindinput="onInput"
+          />
+          <input
+            class="field"
+            placeholder="手机号（必填）"
+            type="number"
+            maxlength="11"
+            data-field="phone"
+            value="{{phone}}"
+            bindinput="onInput"
+          />
+        </view>
+      </block>
+
       <input
         wx:if="{{isDineIn}}"
         class="field"
@@ -70,6 +144,18 @@
         <view class="payment-amount">-¥{{total}}</view>
       </view>
       <view
+        class="payment-option {{payMode === 'wechat' ? 'active' : ''}}"
+        data-mode="wechat"
+        bindtap="choosePayMode"
+      >
+        <view class="payment-radio"><view></view></view>
+        <view class="payment-copy">
+          <view>微信支付</view>
+          <text>确认后调起微信收银台，在线付款</text>
+        </view>
+        <view class="payment-amount">¥{{total}}</view>
+      </view>
+      <view
         class="payment-option {{payMode === 'manual' ? 'active' : ''}}"
         data-mode="manual"
         bindtap="choosePayMode"
@@ -80,7 +166,7 @@
           <text>{{isDineIn ? '确认茶单后由门店备茶并引导付款' : '确认茶品后由门店备货并引导付款'}}</text>
         </view>
       </view>
-      <view class="pay-hint">{{payMode === 'balance' ? ('确认后将从会员余额扣除，预计剩余 ¥' + balanceAfter) : (isDineIn ? '确认后通知门店备茶，请到柜台扫码付款' : '确认后通知门店备货，请到柜台扫码付款')}}</view>
+      <view class="pay-hint">{{payHintText}}</view>
     </view>
 
     <view class="checkout-bar simple">
@@ -91,4 +177,12 @@
       <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">{{isDineIn ? '确认茶单' : '确认茶品'}}</button>
     </view>
   </block>
+
+  <privacy-gate
+    show="{{privacyGateOpen}}"
+    purpose="{{privacyPurpose}}"
+    contractName="{{privacyContractName}}"
+    bindagree="onPrivacyAgree"
+    bindcancel="onPrivacyCancel"
+  />
 </view>

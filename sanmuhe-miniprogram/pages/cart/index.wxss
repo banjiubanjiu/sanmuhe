@@ -94,10 +94,14 @@
 
 .cart-row {
   display: grid;
-  grid-template-columns: 112rpx minmax(0, 1fr) 48rpx;
-  gap: 18rpx;
+  grid-template-columns: 112rpx minmax(0, 1fr) 44rpx;
+  gap: 16rpx;
   align-items: center;
-  padding: 22rpx 20rpx;
+  padding: 22rpx 18rpx;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .cart-row + .cart-row {
@@ -144,55 +148,74 @@
   align-items: center;
   justify-content: space-between;
   gap: 12rpx;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .row-price {
+  flex: 0 1 auto;
+  min-width: 0;
   color: #b04737;
   font-size: 30rpx;
   font-weight: 600;
 }
 
 .stepper {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 10rpx;
+  justify-content: flex-end;
+  gap: 8rpx;
+  max-width: 100%;
 }
 
+/* 用 view 代替 button，避免小程序 button 默认 min-width 撑破布局 */
 .step-btn {
   width: 48rpx;
   height: 48rpx;
+  min-width: 48rpx;
+  max-width: 48rpx;
   margin: 0;
   padding: 0;
-  display: flex;
+  box-sizing: border-box;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   color: var(--hx-text);
   border-radius: 50%;
   background: var(--hx-sidebar);
   font-size: 30rpx;
   line-height: 1;
+  overflow: hidden;
 }
 
-.step-btn::after {
-  border: none;
+.step-btn-hover {
+  opacity: 0.72;
 }
 
 .qty {
-  min-width: 36rpx;
+  min-width: 32rpx;
+  max-width: 56rpx;
+  padding: 0 2rpx;
   text-align: center;
   color: var(--hx-text);
   font-size: 28rpx;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .delete-btn {
   width: 44rpx;
   height: 44rpx;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--hx-muted);
   font-size: 34rpx;
+  line-height: 1;
 }
 
 .note-block {
@@ -216,6 +239,66 @@
 
 .field + .field {
   margin-top: 14rpx;
+}
+
+.address-block {
+  margin-top: 8rpx;
+}
+
+.address-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.address-title {
+  margin-top: 18rpx;
+}
+
+.address-pick {
+  margin-top: 18rpx;
+  color: var(--hx-action);
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.address-card {
+  margin-top: 12rpx;
+  margin-bottom: 12rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 14rpx;
+  background: var(--hx-field);
+  border: 1rpx solid var(--hx-field-line);
+}
+
+.address-card.soft {
+  margin-bottom: 14rpx;
+}
+
+.address-name {
+  color: var(--hx-ink);
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.address-detail {
+  margin-top: 8rpx;
+  color: var(--hx-muted);
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.address-empty {
+  margin-top: 12rpx;
+  margin-bottom: 8rpx;
+  padding: 28rpx 20rpx;
+  border-radius: 14rpx;
+  border: 1rpx dashed var(--hx-line);
+  color: var(--hx-muted);
+  font-size: 26rpx;
+  text-align: center;
 }
 
 .payment-title {
