@@ -38,9 +38,9 @@
     </view>
 
     <view class="perk-row">
-      <view class="perk-item">每场 2 小时</view>
+      <view class="perk-item">满 {{minHours}} 小时起</view>
+      <view class="perk-item">半小时加时</view>
       <view class="perk-item">6 位以内</view>
-      <view class="perk-item">赠 2 泡茶</view>
     </view>
 
     <view class="section-block">
@@ -72,75 +72,52 @@
       <view class="section-label">
         <view class="section-title-group">
           <text class="section-index">02</text>
-          <view class="block-title">选择场次</view>
+          <view class="block-title">选择开始与结束</view>
         </view>
-        <text class="section-hint">费用含茶席与赠茶</text>
+        <text class="section-hint">半小时一档 · 满 {{minHours}} 小时</text>
       </view>
-      <view class="period-row">
+
+      <view class="slot-legend">
+        <text class="leg start">开始</text>
+        <text class="leg end">结束</text>
+        <text class="leg range">已选</text>
+        <text class="leg busy">已约</text>
+      </view>
+
+      <view class="slot-grid">
         <view
-          wx:for="{{periods}}"
-          wx:key="id"
-          class="period-chip {{periodId === item.id ? 'active' : ''}}"
-          data-id="{{item.id}}"
-          bindtap="choosePeriod"
+          wx:for="{{slotCells}}"
+          wx:key="time"
+          class="slot-cell status-{{item.status}} {{item.disabled ? 'is-disabled' : ''}}"
+          data-time="{{item.time}}"
+          data-status="{{item.status}}"
+          bindtap="onTapSlot"
         >
-          <view class="period-top">
-            <text class="period-label">{{item.label}}</text>
-            <text class="period-price">¥{{item.price}}</text>
-          </view>
-          <text class="period-meta">{{item.start}} – {{item.end}}</text>
+          <text class="slot-time">{{item.time}}</text>
+          <text wx:if="{{item.tag}}" class="slot-tag">{{item.tag}}</text>
         </view>
+      </view>
+
+      <view class="slot-tip">
+        <block wx:if="{{pickMode === 'start' || !selectedTime}}">先点开始时刻，再点结束时刻</block>
+        <block wx:elif="{{pickMode === 'end'}}">已选开始 {{selectedTime}}，请再选结束（至少满 {{minHours}} 小时）</block>
+        <block wx:else>已选 {{selectedSlotLabel}} · 该时段归您使用</block>
       </view>
     </view>
 
-    <view class="section-block">
-      <view class="section-label">
-        <view class="section-title-group">
-          <text class="section-index">03</text>
-          <view class="block-title">选择时间</view>
-        </view>
-        <text class="section-hint">自动顺延 2 小时</text>
+    <view class="fee-bar">
+      <view class="fee-left">
+        <text class="fee-label">本场费用</text>
+        <text class="fee-sub">{{feeLabel || '满 2 小时按价带计，超出每 30 分钟加价'}}</text>
       </view>
-
-      <view class="time-picker-card">
-        <picker
-          mode="multiSelector"
-          range="{{timeRange}}"
-          value="{{timeIndex}}"
-          bindchange="onTimeChange"
-          bindcolumnchange="onTimeColumnChange"
-        >
-          <view class="time-start-row">
-            <view class="time-col">
-              <text class="time-caption">开始</text>
-              <text class="time-value">{{selectedTime || '--:--'}}</text>
-            </view>
-            <view class="time-divider">
-              <view class="time-line"></view>
-              <text class="time-plus">2h</text>
-              <view class="time-line"></view>
-            </view>
-            <view class="time-col is-end">
-              <text class="time-caption">结束</text>
-              <text class="time-value soft">{{selectedEnd || '--:--'}}</text>
-            </view>
-            <text class="time-chevron">›</text>
-          </view>
-        </picker>
-
-        <view class="fee-bar">
-          <view class="fee-left">
-            <text class="fee-label">本场费用</text>
-            <text class="fee-sub">{{selectedPeriodLabel}} · 含赠 2 泡茶（¥78）</text>
-          </view>
-          <text class="fee-price">¥{{selectedPrice}}</text>
-        </view>
-      </view>
+      <text class="fee-price" wx:if="{{priceReady}}">¥{{selectedPrice}}</text>
+      <text class="fee-price soft" wx:else>—</text>
     </view>
 
     <button class="next-btn" hover-class="none" bindtap="openBooking">
       <text class="next-main">下一步</text>
-      <text class="next-sub">{{selectedSlotLabel}} · ¥{{selectedPrice}}</text>
+      <text class="next-sub" wx:if="{{priceReady}}">{{selectedSlotLabel}} · ¥{{selectedPrice}}</text>
+      <text class="next-sub" wx:else>选满 {{minHours}} 小时后继续</text>
     </button>
   </view>
 
@@ -165,6 +142,10 @@
           <text class="summary-v">{{selectedSlotLabel}} · {{selectedPeriodLabel}}</text>
         </view>
         <view class="summary-row">
+          <text class="summary-k">时长</text>
+          <text class="summary-v">{{durationHoursLabel}} 小时（满 {{minHours}} 小时起）</text>
+        </view>
+        <view class="summary-row">
           <text class="summary-k">费用</text>
           <text class="summary-v price">¥{{selectedPrice}}</text>
         </view>
@@ -187,7 +168,7 @@
         <textarea class="textarea-field" placeholder="备注（选填）" data-field="note" value="{{note}}" bindinput="onInput"></textarea>
       </view>
 
-      <view class="booking-note">预约提交后由门店人工确认。含赠 2 泡茶（价值 ¥78）；如时段冲突，请重新选择其他时间。</view>
+      <view class="booking-note">无论是否用满，所选时段均归您；最短 {{minHours}} 小时。含赠 2 泡茶（价值 ¥78）。提交后由门店确认；如时段冲突请重选。</view>
 
       <button class="submit-reserve" hover-class="none" bindtap="submitReservation">提交预约 · ¥{{selectedPrice}}</button>
     </view>

@@ -21,6 +21,18 @@ const CANONICAL_STORE = {
   sessionMinutes: 120
 };
 
+/** 与小程序 data/store.js 预约规则对齐 */
+const BOOKING_POLICY = {
+  slotStepMinutes: 30,
+  minDurationMinutes: 120,
+  openTime: "10:00",
+  closeTime: "21:30",
+  periods: [
+    { id: "day", label: "日间", start: "10:00", end: "19:30", basePrice: 188, halfHourPrice: 50 },
+    { id: "evening", label: "晚间", start: "19:30", end: "21:30", basePrice: 208, halfHourPrice: 50 }
+  ]
+};
+
 const LOCK_MINUTES = Math.max(1, Number(process.env.RESERVATION_LOCK_MINUTES || process.env.ORDER_LOCK_MINUTES || 15));
 
 function createReservationNo() {
@@ -64,6 +76,70 @@ function fromMinutes(total) {
   const hour = Math.floor(Math.max(0, total) / 60);
   const minute = Math.max(0, total) % 60;
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function isHalfHourAligned(hhmm) {
+  const mins = toMinutes(hhmm);
+  if (!Number.isFinite(mins) || mins < 0) {
+    return false;
+  }
+  return mins % BOOKING_POLICY.slotStepMinutes === 0;
+}
+
+function getPeriodForStart(startTime) {
+  const startMins = toMinutes(startTime);
+  for (let i = BOOKING_POLICY.periods.length - 1; i >= 0; i -= 1) {
+    const period = BOOKING_POLICY.periods[i];
+    if (startMins >= toMinutes(period.start)) {
+      return period;
+    }
+  }
+  return BOOKING_POLICY.periods[0];
+}
+
+/**
+ * 服务端重算价格，不信任客户端 price
+ * 满 2 小时基础价 + 每超出 30 分钟加价
+ */
+function calculateReservationPrice(startTime, endTime) {
+  if (!startTime || !endTime) {
+    return { ok: false, message: "请选择开始与结束时间" };
+  }
+  if (!isHalfHourAligned(startTime) || !isHalfHourAligned(endTime)) {
+    return { ok: false, message: "时间需按半小时选择" };
+  }
+  const startMins = toMinutes(startTime);
+  const endMins = toMinutes(endTime);
+  if (!(endMins > startMins)) {
+    return { ok: false, message: "结束时间需晚于开始时间" };
+  }
+  const durationMinutes = endMins - startMins;
+  if (durationMinutes < BOOKING_POLICY.minDurationMinutes) {
+    return {
+      ok: false,
+      message: `每场至少预订 ${BOOKING_POLICY.minDurationMinutes / 60} 小时（无论是否用满均归您）`
+    };
+  }
+  const open = toMinutes(BOOKING_POLICY.openTime);
+  const close = toMinutes(BOOKING_POLICY.closeTime);
+  if (startMins < open || endMins > close) {
+    return { ok: false, message: "所选时间不在可预约营业时段内" };
+  }
+  const period = getPeriodForStart(startTime);
+  const extraHalfHours = Math.round(
+    (durationMinutes - BOOKING_POLICY.minDurationMinutes) / BOOKING_POLICY.slotStepMinutes
+  );
+  const price = Number(period.basePrice) + extraHalfHours * Number(period.halfHourPrice || 0);
+  return {
+    ok: true,
+    price,
+    durationMinutes,
+    period: period.id,
+    periodLabel: period.label,
+    basePrice: Number(period.basePrice),
+    extraHalfHours,
+    halfHourPrice: Number(period.halfHourPrice || 0)
+  };
 }
 
 function resolveReservationRange(record = {}, fallbackSessionMinutes = 120) {
@@ -286,10 +362,6 @@ exports.main = async (event = {}) => {
   const day = cleanText(event.day, 20);
   const time = cleanText(event.time, 12);
   const endTime = cleanText(event.endTime, 12);
-  const period = cleanText(event.period, 20);
-  const periodLabel = cleanText(event.periodLabel, 20);
-  const price = Math.max(0, Number(event.price) || 0);
-  const durationMinutes = Math.max(0, Number(event.durationMinutes) || store.sessionMinutes);
   const people = Math.max(1, Math.min(store.maxPeople, Number(event.people) || 1));
   const name = cleanText(event.name, 40);
   const phone = cleanText(event.phone, 30);
@@ -298,12 +370,22 @@ exports.main = async (event = {}) => {
 
   const storeName = store.storeName;
 
-  if (!day || !time || !name || !phone) {
+  if (!day || !time || !endTime || !name || !phone) {
     return { ok: false, message: "请补全预约信息" };
   }
   if (people > store.maxPeople) {
     return { ok: false, message: `每场限 ${store.maxPeople} 位以内` };
   }
+
+  const quote = calculateReservationPrice(time, endTime);
+  if (!quote.ok) {
+    return { ok: false, message: quote.message || "时段无效" };
+  }
+
+  const period = quote.period;
+  const periodLabel = quote.periodLabel;
+  const price = quote.price;
+  const durationMinutes = quote.durationMinutes;
 
   await ensureCollection("reservations");
 
@@ -313,7 +395,7 @@ exports.main = async (event = {}) => {
     storeId,
     time,
     endTime,
-    store.sessionMinutes
+    BOOKING_POLICY.minDurationMinutes
   );
 
   if (conflicting.length > 0) {
@@ -342,6 +424,9 @@ exports.main = async (event = {}) => {
       price,
       total,
       durationMinutes,
+      basePrice: quote.basePrice,
+      extraHalfHours: quote.extraHalfHours,
+      halfHourPrice: quote.halfHourPrice,
       people,
       name,
       phone,
@@ -366,6 +451,7 @@ exports.main = async (event = {}) => {
     periodLabel,
     price,
     total,
+    durationMinutes,
     people,
     name,
     phone,

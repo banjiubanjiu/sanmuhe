@@ -3,12 +3,11 @@
     <view class="nav-inner">
       <view class="nav-side">
         <button
-          class="table-chip"
-          bindtap="scanTable"
-          aria-label="{{tableLabel ? '当前桌号 ' + tableLabel + '，重新扫码' : '扫码绑定桌号'}}"
+          class="table-chip {{tableBound ? 'is-bound' : 'is-unbound'}}"
+          bindtap="onTableChipTap"
+          aria-label="{{tableBound ? '当前' + tableChipText + '，点按查看说明' : '请扫桌上点单码绑定桌号'}}"
         >
-          <image src="/assets/icons/scan-ink.png" mode="aspectFit" aria-hidden="{{true}}"></image>
-          <text>{{tableLabel ? tableLabel : '扫桌码'}}</text>
+          <text>{{tableChipText}}</text>
         </button>
       </view>
       <view class="page-title">堂饮点单</view>

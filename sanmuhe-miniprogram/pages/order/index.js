@@ -7,6 +7,8 @@ const tableUtil = require("../../utils/table");
 
 const DINEIN_CART_MODE = "dinein";
 const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
+/** 开发阶段默认桌号；桌上小程序码扫入后会覆盖 */
+const DEV_DEFAULT_TABLE = "1";
 const ORDER_HERO_IMAGE_BY_DRINK_ID = {
   "drink-001": "/assets/images/order-hero-001-chujian.jpg",
   "drink-002": "/assets/images/order-hero-002-zhiwei.jpg",
@@ -44,6 +46,29 @@ function bindTable(raw) {
     // 缓存桌号成功即可，不阻断点茶。
   }
   return table;
+}
+
+/** 启动参数 / 缓存优先；都没有时用开发默认桌号 */
+function resolveBoundTable(options = {}) {
+  const fromOptions = tableUtil.parseTableFromLaunch(options)
+    || tableUtil.parseTableFromRaw(options.table || options.t || options.scene || "");
+  const bound = bindTable(fromOptions) || tableUtil.getTableNo();
+  if (bound) {
+    return bound;
+  }
+  return bindTable(DEV_DEFAULT_TABLE);
+}
+
+function formatTableChip(table) {
+  const value = tableUtil.normalizeTable(table);
+  if (!value) {
+    return "";
+  }
+  // 已是「桌1」类文案则不再叠「桌」
+  if (/^桌/.test(value)) {
+    return value;
+  }
+  return `桌 ${value}`;
 }
 
 function pickDefaultDrink(menuItems, requestedId) {
@@ -90,31 +115,44 @@ Page({
     activeDrink: defaultMenuItems[0] || null,
     activeDrinkId: defaultMenuItems[0] ? defaultMenuItems[0].id : "",
     tableLabel: "",
+    tableChipText: "",
+    tableBound: false,
     requestedDrinkId: "",
     scrollIntoView: "",
     cartCount: 0,
     cartTotal: 0
   },
 
+  applyTableState(table) {
+    const value = tableUtil.normalizeTable(table);
+    this.setData({
+      tableLabel: value || "",
+      tableBound: Boolean(value),
+      tableChipText: value ? formatTableChip(value) : "请扫桌上码"
+    });
+  },
+
   onLoad(options = {}) {
     const systemInfo = wx.getSystemInfoSync();
-    const fromOptions = tableUtil.parseTableFromLaunch(options)
-      || tableUtil.parseTableFromRaw(options.table || options.t || options.scene || "");
-    const table = bindTable(fromOptions) || tableUtil.getTableNo();
+    const table = resolveBoundTable(options);
     this.setData({
       statusBarHeight: systemInfo.statusBarHeight || 20,
-      tableLabel: table || "",
       requestedDrinkId: decodeURIComponent(options.id || "")
     });
+    this.applyTableState(table);
     this.loadCatalog();
   },
 
   onShow() {
     syncTabBar(this);
     this.refreshCart();
-    const table = tableUtil.getTableNo();
-    if (table && table !== this.data.tableLabel) {
-      this.setData({ tableLabel: table });
+    // 热启动扫了新桌码时覆盖展示；无缓存时保持开发默认桌
+    let table = tableUtil.getTableNo();
+    if (!table) {
+      table = bindTable(DEV_DEFAULT_TABLE);
+    }
+    if (table !== this.data.tableLabel) {
+      this.applyTableState(table);
     }
     const pendingDrinkId = wx.getStorageSync(ORDER_DRINK_KEY);
     if (pendingDrinkId) {
@@ -152,6 +190,25 @@ Page({
     });
   },
 
+  /** 状态芯片：说明正规路径；需要时再二次确认扫码（开发兜底） */
+  onTableChipTap() {
+    const bound = this.data.tableBound;
+    const current = this.data.tableChipText || "未绑定";
+    wx.showModal({
+      title: bound ? current : "绑定桌号",
+      content: bound
+        ? "到店请扫桌上的点单码，桌号会自动绑定。若需换桌，请直接扫描新桌的码。"
+        : "请使用微信扫描桌上的点单码。开发阶段也可临时扫一扫绑定。",
+      confirmText: "扫一扫",
+      cancelText: "知道了",
+      success: (res) => {
+        if (res.confirm) {
+          this.scanTable();
+        }
+      }
+    });
+  },
+
   scanTable() {
     wx.scanCode({
       onlyFromCamera: false,
@@ -162,8 +219,8 @@ Page({
           wx.showToast({ title: "未识别到桌号", icon: "none" });
           return;
         }
-        this.setData({ tableLabel: table });
-        wx.showToast({ title: `已绑定 ${table}`, icon: "none" });
+        this.applyTableState(table);
+        wx.showToast({ title: `已绑定桌 ${table}`, icon: "none" });
       },
       fail: () => {
         wx.showToast({ title: "未完成扫码", icon: "none" });
