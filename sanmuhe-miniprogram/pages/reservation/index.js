@@ -1,5 +1,5 @@
 const { getStore, getTeaRoom, getBookingPolicy } = require("../../data/store");
-const { createReservation, getCatalog, listReservedSlots } = require("../../utils/cloudApi");
+const { createReservation, payReservation, getCatalog, listReservedSlots } = require("../../utils/cloudApi");
 const { getBookingDays } = require("../../utils/date");
 const { withPrivacy } = require("../../utils/privacy");
 
@@ -443,6 +443,10 @@ Page(withPrivacy({
           wx.showToast({ title: result.message || "预约失败", icon: "none" });
           return;
         }
+        if (result && result.status === "待支付" && result.needPayment !== false) {
+          this.handleReservationPayment(result);
+          return;
+        }
         wx.showModal({
           title: "预约已提交",
           content: "门店确认后可通过服务通知或电话联系顾客。",
@@ -458,6 +462,33 @@ Page(withPrivacy({
           content: "预约服务暂时繁忙，请稍后重试。本次预约尚未提交成功。",
           showCancel: false
         });
+      });
+    });
+  },
+
+  handleReservationPayment(reservation) {
+    payReservation(reservation).then(() => {
+      wx.showModal({
+        title: "预约已确认",
+        content: "支付成功，茶室预约已确认。",
+        showCancel: false,
+        success: () => {
+          this.setData({ bookingOpen: false });
+          wx.navigateTo({ url: "/pages/my-records/index?tab=reservation" });
+        }
+      });
+    }).catch((error) => {
+      const isUserCancel = error && error.raw && (error.raw.errCode === -2 || /cancel|fail/.test(error.raw.errMsg || ""));
+      wx.showModal({
+        title: isUserCancel ? "支付未完成" : "支付失败",
+        content: isUserCancel
+          ? "您取消了支付，请在 15 分钟内完成支付，逾期将自动取消预约。"
+          : (error && error.message ? error.message : "支付失败，请稍后重试"),
+        showCancel: false,
+        success: () => {
+          this.setData({ bookingOpen: false });
+          wx.navigateTo({ url: "/pages/my-records/index?tab=reservation" });
+        }
       });
     });
   }

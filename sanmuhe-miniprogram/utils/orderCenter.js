@@ -1,4 +1,4 @@
-const ACTIVE_STATUSES = ["待确认", "待发货", "待自提", "已发货", "异常待处理", "支付异常待处理"];
+const ACTIVE_STATUSES = ["已付款", "制作中", "待确认", "待发货", "待自提", "已发货", "异常待处理", "支付异常待处理"];
 const AFTER_SALE_STATUSES = ["申请售后", "审核中", "处理中", "已退款", "已拒绝", "已关闭"];
 
 function number(value) {
@@ -59,7 +59,7 @@ function statusTone(status) {
   if (/待支付|待付款/.test(text)) {
     return "warning";
   }
-  if (/待|申请|审核|处理|发货/.test(text)) {
+  if (/已付款|制作中|待|申请|审核|处理|发货/.test(text)) {
     return "active";
   }
   return "neutral";
@@ -80,7 +80,9 @@ function statusCopy(order = {}) {
     "待支付": order.paymentStarted
       ? "尚未支付成功，请继续完成付款；付款成功后订单才生效"
       : "请先完成支付，付款成功后订单才会通知门店",
-    "待确认": "门店正在确认本次订单",
+    "已付款": "已支付成功，门店已收到订单",
+    "制作中": "已支付成功，门店已收到订单",
+    "待确认": "门店正在处理本次订单",
     "待发货": "商品备货完成后将安排发出",
     "待自提": "请凭订单号到店取茶",
     "已发货": "商品已发出，可核对物流信息",
@@ -161,7 +163,7 @@ function normalizeOrder(order = {}) {
   const afterSaleOpen = !!order.afterSaleStatus && !["已退款", "已拒绝", "已关闭"].includes(order.afterSaleStatus);
   const paidOrFulfilling = order.payStatus === "paid"
     || order.payStatus === "manual_confirmed"
-    || ["待发货", "待自提", "已发货", "已完成"].includes(order.status);
+    || ["已付款", "制作中", "待发货", "待自提", "已发货", "已完成"].includes(order.status);
 
   return Object.assign({}, order, {
     id,

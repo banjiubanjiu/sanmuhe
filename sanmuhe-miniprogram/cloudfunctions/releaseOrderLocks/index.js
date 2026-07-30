@@ -23,6 +23,20 @@ function inventorySnapshot(item = {}) {
   };
 }
 
+/** 兼容 wx-server-sdk：update 结果可能是 stats.updated 或 updated */
+function dbUpdatedCount(result) {
+  if (!result) {
+    return 0;
+  }
+  if (result.stats && result.stats.updated != null) {
+    return Number(result.stats.updated) || 0;
+  }
+  if (result.updated != null) {
+    return Number(result.updated) || 0;
+  }
+  return 0;
+}
+
 async function writeInventoryLog(entry = {}) {
   try {
     await ensureCollection("inventory_logs");
@@ -107,6 +121,44 @@ async function releaseUserCoupon(coupon) {
   }
 }
 
+async function releaseExpiredReservations() {
+  await ensureCollection("reservations");
+
+  const result = await db.collection("reservations").where({
+    status: "待支付",
+    payStatus: "pending",
+    lockedUntil: _.lte(new Date())
+  }).limit(100).get();
+
+  const expiredReservations = result.data || [];
+  let released = 0;
+
+  for (const reservation of expiredReservations) {
+    const claim = await db.collection("reservations").where({
+      _id: reservation._id,
+      status: "待支付",
+      payStatus: "pending"
+    }).update({
+      data: {
+        status: "已取消",
+        payStatus: "expired",
+        cancellationReason: "支付超时",
+        updatedAt: db.serverDate()
+      }
+    });
+
+    if (dbUpdatedCount(claim) === 0) {
+      continue;
+    }
+    released += 1;
+  }
+
+  return {
+    scanned: expiredReservations.length,
+    released
+  };
+}
+
 exports.main = async (event = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "releaseOrderLocks" };
@@ -149,9 +201,13 @@ exports.main = async (event = {}) => {
     released += 1;
   }
 
+  const reservationRelease = await releaseExpiredReservations();
+
   return {
     ok: true,
     scanned: expiredOrders.length,
-    released
+    released,
+    reservationsScanned: reservationRelease.scanned,
+    reservationsReleased: reservationRelease.released
   };
 };

@@ -86,7 +86,7 @@ Page({
     }).then(() => {
       wx.showModal({
         title: "支付成功",
-        content: "付款已完成，订单即将生效，门店会尽快处理。",
+        content: "付款成功，订单已付款，门店已收到。",
         showCancel: false,
         success: () => {
           this.setData({ submitting: false });

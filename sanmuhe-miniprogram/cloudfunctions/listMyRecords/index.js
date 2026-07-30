@@ -7,7 +7,7 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
-const ACTIVE_ORDER_STATUSES = ["待确认", "待发货", "待自提", "已发货", "异常待处理", "支付异常待处理"];
+const ACTIVE_ORDER_STATUSES = ["已付款", "制作中", "待确认", "待发货", "待自提", "已发货", "异常待处理", "支付异常待处理"];
 const AFTER_SALE_STATUSES = ["申请售后", "审核中", "处理中", "已退款", "已拒绝", "已关闭"];
 const PUBLIC_ORDER_FIELDS = [
   "_id",

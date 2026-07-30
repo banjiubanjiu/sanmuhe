@@ -121,6 +121,26 @@
   color: #9e968a;
 }
 
+.record-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.record-pay-btn {
+  margin: 0;
+  padding: 8rpx 24rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: #fff;
+  background: #5a844c;
+  border-radius: 28rpx;
+}
+
+.record-pay-btn::after {
+  border: none;
+}
+
 .record-skeleton {
   display: flex;
   align-items: center;

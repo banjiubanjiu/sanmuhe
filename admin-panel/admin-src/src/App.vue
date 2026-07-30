@@ -855,7 +855,8 @@ function boolText(value) {
 function buildWorkflowSteps(tab) {
   if (tab === "orders") {
     return [
-      workflowStep("待确认", countWhere(state.orders, (item) => hasStatus(item, [/待确认/])), "免支付订单待门店确认", "warn"),
+      workflowStep("已付款", countWhere(state.orders, (item) => hasStatus(item, [/已付款|制作中/])), "堂饮已付（口头交付即可）", "warn"),
+      workflowStep("待确认", countWhere(state.orders, (item) => hasStatus(item, [/待确认/])), "历史免支付单（如有）", "warn"),
       workflowStep("待支付", countWhere(state.orders, (item) => hasStatus(item, [/待支付/])), "需跟进支付或取消", "warn"),
       workflowStep("待履约", countWhere(state.orders, (item) => hasStatus(item, [/待发货|待自提/])), "发货/自提动作", "focus"),
       workflowStep("已发货", countWhere(state.orders, (item) => hasStatus(item, [/已发货/])), "等待完成", "good"),
@@ -1408,7 +1409,7 @@ function customerSignal(customer) {
     return { title: "暂无用户", detail: "选择用户后显示最近互动和运营判断。" };
   }
   const activity = customer.recentActivity || [];
-  const pending = activity.find((item) => /待支付|待发货|待自提|待确认|申请售后|审核中/.test(String(item.status || "")));
+  const pending = activity.find((item) => /待支付|已付款|制作中|待发货|待自提|待确认|申请售后|审核中/.test(String(item.status || "")));
   if (pending) {
     return { title: "需要跟进", detail: `${pending.title || "最近互动"} 处于「${pending.status}」状态。` };
   }
@@ -2564,6 +2565,7 @@ async function orderAction(action, order) {
       orderForm.trackingNo = "";
     }
     if (action === "pickup") await callFunction("manageOperations", { action: "markPickupDone", ...payload });
+    if (action === "prepareDone") await callFunction("manageOperations", { action: "markPreparingDone", ...payload });
     if (action === "cancel") await callFunction("manageOperations", { action: "cancelOrder", ...payload, reason: orderForm.cancelReason.trim() });
     showToast("订单已更新");
     if (action === "cancel") orderForm.cancelReason = "";
@@ -3918,7 +3920,7 @@ onBeforeUnmount(() => {
             <div class="panel-toolbar">
               <select v-model="filters.orderStatus" class="line-input" aria-label="筛选订单状态" @change="resetPageAndLoad('orders', loadOrders)">
                 <option value="">全部状态</option>
-                <option>待确认</option><option>待支付</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
+                <option>待支付</option><option>已付款</option><option>制作中</option><option>待确认</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
               <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
@@ -3974,6 +3976,7 @@ onBeforeUnmount(() => {
             </label>
             <div class="action-row">
               <button v-if="selectedOrder.status === '待确认' && hasPermission('order.write')" class="primary-action" type="button" @click="orderAction('confirm', selectedOrder)">确认接单</button>
+              <button v-if="(selectedOrder.status === '已付款' || selectedOrder.status === '制作中') && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('prepareDone', selectedOrder)">标记完成（可选）</button>
               <button v-if="selectedOrder.status === '待发货' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('ship', selectedOrder)">标记发货</button>
               <button v-if="selectedOrder.status === '待自提' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('pickup', selectedOrder)">完成自提</button>
               <button v-if="(selectedOrder.status === '待支付' || selectedOrder.status === '待确认') && hasPermission('order.write')" class="danger-action" type="button" @click="orderAction('cancel', selectedOrder)">取消订单</button>

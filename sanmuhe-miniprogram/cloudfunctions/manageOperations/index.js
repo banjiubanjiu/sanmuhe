@@ -164,7 +164,7 @@ function isActiveOrder(order) {
 }
 
 function isRevenueOrder(order) {
-  return isActiveOrder(order) && (order.payStatus === "paid" || ["待发货", "待自提", "已发货", "已完成"].includes(order.status));
+  return isActiveOrder(order) && (order.payStatus === "paid" || ["已付款", "制作中", "待发货", "待自提", "已发货", "已完成"].includes(order.status));
 }
 
 function number(value) {
@@ -335,6 +335,7 @@ const actionPermissions = {
   confirmManualOrder: "order.write",
   markShipped: "order.write",
   markPickupDone: "order.write",
+  markPreparingDone: "order.write",
   listReservations: "reservation.read",
   updateReservation: "reservation.write",
   listSignups: "signup.read",
@@ -760,9 +761,9 @@ function getManualFulfillmentStatus(order) {
   if (order && order.deliveryMethod === "shipping") {
     return "待发货";
   }
-  // 现场点单确认后，默认按门店履约处理（引导扫码付款 / 制作完成）。
-  if (order && (order.deliveryMethod === "onsite" || order.payMode === "manual")) {
-    return "待自提";
+  // 堂饮：确认后记为已付款；自提：待自提
+  if (order && order.deliveryMethod === "onsite") {
+    return "已付款";
   }
   return "待自提";
 }
@@ -1282,6 +1283,35 @@ async function markPickupDone(event, caller) {
     changes: auditDiff(order, {
       status: "已完成",
       fulfillmentStatus: "picked_up"
+    }, ["status", "fulfillmentStatus"])
+  });
+  return { ok: true };
+}
+
+/** 堂饮已付款/历史制作中 → 已完成（可选，口头交付后不强制） */
+async function markPreparingDone(event, caller) {
+  const order = await getOrder(event);
+  if (!order) {
+    return { ok: false, message: "订单不存在" };
+  }
+  if (order.status !== "已付款" && order.status !== "制作中") {
+    return { ok: false, message: "只有已付款订单可以标记完成" };
+  }
+  await db.collection("orders").doc(order._id).update({
+    data: {
+      status: "已完成",
+      fulfillmentStatus: "served",
+      completedAt: db.serverDate(),
+      completedBy: callerLabel(caller),
+      adminNote: cleanText(event.adminNote, 300),
+      updatedAt: db.serverDate()
+    }
+  });
+  await writeAdminAuditLog(caller, "markPreparingDone", {
+    orderNo: order.orderNo,
+    changes: auditDiff(order, {
+      status: "已完成",
+      fulfillmentStatus: "served"
     }, ["status", "fulfillmentStatus"])
   });
   return { ok: true };
@@ -3248,6 +3278,9 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "markPickupDone") {
       return await markPickupDone(event, caller);
+    }
+    if (action === "markPreparingDone") {
+      return await markPreparingDone(event, caller);
     }
     if (action === "listReservations") {
       const result = await listCollection("reservations", status, keyword, event, ["room", "roomName", "name", "customerName", "phone", "mobile", "status"]);

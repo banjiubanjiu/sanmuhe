@@ -155,17 +155,6 @@
         </view>
         <view class="payment-amount">¥{{total}}</view>
       </view>
-      <view
-        class="payment-option {{payMode === 'manual' ? 'active' : ''}}"
-        data-mode="manual"
-        bindtap="choosePayMode"
-      >
-        <view class="payment-radio"><view></view></view>
-        <view class="payment-copy">
-          <view>柜台扫码付款</view>
-          <text>{{isDineIn ? '确认茶单后由门店备茶并引导付款' : '确认茶品后由门店备货并引导付款'}}</text>
-        </view>
-      </view>
       <view class="pay-hint">{{payHintText}}</view>
     </view>
 
@@ -174,7 +163,7 @@
         <view>合计 {{count}} 件</view>
         <text>¥{{total}}</text>
       </view>
-      <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">{{isDineIn ? '确认茶单' : '确认茶品'}}</button>
+      <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">{{payMode === 'balance' ? '余额支付' : '去支付'}}</button>
     </view>
   </block>
 

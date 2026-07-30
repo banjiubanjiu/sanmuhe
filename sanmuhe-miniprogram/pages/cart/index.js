@@ -45,9 +45,12 @@ function resolveTableNo(cart) {
 }
 
 function resolveDefaultPayMode(balanceAvailable, currentMode) {
-  // 用户已选手动/微信则保留；余额不足时从 balance 回退到 wechat
-  if (currentMode === "manual" || currentMode === "wechat") {
-    return currentMode;
+  // 小程序仅支持余额 / 微信；余额不足时从 balance 回退到 wechat
+  if (currentMode === "wechat") {
+    return "wechat";
+  }
+  if (currentMode === "balance" && balanceAvailable) {
+    return "balance";
   }
   if (balanceAvailable) {
     return "balance";
@@ -59,20 +62,13 @@ function payHintText(payMode, balanceAfter, isDineIn, deliveryMethod) {
   if (payMode === "balance") {
     return `确认后将从会员余额扣除，预计剩余 ¥${balanceAfter}`;
   }
-  if (payMode === "wechat") {
-    if (isDineIn) {
-      return "确认后调起微信支付，付款成功后通知门店备茶";
-    }
-    return deliveryMethod === "shipping"
-      ? "确认后调起微信支付，付款成功后安排发货"
-      : "确认后调起微信支付，付款成功后可到店自提";
-  }
+  // 默认微信支付文案（小程序不再提供柜台付款）
   if (isDineIn) {
-    return "确认后通知门店备茶，请到柜台扫码付款";
+    return "确认后调起微信支付，付款成功后通知门店备茶";
   }
   return deliveryMethod === "shipping"
-    ? "确认后通知门店备货，请到柜台完成付款后发货"
-    : "确认后通知门店备货，请到柜台付款后自提";
+    ? "确认后调起微信支付，付款成功后安排发货"
+    : "确认后调起微信支付，付款成功后可到店自提";
 }
 
 function loadSavedAddress() {
@@ -243,7 +239,11 @@ Page(withPrivacy({
       wx.showToast({ title: "会员余额不足", icon: "none" });
       return;
     }
-    const payMode = mode === "balance" ? "balance" : (mode === "wechat" ? "wechat" : "manual");
+    // 小程序只保留余额 / 微信
+    if (mode !== "balance" && mode !== "wechat") {
+      return;
+    }
+    const payMode = mode === "balance" ? "balance" : "wechat";
     this.setData({
       payMode,
       payHintText: payHintText(payMode, this.data.balanceAfter, this.data.isDineIn, this.data.deliveryMethod)
@@ -306,7 +306,6 @@ Page(withPrivacy({
       total,
       tableNo,
       remark,
-      payMode,
       submitting,
       isDineIn,
       mode,
@@ -314,8 +313,14 @@ Page(withPrivacy({
       consignee,
       phone,
       address,
-      hasAddress
+      hasAddress,
+      balanceAvailable
     } = this.data;
+    // 强制在线支付：余额不足时不允许提交 balance
+    let payMode = this.data.payMode === "balance" ? "balance" : "wechat";
+    if (payMode === "balance" && !balanceAvailable) {
+      payMode = "wechat";
+    }
     if (submitting) {
       return;
     }
@@ -358,8 +363,8 @@ Page(withPrivacy({
       total,
       deliveryMethod: isDineIn ? "onsite" : deliveryMethod,
       payMode,
-      // 仅柜台付款跳过在线支付；微信/余额走对应支付链路
-      skipPayment: payMode === "manual",
+      // 小程序不提供柜台付款，始终走在线支付
+      skipPayment: false,
       source: isDineIn ? "dinein-tea-menu" : "retail-tea-catalog",
       consignee: isDineIn ? "到店顾客" : name,
       phone: isDineIn ? "现场" : mobile,
@@ -409,9 +414,14 @@ Page(withPrivacy({
           });
       }
 
+      // 余额支付：服务端应直接扣款成功
+      if (result.payMode === "balance" && result.payStatus === "paid") {
+        return { result, paid: "balance" };
+      }
       return {
         result,
-        paid: result.payMode === "balance" && result.payStatus === "paid" ? "balance" : "manual"
+        paid: "pending",
+        payError: result.message || "支付结果未确认，请在「我的订单」查看"
       };
     }).then((outcome) => {
       if (!outcome) {
@@ -423,8 +433,7 @@ Page(withPrivacy({
         : (this.data.deliveryMethod === "shipping" ? "快递邮寄" : "到店自提");
       const orderId = result.id || result._id || "";
 
-      // 微信支付未完成：不算订单成功，不清空购物车语义上仍属「未成交」；
-      // 但库存已锁在待支付单上，清空购物车避免重复下单，引导继续支付。
+      // 支付未完成：不算订单成功；清空购物车避免重复下单，引导继续支付
       if (paid === "pending") {
         setCart([], mode);
         this.setData({
@@ -454,7 +463,7 @@ Page(withPrivacy({
         return;
       }
 
-      // 已付款 / 柜台单：成交后才清空并提示成功
+      // 仅在线支付成功后提示成交
       setCart([], mode);
       this.setData({
         cart: [],
@@ -465,15 +474,10 @@ Page(withPrivacy({
         remark: "",
         submitting: false
       });
-      let title = "下单成功";
-      let content = `订单 ${result.orderNo || ""}（${delivery}）已通知门店。请到柜台扫码付款。`;
-      if (paid === "balance") {
-        title = "支付成功";
-        content = `订单 ${result.orderNo || ""}（${delivery}）已从会员余额支付 ¥${Number(result.total || 0).toFixed(2)}，门店将尽快处理。`;
-      } else if (paid === "wechat") {
-        title = "支付成功";
-        content = `订单 ${result.orderNo || ""}（${delivery}）已支付成功，门店将尽快处理。`;
-      }
+      const title = "支付成功";
+      const content = paid === "balance"
+        ? `订单 ${result.orderNo || ""}（${delivery}）已付款 ¥${Number(result.total || 0).toFixed(2)}（余额），门店已收到。`
+        : `订单 ${result.orderNo || ""}（${delivery}）已付款，门店已收到。`;
       wx.showModal({
         title,
         content,

@@ -21,6 +21,12 @@ const CANONICAL_STORE = {
   sessionMinutes: 120
 };
 
+const LOCK_MINUTES = Math.max(1, Number(process.env.RESERVATION_LOCK_MINUTES || process.env.ORDER_LOCK_MINUTES || 15));
+
+function createReservationNo() {
+  return `SMH-R${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
+}
+
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
@@ -148,6 +154,7 @@ async function notifyAdmins(reservation = {}) {
   const notice = {
     type: "reservation_created",
     reservationId: reservation.reservationId || "",
+    reservationNo: cleanText(reservation.reservationNo, 40),
     storeName: cleanText(reservation.storeName, 40),
     roomId: cleanText(reservation.roomId, 40),
     day: cleanText(reservation.day, 20),
@@ -157,7 +164,8 @@ async function notifyAdmins(reservation = {}) {
     name: cleanText(reservation.name, 40),
     phone: cleanText(reservation.phone, 30),
     note: cleanText(reservation.note, 160),
-    status: cleanText(reservation.status, 12) || "待确认",
+    status: cleanText(reservation.status, 12) || "待支付",
+    payStatus: cleanText(reservation.payStatus, 12) || "pending",
     read: false,
     createdAt: db.serverDate()
   };
@@ -175,7 +183,9 @@ async function notifyAdmins(reservation = {}) {
       data: Object.assign({}, notice, {
         channel: "admin_notice",
         target: "admin",
-        message: `茶室预约 ${notice.day} ${notice.time}，${notice.name} ${notice.phone}，${notice.people} 位，请确认。`
+        message: reservation.payStatus === "paid" || reservation.status === "已确认"
+          ? `茶室预约 ${notice.day} ${notice.time} 已支付确认，${notice.name} ${notice.phone}，${notice.people} 位。`
+          : `茶室预约 ${notice.day} ${notice.time} 待支付，${notice.name} ${notice.phone}，${notice.people} 位，顾客需在 ${LOCK_MINUTES} 分钟内完成支付。`
       })
     });
   } catch (error) {
@@ -227,6 +237,8 @@ exports.main = async (event = {}) => {
     return {
       ok: true,
       name: "createReservation",
+      lockMinutes: LOCK_MINUTES,
+      initialStatus: "待支付",
       wecomReservationNotifyConfigured: Boolean(process.env.WECOM_RESERVATION_WEBHOOK || process.env.WECOM_ORDER_WEBHOOK)
     };
   }
@@ -308,6 +320,10 @@ exports.main = async (event = {}) => {
     return { ok: false, message: "该时段已被预约或与其他预约重叠" };
   }
 
+  const reservationNo = createReservationNo();
+  const lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
+  const total = price;
+
   const addResult = await db.collection("reservations").add({
     data: {
       _openid: OPENID,
@@ -317,19 +333,23 @@ exports.main = async (event = {}) => {
       // room 字段保留给列表兼容：单店阶段等于门店名
       room: storeName,
       address: store.address,
+      reservationNo,
       day,
       time,
       endTime,
       period,
       periodLabel,
       price,
+      total,
       durationMinutes,
       people,
       name,
       phone,
       note,
       source,
-      status: "待确认",
+      status: "待支付",
+      payStatus: "pending",
+      lockedUntil,
       createdAt: db.serverDate(),
       updatedAt: db.serverDate()
     }
@@ -337,6 +357,7 @@ exports.main = async (event = {}) => {
 
   const reservationSnapshot = {
     reservationId: addResult._id,
+    reservationNo,
     storeName,
     roomId,
     day,
@@ -344,11 +365,14 @@ exports.main = async (event = {}) => {
     endTime,
     periodLabel,
     price,
+    total,
     people,
     name,
     phone,
     note,
-    status: "待确认"
+    status: "待支付",
+    payStatus: "pending",
+    lockedUntil
   };
 
   const [wecomNotify, adminNotify] = await Promise.all([
@@ -359,8 +383,20 @@ exports.main = async (event = {}) => {
   return {
     ok: true,
     id: addResult._id,
+    reservationId: addResult._id,
+    reservationNo,
+    total,
+    status: "待支付",
+    payStatus: "pending",
+    lockedUntil,
     storeName,
     roomId,
+    day,
+    time,
+    endTime,
+    periodLabel,
+    people,
+    price,
     wecomNotify,
     adminNotify
   };

@@ -67,7 +67,7 @@ function buildOrderShortcuts(orders, summary) {
     } else if (item.key === "pending") {
       count = orders.filter((order) => order.status === "待支付" || order.payStatus === "pending").length;
     } else if (item.key === "active") {
-      count = orders.filter((order) => ["待发货", "待自提", "已发货", "待确认"].includes(order.status)).length;
+      count = orders.filter((order) => ["已付款", "制作中", "待发货", "待自提", "已发货", "待确认"].includes(order.status)).length;
     } else if (item.key === "afterSale") {
       count = orders.filter((order) => order.afterSaleStatus || /退款|售后|异常/.test(String(order.status || ""))).length;
     }

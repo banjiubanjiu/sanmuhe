@@ -5,6 +5,7 @@ const {
   sendWeComOrderNotification,
   sendWeComRechargeNotification
 } = require("./wecomOrderNotify");
+const { sendWeComReservationNotification } = require("../createReservation/wecomReservationNotify");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -231,12 +232,13 @@ async function confirmInventory(locks, orderNo) {
   }
 }
 
+/** 在线付成功后的状态：堂饮直接「已付款」；自提/邮寄走履约态 */
 function getPaidStatus(order) {
   if (order.deliveryMethod === "pickup") {
     return "待自提";
   }
   if (order.deliveryMethod === "onsite") {
-    return "待确认";
+    return "已付款";
   }
   return "待发货";
 }
@@ -398,6 +400,149 @@ async function findRechargeOrder(outTradeNo) {
   return result.data && result.data[0] ? result.data[0] : null;
 }
 
+async function findReservation(outTradeNo) {
+  await ensureCollection("reservations");
+  const result = await db.collection("reservations").where({ reservationNo: outTradeNo }).limit(1).get();
+  return result.data && result.data[0] ? result.data[0] : null;
+}
+
+async function notifyReservationAdmins(reservation = {}) {
+  const notice = {
+    type: "reservation_paid",
+    reservationId: reservation._id || "",
+    reservationNo: reservation.reservationNo || "",
+    storeName: String(reservation.storeName || "").slice(0, 40),
+    roomId: String(reservation.roomId || "").slice(0, 40),
+    day: String(reservation.day || "").slice(0, 20),
+    time: String(reservation.time || "").slice(0, 12),
+    endTime: String(reservation.endTime || "").slice(0, 12),
+    people: Math.max(1, Number(reservation.people) || 1),
+    name: String(reservation.name || "").slice(0, 40),
+    phone: String(reservation.phone || "").slice(0, 30),
+    note: String(reservation.note || "").slice(0, 160),
+    status: "已确认",
+    payStatus: "paid",
+    read: false,
+    createdAt: db.serverDate()
+  };
+
+  try {
+    await ensureCollection("admin_notices");
+    await db.collection("admin_notices").add({ data: notice });
+  } catch (error) {
+    // Notice board is best-effort.
+  }
+
+  try {
+    await ensureCollection("notification_logs");
+    await db.collection("notification_logs").add({
+      data: Object.assign({}, notice, {
+        channel: "admin_notice",
+        target: "admin",
+        message: `茶室预约 ${notice.day} ${notice.time} 已支付确认，${notice.name} ${notice.phone}，${notice.people} 位。`
+      })
+    });
+  } catch (error) {
+    // Logging is best-effort.
+  }
+}
+
+async function handleReservationSuccess(transaction, reservation) {
+  const paidAmount = transaction.amount && Number(transaction.amount.total);
+  const expectedAmount = Math.round((Number(reservation.total) || 0) * 100);
+  if (paidAmount !== expectedAmount) {
+    await db.collection("reservations").doc(reservation._id).update({
+      data: {
+        payStatus: "amount_mismatch",
+        status: "异常待处理",
+        transactionId: transaction.transaction_id || "",
+        paymentError: `微信支付金额 ${paidAmount} 与预约金额 ${expectedAmount} 不一致`,
+        updatedAt: db.serverDate()
+      }
+    });
+    throw new Error("预约支付金额不一致");
+  }
+  if (reservation.payStatus === "paid") {
+    return;
+  }
+
+  if (reservation.payStatus !== "pending" || reservation.status !== "待支付") {
+    await db.collection("reservations").doc(reservation._id).update({
+      data: {
+        payStatus: "paid_exception",
+        status: "异常待处理",
+        transactionId: transaction.transaction_id || "",
+        paymentRaw: transaction,
+        updatedAt: db.serverDate()
+      }
+    });
+    return;
+  }
+
+  const claim = await db.collection("reservations").where({
+    _id: reservation._id,
+    payStatus: "pending",
+    status: "待支付"
+  }).update({
+    data: {
+      payStatus: "confirming",
+      updatedAt: db.serverDate()
+    }
+  });
+
+  if (dbUpdatedCount(claim) <= 0) {
+    const latest = await db.collection("reservations").doc(reservation._id).get();
+    const latestData = latest.data || {};
+    if (latestData.payStatus === "paid" || latestData.payStatus === "confirming") {
+      return;
+    }
+    throw new Error("预约支付确认抢占失败，等待微信重试通知");
+  }
+
+  await db.collection("reservations").doc(reservation._id).update({
+    data: {
+      status: "已确认",
+      payStatus: "paid",
+      transactionId: transaction.transaction_id || "",
+      tradeType: transaction.trade_type || "JSAPI",
+      paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
+      paymentRaw: transaction,
+      updatedAt: db.serverDate()
+    }
+  });
+
+  await sendServiceNotice("reservationPaid", reservation._openid, {
+    reservationNo: reservation.reservationNo,
+    day: reservation.day,
+    time: reservation.time,
+    status: "已确认"
+  });
+
+  try {
+    await sendWeComReservationNotification({
+      reservationId: reservation._id,
+      reservationNo: reservation.reservationNo,
+      storeName: reservation.storeName,
+      roomId: reservation.roomId,
+      day: reservation.day,
+      time: reservation.time,
+      endTime: reservation.endTime,
+      periodLabel: reservation.periodLabel,
+      price: reservation.total,
+      people: reservation.people,
+      name: reservation.name,
+      phone: reservation.phone,
+      note: reservation.note,
+      status: "已确认",
+      payStatus: "paid"
+    });
+  } catch (error) {
+    // best-effort staff channel
+  }
+
+  await notifyReservationAdmins(reservation);
+}
+
 async function handleRechargeSuccess(transaction, recharge) {
   const paidAmount = transaction.amount && Number(transaction.amount.total);
   const expectedAmount = Math.max(0, Math.round(Number(recharge.payAmountFen) || 0));
@@ -509,6 +654,11 @@ async function handleTransactionSuccess(transaction) {
   const recharge = await findRechargeOrder(transaction.out_trade_no);
   if (recharge) {
     await handleRechargeSuccess(transaction, recharge);
+    return;
+  }
+  const reservation = await findReservation(transaction.out_trade_no);
+  if (reservation) {
+    await handleReservationSuccess(transaction, reservation);
     return;
   }
   const order = await findOrder(transaction.out_trade_no);

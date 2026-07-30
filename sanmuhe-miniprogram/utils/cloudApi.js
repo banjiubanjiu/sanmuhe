@@ -211,6 +211,50 @@ function createReservation(payload) {
   return callCloud("createReservation", payload);
 }
 
+function createReservationPayment(payload) {
+  return callCloud("createPayment", Object.assign({ action: "createReservationPayment" }, payload || {}));
+}
+
+function payReservation(reservation) {
+  const payload = {
+    reservationId: reservation && (reservation._id || reservation.reservationId || reservation.id),
+    reservationNo: reservation && reservation.reservationNo
+  };
+
+  return createReservationPayment(payload).then((result) => {
+    if (!result || result.ok === false) {
+      const err = new Error(result && result.message ? result.message : "发起预约支付失败");
+      err.code = result && result.code;
+      err.reservation = result;
+      throw err;
+    }
+    if (!result.payment || !result.payment.timeStamp || !result.payment.paySign) {
+      throw new Error("支付参数不完整，请稍后重试");
+    }
+    const packageValue = result.payment.package || result.payment.prepayPackage || "";
+    if (!packageValue || !String(packageValue).startsWith("prepay_id=")) {
+      throw new Error("支付参数缺少 prepay_id，请稍后重试");
+    }
+    const payment = {
+      timeStamp: String(result.payment.timeStamp),
+      nonceStr: String(result.payment.nonceStr || ""),
+      package: String(packageValue),
+      signType: result.payment.signType || "RSA",
+      paySign: String(result.payment.paySign || "")
+    };
+    return requestPayment(payment).then((paymentResult) => ({
+      paymentResult,
+      reservation: result
+    })).catch((error) => {
+      const msg = (error && (error.errMsg || error.message)) || "支付未完成";
+      const err = new Error(msg);
+      err.raw = error;
+      err.reservation = result;
+      throw err;
+    });
+  });
+}
+
 function listReservedSlots(payload) {
   return callCloud("createReservation", Object.assign({ action: "listReservedSlots" }, payload || {}));
 }
@@ -321,6 +365,7 @@ module.exports = {
   createOrder,
   createPayment,
   createReservation,
+  createReservationPayment,
   getCatalog,
   getMemberCenter,
   getMyOrder,
@@ -332,6 +377,7 @@ module.exports = {
   listMyRecords,
   listReservedSlots,
   payOrder,
+  payReservation,
   rechargeMember,
   saveSubscription,
   simulateMemberRecharge,

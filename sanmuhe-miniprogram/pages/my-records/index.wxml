@@ -57,7 +57,16 @@
           <text class="record-status">{{item.status}}</text>
         </view>
         <view class="record-meta">{{item.meta}}</view>
-        <view class="record-sub">{{item.subMeta}}</view>
+        <view class="record-sub-row">
+          <text class="record-sub">{{item.subMeta}}</text>
+          <button
+            wx:if="{{activeTab === 'reservation' && item.payable}}"
+            class="record-pay-btn"
+            size="mini"
+            data-id="{{item.id}}"
+            bindtap="payReservation"
+          >去支付</button>
+        </view>
       </view>
     </view>
   </view>

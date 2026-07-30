@@ -636,6 +636,227 @@ async function saveOrderPrepay(orderId, openid, prepayId) {
   }
 }
 
+async function findReservation(reservationId, reservationNo, openid) {
+  if (reservationId) {
+    try {
+      const result = await db.collection("reservations").doc(reservationId).get();
+      if (result.data && result.data._openid === openid) {
+        return Object.assign({ _id: reservationId }, result.data, { _id: reservationId });
+      }
+    } catch (error) {
+      // Fall through to reservationNo lookup.
+    }
+  }
+
+  if (!reservationNo) {
+    return null;
+  }
+  const result = await db.collection("reservations").where({
+    _openid: openid,
+    reservationNo
+  }).limit(1).get();
+  const row = result.data && result.data[0] ? result.data[0] : null;
+  if (!row) {
+    return null;
+  }
+  if (!row._id && reservationId) {
+    row._id = reservationId;
+  }
+  return row;
+}
+
+async function saveReservationPrepay(reservationId, openid, prepayId) {
+  if (!reservationId || !prepayId) {
+    return false;
+  }
+  const payload = {
+    prepayId,
+    prepayCreatedAt: db.serverDate(),
+    payStatus: "pending",
+    updatedAt: db.serverDate()
+  };
+  try {
+    const byWhere = await db.collection("reservations").where({
+      _id: reservationId,
+      _openid: openid,
+      status: "待支付"
+    }).update({ data: payload });
+    if (dbUpdatedCount(byWhere) > 0) {
+      return true;
+    }
+  } catch (error) {
+    // fall through
+  }
+  try {
+    await db.collection("reservations").doc(reservationId).update({ data: payload });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function buildReservationDescription(reservation) {
+  const day = cleanText(reservation.day, 20);
+  const time = cleanText(reservation.time, 12);
+  return cleanText(`禾煦茶室预约 ${day} ${time}`, 127);
+}
+
+async function createReservationPayment(event, openid, config) {
+  const reservationId = cleanText(event.reservationId || event.id, 80);
+  const reservationNo = cleanText(event.reservationNo, 40);
+  const reservation = await findReservation(reservationId, reservationNo, openid);
+  if (!reservation) {
+    return { ok: false, message: "预约不存在" };
+  }
+  if (reservation.status !== "待支付") {
+    return { ok: false, message: `预约当前状态不可支付（${reservation.status || "未知"）` };
+  }
+  if (reservation.payStatus === "paid") {
+    return { ok: false, message: "预约已支付" };
+  }
+  if (reservation.payStatus && reservation.payStatus !== "pending" && reservation.payStatus !== "failed") {
+    return { ok: false, message: `预约支付状态不可用（${reservation.payStatus}）` };
+  }
+  if (isExpired(reservation)) {
+    await db.collection("reservations").doc(reservation._id).update({
+      data: {
+        status: "已取消",
+        payStatus: "expired",
+        cancellationReason: "支付超时",
+        updatedAt: db.serverDate()
+      }
+    });
+    return { ok: false, message: "预约已超时，请重新预约" };
+  }
+
+  const totalFee = Math.round(numberField(reservation.total) * 100);
+  if (totalFee <= 0) {
+    return { ok: false, message: "预约金额无效" };
+  }
+
+  // 已有预支付单：先查微信；SUCCESS 补标已付，NOTPAY 重签调起，CLOSED 重新下单
+  if (reservation.prepayId) {
+    try {
+      const trade = await queryWechatTransactionByOutTradeNo(config, reservation.reservationNo);
+      const state = String(trade.trade_state || "").toUpperCase();
+      if (state === "SUCCESS") {
+        return {
+          ok: false,
+          code: "ALREADY_PAID_ON_WECHAT",
+          message: "微信侧已支付成功，正在同步预约状态，请稍后刷新",
+          tradeState: state,
+          reservationId: reservation._id,
+          reservationNo: reservation.reservationNo
+        };
+      }
+      if (state === "NOTPAY" || state === "USERPAYING") {
+        const payment = buildPaymentParams(config, reservation.prepayId);
+        return {
+          ok: true,
+          reservationId: reservation._id,
+          orderNo: reservation.reservationNo,
+          total: numberField(reservation.total),
+          payment,
+          reusedPrepay: true,
+          tradeState: state
+        };
+      }
+      await db.collection("reservations").doc(reservation._id).update({
+        data: {
+          prepayId: _.remove(),
+          prepayCreatedAt: _.remove(),
+          lastClosedTradeState: state,
+          updatedAt: db.serverDate()
+        }
+      });
+    } catch (queryError) {
+      const payment = buildPaymentParams(config, reservation.prepayId);
+      return {
+        ok: true,
+        reservationId: reservation._id,
+        orderNo: reservation.reservationNo,
+        total: numberField(reservation.total),
+        payment,
+        reusedPrepay: true,
+        queryWarning: queryError && queryError.message ? queryError.message : "query_failed"
+      };
+    }
+  }
+
+  const expireAt = resolveExpireAt(reservation);
+
+  let response;
+  try {
+    response = await requestWechatPay(config, {
+      appid: config.appid,
+      mchid: config.mchid,
+      description: buildReservationDescription(reservation),
+      out_trade_no: reservation.reservationNo,
+      time_expire: expireAt.toISOString(),
+      attach: `reservation:${reservation._id}`,
+      notify_url: config.notifyUrl,
+      amount: {
+        total: totalFee,
+        currency: "CNY"
+      },
+      payer: {
+        openid
+      }
+    });
+  } catch (prepayError) {
+    const msg = (prepayError && prepayError.message) || "微信支付下单失败";
+    if (/已存在|ORDER_CLOSED|out_trade_no|FREQUENCY_LIMITED|ORDERPAID/i.test(msg) || /201|已支付/.test(msg)) {
+      try {
+        const trade = await queryWechatTransactionByOutTradeNo(config, reservation.reservationNo);
+        const state = String(trade.trade_state || "").toUpperCase();
+        if (state === "SUCCESS") {
+          return {
+            ok: false,
+            code: "ALREADY_PAID_ON_WECHAT",
+            message: "该预约微信侧已支付，请刷新预约状态",
+            tradeState: state
+          };
+        }
+        if ((state === "NOTPAY" || state === "USERPAYING") && (trade.prepay_id || reservation.prepayId)) {
+          const prepayId = trade.prepay_id || reservation.prepayId;
+          await saveReservationPrepay(reservation._id, openid, prepayId);
+          return {
+            ok: true,
+            reservationId: reservation._id,
+            orderNo: reservation.reservationNo,
+            total: numberField(reservation.total),
+            payment: buildPaymentParams(config, prepayId),
+            reusedPrepay: true,
+            tradeState: state
+          };
+        }
+      } catch (ignore) {
+        // fall through
+      }
+    }
+    return {
+      ok: false,
+      code: "CREATE_PAYMENT_ERROR",
+      message: msg
+    };
+  }
+
+  if (!response.prepay_id) {
+    return { ok: false, message: "微信支付未返回预支付单" };
+  }
+
+  const payment = buildPaymentParams(config, response.prepay_id);
+  await saveReservationPrepay(reservation._id, openid, response.prepay_id);
+
+  return {
+    ok: true,
+    reservationId: reservation._id,
+    orderNo: reservation.reservationNo,
+    total: numberField(reservation.total),
+    payment
+  };
+}
+
 function resolveExpireAt(order) {
   let expireAt = order && order.lockedUntil
     ? new Date(order.lockedUntil)
@@ -960,12 +1181,16 @@ exports.main = async (event = {}) => {
 
   try {
     const rechargeRequest = event.kind === "memberRecharge" || event.action === "createRechargePayment";
+    const reservationRequest = event.kind === "reservation" || event.action === "createReservationPayment";
     if (rechargeRequest && !isRealPaymentEnabled()) {
       return { ok: false, code: "REAL_RECHARGE_DISABLED", message: "会员真实充值尚未开放" };
     }
     const config = getPayConfig();
     if (rechargeRequest) {
       return await createRechargePayment(event, OPENID, config);
+    }
+    if (reservationRequest) {
+      return await createReservationPayment(event, OPENID, config);
     }
     const order = await findOrder(orderId, orderNo, OPENID);
     if (!order) {

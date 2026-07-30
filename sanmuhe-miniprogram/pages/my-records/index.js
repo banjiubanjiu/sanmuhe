@@ -1,5 +1,23 @@
-const { listMyRecords } = require("../../utils/cloudApi");
+const { listMyRecords, payReservation } = require("../../utils/cloudApi");
 const { displayReservationPlace } = require("../../data/store");
+
+function isReservationPayable(item) {
+  if (!item || item.status !== "待支付" || item.payStatus === "paid") {
+    return false;
+  }
+  const lockedUntil = item.lockedUntil;
+  if (!lockedUntil) {
+    return true;
+  }
+  let time = lockedUntil;
+  if (typeof lockedUntil === "object" && lockedUntil.seconds) {
+    time = new Date(lockedUntil.seconds * 1000);
+  } else if (typeof lockedUntil === "object" && lockedUntil.$date) {
+    time = new Date(lockedUntil.$date);
+  }
+  const date = time instanceof Date ? time : new Date(time);
+  return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
+}
 
 const tabs = [
   { key: "reservation", label: "我的预约" },
@@ -13,13 +31,17 @@ function validTab(value) {
 function normalizeReservations(records) {
   return (records || []).map((item) => {
     const timeRange = item.endTime ? `${item.time || ""}–${item.endTime}` : (item.time || "");
+    const status = item.status || "待确认";
+    const statusLabel = status === "待支付" ? "待支付" : status;
     return Object.assign({}, item, {
       id: item.id || item._id,
       title: displayReservationPlace(item),
       meta: item.day && timeRange ? `${item.day} ${timeRange}` : (item.day || ""),
       subMeta: `${item.people || 1} 位 · ${item.phone || ""}`,
       image: item.image || "/assets/images/reservation-hero.jpg",
-      status: item.status || "待确认"
+      status: statusLabel,
+      payStatus: item.payStatus || "",
+      payable: isReservationPayable(item)
     });
   });
 }
@@ -82,6 +104,30 @@ Page({
 
   retry() {
     this.loadRecords(true);
+  },
+
+  payReservation(event) {
+    const id = event.currentTarget.dataset.id;
+    const reservation = this.data.reservations.find((item) => item.id === id);
+    if (!reservation || !reservation.payable) {
+      wx.showToast({ title: "该预约不可支付", icon: "none" });
+      return;
+    }
+    payReservation(reservation).then(() => {
+      wx.showToast({ title: "支付成功", icon: "success" });
+      this.needsRefresh = true;
+      this.loadRecords(true);
+    }).catch((error) => {
+      const isUserCancel = error && error.raw && (error.raw.errCode === -2 || /cancel|fail/.test(error.raw.errMsg || ""));
+      wx.showModal({
+        title: isUserCancel ? "支付未完成" : "支付失败",
+        content: isUserCancel
+          ? "您取消了支付，请在 15 分钟内完成支付，逾期将自动取消预约。"
+          : (error && error.message ? error.message : "支付失败，请稍后重试"),
+        showCancel: false
+      });
+      this.loadRecords(true);
+    });
   },
 
   loadRecords(reset) {

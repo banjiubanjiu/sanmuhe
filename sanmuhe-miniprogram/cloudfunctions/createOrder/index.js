@@ -886,7 +886,7 @@ async function notifyAdmins(order = {}) {
         target: "admin",
         message: paidByBalance
           ? `会员余额订单 ${notice.orderNo} 已支付，${tableTip}合计 ¥${notice.total}，请安排制作。${itemSummary || ""}`
-          : `现场点单 ${notice.orderNo} 待确认，${tableTip}合计 ¥${notice.total}，请引导扫码付款。${itemSummary || ""}`
+          : `现场点单 ${notice.orderNo} 已提交，${tableTip}合计 ¥${notice.total}。${itemSummary || ""}`
       })
     });
   } catch (error) {
@@ -947,13 +947,17 @@ exports.main = async (event = {}) => {
     const { cleanItems, inventoryLocks, subtotal } = await sanitizeItems(event.items);
     const deliveryMethod = normalizeDeliveryMethod(event.deliveryMethod);
     const balancePay = isBalancePayMode(event);
-    const wechatPay = isWechatPayMode(event) || (
-      !balancePay &&
-      !isManualPayMode(event) &&
-      event.skipPayment !== true
-    );
-    // 柜台付款：显式 manual / skipPayment，且不是余额/微信
-    const manualPay = !balancePay && !wechatPay && isManualPayMode(event);
+    // 小程序收银台已去掉柜台付款：禁止 manual / skipPayment 免付落单
+    if (!balancePay && isManualPayMode(event)) {
+      return {
+        ok: false,
+        code: "MANUAL_PAY_DISABLED",
+        message: "小程序仅支持微信支付或会员余额，请选择在线支付"
+      };
+    }
+    const wechatPay = !balancePay;
+    // 兼容旧后台逻辑字段；小程序侧 manual 已关闭
+    const manualPay = false;
     const onsiteOrder = isOnsiteOrder(event, deliveryMethod) || deliveryMethod === "onsite";
     const tableNo = extractTableNo(event, cleanItems);
     const orderRemark = buildOrderRemark(tableNo, event.remark);
@@ -1041,6 +1045,17 @@ exports.main = async (event = {}) => {
     });
     createdOrderId = addResult._id;
 
+    // 在线付成功：堂饮直接「已付款」；自提/邮寄保留履约态
+    function fulfillmentStatusAfterPaid(method) {
+      if (method === "pickup") {
+        return "待自提";
+      }
+      if (method === "onsite") {
+        return "已付款";
+      }
+      return "待发货";
+    }
+
     let walletPayment = null;
     if (balancePay) {
       walletPayment = await debitWallet(OPENID, member, addResult._id, orderNo, total);
@@ -1049,9 +1064,10 @@ exports.main = async (event = {}) => {
         confirmPaidInventory(appliedLocks, orderNo),
         consumeCouponForBalance(appliedCoupon, addResult._id, orderNo)
       ]);
+      const paidStatus = fulfillmentStatusAfterPaid(finalDeliveryMethod);
       await db.collection("orders").doc(addResult._id).update({
         data: {
-          status: "待确认",
+          status: paidStatus,
           payStatus: "paid",
           paidAt: db.serverDate(),
           walletPayment,
@@ -1062,7 +1078,7 @@ exports.main = async (event = {}) => {
       appliedCoupon = null;
     }
 
-    const finalStatus = balancePay ? "待确认" : orderStatus;
+    const finalStatus = balancePay ? fulfillmentStatusAfterPaid(finalDeliveryMethod) : orderStatus;
     const finalPayStatus = balancePay ? "paid" : payStatus;
     // 微信支付：先付成功再通知门店（回调 wechatPayNotify 再推）；未付款不报「新订单」
     let wecomNotify = null;
