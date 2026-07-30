@@ -476,6 +476,120 @@ function extractPhone(result) {
   return cleanText(phoneInfo && (phoneInfo.phoneNumber || phoneInfo.phone_number || phoneInfo.purePhoneNumber || phoneInfo.pure_phone_number), 30);
 }
 
+function maskPhone(phone) {
+  const value = cleanText(phone, 30);
+  if (value.length < 7) {
+    return value;
+  }
+  return `${value.slice(0, 3)}****${value.slice(-4)}`;
+}
+
+/** 联系手机（轻绑定）：user_profiles + 会员记录，不要求开通会员 */
+async function readContactPhone(openid) {
+  await ensureCollection("members");
+  const existing = await db.collection("members").where({ _openid: openid }).limit(20).get();
+  const rows = existing.data || [];
+  const active = rows.find((item) => item && item.status === "active" && item.phone);
+  const anyMember = rows.find((item) => item && item.phone);
+  if (active && active.phone) {
+    return {
+      phone: cleanText(active.phone, 30),
+      phoneMasked: maskPhone(active.phone),
+      source: "member"
+    };
+  }
+  await ensureCollection("user_profiles");
+  const profileId = stableDocumentId("profile", openid);
+  try {
+    const doc = await db.collection("user_profiles").doc(profileId).get();
+    const phone = cleanText(doc.data && doc.data.phone, 30);
+    if (phone) {
+      return { phone, phoneMasked: maskPhone(phone), source: "profile" };
+    }
+  } catch (error) {
+    // 文档不存在
+  }
+  if (anyMember && anyMember.phone) {
+    return {
+      phone: cleanText(anyMember.phone, 30),
+      phoneMasked: maskPhone(anyMember.phone),
+      source: "member"
+    };
+  }
+  return { phone: "", phoneMasked: "", source: "" };
+}
+
+async function saveContactPhone(openid, phone) {
+  const value = cleanText(phone, 30);
+  if (!/^1\d{10}$/.test(value)) {
+    return { ok: false, message: "请填写正确手机号" };
+  }
+  await ensureCollection("user_profiles");
+  const profileId = stableDocumentId("profile", openid);
+  const payload = {
+    _openid: openid,
+    phone: value,
+    updatedAt: db.serverDate()
+  };
+  try {
+    await db.collection("user_profiles").doc(profileId).update({
+      data: {
+        phone: value,
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    await db.collection("user_profiles").doc(profileId).set({
+      data: Object.assign({}, payload, { createdAt: db.serverDate() })
+    });
+  }
+  // 若已有会员记录，同步手机号，避免两套号
+  await ensureCollection("members");
+  const existing = await db.collection("members").where({ _openid: openid }).limit(20).get();
+  const saved = pickMember(existing.data);
+  if (saved && saved._id) {
+    await db.collection("members").doc(saved._id).update({
+      data: { phone: value, updatedAt: db.serverDate() }
+    });
+  }
+  return {
+    ok: true,
+    phone: value,
+    phoneMasked: maskPhone(value),
+    hasPhone: true
+  };
+}
+
+/** 仅换取手机号并绑定到当前用户（自提/预约等），不开通会员 */
+async function resolvePhone(openid, event) {
+  const phoneCode = cleanText(event.phoneCode || event.code, 180);
+  if (!phoneCode) {
+    return { ok: false, code: "PHONE_CODE_MISSING", message: "请授权手机号" };
+  }
+  let phoneResult;
+  try {
+    phoneResult = await cloud.openapi.phonenumber.getPhoneNumber({ code: phoneCode });
+  } catch (error) {
+    logMemberCenterError("phone_exchange", openid, error);
+    return Object.assign({ ok: false }, phoneExchangeFailure(error));
+  }
+  const phone = extractPhone(phoneResult);
+  if (!/^1\d{10}$/.test(phone) && !/^\+?\d{6,20}$/.test(phone)) {
+    logMemberCenterError("phone_payload", openid, new Error("phone info missing or invalid"));
+    return { ok: false, code: "PHONE_PAYLOAD_INVALID", message: "手机号验证未完成，请重新授权" };
+  }
+  const saved = await saveContactPhone(openid, phone);
+  if (!saved.ok) {
+    return saved;
+  }
+  return {
+    ok: true,
+    phone: saved.phone,
+    phoneMasked: saved.phoneMasked,
+    hasPhone: true
+  };
+}
+
 async function activateMember(openid, event, settings) {
   const name = cleanText(event.name, 20);
   const phoneCode = cleanText(event.phoneCode || event.code, 180);
@@ -490,18 +604,11 @@ async function activateMember(openid, event, settings) {
     return { ok: false, code: "PHONE_CODE_MISSING", message: "请授权手机号后再开通会员" };
   }
 
-  let phoneResult;
-  try {
-    phoneResult = await cloud.openapi.phonenumber.getPhoneNumber({ code: phoneCode });
-  } catch (error) {
-    logMemberCenterError("phone_exchange", openid, error);
-    return Object.assign({ ok: false }, phoneExchangeFailure(error));
+  const phoneResolved = await resolvePhone(openid, { phoneCode });
+  if (!phoneResolved.ok) {
+    return phoneResolved;
   }
-  const phone = extractPhone(phoneResult);
-  if (!/^\+?\d{6,20}$/.test(phone)) {
-    logMemberCenterError("phone_payload", openid, new Error("phone info missing or invalid"));
-    return { ok: false, code: "PHONE_PAYLOAD_INVALID", message: "手机号验证未完成，请重新授权" };
-  }
+  const phone = phoneResolved.phone;
 
   await ensureCollection("members");
   const existing = await db.collection("members").where({ _openid: openid }).limit(20).get();
@@ -680,11 +787,12 @@ async function getStaffNoticeState(openid, settings = {}) {
 
 async function getMemberCenter(openid, knownSettings) {
   const settings = knownSettings || await readSettings();
-  const [member, coupons, staffNotice, plans] = await Promise.all([
+  const [member, coupons, staffNotice, plans, contact] = await Promise.all([
     getMember(openid, settings),
     listCoupons(openid),
     getStaffNoticeState(openid, settings),
-    listMembershipPlans()
+    listMembershipPlans(),
+    readContactPhone(openid)
   ]);
   const wallet = await getWallet(openid, member);
   return {
@@ -692,6 +800,12 @@ async function getMemberCenter(openid, knownSettings) {
     member: serializeMember(member),
     wallet: serializeWallet(wallet),
     plans,
+    // 轻绑定联系手机：有号即可自提，无需开通会员
+    contact: {
+      hasPhone: Boolean(contact.phone),
+      phoneMasked: contact.phoneMasked || "",
+      source: contact.source || ""
+    },
     payment: {
       // 真实微信支付：需 createPayment 配置商户密钥且 REAL_PAYMENT_ENABLED=true
       realPaymentReady: String(process.env.REAL_PAYMENT_ENABLED || "").toLowerCase() === "true",
@@ -832,6 +946,12 @@ exports.main = async (event = {}) => {
     const settings = await readSettings();
     if (action === "activateMember") {
       return await activateMember(OPENID, event, settings);
+    }
+    if (action === "resolvePhone") {
+      return await resolvePhone(OPENID, event);
+    }
+    if (action === "saveContactPhone") {
+      return await saveContactPhone(OPENID, event.phone || event.mobile);
     }
     if (action === "simulateRecharge") {
       return await simulateRecharge(OPENID, event, settings);

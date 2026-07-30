@@ -52,110 +52,107 @@
     </view>
 
     <view class="note-block">
-      <!-- 商城：配送方式 -->
+      <!-- 商城：取茶方式（短、清晰） -->
       <block wx:if="{{!isDineIn}}">
-        <view class="payment-title">配送方式</view>
-        <view
-          class="payment-option {{deliveryMethod === 'pickup' ? 'active' : ''}}"
-          data-method="pickup"
-          bindtap="chooseDelivery"
-        >
-          <view class="payment-radio"><view></view></view>
-          <view class="payment-copy">
-            <view>到店自提</view>
-            <text>{{storeAddress}}</text>
-          </view>
-        </view>
-        <view
-          class="payment-option {{deliveryMethod === 'shipping' ? 'active' : ''}}"
-          data-method="shipping"
-          bindtap="chooseDelivery"
-        >
-          <view class="payment-radio"><view></view></view>
-          <view class="payment-copy">
-            <view>快递邮寄</view>
-            <text>需选择微信收货地址</text>
-          </view>
+        <view class="section-label">取茶方式</view>
+        <view class="method-row">
+          <view
+            class="method-chip {{deliveryMethod === 'pickup' ? 'active' : ''}}"
+            data-method="pickup"
+            bindtap="chooseDelivery"
+          >到店自提</view>
+          <view
+            class="method-chip {{deliveryMethod === 'shipping' ? 'active' : ''}}"
+            data-method="shipping"
+            bindtap="chooseDelivery"
+          >快递邮寄</view>
         </view>
 
-        <view wx:if="{{deliveryMethod === 'shipping'}}" class="address-block">
-          <view class="address-head">
-            <view class="payment-title address-title">收货地址</view>
-            <view class="address-pick" bindtap="chooseAddress">{{hasAddress ? '更换地址' : '选择微信地址'}}</view>
-          </view>
-          <view wx:if="{{hasAddress}}" class="address-card">
-            <view class="address-name">{{consignee}}　{{phone}}</view>
-            <view class="address-detail">{{address}}</view>
-          </view>
-          <view wx:else class="address-empty" bindtap="chooseAddress">请选择收货地址 ›</view>
+        <!-- 自提：等 contactReady 再渲染，避免未绑定→已绑定闪一下 -->
+        <view
+          wx:if="{{deliveryMethod === 'pickup' && contactReady && hasBoundPhone}}"
+          class="contact-bound-hint"
+        >
+          <text>取货通知 {{phoneMasked || '已绑定手机'}}</text>
         </view>
-
-        <view wx:if="{{deliveryMethod === 'pickup'}}" class="address-block">
-          <view class="payment-title address-title">自提信息</view>
-          <view class="address-card soft">
-            <view class="address-detail">自提点：{{storeAddress}}</view>
+        <view
+          wx:if="{{deliveryMethod === 'pickup' && contactReady && !hasBoundPhone}}"
+          class="fulfill-card"
+        >
+          <view class="fulfill-line">
+            <text class="fulfill-k">取货手机</text>
+            <button
+              class="fulfill-phone-btn"
+              open-type="getPhoneNumber"
+              loading="{{phoneResolving}}"
+              disabled="{{phoneResolving}}"
+              bindgetphonenumber="handlePickupPhone"
+            >微信手机号</button>
           </view>
+          <view class="pickup-bind-note">取货通知用，授权一次后下次不用再填</view>
           <input
-            class="field"
-            placeholder="联系人姓名（必填）"
-            data-field="consignee"
-            value="{{consignee}}"
-            bindinput="onInput"
-          />
-          <input
-            class="field"
-            placeholder="手机号（必填）"
+            wx:if="{{showManualPhone}}"
+            class="field field-tight"
+            placeholder="填写取货手机号"
             type="number"
             maxlength="11"
+            focus="{{showManualPhone}}"
             data-field="phone"
             value="{{phone}}"
             bindinput="onInput"
           />
         </view>
+
+        <!-- 快递：只要地址 -->
+        <view wx:if="{{deliveryMethod === 'shipping'}}" class="fulfill-card" bindtap="chooseAddress">
+          <view wx:if="{{hasAddress}}">
+            <view class="fulfill-name">{{consignee}}　{{phone}}</view>
+            <view class="fulfill-addr">{{address}}</view>
+            <view class="fulfill-meta">点按更换地址</view>
+          </view>
+          <view wx:else class="fulfill-empty">选择微信收货地址 ›</view>
+        </view>
       </block>
 
+      <!-- 堂饮：桌号只读一行 -->
+      <view wx:if="{{isDineIn && tableDisplay}}" class="fulfill-card table-card">
+        <view class="fulfill-line">
+          <text class="fulfill-k">桌号</text>
+          <text class="fulfill-v">{{tableDisplay}}</text>
+        </view>
+      </view>
+
       <input
-        wx:if="{{isDineIn}}"
-        class="field"
-        placeholder="桌号（选填）"
-        data-field="tableNo"
-        value="{{tableNo}}"
-        bindinput="onInput"
-      />
-      <input
-        class="field"
-        placeholder="{{isDineIn ? '品饮备注（选填）' : '订单备注（选填）'}}"
+        class="field field-remark"
+        placeholder="{{isDineIn ? '备注（选填）' : '备注（选填）'}}"
         data-field="remark"
         value="{{remark}}"
         bindinput="onInput"
       />
-      <view class="payment-title">支付方式</view>
+
+      <view class="section-label">支付</view>
       <view
         wx:if="{{isMember}}"
-        class="payment-option {{payMode === 'balance' ? 'active' : ''}} {{!balanceAvailable ? 'disabled' : ''}}"
+        class="pay-row {{payMode === 'balance' ? 'active' : ''}} {{!balanceAvailable ? 'disabled' : ''}}"
         data-mode="balance"
         bindtap="choosePayMode"
       >
-        <view class="payment-radio"><view></view></view>
-        <view class="payment-copy">
-          <view>会员余额支付</view>
-          <text>当前余额 ¥{{walletBalance}}{{balanceAvailable ? '，本单默认优先使用' : '，余额不足'}}</text>
+        <view class="pay-row-main">
+          <view class="pay-row-title">会员余额</view>
+          <view class="pay-row-sub">余额 ¥{{walletBalance}}{{balanceAvailable ? '' : ' · 不足'}}</view>
         </view>
-        <view class="payment-amount">-¥{{total}}</view>
+        <view class="pay-row-amt">¥{{total}}</view>
       </view>
       <view
-        class="payment-option {{payMode === 'wechat' ? 'active' : ''}}"
+        class="pay-row {{payMode === 'wechat' ? 'active' : ''}}"
         data-mode="wechat"
         bindtap="choosePayMode"
       >
-        <view class="payment-radio"><view></view></view>
-        <view class="payment-copy">
-          <view>微信支付</view>
-          <text>先完成付款，支付成功后订单才生效并通知门店</text>
+        <view class="pay-row-main">
+          <view class="pay-row-title">微信支付</view>
         </view>
-        <view class="payment-amount">¥{{total}}</view>
+        <view class="pay-row-amt">¥{{total}}</view>
       </view>
-      <view class="pay-hint">{{payHintText}}</view>
     </view>
 
     <view class="checkout-bar simple">

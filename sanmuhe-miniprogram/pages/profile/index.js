@@ -28,6 +28,7 @@ const orderShortcutBase = [
 const serviceItemsBase = [
   { label: "我的预约", icon: "/assets/icons/profile-room.png", action: "myReservations" },
   { label: "我的活动", icon: "/assets/icons/profile-calendar.png", action: "myEvents" },
+  { label: "收货地址", icon: "/assets/icons/profile-pin.png", action: "address" },
   { label: "优惠券", icon: "/assets/icons/profile-coupon.png", action: "coupon" },
   { label: "联系客服", icon: "/assets/icons/profile-headset.png", action: "service" },
   { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" }
@@ -271,6 +272,10 @@ Page(withPrivacy({
     }
     if (action === "myEvents") {
       wx.navigateTo({ url: "/pages/my-records/index?tab=event" });
+      return;
+    }
+    if (action === "address") {
+      wx.navigateTo({ url: "/pages/address/index" });
       return;
     }
     if (action === "coupon") {

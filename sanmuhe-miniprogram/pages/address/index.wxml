@@ -1,0 +1,42 @@
+<view class="page address-page">
+  <!-- 有地址：列表卡（当前仅缓存一条选中地址） -->
+  <view wx:if="{{hasAddress}}" class="list">
+    <view class="addr-card" bindtap="openWechatAddress">
+      <view class="addr-main">
+        <view class="addr-top">
+          <text class="addr-name">{{consignee}}</text>
+          <text class="addr-phone">{{phoneMasked}}</text>
+          <text class="addr-default">默认</text>
+        </view>
+        <view class="addr-line">{{address}}</view>
+      </view>
+      <view class="addr-edit" catchtap="openWechatAddress">更换</view>
+    </view>
+  </view>
+
+  <!-- 无地址 -->
+  <view wx:else class="empty-state">
+    <image class="empty-icon" src="/assets/icons/profile-pin.png" mode="aspectFit"></image>
+    <view class="empty-title">暂无收货地址</view>
+    <view class="empty-desc">添加后可用于茶叶快递配送</view>
+  </view>
+
+  <view class="footer">
+    <button
+      class="add-btn"
+      loading="{{loading}}"
+      disabled="{{loading}}"
+      hover-class="none"
+      bindtap="openWechatAddress"
+    >{{hasAddress ? '选择其他地址' : '添加收货地址'}}</button>
+    <view wx:if="{{hasAddress}}" class="footer-link" bindtap="clearLocal">清除</view>
+  </view>
+
+  <privacy-gate
+    show="{{privacyGateOpen}}"
+    purpose="{{privacyPurpose}}"
+    contractName="{{privacyContractName}}"
+    bindagree="onPrivacyAgree"
+    bindcancel="onPrivacyCancel"
+  />
+</view>

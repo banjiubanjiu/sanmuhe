@@ -1,12 +1,47 @@
 const { getCart, getTotal, setCart, updateQuantity } = require("../../utils/cart");
-const { createOrder, getMemberCenter, payOrder } = require("../../utils/cloudApi");
+const { createOrder, getMemberCenter, payOrder, resolvePhoneNumber, saveContactPhone } = require("../../utils/cloudApi");
 const tableUtil = require("../../utils/table");
+const addressUtil = require("../../utils/address");
 const { getStore } = require("../../data/store");
 const { withPrivacy } = require("../../utils/privacy");
 
 const SHOP_CATEGORY_KEY = "sanmuhe_shop_category";
-const SHIPPING_ADDRESS_KEY = "sanmuhe_shipping_address";
+const PICKUP_CONTACT_KEY = "sanmuhe_pickup_contact";
 const STORE = getStore();
+
+function maskPhone(phone) {
+  const value = String(phone || "").trim();
+  if (value.length < 7) {
+    return value;
+  }
+  return `${value.slice(0, 3)}****${value.slice(-4)}`;
+}
+
+function loadPickupContact() {
+  try {
+    const saved = wx.getStorageSync(PICKUP_CONTACT_KEY);
+    if (saved && typeof saved === "object") {
+      return {
+        consignee: String(saved.consignee || "").trim(),
+        phone: String(saved.phone || "").trim()
+      };
+    }
+  } catch (error) {
+    // ignore
+  }
+  return { consignee: "", phone: "" };
+}
+
+function savePickupContact(consignee, phone) {
+  try {
+    wx.setStorageSync(PICKUP_CONTACT_KEY, {
+      consignee: String(consignee || "").trim(),
+      phone: String(phone || "").trim()
+    });
+  } catch (error) {
+    // ignore
+  }
+}
 
 function formatFen(fen) {
   return (Math.max(0, Math.round(Number(fen) || 0)) / 100).toFixed(2);
@@ -29,6 +64,9 @@ function enrichCart(cart) {
   }));
 }
 
+/** 与堂饮页一致：开发默认桌 1，正式扫码后会写入 storage */
+const DEV_DEFAULT_TABLE = "1";
+
 function resolveTableNo(cart) {
   const stored = tableUtil.getTableNo();
   if (stored) {
@@ -41,7 +79,20 @@ function resolveTableNo(cart) {
       return table;
     }
   }
-  return "";
+  // 堂饮未绑定时用开发默认，避免再让用户手填
+  tableUtil.setTableNo(DEV_DEFAULT_TABLE);
+  return DEV_DEFAULT_TABLE;
+}
+
+function formatTableDisplay(table) {
+  const value = tableUtil.normalizeTable(table);
+  if (!value) {
+    return "";
+  }
+  if (/^桌/.test(value)) {
+    return value;
+  }
+  return `桌 ${value}`;
 }
 
 function resolveDefaultPayMode(balanceAvailable, currentMode) {
@@ -58,34 +109,27 @@ function resolveDefaultPayMode(balanceAvailable, currentMode) {
   return "wechat";
 }
 
-function payHintText(payMode, balanceAfter, isDineIn, deliveryMethod) {
-  if (payMode === "balance") {
-    return `确认后将从会员余额扣除，预计剩余 ¥${balanceAfter}`;
-  }
-  // 默认微信支付文案（小程序不再提供柜台付款）
-  if (isDineIn) {
-    return "确认后调起微信支付，付款成功后通知门店备茶";
-  }
-  return deliveryMethod === "shipping"
-    ? "确认后调起微信支付，付款成功后安排发货"
-    : "确认后调起微信支付，付款成功后可到店自提";
+function payHintText() {
+  // 底栏按钮已说明动作，页内不再堆解释文案
+  return "";
 }
 
 function loadSavedAddress() {
-  try {
-    const saved = wx.getStorageSync(SHIPPING_ADDRESS_KEY) || {};
-    if (saved && saved.consignee && saved.phone && saved.address) {
-      return {
-        consignee: String(saved.consignee || ""),
-        phone: String(saved.phone || ""),
-        address: String(saved.address || ""),
-        hasAddress: true
-      };
-    }
-  } catch (error) {
-    // ignore
-  }
-  return { consignee: "", phone: "", address: "", hasAddress: false };
+  return addressUtil.loadSavedAddress();
+}
+
+function addressViewModel(saved) {
+  const item = saved && saved.hasAddress ? saved : addressUtil.emptyAddress();
+  return {
+    consignee: item.consignee || "",
+    phone: item.phone || "",
+    address: item.address || "",
+    province: item.province || "",
+    city: item.city || "",
+    district: item.district || "",
+    detailAddress: item.detailAddress || "",
+    hasAddress: Boolean(item.hasAddress)
+  };
 }
 
 Page(withPrivacy({
@@ -95,6 +139,7 @@ Page(withPrivacy({
     total: 0,
     count: 0,
     tableNo: "",
+    tableDisplay: "",
     remark: "",
     isMember: false,
     walletBalance: "0.00",
@@ -102,7 +147,7 @@ Page(withPrivacy({
     balanceAfter: "0.00",
     balanceAvailable: false,
     payMode: "wechat",
-    payHintText: "确认后调起微信支付，付款成功后通知门店备货",
+    payHintText: "",
     mode: "retail",
     isDineIn: false,
     pageTitle: "确认茶品",
@@ -111,8 +156,15 @@ Page(withPrivacy({
     submitting: false,
     deliveryMethod: "pickup",
     storeAddress: STORE.address || "",
+    storeName: STORE.name || "禾煦茶书房",
     consignee: "",
     phone: "",
+    phoneMasked: "",
+    hasBoundPhone: false,
+    phoneFromWechat: false,
+    showManualPhone: false,
+    phoneResolving: false,
+    contactReady: false,
     address: "",
     hasAddress: false
   },
@@ -120,8 +172,13 @@ Page(withPrivacy({
   onLoad(options = {}) {
     const mode = options.mode === "dinein" ? "dinein" : "retail";
     const isDineIn = mode === "dinein";
-    const saved = isDineIn ? { consignee: "", phone: "", address: "", hasAddress: false } : loadSavedAddress();
-    this.setData({
+    const saved = isDineIn ? addressViewModel(null) : addressViewModel(loadSavedAddress());
+    // 本地缓存先铺底，避免先闪「未绑定」再跳成「已绑定」
+    const pickup = loadPickupContact();
+    const localPhone = !isDineIn && pickup.phone && /^1\d{10}$/.test(pickup.phone)
+      ? pickup.phone
+      : "";
+    this.setData(Object.assign({
       mode,
       isDineIn,
       pageTitle: isDineIn ? "确认茶单" : "确认茶品",
@@ -131,14 +188,30 @@ Page(withPrivacy({
         : "从茶叶商城选择喜欢的茶品，再来确认本次订单。",
       deliveryMethod: isDineIn ? "onsite" : "pickup",
       storeAddress: STORE.address || "",
-      consignee: saved.consignee,
-      phone: saved.phone,
-      address: saved.address,
-      hasAddress: saved.hasAddress
-    });
+      storeName: STORE.name || "禾煦茶书房",
+      consignee: pickup.consignee || "",
+      phone: localPhone,
+      phoneMasked: maskPhone(localPhone),
+      hasBoundPhone: Boolean(localPhone),
+      phoneFromWechat: false,
+      showManualPhone: false,
+      // 有本地缓存可先展示；无缓存等云端再出绑定区
+      contactReady: Boolean(localPhone) || isDineIn
+    }, isDineIn ? {} : {
+      address: saved.address || "",
+      hasAddress: saved.hasAddress || false,
+      province: saved.province || "",
+      city: saved.city || "",
+      district: saved.district || "",
+      detailAddress: saved.detailAddress || ""
+    }));
   },
 
   onShow() {
+    // 仅快递模式同步微信地址，避免覆盖自提手机号
+    if (!this.data.isDineIn && this.data.deliveryMethod === "shipping") {
+      this.setData(addressViewModel(loadSavedAddress()));
+    }
     this.refresh();
     this.loadMemberPayment();
   },
@@ -146,7 +219,10 @@ Page(withPrivacy({
   refresh() {
     const cart = getCart(this.data.mode);
     const items = enrichCart(cart);
-    const tableNo = resolveTableNo(cart) || this.data.tableNo || "";
+    // 堂饮：桌号只读，来自扫码/缓存/开发默认，不提供手填
+    const tableNo = this.data.isDineIn
+      ? (resolveTableNo(cart) || DEV_DEFAULT_TABLE)
+      : "";
     const total = getTotal(cart);
     const balanceAvailable = this.data.isMember && this.data.walletBalanceFen >= Math.round(total * 100);
     const balanceAfter = formatFen(this.data.walletBalanceFen - Math.round(total * 100));
@@ -157,6 +233,7 @@ Page(withPrivacy({
       total,
       count: cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
       tableNo,
+      tableDisplay: tableNo ? formatTableDisplay(tableNo) : "",
       balanceAvailable,
       balanceAfter,
       payMode,
@@ -171,17 +248,41 @@ Page(withPrivacy({
       const balanceAvailable = isMember && walletBalanceFen >= Math.round(Number(this.data.total || 0) * 100);
       const balanceAfter = formatFen(walletBalanceFen - Math.round(Number(this.data.total || 0) * 100));
       const payMode = resolveDefaultPayMode(balanceAvailable, this.data.payMode);
-      this.setData({
+      // 已绑定手机号：自提无需再填（云端 openid 绑定）
+      const contact = result.contact || {};
+      // 云端绑定优先；本地已有号也算已绑定，避免云端慢/失败时来回跳
+      const hasBoundPhone = contact.hasPhone === true
+        || Boolean(contact.phoneMasked)
+        || this.data.hasBoundPhone
+        || Boolean(this.data.phone && /^1\d{10}$/.test(this.data.phone));
+      const memberName = result.member && result.member.name ? String(result.member.name).trim() : "";
+      const patch = {
         isMember,
         walletBalance: result.wallet && result.wallet.balance || "0.00",
         walletBalanceFen,
         balanceAfter,
         balanceAvailable,
         payMode,
-        payHintText: payHintText(payMode, balanceAfter, this.data.isDineIn, this.data.deliveryMethod)
-      });
+        payHintText: payHintText(payMode, balanceAfter, this.data.isDineIn, this.data.deliveryMethod),
+        hasBoundPhone,
+        phoneMasked: contact.phoneMasked || this.data.phoneMasked || "",
+        contactReady: true
+      };
+      if (hasBoundPhone) {
+        patch.showManualPhone = false;
+        // 云端已绑定时，不必再展示本地明文；提交走 openid 回填
+        if (!this.data.phone) {
+          patch.phone = "";
+        }
+      }
+      if (!this.data.consignee && memberName && memberName !== "微信顾客" && isMember) {
+        patch.consignee = memberName;
+      }
+      this.setData(patch);
     }).catch(() => {
       const payMode = this.data.payMode === "balance" ? "wechat" : (this.data.payMode || "wechat");
+      const pickup = loadPickupContact();
+      const localPhone = pickup.phone && /^1\d{10}$/.test(pickup.phone) ? pickup.phone : "";
       this.setData({
         isMember: false,
         walletBalance: "0.00",
@@ -189,7 +290,11 @@ Page(withPrivacy({
         balanceAfter: "0.00",
         balanceAvailable: false,
         payMode,
-        payHintText: payHintText(payMode, "0.00", this.data.isDineIn, this.data.deliveryMethod)
+        payHintText: payHintText(payMode, "0.00", this.data.isDineIn, this.data.deliveryMethod),
+        hasBoundPhone: Boolean(localPhone),
+        phone: localPhone,
+        phoneMasked: maskPhone(localPhone),
+        contactReady: true
       });
     });
   },
@@ -201,36 +306,30 @@ Page(withPrivacy({
     const method = event.currentTarget.dataset.method === "shipping" ? "shipping" : "pickup";
     this.setData({
       deliveryMethod: method,
-      payHintText: payHintText(this.data.payMode, this.data.balanceAfter, false, method)
+      payHintText: payHintText(this.data.payMode, this.data.balanceAfter, false, method),
+      showManualPhone: false
     });
   },
 
+  /** 微信官方 wx.chooseAddress；亦可进入地址页管理 */
   chooseAddress() {
-    this.requestPrivacy("我们需要读取你的微信收货地址，用于茶叶邮寄配送与售后联系。").then((accepted) => {
+    this.requestPrivacy(addressUtil.PRIVACY_PURPOSE).then((accepted) => {
       if (!accepted) {
         return;
       }
-      wx.chooseAddress({
-        success: (res) => {
-          const consignee = String(res.userName || "").trim();
-          const phone = String(res.telNumber || "").trim();
-          const address = `${res.provinceName || ""}${res.cityName || ""}${res.countyName || ""}${res.detailInfo || ""}`.trim();
-          const payload = { consignee, phone, address, hasAddress: !!(consignee && phone && address) };
-          try {
-            wx.setStorageSync(SHIPPING_ADDRESS_KEY, payload);
-          } catch (error) {
-            // ignore storage failures
-          }
-          this.setData(payload);
-          if (!payload.hasAddress) {
-            wx.showToast({ title: "地址信息不完整", icon: "none" });
-          }
-        },
-        fail: () => {
-          wx.showToast({ title: "未选择地址", icon: "none" });
+      addressUtil.chooseWechatAddress().then((address) => {
+        this.setData(addressViewModel(address));
+      }).catch((error) => {
+        if (error && error.cancelled) {
+          return;
         }
+        wx.showToast({ title: (error && error.message) || "未选择地址", icon: "none" });
       });
     });
+  },
+
+  goAddressManage() {
+    wx.navigateTo({ url: "/pages/address/index?from=checkout" });
   },
 
   choosePayMode(event) {
@@ -268,14 +367,76 @@ Page(withPrivacy({
 
   onInput(event) {
     const field = event.currentTarget.dataset.field;
-    const value = event.detail.value;
-    this.setData({ [field]: value });
+    // 桌号不允许手填，只读展示
     if (field === "tableNo") {
-      const table = tableUtil.normalizeTable(value);
-      if (table) {
-        tableUtil.setTableNo(table);
-      }
+      return;
     }
+    const value = event.detail.value;
+    if (field === "phone") {
+      const next = String(value || "").trim();
+      this.setData({
+        phone: next,
+        phoneMasked: maskPhone(next),
+        phoneFromWechat: false
+      });
+      // 手填满 11 位：绑定到账号，之后自提不再要
+      if (/^1\d{10}$/.test(next)) {
+        saveContactPhone(next).then((result) => {
+          this.setData({
+            hasBoundPhone: true,
+            showManualPhone: false,
+            phoneMasked: (result && result.phoneMasked) || maskPhone(next),
+            phone: next
+          });
+          savePickupContact(this.data.consignee, next);
+          wx.showToast({ title: "已保存", icon: "success" });
+        }).catch((error) => {
+          // 云失败仍可本单使用本地号
+          this.setData({
+            hasBoundPhone: true,
+            showManualPhone: false
+          });
+          savePickupContact(this.data.consignee, next);
+          wx.showToast({ title: (error && error.message) || "已用于本单", icon: "none" });
+        });
+      }
+      return;
+    }
+    this.setData({ [field]: value });
+  },
+
+  /** 微信手机号绑定（一次绑定，后续自提复用） */
+  handlePickupPhone(event) {
+    if (this.data.phoneResolving) {
+      return;
+    }
+    const detail = (event && event.detail) || {};
+    const phoneCode = detail.code;
+    if (!phoneCode) {
+      this.setData({ showManualPhone: true, phoneFromWechat: false });
+      wx.showToast({ title: "请填写取货手机号", icon: "none" });
+      return;
+    }
+    this.setData({ phoneResolving: true });
+    resolvePhoneNumber(phoneCode).then((result) => {
+      const phone = String(result.phone || "").trim();
+      this.setData({
+        phone,
+        phoneMasked: result.phoneMasked || maskPhone(phone),
+        phoneFromWechat: true,
+        hasBoundPhone: true,
+        showManualPhone: false,
+        phoneResolving: false
+      });
+      savePickupContact(this.data.consignee, phone);
+      wx.showToast({ title: "已绑定手机号", icon: "success" });
+    }).catch((error) => {
+      this.setData({ phoneResolving: false, showManualPhone: true, phoneFromWechat: false });
+      wx.showToast({
+        title: (error && error.message) || "未获取到，请填写手机号",
+        icon: "none"
+      });
+    });
   },
 
   goShop() {
@@ -349,15 +510,30 @@ Page(withPrivacy({
           wx.showToast({ title: "请选择收货地址", icon: "none" });
           return;
         }
-      } else if (!name || !mobile) {
-        wx.showToast({ title: "请填写自提联系人与手机号", icon: "none" });
-        return;
-      } else if (!/^1\d{10}$/.test(mobile)) {
-        wx.showToast({ title: "请填写正确手机号", icon: "none" });
-        return;
+      } else {
+        // 自提：已绑定即可；未绑定须先完成微信手机号/手填绑定
+        if (!this.data.hasBoundPhone) {
+          if (!mobile || !/^1\d{10}$/.test(mobile)) {
+            wx.showToast({ title: "请先授权取货手机号", icon: "none" });
+            return;
+          }
+        }
+        if (mobile && /^1\d{10}$/.test(mobile)) {
+          savePickupContact(name, mobile);
+        }
       }
     }
 
+    const pickupName = name || "顾客";
+    const savedAddress = !isDineIn && deliveryMethod === "shipping"
+      ? addressUtil.loadSavedAddress()
+      : addressUtil.emptyAddress();
+    // 自提：手机号可空，由云函数按 openid 读取已绑定号
+    const orderPhone = isDineIn
+      ? "现场"
+      : (deliveryMethod === "pickup"
+        ? ((mobile && /^1\d{10}$/.test(mobile)) ? mobile : "")
+        : mobile);
     const payload = {
       items: cart,
       total,
@@ -366,14 +542,19 @@ Page(withPrivacy({
       // 小程序不提供柜台付款，始终走在线支付
       skipPayment: false,
       source: isDineIn ? "dinein-tea-menu" : "retail-tea-catalog",
-      consignee: isDineIn ? "到店顾客" : name,
-      phone: isDineIn ? "现场" : mobile,
+      consignee: isDineIn ? "到店顾客" : (deliveryMethod === "pickup" ? pickupName : name),
+      phone: orderPhone,
       address: !isDineIn && deliveryMethod === "shipping" ? fullAddress : "",
+      province: !isDineIn && deliveryMethod === "shipping" ? (savedAddress.province || "") : "",
+      city: !isDineIn && deliveryMethod === "shipping" ? (savedAddress.city || "") : "",
+      district: !isDineIn && deliveryMethod === "shipping" ? (savedAddress.district || "") : "",
+      detailAddress: !isDineIn && deliveryMethod === "shipping" ? (savedAddress.detailAddress || "") : "",
+      postalCode: !isDineIn && deliveryMethod === "shipping" ? (savedAddress.postalCode || "") : "",
       tableNo: table,
       table: table,
       pickupNote: isDineIn
         ? (table ? `桌号 ${table}` : "")
-        : (deliveryMethod === "pickup" ? `到店自提 · ${name} ${mobile}` : ""),
+        : (deliveryMethod === "pickup" ? `到店自提 · ${pickupName}` : ""),
       remark: isDineIn ? tableUtil.formatTableRemark(table, note) : note
     };
 

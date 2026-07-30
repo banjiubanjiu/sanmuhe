@@ -804,6 +804,38 @@ function extractTableNo(event = {}, items = []) {
   return "";
 }
 
+/** 已绑定手机号：会员或 user_profiles（与 memberCenter 轻绑定一致） */
+async function loadBoundPhone(openid) {
+  if (!openid) {
+    return "";
+  }
+  try {
+    await ensureCollection("members");
+    const memberResult = await db.collection("members").where({ _openid: openid }).limit(20).get();
+    const rows = memberResult.data || [];
+    const active = rows.find((item) => item && item.status === "active" && item.phone);
+    if (active && active.phone) {
+      return cleanText(active.phone, 30);
+    }
+    const any = rows.find((item) => item && item.phone);
+    if (any && any.phone) {
+      return cleanText(any.phone, 30);
+    }
+  } catch (error) {
+    // continue
+  }
+  try {
+    await ensureCollection("user_profiles");
+    const crypto = require("crypto");
+    const digest = crypto.createHash("sha256").update(String(openid || "")).digest("hex").slice(0, 24);
+    const profileId = `profile_${digest}`;
+    const doc = await db.collection("user_profiles").doc(profileId).get();
+    return cleanText(doc.data && doc.data.phone, 30);
+  } catch (error) {
+    return "";
+  }
+}
+
 function buildOrderRemark(tableNo, rawRemark) {
   const table = cleanText(tableNo, 20);
   const note = cleanText(rawRemark, 200);
@@ -961,19 +993,42 @@ exports.main = async (event = {}) => {
     const onsiteOrder = isOnsiteOrder(event, deliveryMethod) || deliveryMethod === "onsite";
     const tableNo = extractTableNo(event, cleanItems);
     const orderRemark = buildOrderRemark(tableNo, event.remark);
-    const consignee = cleanText(event.consignee || event.pickupName, 40) || (onsiteOrder ? "到店顾客" : "");
-    // 现场点单允许非手机号占位；真实手机号仅对非现场订单强制。
-    const phone = cleanText(event.phone || event.pickupPhone, 30) || (onsiteOrder ? "现场" : "");
-    const address = cleanText(event.address, 180);
-    const pickupNote = cleanText(event.pickupNote, 120) || (tableNo ? `桌号 ${tableNo}` : "");
-
-    // 现场点单 / 免支付确认：不强制履约联系人；快递与在线支付仍需联系方式。
-    if (!onsiteOrder) {
-      if (!consignee || !phone) {
-        return { ok: false, message: "请填写联系人和手机号" };
+    let consignee = cleanText(event.consignee || event.pickupName, 40) || (onsiteOrder ? "到店顾客" : "");
+    // 现场点单允许非手机号占位；自提优先用已绑定手机号。
+    let phone = cleanText(event.phone || event.pickupPhone, 30) || (onsiteOrder ? "现场" : "");
+    if (!onsiteOrder && deliveryMethod === "pickup" && !/^1\d{10}$/.test(phone)) {
+      const boundPhone = await loadBoundPhone(OPENID);
+      if (boundPhone) {
+        phone = boundPhone;
       }
-      if (deliveryMethod === "shipping" && !address) {
-        return { ok: false, message: "请选择或填写收货地址" };
+    }
+    if (!onsiteOrder && deliveryMethod === "pickup" && !consignee) {
+      consignee = "顾客";
+    }
+    const address = cleanText(event.address, 180);
+    // 微信 chooseAddress 结构化字段（便于履约/物流）
+    const province = cleanText(event.province, 40);
+    const city = cleanText(event.city, 40);
+    const district = cleanText(event.district, 40);
+    const detailAddress = cleanText(event.detailAddress, 120);
+    const postalCode = cleanText(event.postalCode, 12);
+    const pickupNote = cleanText(event.pickupNote, 120)
+      || (tableNo ? `桌号 ${tableNo}` : "")
+      || (deliveryMethod === "pickup" && phone ? `到店自提 · ${consignee} ${phone}` : "");
+
+    // 堂饮不强制联系人；自提要手机号（可来自绑定）；快递要地址。
+    if (!onsiteOrder) {
+      if (deliveryMethod === "pickup") {
+        if (!/^1\d{10}$/.test(phone)) {
+          return { ok: false, message: "请先授权取货手机号" };
+        }
+      } else {
+        if (!consignee || !phone) {
+          return { ok: false, message: "请填写联系人和手机号" };
+        }
+        if (deliveryMethod === "shipping" && !address) {
+          return { ok: false, message: "请选择或填写收货地址" };
+        }
       }
     }
 
@@ -1028,6 +1083,11 @@ exports.main = async (event = {}) => {
         consignee: consignee || "到店顾客",
         phone: phone || (onsiteOrder ? "现场" : ""),
         address: finalDeliveryMethod === "shipping" ? address : "",
+        province: finalDeliveryMethod === "shipping" ? province : "",
+        city: finalDeliveryMethod === "shipping" ? city : "",
+        district: finalDeliveryMethod === "shipping" ? district : "",
+        detailAddress: finalDeliveryMethod === "shipping" ? detailAddress : "",
+        postalCode: finalDeliveryMethod === "shipping" ? postalCode : "",
         pickupNote: finalDeliveryMethod === "pickup" || finalDeliveryMethod === "onsite" ? pickupNote : "",
         tableNo,
         remark: orderRemark,

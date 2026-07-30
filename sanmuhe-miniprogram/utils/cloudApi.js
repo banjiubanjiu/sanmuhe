@@ -313,6 +313,32 @@ function activateMember(payload) {
   return callCloud("memberCenter", Object.assign({ action: "activateMember" }, payload || {}));
 }
 
+/** 仅解析微信手机号授权 code，用于自提等履约联系，不开通会员 */
+function resolvePhoneNumber(phoneCode) {
+  return callCloud("memberCenter", {
+    action: "resolvePhone",
+    phoneCode: phoneCode || ""
+  }).then((result) => {
+    if (!result || result.ok === false) {
+      throw new Error((result && result.message) || "手机号授权失败");
+    }
+    return result;
+  });
+}
+
+/** 手填手机号并绑定到当前用户 */
+function saveContactPhone(phone) {
+  return callCloud("memberCenter", {
+    action: "saveContactPhone",
+    phone: phone || ""
+  }).then((result) => {
+    if (!result || result.ok === false) {
+      throw new Error((result && result.message) || "保存手机号失败");
+    }
+    return result;
+  });
+}
+
 function simulateMemberRecharge(payload) {
   return callCloud("memberCenter", Object.assign({ action: "simulateRecharge" }, payload || {}));
 }
@@ -379,6 +405,8 @@ module.exports = {
   payOrder,
   payReservation,
   rechargeMember,
+  resolvePhoneNumber,
+  saveContactPhone,
   saveSubscription,
   simulateMemberRecharge,
   updateMyOrder

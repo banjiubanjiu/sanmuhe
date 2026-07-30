@@ -14,7 +14,8 @@
     "pages/contact/index",
     "pages/member/index",
     "pages/profile/index",
-    "pages/my-records/index"
+    "pages/my-records/index",
+    "pages/address/index"
   ],
   "window": {
     "navigationBarTitleText": "禾煦",
@@ -23,6 +24,9 @@
     "backgroundColor": "#f7f1e6",
     "backgroundTextStyle": "dark"
   },
+  "requiredPrivateInfos": [
+    "chooseAddress"
+  ],
   "tabBar": {
     "custom": true,
     "color": "#716656",
