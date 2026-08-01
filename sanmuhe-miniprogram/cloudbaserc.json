@@ -38,8 +38,8 @@
       "envVariables": {
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
-        "ADMIN_UIDS": "",
-        "ADMIN_USERNAMES": "admin"
+        "ADMIN_UIDS": "2080914484303536129",
+        "ADMIN_USERNAMES": "admin,administrator"
       }
     },
     {
@@ -53,8 +53,8 @@
       "envVariables": {
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
-        "ADMIN_UIDS": "",
-        "ADMIN_USERNAMES": "admin"
+        "ADMIN_UIDS": "2080914484303536129",
+        "ADMIN_USERNAMES": "admin,administrator"
       }
     },
     {

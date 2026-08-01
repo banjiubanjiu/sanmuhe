@@ -1,6 +1,6 @@
 <view class="page address-page">
-  <!-- 有地址：列表卡（当前仅缓存一条选中地址） -->
-  <view wx:if="{{hasAddress}}" class="list">
+  <!-- 有地址：列表卡 -->
+  <view wx:if="{{hasAddress && !showManual}}" class="list">
     <view class="addr-card" bindtap="openWechatAddress">
       <view class="addr-main">
         <view class="addr-top">
@@ -15,21 +15,57 @@
   </view>
 
   <!-- 无地址 -->
-  <view wx:else class="empty-state">
+  <view wx:if="{{!hasAddress && !showManual}}" class="empty-state">
     <image class="empty-icon" src="/assets/icons/profile-pin.png" mode="aspectFit"></image>
     <view class="empty-title">暂无收货地址</view>
-    <view class="empty-desc">添加后可用于茶叶快递配送</view>
+    <view class="empty-desc">可用微信地址，或手动填写用于茶叶快递</view>
   </view>
 
-  <view class="footer">
+  <!-- 手动填写 -->
+  <view wx:if="{{showManual}}" class="manual-card">
+    <view class="manual-title">填写收货信息</view>
+    <input
+      class="manual-field"
+      placeholder="收货人姓名"
+      data-field="consignee"
+      value="{{consignee}}"
+      bindinput="onManualInput"
+    />
+    <input
+      class="manual-field"
+      placeholder="手机号"
+      type="number"
+      maxlength="11"
+      data-field="phone"
+      value="{{phone}}"
+      bindinput="onManualInput"
+    />
+    <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
+      <view class="manual-field manual-region {{regionText ? '' : 'placeholder'}}">
+        {{regionText || '选择省 / 市 / 区'}}
+      </view>
+    </picker>
+    <input
+      class="manual-field"
+      placeholder="详细地址（街道门牌等）"
+      data-field="detailAddress"
+      value="{{detailAddress}}"
+      bindinput="onManualInput"
+    />
+    <button class="add-btn manual-save" hover-class="none" bindtap="saveManual">保存地址</button>
+    <view class="footer-link" bindtap="openWechatAddress">改用微信地址</view>
+  </view>
+
+  <view wx:if="{{!showManual}}" class="footer">
     <button
       class="add-btn"
       loading="{{loading}}"
       disabled="{{loading}}"
       hover-class="none"
       bindtap="openWechatAddress"
-    >{{hasAddress ? '选择其他地址' : '添加收货地址'}}</button>
-    <view wx:if="{{hasAddress}}" class="footer-link" bindtap="clearLocal">清除</view>
+    >{{hasAddress ? '选择其他微信地址' : '选择微信收货地址'}}</button>
+    <view class="footer-link" bindtap="showManualForm">手动填写地址</view>
+    <view wx:if="{{hasAddress}}" class="footer-link muted" bindtap="clearLocal">清除</view>
   </view>
 
   <privacy-gate

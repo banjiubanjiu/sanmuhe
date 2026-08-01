@@ -134,8 +134,53 @@
 .footer-link {
   margin-top: 18rpx;
   text-align: center;
-  color: #9a9288;
+  color: #3f5b43;
   font-size: 24rpx;
   line-height: 1.2;
   padding: 8rpx;
+}
+
+.footer-link.muted {
+  color: #9a9288;
+}
+
+.manual-card {
+  margin-top: 12rpx;
+  padding: 28rpx 24rpx;
+  border-radius: 16rpx;
+  background: #fffdf8;
+  border: 1rpx solid #e8e1d5;
+  box-sizing: border-box;
+}
+
+.manual-title {
+  margin-bottom: 18rpx;
+  color: #173b2a;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.manual-field {
+  height: 78rpx;
+  margin-bottom: 14rpx;
+  padding: 0 22rpx;
+  color: #2a322c;
+  border-radius: 14rpx;
+  background: #f7f4ec;
+  font-size: 28rpx;
+  box-sizing: border-box;
+  border: 1rpx solid #e8e1d5;
+}
+
+.manual-region {
+  display: flex;
+  align-items: center;
+}
+
+.manual-region.placeholder {
+  color: #a8a094;
+}
+
+.manual-save {
+  margin-top: 8rpx;
 }

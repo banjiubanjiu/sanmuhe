@@ -120,15 +120,23 @@ function loadSavedAddress() {
 
 function addressViewModel(saved) {
   const item = saved && saved.hasAddress ? saved : addressUtil.emptyAddress();
+  const province = item.province || "";
+  const city = item.city || "";
+  const district = item.district || "";
+  const regionValue = [province, city, district].filter(Boolean);
+  const phone = item.phone || "";
   return {
     consignee: item.consignee || "",
-    phone: item.phone || "",
+    phone,
+    phoneMasked: addressUtil.phoneMasked(phone) || phone,
     address: item.address || "",
-    province: item.province || "",
-    city: item.city || "",
-    district: item.district || "",
+    province,
+    city,
+    district,
     detailAddress: item.detailAddress || "",
-    hasAddress: Boolean(item.hasAddress)
+    hasAddress: Boolean(item.hasAddress),
+    regionValue: regionValue.length === 3 ? regionValue : [],
+    regionText: regionValue.length ? regionValue.join(" ") : ""
   };
 }
 
@@ -166,7 +174,32 @@ Page(withPrivacy({
     phoneResolving: false,
     contactReady: false,
     address: "",
-    hasAddress: false
+    hasAddress: false,
+    regionValue: [],
+    regionText: "",
+    detailAddress: "",
+    province: "",
+    city: "",
+    district: "",
+    // 地址选择弹层
+    addressSheetOpen: false,
+    sheetHasAddress: false,
+    sheetConsignee: "",
+    sheetPhone: "",
+    sheetPhoneMasked: "",
+    sheetAddress: "",
+    sheetIsDefault: true,
+    // 新建/编辑表单
+    addressFormOpen: false,
+    formConsignee: "",
+    formPhone: "",
+    formDetailAddress: "",
+    formProvince: "",
+    formCity: "",
+    formDistrict: "",
+    formRegionValue: [],
+    formRegionText: "",
+    formIsDefault: true
   },
 
   onLoad(options = {}) {
@@ -197,19 +230,12 @@ Page(withPrivacy({
       showManualPhone: false,
       // 有本地缓存可先展示；无缓存等云端再出绑定区
       contactReady: Boolean(localPhone) || isDineIn
-    }, isDineIn ? {} : {
-      address: saved.address || "",
-      hasAddress: saved.hasAddress || false,
-      province: saved.province || "",
-      city: saved.city || "",
-      district: saved.district || "",
-      detailAddress: saved.detailAddress || ""
-    }));
+    }, isDineIn ? {} : saved));
   },
 
   onShow() {
-    // 仅快递模式同步微信地址，避免覆盖自提手机号
-    if (!this.data.isDineIn && this.data.deliveryMethod === "shipping") {
+    // 仅快递模式同步已存地址；表单编辑中不覆盖
+    if (!this.data.isDineIn && this.data.deliveryMethod === "shipping" && !this.data.addressFormOpen) {
       this.setData(addressViewModel(loadSavedAddress()));
     }
     this.refresh();
@@ -304,32 +330,178 @@ Page(withPrivacy({
       return;
     }
     const method = event.currentTarget.dataset.method === "shipping" ? "shipping" : "pickup";
-    this.setData({
+    const patch = {
       deliveryMethod: method,
       payHintText: payHintText(this.data.payMode, this.data.balanceAfter, false, method),
       showManualPhone: false
+    };
+    if (method === "shipping") {
+      Object.assign(patch, addressViewModel(loadSavedAddress()), {
+        addressSheetOpen: false,
+        addressFormOpen: false
+      });
+    } else {
+      patch.addressSheetOpen = false;
+      patch.addressFormOpen = false;
+    }
+    this.setData(patch);
+  },
+
+  noop() {},
+
+  /** 订单区入口：请选择地址 / 已选地址卡片 */
+  openAddressSheet() {
+    const saved = loadSavedAddress();
+    this.setData({
+      addressSheetOpen: true,
+      sheetHasAddress: !!saved.hasAddress,
+      sheetConsignee: saved.consignee || "",
+      sheetPhone: saved.phone || "",
+      sheetPhoneMasked: addressUtil.phoneMasked(saved.phone) || saved.phone || "",
+      sheetAddress: saved.address || "",
+      sheetIsDefault: true
     });
   },
 
-  /** 微信官方 wx.chooseAddress；亦可进入地址页管理 */
-  chooseAddress() {
-    this.requestPrivacy(addressUtil.PRIVACY_PURPOSE).then((accepted) => {
-      if (!accepted) {
+  closeAddressSheet() {
+    this.setData({ addressSheetOpen: false });
+  },
+
+  /** 弹层内点已有地址 → 用于本单 */
+  selectSheetAddress() {
+    const saved = loadSavedAddress();
+    if (!saved.hasAddress) {
+      return;
+    }
+    this.setData(Object.assign({
+      addressSheetOpen: false
+    }, addressViewModel(saved)));
+  },
+
+  /** 新建地址：空白表单（与参考「地址管理」一致） */
+  openAddressForm() {
+    this.setData({
+      addressSheetOpen: false,
+      addressFormOpen: true,
+      formConsignee: "",
+      formPhone: "",
+      formDetailAddress: "",
+      formProvince: "",
+      formCity: "",
+      formDistrict: "",
+      formRegionValue: [],
+      formRegionText: "",
+      formIsDefault: true
+    });
+  },
+
+  closeAddressForm() {
+    this.setData({ addressFormOpen: false });
+    // 返回选择弹层，保持流程连贯
+    this.openAddressSheet();
+  },
+
+  onFormInput(event) {
+    const field = event.currentTarget.dataset.field;
+    if (!field) {
+      return;
+    }
+    this.setData({ [field]: event.detail.value });
+  },
+
+  onFormRegionChange(event) {
+    const value = (event.detail && event.detail.value) || [];
+    this.setData({
+      formRegionValue: value,
+      formRegionText: value.filter(Boolean).join(" "),
+      formProvince: value[0] || "",
+      formCity: value[1] || "",
+      formDistrict: value[2] || ""
+    });
+  },
+
+  onFormDefaultChange(event) {
+    this.setData({
+      formIsDefault: !!(event.detail && event.detail.value)
+    });
+  },
+
+  saveAddressForm() {
+    const consignee = String(this.data.formConsignee || "").trim();
+    const phone = String(this.data.formPhone || "").trim();
+    const province = String(this.data.formProvince || "").trim();
+    const city = String(this.data.formCity || "").trim();
+    const district = String(this.data.formDistrict || "").trim();
+    const detailAddress = String(this.data.formDetailAddress || "").trim();
+    if (!consignee) {
+      wx.showToast({ title: "请输入收货人姓名", icon: "none" });
+      return;
+    }
+    if (!/^1\d{10}$/.test(phone)) {
+      wx.showToast({ title: "请输入正确手机号", icon: "none" });
+      return;
+    }
+    if (!province || !city || !district) {
+      wx.showToast({ title: "请选择所在地区", icon: "none" });
+      return;
+    }
+    if (!detailAddress || detailAddress.length < 4) {
+      wx.showToast({ title: "请输入详细地址", icon: "none" });
+      return;
+    }
+    const saved = addressUtil.saveAddress({
+      consignee,
+      phone,
+      province,
+      city,
+      district,
+      detailAddress
+    });
+    this.setData(Object.assign({
+      addressFormOpen: false,
+      addressSheetOpen: false
+    }, addressViewModel(saved)));
+    wx.showToast({ title: "地址已保存", icon: "success" });
+  },
+
+  /**
+   * 从微信获取收货地址（须在用户点击手势内同步调用）。
+   */
+  chooseAddressFromWechat() {
+    this._pendingChooseAddress = true;
+    this.data.privacyPurpose = addressUtil.PRIVACY_PURPOSE;
+    this._runChooseAddress();
+  },
+
+  _runChooseAddress() {
+    addressUtil.chooseWechatAddress().then((address) => {
+      this._pendingChooseAddress = false;
+      this.setData(Object.assign({
+        addressSheetOpen: false,
+        addressFormOpen: false,
+        privacyPurpose: addressUtil.PRIVACY_PURPOSE
+      }, addressViewModel(address)));
+      wx.showToast({ title: "已获取地址", icon: "success" });
+    }).catch((error) => {
+      if (error && error.privacyBlocked && this._pendingChooseAddress) {
         return;
       }
-      addressUtil.chooseWechatAddress().then((address) => {
-        this.setData(addressViewModel(address));
-      }).catch((error) => {
-        if (error && error.cancelled) {
-          return;
-        }
-        wx.showToast({ title: (error && error.message) || "未选择地址", icon: "none" });
+      if (this.data.privacyGateOpen && this._pendingChooseAddress && !(error && error.cancelled)) {
+        return;
+      }
+      this._pendingChooseAddress = false;
+      addressUtil.handleChooseAddressError(error, {
+        onManual: () => this.openAddressForm()
       });
     });
   },
 
-  goAddressManage() {
-    wx.navigateTo({ url: "/pages/address/index?from=checkout" });
+  /** 必须在同意按钮同步栈内调用，不可 setTimeout */
+  onPrivacyAuthorized() {
+    if (!this._pendingChooseAddress) {
+      return;
+    }
+    this._runChooseAddress();
   },
 
   choosePayMode(event) {
@@ -359,12 +531,6 @@ Page(withPrivacy({
     this.refresh();
   },
 
-  removeItem(event) {
-    updateQuantity(event.currentTarget.dataset.key, 0, this.data.mode);
-    this.refresh();
-    wx.showToast({ title: "已移除" });
-  },
-
   onInput(event) {
     const field = event.currentTarget.dataset.field;
     // 桌号不允许手填，只读展示
@@ -379,8 +545,8 @@ Page(withPrivacy({
         phoneMasked: maskPhone(next),
         phoneFromWechat: false
       });
-      // 手填满 11 位：绑定到账号，之后自提不再要
-      if (/^1\d{10}$/.test(next)) {
+      // 自提：手填满 11 位时绑定账号；快递手动填地址不走此绑定
+      if (/^1\d{10}$/.test(next) && this.data.deliveryMethod === "pickup") {
         saveContactPhone(next).then((result) => {
           this.setData({
             hasBoundPhone: true,
@@ -506,7 +672,12 @@ Page(withPrivacy({
         return;
       }
       if (deliveryMethod === "shipping") {
+        if (this.data.addressFormOpen) {
+          wx.showToast({ title: "请先保存收货地址", icon: "none" });
+          return;
+        }
         if (!hasAddress || !name || !mobile || !fullAddress) {
+          this.openAddressSheet();
           wx.showToast({ title: "请选择收货地址", icon: "none" });
           return;
         }

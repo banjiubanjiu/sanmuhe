@@ -1,9 +1,11 @@
 /**
- * 收货地址：优先走微信官方 wx.chooseAddress，不自造多地址 CRUD。
+ * 收货地址：优先 wx.chooseAddress，失败可手动填写。
  *
  * 官方能力：
- * - wx.chooseAddress 调起微信原生「收货地址」界面，用户可在微信侧新增/编辑/选择
- * - 小程序侧无公开「地址列表 / 增删改」API；商户只需承接选中结果并用于下单
+ * - wx.chooseAddress 调起微信原生「收货地址」界面
+ * - 须在 app.json requiredPrivateInfos 声明 chooseAddress
+ * - 须在公众平台「开发 → 开发管理 → 接口设置」开通收货地址权限
+ * - 须在隐私指引中声明「收货地址」
  *
  * 文档：https://developers.weixin.qq.com/miniprogram/dev/api/open-api/address/wx.chooseAddress.html
  */
@@ -41,7 +43,6 @@ function buildFullAddress(parts = {}) {
     .filter(Boolean)
     .join("");
   const detail = clean(parts.detailAddress || parts.detailInfo);
-  // detailInfo 通常已含街道；避免与 street 硬拼重复时仍优先完整 detail
   if (detail && region && detail.indexOf(clean(parts.province)) === 0) {
     return detail;
   }
@@ -104,7 +105,6 @@ function loadSavedAddress() {
     if (!saved || typeof saved !== "object") {
       return emptyAddress();
     }
-    // 兼容旧版仅存 consignee/phone/address 扁平结构
     return normalizeAddress(saved);
   } catch (error) {
     return emptyAddress();
@@ -130,12 +130,51 @@ function clearAddress() {
   return emptyAddress();
 }
 
+function classifyChooseAddressError(err) {
+  const msg = String((err && err.errMsg) || err || "");
+  const error = new Error(msg || "未能获取收货地址");
+  error.rawMessage = msg;
+
+  if (/:\s*fail\s+cancel|fail cancel|cancel$/i.test(msg) || /用户取消|取消选择/i.test(msg)) {
+    error.cancelled = true;
+    error.message = "cancelled";
+    return error;
+  }
+  if (/auth deny|authorize no|scope\.address|没有权限|未授权/i.test(msg)) {
+    error.authDenied = true;
+    error.message = "需要授权收货地址";
+    return error;
+  }
+  if (/privacy|隐私/i.test(msg)) {
+    error.privacyBlocked = true;
+    error.message = "需同意隐私协议后选择地址";
+    return error;
+  }
+  if (/requiredPrivateInfos|not declared|未声明|declare/i.test(msg)) {
+    error.notDeclared = true;
+    error.message = "收货地址能力未声明";
+    return error;
+  }
+  if (/no permission|not authorized|接口未|未开通|api scope|disabled|banned/i.test(msg)) {
+    error.apiDisabled = true;
+    error.message = "收货地址接口未开通";
+    return error;
+  }
+  return error;
+}
+
 /**
- * 调起微信原生收货地址（官方唯一地址选择入口）
- * @returns {Promise<object>} 规范化地址；用户取消则 reject { cancelled: true }
+ * 调起微信原生收货地址。
+ * 必须在用户点击（或隐私同意按钮）的同步调用栈内发起，不可 setTimeout。
  */
 function chooseWechatAddress() {
   return new Promise((resolve, reject) => {
+    if (typeof wx.chooseAddress !== "function") {
+      const error = new Error("当前基础库不支持选择收货地址");
+      error.apiDisabled = true;
+      reject(error);
+      return;
+    }
     wx.chooseAddress({
       success: (res) => {
         const address = fromChooseAddressResult(res);
@@ -146,17 +185,87 @@ function chooseWechatAddress() {
         resolve(saveAddress(address));
       },
       fail: (err) => {
-        const msg = String((err && err.errMsg) || "");
-        if (/cancel|fail cancel/i.test(msg)) {
-          const error = new Error("cancelled");
-          error.cancelled = true;
-          reject(error);
-          return;
-        }
-        // 未授权 / 未开通接口权限等
-        reject(new Error(msg || "未能获取收货地址"));
+        reject(classifyChooseAddressError(err));
       }
     });
+  });
+}
+
+/**
+ * @param {Error} error
+ * @param {{ onManual?: Function }} [options]
+ */
+function handleChooseAddressError(error, options = {}) {
+  if (!error || error.cancelled) {
+    return;
+  }
+
+  const offerManual = typeof options.onManual === "function";
+
+  if (error.authDenied) {
+    wx.showModal({
+      title: "需要地址权限",
+      content: "请允许使用微信收货地址，或改为手动填写。",
+      confirmText: offerManual ? "手动填写" : "去设置",
+      cancelText: offerManual ? "去设置" : "取消",
+      success: (res) => {
+        if (res.confirm) {
+          if (offerManual) {
+            options.onManual();
+          } else if (typeof wx.openSetting === "function") {
+            wx.openSetting({});
+          }
+          return;
+        }
+        if (res.cancel && offerManual && typeof wx.openSetting === "function") {
+          wx.openSetting({});
+        }
+      }
+    });
+    return;
+  }
+
+  if (error.privacyBlocked) {
+    // 隐私弹层应已处理；此处仅兜底
+    wx.showToast({ title: "请先同意隐私协议", icon: "none" });
+    return;
+  }
+
+  if (error.apiDisabled || error.notDeclared) {
+    wx.showModal({
+      title: "暂时无法调起微信地址",
+      content: "可先手动填写收货信息。若需微信地址：公众平台 → 开发管理 → 接口设置中开通「收货地址」，并在隐私指引中声明。",
+      showCancel: offerManual,
+      confirmText: offerManual ? "手动填写" : "知道了",
+      cancelText: "知道了",
+      success: (res) => {
+        if (res.confirm && offerManual) {
+          options.onManual();
+        }
+      }
+    });
+    return;
+  }
+
+  const raw = String(error.rawMessage || error.message || "").replace(/^chooseAddress:fail\s*/i, "");
+  if (offerManual) {
+    wx.showModal({
+      title: "未能选择微信地址",
+      content: (raw || "请改用手动填写收货信息。").slice(0, 120),
+      confirmText: "手动填写",
+      cancelText: "取消",
+      success: (res) => {
+        if (res.confirm) {
+          options.onManual();
+        }
+      }
+    });
+    return;
+  }
+
+  wx.showToast({
+    title: (raw || "未选择地址").slice(0, 40),
+    icon: "none"
   });
 }
 
@@ -178,6 +287,7 @@ module.exports = {
   saveAddress,
   clearAddress,
   chooseWechatAddress,
+  handleChooseAddressError,
   buildFullAddress,
   phoneMasked
 };

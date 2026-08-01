@@ -4,9 +4,19 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
+// 后台源码/构建产物在小程序目录外的 admin-panel，避免打进主包
+const adminRoot = join(root, "..", "admin-panel");
 
 function rel(path) {
   return relative(root, path).replace(/\\/g, "/");
+}
+
+function adminPath(...parts) {
+  return join(adminRoot, ...parts);
+}
+
+function adminRel(file) {
+  return relative(root, adminPath(file)).replace(/\\/g, "/");
 }
 
 function fail(message) {
@@ -49,35 +59,42 @@ function verifyProjectIgnore() {
   console.log(`[admin:verify] project.config.json ignores ${required.length} heavy/admin paths`);
 }
 
+function resolveSourcePath(file) {
+  if (file.startsWith("admin-src/") || file.startsWith("admin/")) {
+    return adminPath(file);
+  }
+  return join(root, file);
+}
+
 function verifyBuiltAdminAssets() {
-  const htmlPath = join(root, "admin", "index.html");
+  const htmlPath = adminPath("admin", "index.html");
   if (!existsSync(htmlPath)) {
-    fail("admin/index.html missing; run npm run admin:build");
+    fail("admin-panel/admin/index.html missing; run npm run admin:build");
   }
   const html = readFileSync(htmlPath, "utf8");
-  const assets = [...html.matchAll(/(?:\/admin\/|\.\/)assets\/([^"']+)/g)].map((match) => join(root, "admin", "assets", match[1]));
+  const assets = [...html.matchAll(/(?:\/admin\/|\.\/)assets\/([^"']+)/g)].map((match) => adminPath("admin", "assets", match[1]));
   if (!assets.length) {
     fail("admin/index.html does not reference built JS/CSS assets");
   }
   for (const asset of assets) {
     if (!existsSync(asset)) {
-      fail(`missing built asset referenced by admin/index.html: ${rel(asset)}`);
+      fail(`missing built asset referenced by admin/index.html: ${adminRel(relative(adminRoot, asset))}`);
     }
   }
   const maxAssetBytes = 2 * 1024 * 1024;
-  const oversized = readdirSync(join(root, "admin", "assets"))
-    .map((name) => join(root, "admin", "assets", name))
+  const oversized = readdirSync(adminPath("admin", "assets"))
+    .map((name) => adminPath("admin", "assets", name))
     .filter((path) => statSync(path).isFile() && statSync(path).size > maxAssetBytes);
   if (oversized.length) {
-    fail(`admin assets exceed 2MB each: ${oversized.map(rel).join(", ")}`);
+    fail(`admin assets exceed 2MB each: ${oversized.map((p) => adminRel(relative(adminRoot, p))).join(", ")}`);
   }
-  console.log(`[admin:verify] built admin assets exist and each asset is under 2MB`);
+  console.log(`[admin:verify] built admin assets exist under admin-panel/admin and each asset is under 2MB`);
 }
 
 function verifySourceContains(file, groups) {
-  const path = join(root, file);
+  const path = resolveSourcePath(file);
   if (!existsSync(path)) {
-    fail(`${file} missing`);
+    fail(`${file} missing (resolved: ${path})`);
   }
   const source = readFileSync(path, "utf8");
   for (const group of groups) {
@@ -90,9 +107,9 @@ function verifySourceContains(file, groups) {
 }
 
 function verifySourceExcludes(file, items) {
-  const path = join(root, file);
+  const path = resolveSourcePath(file);
   if (!existsSync(path)) {
-    fail(`${file} missing`);
+    fail(`${file} missing (resolved: ${path})`);
   }
   const source = readFileSync(path, "utf8");
   const found = items.filter((item) => source.includes(item));

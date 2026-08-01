@@ -1,3 +1,9 @@
+const {
+  agreePrivacyAuthorization,
+  disagreePrivacyAuthorization,
+  openPrivacyContract
+} = require("../../utils/privacy");
+
 Component({
   properties: {
     show: {
@@ -18,24 +24,21 @@ Component({
     noop() {},
 
     openContract() {
-      if (typeof wx.openPrivacyContract === "function") {
-        wx.openPrivacyContract({
-          fail: () => wx.showToast({ title: "暂无法打开隐私协议", icon: "none" })
-        });
-        return;
-      }
-      wx.showModal({
-        title: "隐私保护指引",
-        content: "请在小程序右上角菜单中查看隐私保护指引。",
-        showCancel: false
-      });
+      openPrivacyContract();
     },
 
+    /**
+     * 必须在 open-type="agreePrivacyAuthorization" 的回调里同步 resolve。
+     * 经 triggerEvent 抛到页面再 resolve 会导致 buttonId 校验失败，
+     * 挂起的 chooseAddress 等接口只会报「需同意隐私协议」。
+     */
     agree() {
+      agreePrivacyAuthorization();
       this.triggerEvent("agree");
     },
 
     cancel() {
+      disagreePrivacyAuthorization();
       this.triggerEvent("cancel");
     }
   }
