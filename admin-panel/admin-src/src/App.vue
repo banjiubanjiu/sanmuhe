@@ -157,10 +157,10 @@ const tabPermissions = {
 };
 
 const collectionTabs = [
-  { key: "tea_products", label: "茶叶" },
-  { key: "drinks", label: "堂饮茶单" },
-  { key: "rooms", label: "茶室" },
-  { key: "events", label: "活动" }
+  { key: "tea_products", label: "茶叶", listTitle: "茶叶列表", entityLabel: "茶叶" },
+  { key: "drinks", label: "堂饮茶单", listTitle: "堂饮列表", entityLabel: "堂饮" },
+  { key: "rooms", label: "茶室", listTitle: "茶室列表", entityLabel: "茶室" },
+  { key: "events", label: "活动", listTitle: "活动列表", entityLabel: "活动" }
 ];
 
 const contentTabs = [
@@ -670,6 +670,11 @@ const visibleNavGroups = computed(() => navGroups
   }))
   .filter((group) => group.items.length));
 const visibleQuickActions = computed(() => quickActions.filter((action) => canAccessTab(action.tab)));
+const activeCollectionTab = computed(
+  () => collectionTabs.find((item) => item.key === state.collection) || collectionTabs[0]
+);
+const catalogListTitle = computed(() => activeCollectionTab.value?.listTitle || "资料列表");
+const catalogEntityLabel = computed(() => activeCollectionTab.value?.entityLabel || "资料");
 const accessBlocked = computed(() => !!state.adminProfileError || (!!state.adminProfile && (state.adminProfile.disabled === true || !visibleNavGroups.value.length)));
 const accessBlockTitle = computed(() => {
   if (state.adminProfileError) return "无法读取后台权限";
@@ -3460,7 +3465,7 @@ function emptyHint(tab = state.activeTab) {
 function emptyActionLabel(tab = state.activeTab) {
   if (hasClearableFilters.value) return "清除筛选";
   const labels = {
-    catalog: hasPermission("catalog.write") ? "新建资料" : "刷新资料",
+    catalog: hasPermission("catalog.write") ? "新建" : "刷新资料",
     content: hasPermission("content.write") ? "新建内容" : "刷新内容",
     marketing: hasPermission("marketing.write") ? "新建营销记录" : "刷新营销",
     roles: hasPermission("roles.manage") ? "新建角色" : "刷新角色",
@@ -3940,19 +3945,21 @@ onBeforeUnmount(() => {
                 </button>
               </div>
               <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="筛选名称、分类、状态">
+            </div>
+            <div class="list-header">
+              <h2>{{ catalogListTitle }}</h2>
               <button
                 v-if="hasPermission('catalog.write')"
                 class="primary-action small"
                 type="button"
                 @click="resetCatalog"
               >
-                <Plus :size="15" :stroke-width="1.8" /> 新建{{ collectionTabs.find((t) => t.key === state.collection)?.label || "资料" }}
+                新建
               </button>
             </div>
-            <p class="list-hint">点击一行打开右侧编辑；默认只看列表，更接近日常进销存操作。</p>
             <div class="table-wrap">
               <table>
-                <caption>商品、堂饮茶单、茶室和活动资料列表</caption>
+                <caption>{{ catalogListTitle }}</caption>
                 <thead><tr><th scope="col">资料</th><th scope="col">分类</th><th scope="col">价格</th><th scope="col">库存/名额</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
                 <tbody>
                   <tr
@@ -3984,11 +3991,11 @@ onBeforeUnmount(() => {
           </article>
 
           <!-- 右侧滑出编辑：不全屏并排占版面 -->
-          <div v-if="state.catalogDrawerOpen" class="editor-drawer" role="dialog" aria-modal="true" :aria-label="isCreatingCatalog ? '新建资料' : '编辑资料'">
+          <div v-if="state.catalogDrawerOpen" class="editor-drawer" role="dialog" aria-modal="true" :aria-label="isCreatingCatalog ? `新建${catalogEntityLabel}` : `编辑${catalogEntityLabel}`">
             <div class="editor-drawer-mask" @click="closeCatalogDrawer"></div>
             <aside class="panel-card editor-panel drawer-panel">
               <div class="panel-title">
-                <h2>{{ isCreatingCatalog ? "新建资料" : "编辑资料" }}</h2>
+                <h2>{{ isCreatingCatalog ? `新建${catalogEntityLabel}` : `编辑${catalogEntityLabel}` }}</h2>
                 <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeCatalogDrawer">×</button>
               </div>
               <p v-if="isCreatingCatalog" class="editor-hint">填写名称与价格后保存；图片可上传，也可先用默认图。</p>
@@ -4025,7 +4032,7 @@ onBeforeUnmount(() => {
                 <label class="switch"><input v-model="forms.catalog.visible" type="checkbox"> 前台可见</label>
                 <div class="drawer-actions wide">
                   <button type="button" class="secondary-action" @click="closeCatalogDrawer">取消</button>
-                  <button v-if="hasPermission('catalog.write')" class="primary-action" type="submit">{{ isCreatingCatalog ? "创建并上架" : "保存" }}</button>
+                  <button v-if="hasPermission('catalog.write')" class="primary-action" type="submit">{{ isCreatingCatalog ? "上架" : "保存" }}</button>
                   <div v-else class="permission-note">当前角色仅可查看。</div>
                 </div>
               </form>
@@ -4043,7 +4050,7 @@ onBeforeUnmount(() => {
               <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
             </div>
-            <p class="list-hint">点击一笔订单，右侧滑出详情与处理动作。</p>
+
             <div class="record-list">
               <button v-for="order in state.orders" :key="order._id" :class="['record-row', { selected: state.drawers.order && state.selectedOrderId === order._id }]" type="button" @click="selectOrder(order)">
                 <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
@@ -4163,7 +4170,7 @@ onBeforeUnmount(() => {
               <label class="wide"><span>处理备注</span><textarea v-model="afterSaleForm.note" rows="4"></textarea></label>
               <div class="drawer-actions wide">
                 <button type="button" class="secondary-action" @click="closeDrawer('afterSale')">关闭</button>
-                <button v-if="hasPermission('afterSale.write')" class="primary-action" type="submit">保存售后状态</button>
+                <button v-if="hasPermission('afterSale.write')" class="primary-action" type="submit">保存</button>
                 <div v-else class="permission-note">当前角色仅可查看售后记录。</div>
               </div>
             </form>
@@ -4177,7 +4184,7 @@ onBeforeUnmount(() => {
               <input v-model="filters.inventoryKeyword" class="line-input" aria-label="搜索库存流水" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('inventory', loadInventoryLogs)">筛选</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportInventoryLogs">{{ exportScopeLabel }}</button>
-              <button v-if="hasPermission('inventory.write')" class="primary-action small" type="button" @click="openDrawer('inventory')">人工调整库存</button>
+              <button v-if="hasPermission('inventory.write')" class="primary-action small" type="button" @click="openDrawer('inventory')">调库</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -4213,7 +4220,7 @@ onBeforeUnmount(() => {
               <label class="wide"><span>原因</span><textarea v-model="inventoryForm.note" rows="4" placeholder="盘点、损耗、补货等"></textarea></label>
               <div class="drawer-actions wide">
                 <button type="button" class="secondary-action" @click="closeDrawer('inventory')">取消</button>
-                <button v-if="hasPermission('inventory.write')" class="primary-action" type="submit">写入库存流水</button>
+                <button v-if="hasPermission('inventory.write')" class="primary-action" type="submit">确认调整</button>
                 <div v-else class="permission-note">当前角色仅可查看库存流水。</div>
               </div>
             </form>
@@ -4656,7 +4663,7 @@ onBeforeUnmount(() => {
               <label class="wide"><span>备注</span><textarea v-model="noticeTestForm.note" rows="3"></textarea></label>
               <div class="drawer-actions wide">
                 <button type="button" class="secondary-action" @click="closeDrawer('notification')">取消</button>
-                <button class="primary-action" type="submit">发送测试通知</button>
+                <button class="primary-action" type="submit">发送测试</button>
               </div>
             </form>
             </aside>
@@ -4798,7 +4805,7 @@ onBeforeUnmount(() => {
               <div class="privacy-note wide">导出订单、预约、会员、商品等关键集合到云存储；超过上限会标记为可能截断。</div>
               <div class="drawer-actions wide">
                 <button type="button" class="secondary-action" @click="closeDrawer('backup')">取消</button>
-                <button v-if="hasPermission('backup.create')" class="primary-action icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建云端备份</button>
+                <button v-if="hasPermission('backup.create')" class="primary-action icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建备份</button>
                 <div v-else class="permission-note">当前角色仅可查看备份记录。</div>
               </div>
             </form>

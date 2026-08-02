@@ -1611,15 +1611,44 @@ textarea:focus {
 .donut-legend.compact li.events span { background: #87977a; }
 
 .panel-title,
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding-top: 2px;
+}
+
+.data-panel > .panel-toolbar {
+  margin-bottom: 12px;
+}
+
+.list-header h2 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.list-header .primary-action.small {
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 0;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .panel-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
-}
-
-.panel-toolbar {
   flex-wrap: wrap;
 }
 
@@ -1629,6 +1658,8 @@ textarea:focus {
 
 .panel-toolbar .primary-action.small {
   flex: 0 0 auto;
+  width: auto;
+  margin-top: 0;
   height: 36px;
   padding: 0 14px;
   font-size: 13px;
@@ -3370,6 +3401,10 @@ tr.selected td:first-child {
   .top-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .list-header {
+    align-items: center;
   }
 
   .panel-toolbar {
