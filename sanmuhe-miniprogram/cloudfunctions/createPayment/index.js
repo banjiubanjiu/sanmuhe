@@ -404,14 +404,6 @@ async function findActiveMember(openid) {
 
 /** 门店公示储值权益（金额单位：分），支付侧不信任客户端或脏数据金额 */
 const CANONICAL_MEMBERSHIP_PLANS = {
-  // 联调/真机支付最小额，正式上线前可停用
-  "recharge-0.01": {
-    id: "recharge-0.01",
-    title: "测试 0.01 元",
-    description: "联调测试档位，实付 0.01 元，到账 0.01 元（无赠送）",
-    principalFen: 1,
-    bonusFen: 0
-  },
   "recharge-500": {
     id: "recharge-500",
     title: "充 500 送 100",

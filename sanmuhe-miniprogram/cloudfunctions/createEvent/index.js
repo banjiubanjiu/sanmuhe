@@ -6,6 +6,23 @@ cloud.init({
 
 const db = cloud.database();
 
+function parseList(value) {
+  return String(value || "")
+    .split(/[,\n;]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function isStaffOrAdmin(openid) {
+  if (!openid) {
+    return false;
+  }
+  const admins = parseList(process.env.ADMIN_OPENIDS);
+  const staff = parseList(process.env.STAFF_OPENIDS);
+  const allowed = admins.concat(staff);
+  return allowed.includes(openid);
+}
+
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
@@ -24,6 +41,10 @@ exports.main = async (event = {}) => {
   }
 
   const { OPENID } = cloud.getWXContext();
+  if (!isStaffOrAdmin(OPENID)) {
+    return { ok: false, message: "仅店员或管理员可发布活动" };
+  }
+
   const title = cleanText(event.title, 60);
   const category = cleanText(event.category, 20) || "茶会";
   const date = cleanText(event.date, 30);

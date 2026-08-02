@@ -24,7 +24,8 @@
   --admin-shadow-soft: 0 10px 22px rgba(48, 42, 31, 0.045);
   --admin-radius: 12px;
   --admin-radius-sm: 8px;
-  --admin-sidebar-width: 216px;
+  /* 侧栏略加宽，主区铺满剩余宽度，减少右侧大片空白 */
+  --admin-sidebar-width: 248px;
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
 }
 
@@ -298,7 +299,7 @@ textarea:focus {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 38px 16px 18px;
+  padding: 34px 18px 18px;
   border-right: 1px solid rgba(73, 69, 59, 0.09);
   background:
     linear-gradient(180deg, rgba(247, 244, 236, 0.97), rgba(240, 235, 225, 0.92));
@@ -434,9 +435,10 @@ textarea:focus {
 
 .workspace {
   min-width: 0;
-  max-width: 1320px;
+  /* 取消 1320 上限，大屏把内容拉满，右侧不再空一大块 */
+  max-width: none;
   width: 100%;
-  padding: 34px 32px 28px;
+  padding: 28px 36px 28px 28px;
 }
 
 .access-workspace {
@@ -1468,6 +1470,30 @@ textarea:focus {
   flex: 1 1 190px;
 }
 
+.panel-toolbar .primary-action.small {
+  flex: 0 0 auto;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.editor-hint {
+  margin: -6px 0 14px;
+  color: var(--admin-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
 .panel-title h2 {
   margin: 0;
   color: var(--admin-ink);
@@ -1992,8 +2018,9 @@ textarea:focus {
 
 .split-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(362px, 0.38fr);
-  gap: 16px;
+  /* 列表略宽、编辑区固定可编辑宽度，整体吃满 workspace */
+  grid-template-columns: minmax(0, 1.2fr) minmax(400px, 0.85fr);
+  gap: 18px;
 }
 
 .data-panel {

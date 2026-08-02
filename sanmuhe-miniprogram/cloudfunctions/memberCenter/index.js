@@ -15,18 +15,8 @@ const defaultLevels = [
   { tier: "山房会员", minSpend: 5000, discountRate: 0.92, pointsTarget: 12000 }
 ];
 
-/** 门店公示储值权益 + 联调测试档（金额单位：分） */
+/** 门店公示储值权益（金额单位：分）。正式环境不含联调测试档。 */
 const DEFAULT_MEMBERSHIP_PLANS = [
-  {
-    id: "recharge-0.01",
-    title: "测试 0.01 元",
-    description: "联调测试档位，实付 0.01 元，到账 0.01 元（无赠送）",
-    principalFen: 1,
-    bonusFen: 0,
-    totalFen: 1,
-    sortOrder: 0,
-    enabled: true
-  },
   {
     id: "recharge-500",
     title: "充 500 送 100",
@@ -169,11 +159,11 @@ function isTestOpenid(openid) {
   if (!isTestModeEnabled() || !openid) {
     return false;
   }
-  // 默认测试模式对所有登录用户开放模拟充值。
-  // 仅当 MEMBER_TEST_STRICT=true 时才走白名单。
-  if (String(process.env.MEMBER_TEST_STRICT || "").toLowerCase() !== "true") {
+  // 生产默认：仅白名单可模拟充值。全员开放需显式 MEMBER_TEST_OPEN_ALL=true（禁止上线使用）。
+  if (String(process.env.MEMBER_TEST_OPEN_ALL || "").toLowerCase() === "true") {
     return true;
   }
+  // 兼容旧变量：MEMBER_TEST_STRICT=false 且未设 OPEN_ALL 时仍只走白名单，避免误开全员。
   const allowed = parseList(process.env.MEMBER_TEST_OPENIDS)
     .concat(parseList(process.env.ADMIN_OPENIDS))
     .concat(parseList(process.env.STAFF_OPENIDS));
@@ -374,6 +364,25 @@ async function ensureDefaultMembershipPlans() {
           totalFen: plan.totalFen,
           sortOrder: plan.sortOrder,
           enabled: true,
+          updatedAt: db.serverDate()
+        }
+      });
+    }
+  }
+
+  // 下架历史联调档（如 recharge-0.01），避免脏数据被其它入口误用
+  const allowedIds = new Set(DEFAULT_MEMBERSHIP_PLANS.map((item) => item.id));
+  for (const item of existing) {
+    if (!item || !item._id || !item.id || allowedIds.has(item.id)) {
+      continue;
+    }
+    if (item.enabled === false) {
+      continue;
+    }
+    if (/recharge-0\.01|测试|联调/i.test(`${item.id} ${item.title || ""}`)) {
+      await db.collection("membership_plans").doc(item._id).update({
+        data: {
+          enabled: false,
           updatedAt: db.serverDate()
         }
       });

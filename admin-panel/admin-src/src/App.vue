@@ -227,43 +227,44 @@ const EXPORT_PAGE_SIZE = 100;
 const EXPORT_MAX_ROWS = 5000;
 
 const pageTitles = {
-  dashboard: ["后台首页", "今日经营、履约状态与高频动作"],
-  reservations: ["茶室预约", "确认、取消与备注每一次茶席"],
-  signups: ["活动报名", "茶会报名与名额动态"],
-  orders: ["订单管理", "支付、发货、自提和异常处理"],
-  afterSales: ["售后管理", "退款、拒绝、关闭和人工处理记录"],
-  inventory: ["库存流水", "库存锁定、释放、扣减和人工调整"],
-  customers: ["用户管理", "会员画像、消费与互动记录"],
-  catalog: ["商品管理", "茶叶、堂饮茶单、茶室与活动资料"],
-  content: ["内容管理", "首页轮播、公告和运营内容"],
-  analytics: ["数据统计", "经营走势、转化和热销项目"],
-  marketing: ["营销中心", "优惠券和活动计划"],
-  audit: ["审计日志", "关键后台操作和隐私动作留痕"],
-  notifications: ["通知日志", "订阅消息发送、跳过和失败原因"],
-  system: ["系统状态", "配置缺项、包体规则和关键后台健康检查"],
-  roles: ["角色权限", "管理员、店员和运营的后台权限边界"],
-  backups: ["数据备份", "关键集合一键导出到云存储"],
-  settings: ["设置管理", "门店、会员和通知配置"]
+  dashboard: ["经营首页", "今日概览"],
+  reservations: ["茶室预约", ""],
+  signups: ["活动报名", ""],
+  orders: ["订单管理", ""],
+  afterSales: ["售后管理", ""],
+  inventory: ["库存流水", ""],
+  customers: ["用户管理", ""],
+  catalog: ["商品管理", ""],
+  content: ["内容管理", ""],
+  analytics: ["数据统计", ""],
+  marketing: ["营销中心", ""],
+  audit: ["审计日志", ""],
+  notifications: ["通知日志", ""],
+  system: ["系统状态", ""],
+  roles: ["角色权限", ""],
+  backups: ["数据备份", ""],
+  settings: ["设置管理", ""]
 };
 
+/** 仅作模块元信息兜底，页面不再展示冗长说明条 */
 const moduleProfiles = {
-  dashboard: { group: "经营工作台", subject: "今日经营", countLabel: "项经营指标", note: "预约、订单、报名和营业额集中查看。" },
-  reservations: { group: "门店服务", subject: "预约队列", countLabel: "条预约", note: "按日期、茶室和时段确认履约。" },
-  signups: { group: "门店服务", subject: "报名队列", countLabel: "条报名", note: "到场、未到场和取消都会留在活动记录里。" },
-  orders: { group: "经营工作台", subject: "订单队列", countLabel: "笔订单", note: "发货、自提、取消和售后会写入审计日志。" },
-  afterSales: { group: "经营工作台", subject: "售后队列", countLabel: "笔售后", note: "先完成状态闭环，真实微信退款等待商户配置。" },
-  inventory: { group: "经营工作台", subject: "库存流水", countLabel: "条流水", note: "每次锁定、扣减、释放和人工调整都保留来源。" },
-  customers: { group: "门店服务", subject: "用户画像", countLabel: "位用户", note: "默认脱敏展示，导出和删除个人数据需要权限。" },
-  catalog: { group: "内容与增长", subject: "商品资料", countLabel: "条资料", note: "本地图片会优先上传到云存储后再写入前台数据。" },
-  content: { group: "内容与增长", subject: "运营内容", countLabel: "条内容", note: "首页轮播、卡片和公告统一在云端维护。" },
-  analytics: { group: "内容与增长", subject: "经营统计", countLabel: "项统计", note: "只展示可直接用于经营判断的数据。" },
-  marketing: { group: "内容与增长", subject: "营销配置", countLabel: "项营销记录", note: "优惠券、计划和核销率在同一处核对。" },
-  audit: { group: "系统治理", subject: "操作留痕", countLabel: "条日志", note: "关键改动保留操作人、时间、对象和字段差异。" },
-  notifications: { group: "系统治理", subject: "通知投递", countLabel: "条日志", note: "模板缺失、跳过和发送失败都可回查。" },
-  system: { group: "系统治理", subject: "上线体检", countLabel: "项检查", note: "包体、支付、通知、权限和备份状态集中检查。" },
-  roles: { group: "系统治理", subject: "权限边界", countLabel: "个角色", note: "管理员、运营和店员按操作风险拆分权限。" },
-  backups: { group: "系统治理", subject: "数据备份", countLabel: "条备份", note: "备份写入云存储，下载链接为临时链接。" },
-  settings: { group: "系统治理", subject: "门店配置", countLabel: "项配置", note: "涉及支付和通知模板的配置会影响生产链路。" }
+  dashboard: { group: "经营", subject: "首页", countLabel: "项", note: "" },
+  reservations: { group: "门店", subject: "预约", countLabel: "条", note: "" },
+  signups: { group: "门店", subject: "报名", countLabel: "条", note: "" },
+  orders: { group: "经营", subject: "订单", countLabel: "笔", note: "" },
+  afterSales: { group: "经营", subject: "售后", countLabel: "笔", note: "" },
+  inventory: { group: "经营", subject: "库存", countLabel: "条", note: "" },
+  customers: { group: "门店", subject: "用户", countLabel: "位", note: "" },
+  catalog: { group: "商品", subject: "资料", countLabel: "条", note: "" },
+  content: { group: "内容", subject: "内容", countLabel: "条", note: "" },
+  analytics: { group: "数据", subject: "统计", countLabel: "项", note: "" },
+  marketing: { group: "营销", subject: "营销", countLabel: "项", note: "" },
+  audit: { group: "系统", subject: "审计", countLabel: "条", note: "" },
+  notifications: { group: "系统", subject: "通知", countLabel: "条", note: "" },
+  system: { group: "系统", subject: "状态", countLabel: "项", note: "" },
+  roles: { group: "系统", subject: "角色", countLabel: "个", note: "" },
+  backups: { group: "系统", subject: "备份", countLabel: "条", note: "" },
+  settings: { group: "系统", subject: "设置", countLabel: "项", note: "" }
 };
 
 const writePermissionsByTab = {
@@ -724,7 +725,7 @@ const hasClearableFilters = computed(() => {
   return false;
 });
 const exportScopeLabel = computed(() => hasClearableFilters.value ? "按筛选导出 CSV" : "导出全部 CSV");
-const showSyncBanner = computed(() => !!state.loading && /^读取/.test(state.loading));
+const showSyncBanner = computed(() => false);
 const currentRecordCount = computed(() => {
   const counts = {
     dashboard: state.summary.length,
@@ -750,6 +751,14 @@ const currentRecordCount = computed(() => {
 const globalSearchTotal = computed(() => state.searchResults.reduce((sum, group) => sum + Number(group.total || group.items?.length || 0), 0));
 const activeSavedViews = computed(() => state.savedViews[state.activeTab] || []);
 const canSaveActiveView = computed(() => SAVED_VIEW_TABS.has(state.activeTab));
+/** 仅订单/售后/预约展示状态流；其它页不堆砌工作流卡片 */
+const showWorkflowStrip = computed(() => ["orders", "afterSales", "reservations", "signups"].includes(state.activeTab) && moduleWorkflowSteps.value.length > 0);
+/** 顶部 KPI 仅经营首页展示，避免商品页等重复「今日」指标 */
+const showMetricRow = computed(() => state.activeTab === "dashboard" && state.summary.length > 0);
+/** 有筛选条件时才显示轻量筛选条（去掉「未设置筛选」占位） */
+const showActiveFilters = computed(() => activeFilterLabels.value.length > 0);
+/** 常用视图：有已保存视图，或当前有可保存筛选时才显示 */
+const showSavedViewsBar = computed(() => canSaveActiveView.value && (activeSavedViews.value.length > 0 || hasClearableFilters.value));
 const dashboardScopeText = computed(() => {
   const scope = state.dashboard?.dataScope || {};
   const ordersRead = Number(scope.ordersRead || 0);
@@ -833,6 +842,13 @@ const filteredCatalog = computed(() => {
   const keyword = filters.catalog.trim().toLowerCase();
   if (!keyword) return state.catalogItems;
   return state.catalogItems.filter((item) => textOf(item, ["id", "name", "title", "category", "status"]).includes(keyword));
+});
+
+/** 表单 id 不在列表中 = 正在新建（含点「新建」后尚未保存） */
+const isCreatingCatalog = computed(() => {
+  const id = String(forms.catalog.id || "").trim();
+  if (!id) return true;
+  return !state.catalogItems.some((item) => item.id === id);
 });
 
 function workflowStep(label, value, hint = "", tone = "neutral") {
@@ -1480,7 +1496,12 @@ async function uploadFormImage(target, event) {
     });
     const fileId = result.fileID || result.fileId || "";
     if (!fileId) throw new Error("上传成功但未返回文件 ID");
-    if (target === "catalog") forms.catalog.image = fileId;
+    if (target === "catalog") {
+      forms.catalog.image = fileId;
+      if (!String(forms.catalog.thumb || "").trim()) {
+        forms.catalog.thumb = fileId;
+      }
+    }
     if (target === "content") forms.content.image = fileId;
     uploadState[target] = `已上传：${file.name}`;
     showToast("图片已上传到云存储");
@@ -2036,9 +2057,19 @@ async function loadCatalog() {
       includeHidden: true
     });
     state.catalogItems = result.items || [];
-    if (!state.catalogItems.some((item) => item.id === state.selectedCatalogId)) {
-      state.selectedCatalogId = state.catalogItems[0]?.id || "";
+    // 优先保留当前编辑/新建中的 id（例如刚创建的商品）
+    const preferredId = state.selectedCatalogId || forms.catalog.id;
+    if (preferredId && state.catalogItems.some((item) => item.id === preferredId)) {
+      state.selectedCatalogId = preferredId;
+      editCatalog(state.catalogItems.find((item) => item.id === preferredId));
+      return;
     }
+    // 正在新建且尚未入库：不要用列表第一项覆盖表单
+    if (preferredId && !state.catalogItems.some((item) => item.id === preferredId) && forms.catalog.id === preferredId) {
+      state.selectedCatalogId = preferredId;
+      return;
+    }
+    state.selectedCatalogId = state.catalogItems[0]?.id || "";
     editCatalog(state.catalogItems.find((item) => item.id === state.selectedCatalogId) || null);
   });
 }
@@ -2056,9 +2087,15 @@ function openRoomsCatalog() {
 }
 
 function resetCatalog() {
+  const nextId = `${state.collection}-${Date.now()}`;
+  // 新建时清空列表选中，避免保存后仍定位到旧商品
+  state.selectedCatalogId = nextId;
   Object.assign(forms.catalog, emptyCatalog(), {
-    id: `${state.collection}-${Date.now()}`,
-    status: state.collection === "events" ? "报名中" : state.collection === "rooms" ? "可预定" : "上架"
+    id: nextId,
+    status: state.collection === "events" ? "报名中" : state.collection === "rooms" ? "可预定" : "上架",
+    // 无图也能保存：默认占位图（可再上传替换）
+    image: "/assets/images/product-tea-001-organic-black.jpg",
+    thumb: "/assets/images/product-tea-001-organic-black.jpg"
   });
 }
 
@@ -2069,6 +2106,10 @@ function editCatalog(item) {
   }
   state.selectedCatalogId = item.id;
   Object.assign(forms.catalog, emptyCatalog(), item);
+  // 兼容旧数据：有图无缩略图时自动补齐
+  if (forms.catalog.image && !forms.catalog.thumb) {
+    forms.catalog.thumb = forms.catalog.image;
+  }
 }
 
 async function saveCatalog() {
@@ -2077,7 +2118,13 @@ async function saveCatalog() {
     if (state.collection !== "events") assertText(forms.catalog.name || forms.catalog.title, "请填写名称");
     assertNonNegative(forms.catalog.price, "价格不能为负数");
     assertNonNegative(forms.catalog.stock, "库存不能为负数");
-    if (!isUrlish(forms.catalog.image) || !isUrlish(forms.catalog.thumb)) throw new Error("图片地址必须是 cloud://、http(s) 或 /assets/");
+    // 有主图时缩略图可自动沿用
+    if (forms.catalog.image && !String(forms.catalog.thumb || "").trim()) {
+      forms.catalog.thumb = forms.catalog.image;
+    }
+    if (!isUrlish(forms.catalog.image) || !isUrlish(forms.catalog.thumb)) {
+      throw new Error("图片地址必须是 cloud://、http(s) 或 /assets/；也可点「上传图片」");
+    }
     if (state.collection === "events") {
       assertText(forms.catalog.title || forms.catalog.name, "请填写活动标题");
       if (Number(forms.catalog.signed || 0) > Number(forms.catalog.quota || 0)) throw new Error("已报名不能大于名额");
@@ -2093,15 +2140,17 @@ async function saveCatalog() {
     ? await promptActionReason(`保存 ${displayName(forms.catalog)} 的价格、库存、名额或状态`)
     : "";
   if (needsReason && !reason) return;
-  await withLoading("保存资料", async () => {
+  const savingId = String(forms.catalog.id || "").trim();
+  await withLoading(action === "create" ? "新建商品" : "保存资料", async () => {
     await callFunction("manageCatalog", {
       action,
       collection: state.collection,
-      id: forms.catalog.id,
+      id: savingId,
       reason,
       data: { ...forms.catalog }
     });
-    showToast("资料已保存");
+    state.selectedCatalogId = savingId;
+    showToast(action === "create" ? "新商品已添加" : "资料已保存");
     await loadCatalog();
   });
 }
@@ -3511,9 +3560,8 @@ onBeforeUnmount(() => {
       <section v-else class="workspace" :aria-busy="!!state.loading">
         <header class="topbar">
           <div>
-            <span class="section-kicker">禾煦运营中枢</span>
             <h1>{{ currentTitle[0] }}</h1>
-            <p>{{ currentTitle[1] }}</p>
+            <p v-if="currentTitle[1]">{{ currentTitle[1] }}</p>
           </div>
           <div class="top-actions">
             <div class="global-search-wrap">
@@ -3576,7 +3624,7 @@ onBeforeUnmount(() => {
         </header>
 
         <section
-          v-if="hasPermission('order.read')"
+          v-if="state.activeTab === 'dashboard' && hasPermission('order.read')"
           :class="['order-broadcast-bar', `tone-${orderBroadcastStatusTone}`]"
           aria-label="店内新订单语音播报"
         >
@@ -3633,74 +3681,39 @@ onBeforeUnmount(() => {
           <strong>恢复网络后再继续保存、导出或刷新数据。</strong>
         </div>
 
-        <section v-if="showSyncBanner" class="sync-banner" role="status" aria-live="polite">
-          <div>
-            <span>正在同步云端数据</span>
-            <strong>{{ state.loading }}</strong>
-            <p>当前页面会保留原有内容，新的记录返回后自动更新。</p>
-          </div>
-          <div class="sync-skeleton" aria-hidden="true">
-            <i></i>
-            <i></i>
-            <i></i>
-          </div>
+        <section v-if="showActiveFilters" class="active-filters" aria-label="当前筛选">
+          <span v-for="item in activeFilterLabels" :key="`${item.label}-${item.value}`" class="filter-chip">
+            {{ item.label }}：{{ item.value }}
+          </span>
+          <button v-if="hasClearableFilters" class="clear-filter" type="button" @click="clearActiveFilters">清除筛选</button>
         </section>
 
-        <section class="work-context" aria-live="polite">
-          <div class="context-main">
-            <span>{{ currentModuleProfile.group }}</span>
-            <strong>{{ currentModuleProfile.subject }}</strong>
-            <p>{{ currentModuleProfile.note }}</p>
-          </div>
-          <div class="context-count">
-            <strong>{{ numberText(currentRecordCount) }}</strong>
-            <span>{{ currentModuleProfile.countLabel }}</span>
-          </div>
-          <div class="filter-strip">
-            <template v-if="activeFilterLabels.length">
-              <span v-for="item in activeFilterLabels" :key="`${item.label}-${item.value}`" class="filter-chip">
-                {{ item.label }}：{{ item.value }}
-              </span>
-            </template>
-            <span v-else class="filter-chip muted">未设置筛选</span>
-            <button v-if="hasClearableFilters" class="clear-filter" type="button" @click="clearActiveFilters">清除筛选</button>
-          </div>
-        </section>
-
-        <section class="ops-assurance" aria-label="当前模块经营保障信息">
-          <article v-for="item in operationAssuranceItems" :key="item.label" :data-tone="item.tone || undefined" :title="item.title || item.value">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </article>
-        </section>
-
-        <section v-if="canSaveActiveView" class="saved-views" aria-label="常用筛选视图">
+        <section v-if="showSavedViewsBar" class="saved-views" aria-label="常用筛选视图">
           <span>常用视图</span>
-          <button class="save-view-button" type="button" @click="saveCurrentView">保存当前筛选</button>
+          <button v-if="hasClearableFilters" class="save-view-button" type="button" @click="saveCurrentView">保存当前筛选</button>
           <div v-if="activeSavedViews.length" class="saved-view-list">
             <button v-for="view in activeSavedViews" :key="view.id" type="button" @click="applySavedView(view)">
               {{ view.name }}
               <i aria-label="删除视图" role="button" tabindex="0" @click.stop="deleteSavedView(view)" @keydown.enter.stop.prevent="deleteSavedView(view)">×</i>
             </button>
           </div>
-          <p v-else>尚未保存常用筛选</p>
         </section>
 
-        <section v-if="moduleWorkflowSteps.length" class="workflow-strip" aria-label="当前模块状态流">
+        <section v-if="showWorkflowStrip" class="workflow-strip" aria-label="当前模块状态流">
           <article v-for="step in moduleWorkflowSteps" :key="step.label" :data-tone="step.tone">
             <span>{{ step.label }}</span>
             <strong>{{ step.value }}</strong>
-            <small>{{ step.hint }}</small>
+            <small v-if="step.hint">{{ step.hint }}</small>
           </article>
         </section>
 
-        <section class="metric-row">
+        <section v-if="showMetricRow" class="metric-row">
           <article v-for="(card, index) in state.summary" :key="card.label" class="metric-card" :data-tone="card.tone">
             <div class="metric-icon"><component :is="metricIcon(card, index)" :size="24" :stroke-width="1.8" /></div>
             <div>
               <span>{{ card.label }}</span>
               <strong>{{ metricValue(card) }}</strong>
-              <p>{{ card.delta }}</p>
+              <p v-if="card.delta">{{ card.delta }}</p>
             </div>
           </article>
         </section>
@@ -3842,6 +3855,14 @@ onBeforeUnmount(() => {
                 </button>
               </div>
               <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="筛选名称、分类、状态">
+              <button
+                v-if="hasPermission('catalog.write')"
+                class="primary-action small"
+                type="button"
+                @click="resetCatalog"
+              >
+                <Plus :size="15" :stroke-width="1.8" /> 新建{{ collectionTabs.find((t) => t.key === state.collection)?.label || "资料" }}
+              </button>
             </div>
             <div class="table-wrap">
               <table>
@@ -3874,12 +3895,13 @@ onBeforeUnmount(() => {
           </article>
           <aside class="panel-card editor-panel">
             <div class="panel-title">
-              <h2>{{ forms.catalog.id ? "编辑资料" : "新建资料" }}</h2>
+              <h2>{{ isCreatingCatalog ? "新建资料" : "编辑资料" }}</h2>
               <button v-if="hasPermission('catalog.write')" class="ghost-button icon-action" type="button" @click="resetCatalog"><Plus :size="15" :stroke-width="1.8" /> 新建</button>
             </div>
+            <p v-if="isCreatingCatalog" class="editor-hint">请填写名称与价格，图片可上传或先用默认图；点「保存到云端」完成新增。</p>
             <form class="editor-grid" @submit.prevent="saveCatalog">
-              <label><span>ID</span><input v-model="forms.catalog.id" required></label>
-              <label><span>名称</span><input v-model="forms.catalog.name" :placeholder="state.collection === 'events' ? '可留空，使用标题' : ''"></label>
+              <label><span>ID</span><input v-model="forms.catalog.id" required :readonly="!isCreatingCatalog"></label>
+              <label><span>名称</span><input v-model="forms.catalog.name" :placeholder="state.collection === 'events' ? '可留空，使用标题' : '例如：明前龙井'"></label>
               <label><span>标题</span><input v-model="forms.catalog.title"></label>
               <label><span>分类</span><input v-model="forms.catalog.category"></label>
               <label><span>价格</span><input v-model.number="forms.catalog.price" type="number" min="0"></label>

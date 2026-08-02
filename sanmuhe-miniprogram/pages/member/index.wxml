@@ -110,15 +110,9 @@
     </button>
 
     <view wx:if="{{!member.isMember}}" class="test-banner">请先完成上方「手机号快捷开通」，开通后即可充值。</view>
-    <view wx:elif="{{payment.realPaymentReady}}" class="test-banner">将调起微信支付，支付成功后余额自动到账。真机小额测试请选「测试 0.01 元」。</view>
-    <view wx:elif="{{payment.testRechargeEnabled}}" class="test-banner">当前为体验环境：点击按钮将模拟到账，不产生真实扣款。</view>
-    <view wx:else class="test-banner">真实支付未配置完成。请管理员配置 createPayment 密钥并开启 REAL_PAYMENT_ENABLED。</view>
-
-    <view
-      wx:if="{{member.isMember && payment.realPaymentReady && payment.testRechargeEnabled}}"
-      class="simulate-link"
-      bindtap="simulateRechargeOnly"
-    >改用模拟充值（不扣款，仅联调）</view>
+    <view wx:elif="{{payment.realPaymentReady}}" class="test-banner">将调起微信支付，支付成功后余额自动到账。</view>
+    <view wx:elif="{{payment.testRechargeEnabled}}" class="test-banner">当前账号可体验模拟到账（不产生真实扣款）。</view>
+    <view wx:else class="test-banner">在线充值暂未开放，请稍后再试或到店咨询。</view>
   </view>
 
   <view wx:if="{{member.isMember}}" class="highlight-card">

@@ -38,7 +38,7 @@
       "envVariables": {
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
-        "ADMIN_UIDS": "2080914484303536129",
+        "ADMIN_UIDS": "2080914484303536129,2080915821309370369,2083743999115059202",
         "ADMIN_USERNAMES": "admin,administrator"
       }
     },
@@ -53,7 +53,7 @@
       "envVariables": {
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM",
-        "ADMIN_UIDS": "2080914484303536129",
+        "ADMIN_UIDS": "2080914484303536129,2080915821309370369,2083743999115059202",
         "ADMIN_USERNAMES": "admin,administrator"
       }
     },
@@ -128,7 +128,10 @@
       "name": "createEvent",
       "runtime": "Nodejs16.13",
       "handler": "index.main",
-      "envVariables": {}
+      "envVariables": {
+        "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY"
+      }
     },
     {
       "name": "joinEvent",
@@ -159,7 +162,7 @@
       "envVariables": {
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "MINIPROGRAM_STATE": "developer"
+        "MINIPROGRAM_STATE": "formal"
       }
     },
     {
@@ -173,10 +176,10 @@
       "envVariables": {
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "MEMBER_TEST_MODE": "true",
+        "MEMBER_TEST_MODE": "false",
         "MEMBER_TEST_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "REAL_PAYMENT_ENABLED": "true",
-        "MEMBER_TEST_STRICT": "false"
+        "MEMBER_TEST_STRICT": "true"
       }
     }
   ]
