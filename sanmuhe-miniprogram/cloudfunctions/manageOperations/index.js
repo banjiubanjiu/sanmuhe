@@ -1,5 +1,14 @@
 const cloud = require("wx-server-sdk");
 const crypto = require("crypto");
+const {
+  uploadExpressShipping,
+  uploadPickupOrOnsiteShipping,
+  uploadVirtualShipping,
+  shippingResultFields,
+  resolveExpressCompanyCode,
+  buildItemDescFromItems,
+  COMMON_EXPRESS_OPTIONS
+} = require("./wechatShipping");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -334,6 +343,8 @@ const actionPermissions = {
   cancelOrder: "order.write",
   confirmManualOrder: "order.write",
   markShipped: "order.write",
+  retryWxShipping: "order.write",
+  listExpressCompanies: "order.read",
   markPickupDone: "order.write",
   markPreparingDone: "order.write",
   listReservations: "reservation.read",
@@ -1220,7 +1231,9 @@ async function markShipped(event, caller) {
   if (!order) {
     return { ok: false, message: "订单不存在" };
   }
-  const trackingCompany = cleanText(event.trackingCompany, 80);
+  const trackingCompanyRaw = cleanText(event.trackingCompany || event.expressCompany, 80);
+  const trackingCompanyCode = resolveExpressCompanyCode(trackingCompanyRaw);
+  const trackingCompany = trackingCompanyCode || trackingCompanyRaw;
   const trackingNo = cleanText(event.trackingNo, 80);
   if (order.status !== "待发货") {
     return { ok: false, message: "只有待发货订单可以标记发货" };
@@ -1228,17 +1241,44 @@ async function markShipped(event, caller) {
   if (!trackingNo) {
     return { ok: false, message: "标记发货需填写快递单号" };
   }
+  if (!trackingCompany) {
+    return { ok: false, message: "请选择快递公司" };
+  }
+
+  // 微信支付订单：先同步微信发货信息（失败不阻断本地发货，但会标记错误便于重试）
+  let wxShipping = { ok: true, skipped: true, errmsg: "non-wechat or no transaction" };
+  const needsWx =
+    order.payMode === "wechat" ||
+    order.transactionId ||
+    order.payStatus === "paid";
+  if (needsWx && (order.transactionId || order.orderNo)) {
+    wxShipping = await uploadExpressShipping(cloud, Object.assign({}, order, {
+      trackingCompany,
+      trackingNo
+    }), {
+      trackingNo,
+      expressCompany: trackingCompany,
+      force: false
+    });
+  }
+
+  const wxFields = shippingResultFields(wxShipping);
   await db.collection("orders").doc(order._id).update({
-    data: {
+    data: Object.assign({
       status: "已发货",
       fulfillmentStatus: "shipped",
       trackingCompany,
+      trackingCompanyCode: trackingCompanyCode || trackingCompany,
       trackingNo,
       shippedAt: db.serverDate(),
       shippedBy: callerLabel(caller),
       adminNote: cleanText(event.adminNote, 300),
       updatedAt: db.serverDate()
-    }
+    }, wxFields, {
+      // shippingResultFields 用 Date；云库统一 serverDate 写时间戳字段
+      wxShippingUploadedAt: wxFields.wxShippingUploaded ? db.serverDate() : order.wxShippingUploadedAt || null,
+      wxShippingLastAttemptAt: db.serverDate()
+    })
   });
   await sendServiceNotice("orderShipped", order._openid, {
     orderNo: order.orderNo,
@@ -1250,6 +1290,8 @@ async function markShipped(event, caller) {
     orderNo: order.orderNo,
     trackingCompany,
     trackingNo,
+    wxShippingOk: Boolean(wxShipping.ok),
+    wxShippingError: wxShipping.ok ? "" : (wxShipping.errmsg || ""),
     changes: auditDiff(order, {
       status: "已发货",
       fulfillmentStatus: "shipped",
@@ -1257,7 +1299,72 @@ async function markShipped(event, caller) {
       trackingNo
     }, ["status", "fulfillmentStatus", "trackingCompany", "trackingNo"])
   });
-  return { ok: true };
+  return {
+    ok: true,
+    wxShipping: {
+      ok: Boolean(wxShipping.ok),
+      skipped: Boolean(wxShipping.skipped),
+      message: wxShipping.ok
+        ? (wxShipping.skipped ? "微信侧已发货或无需重复上传" : "已同步微信发货信息")
+        : (wxShipping.errmsg || "微信发货同步失败，可稍后重试")
+    }
+  };
+}
+
+/**
+ * 手动重试微信发货信息上传（快递 / 自提 / 虚拟均可按订单类型）
+ */
+async function retryWxShipping(event, caller) {
+  const order = await getOrder(event);
+  if (!order) {
+    return { ok: false, message: "订单不存在" };
+  }
+  if (!order.transactionId && !order.orderNo) {
+    return { ok: false, message: "订单缺少微信支付信息，无法同步" };
+  }
+
+  let result;
+  const method = String(order.deliveryMethod || "");
+  if (method === "shipping" || order.trackingNo) {
+    if (!order.trackingNo) {
+      return { ok: false, message: "快递订单需先填写快递单号再同步" };
+    }
+    result = await uploadExpressShipping(cloud, order, {
+      trackingNo: order.trackingNo,
+      expressCompany: order.trackingCompanyCode || order.trackingCompany,
+      force: true
+    });
+  } else if (method === "pickup" || method === "onsite") {
+    result = await uploadPickupOrOnsiteShipping(cloud, order, { force: true });
+  } else {
+    result = await uploadVirtualShipping(
+      cloud,
+      order,
+      buildItemDescFromItems(order.items, "禾煦商品"),
+      { force: true }
+    );
+  }
+
+  const wxFields = shippingResultFields(result);
+  await db.collection("orders").doc(order._id).update({
+    data: Object.assign({}, wxFields, {
+      wxShippingUploadedAt: wxFields.wxShippingUploaded ? db.serverDate() : order.wxShippingUploadedAt || null,
+      wxShippingLastAttemptAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    })
+  });
+  await writeAdminAuditLog(caller, "retryWxShipping", {
+    orderNo: order.orderNo,
+    wxShippingOk: Boolean(result.ok),
+    wxShippingError: result.ok ? "" : (result.errmsg || "")
+  });
+  return {
+    ok: Boolean(result.ok),
+    message: result.ok
+      ? (result.skipped ? "微信侧已是发货状态" : "微信发货信息已同步")
+      : (result.errmsg || "同步失败"),
+    wxShipping: result
+  };
 }
 
 async function markPickupDone(event, caller) {
@@ -3278,6 +3385,12 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "markShipped") {
       return await markShipped(event, caller);
+    }
+    if (action === "retryWxShipping") {
+      return await retryWxShipping(event, caller);
+    }
+    if (action === "listExpressCompanies") {
+      return { ok: true, companies: COMMON_EXPRESS_OPTIONS };
     }
     if (action === "markPickupDone") {
       return await markPickupDone(event, caller);

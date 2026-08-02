@@ -6,6 +6,11 @@ const {
   sendWeComRechargeNotification
 } = require("./wecomOrderNotify");
 const { sendWeComReservationNotification } = require("./wecomReservationNotify");
+const {
+  uploadPickupOrOnsiteShipping,
+  uploadVirtualShipping,
+  shippingResultFields
+} = require("./wechatShipping");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -499,16 +504,39 @@ async function handleReservationSuccess(transaction, reservation) {
     throw new Error("预约支付确认抢占失败，等待微信重试通知");
   }
 
+  const paidReservationPatch = {
+    status: "已确认",
+    payStatus: "paid",
+    transactionId: transaction.transaction_id || "",
+    tradeType: transaction.trade_type || "JSAPI",
+    paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
+    paymentRaw: transaction,
+    updatedAt: db.serverDate()
+  };
+
+  // 茶室预约：虚拟商品发货（logistics_type=3），支付成功即传微信
+  let wxShipping = { ok: true, skipped: true };
+  try {
+    wxShipping = await uploadVirtualShipping(
+      cloud,
+      Object.assign({}, reservation, {
+        transactionId: transaction.transaction_id || "",
+        _openid: reservation._openid
+      }),
+      `茶室预约 ${reservation.day || ""} ${reservation.time || ""}`.trim() || "禾煦茶室预约"
+    );
+    Object.assign(paidReservationPatch, shippingResultFields(wxShipping), {
+      wxShippingUploadedAt: wxShipping.ok ? db.serverDate() : null,
+      wxShippingLastAttemptAt: db.serverDate()
+    });
+  } catch (error) {
+    paidReservationPatch.wxShippingUploaded = false;
+    paidReservationPatch.wxShippingError = String((error && error.message) || error).slice(0, 300);
+    paidReservationPatch.wxShippingLastAttemptAt = db.serverDate();
+  }
+
   await db.collection("reservations").doc(reservation._id).update({
-    data: {
-      status: "已确认",
-      payStatus: "paid",
-      transactionId: transaction.transaction_id || "",
-      tradeType: transaction.trade_type || "JSAPI",
-      paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
-      paymentRaw: transaction,
-      updatedAt: db.serverDate()
-    }
+    data: paidReservationPatch
   });
 
   await sendServiceNotice("reservationPaid", reservation._openid, {
@@ -626,14 +654,36 @@ async function handleRechargeSuccess(transaction, recharge) {
       updatedAt: db.serverDate()
     }
   });
+  const rechargePatch = {
+    status: "paid",
+    payStatus: "paid",
+    transactionId,
+    paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
+    updatedAt: db.serverDate()
+  };
+
+  // 会员充值：虚拟商品发货（logistics_type=3）
+  try {
+    const wxShipping = await uploadVirtualShipping(
+      cloud,
+      Object.assign({}, recharge, {
+        transactionId,
+        _openid: recharge._openid
+      }),
+      recharge.planTitle || "会员储值"
+    );
+    Object.assign(rechargePatch, shippingResultFields(wxShipping), {
+      wxShippingUploadedAt: wxShipping.ok ? db.serverDate() : null,
+      wxShippingLastAttemptAt: db.serverDate()
+    });
+  } catch (error) {
+    rechargePatch.wxShippingUploaded = false;
+    rechargePatch.wxShippingError = String((error && error.message) || error).slice(0, 300);
+    rechargePatch.wxShippingLastAttemptAt = db.serverDate();
+  }
+
   await db.collection("recharge_orders").doc(recharge._id).update({
-    data: {
-      status: "paid",
-      payStatus: "paid",
-      transactionId,
-      paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
-      updatedAt: db.serverDate()
-    }
+    data: rechargePatch
   });
 
   try {
@@ -725,18 +775,45 @@ async function handleTransactionSuccess(transaction) {
   await confirmInventory(order.inventoryLocks, order.orderNo);
   await markCouponUsed(order);
   const memberUpdate = await updateMemberAfterPaid(order);
-  await db.collection("orders").doc(order._id).update({
-    data: {
-      status: getPaidStatus(order),
-      payStatus: "paid",
-      pointsEarned: memberUpdate.pointsEarned,
-      memberTierAfterPaid: memberUpdate.tier,
-      transactionId: transaction.transaction_id || "",
-      tradeType: transaction.trade_type || "JSAPI",
-      paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
-      paymentRaw: transaction,
-      updatedAt: db.serverDate()
+
+  const transactionId = transaction.transaction_id || "";
+  const paidPatch = {
+    status: getPaidStatus(order),
+    payStatus: "paid",
+    pointsEarned: memberUpdate.pointsEarned,
+    memberTierAfterPaid: memberUpdate.tier,
+    transactionId,
+    tradeType: transaction.trade_type || "JSAPI",
+    paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
+    paymentRaw: transaction,
+    updatedAt: db.serverDate()
+  };
+
+  // 自提 / 堂饮：支付成功即上传微信发货信息（logistics_type=4，堂饮按自提）
+  // 快递：等后台 markShipped 再传 logistics_type=1
+  const delivery = String(order.deliveryMethod || "");
+  if (delivery === "pickup" || delivery === "onsite") {
+    try {
+      const wxShipping = await uploadPickupOrOnsiteShipping(
+        cloud,
+        Object.assign({}, order, {
+          transactionId,
+          _openid: order._openid
+        })
+      );
+      Object.assign(paidPatch, shippingResultFields(wxShipping), {
+        wxShippingUploadedAt: wxShipping.ok ? db.serverDate() : null,
+        wxShippingLastAttemptAt: db.serverDate()
+      });
+    } catch (error) {
+      paidPatch.wxShippingUploaded = false;
+      paidPatch.wxShippingError = String((error && error.message) || error).slice(0, 300);
+      paidPatch.wxShippingLastAttemptAt = db.serverDate();
     }
+  }
+
+  await db.collection("orders").doc(order._id).update({
+    data: paidPatch
   });
   await sendServiceNotice("orderPaid", order._openid, {
     orderNo: order.orderNo,
@@ -763,7 +840,7 @@ async function handleTransactionSuccess(transaction) {
       consignee: order.consignee || "",
       phone: order.phone || "",
       address: order.address || "",
-      transactionId: transaction.transaction_id || order.transactionId || ""
+      transactionId: transactionId || order.transactionId || ""
     });
   } catch (error) {
     // best-effort

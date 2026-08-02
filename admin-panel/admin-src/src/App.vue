@@ -14,6 +14,7 @@ import {
   FileText,
   HardDrive,
   Home,
+  Menu,
   Megaphone,
   Package,
   PenLine,
@@ -30,7 +31,8 @@ import {
   UserRound,
   Users,
   Volume2,
-  VolumeX
+  VolumeX,
+  X
 } from "@lucide/vue";
 
 const CONFIG = {
@@ -306,6 +308,8 @@ const state = reactive({
   collection: "tea_products",
   contentType: "home_carousel",
   catalogDrawerOpen: false,
+  /** 手机端侧栏导航抽屉 */
+  navOpen: false,
   /** 各模块详情/编辑抽屉：列表默认全宽，点选后再打开 */
   drawers: {
     order: false,
@@ -407,10 +411,23 @@ const filters = reactive({
 const loginForm = reactive({ username: "", password: "" });
 const uploadState = reactive({ catalog: "", content: "" });
 const orderForm = reactive({
-  trackingCompany: "",
+  trackingCompany: "SF",
   trackingNo: "",
   cancelReason: ""
 });
+/** 微信运力编码（标记发货用） */
+const EXPRESS_COMPANY_OPTIONS = [
+  { code: "SF", label: "顺丰速运" },
+  { code: "STO", label: "申通快递" },
+  { code: "YTO", label: "圆通速递" },
+  { code: "ZTO", label: "中通快递" },
+  { code: "YD", label: "韵达速递" },
+  { code: "JTSD", label: "极兔速递" },
+  { code: "JD", label: "京东物流" },
+  { code: "EMS", label: "邮政 EMS" },
+  { code: "DBL", label: "德邦快递" },
+  { code: "HTKY", label: "百世快递" }
+];
 const afterSaleForm = reactive({
   status: "审核中",
   refundAmount: 0,
@@ -2022,12 +2039,21 @@ async function enterDashboard() {
   if (state.activeTab !== "dashboard") await refreshSummary();
 }
 
+function closeNav() {
+  state.navOpen = false;
+}
+
+function toggleNav() {
+  state.navOpen = !state.navOpen;
+}
+
 async function switchTab(tab) {
   if (!canAccessTab(tab)) {
     showToast("当前角色无权访问该模块");
     return;
   }
   state.activeTab = tab;
+  closeNav();
   await loadActiveTab();
 }
 
@@ -2722,23 +2748,53 @@ async function orderAction(action, order) {
     }
     if (action === "ship") {
       if (!orderForm.trackingNo.trim()) throw new Error("请填写快递单号");
-      await callFunction("manageOperations", {
+      if (!orderForm.trackingCompany.trim()) throw new Error("请选择快递公司");
+      const shipResult = await callFunction("manageOperations", {
         action: "markShipped",
         ...payload,
         trackingCompany: orderForm.trackingCompany.trim(),
         trackingNo: orderForm.trackingNo.trim()
       });
-      orderForm.trackingCompany = "";
+      orderForm.trackingCompany = "SF";
       orderForm.trackingNo = "";
+      const wxMsg = shipResult && shipResult.wxShipping && shipResult.wxShipping.message;
+      showToast(wxMsg || "订单已更新");
+    } else if (action === "retryWxShipping") {
+      const retryResult = await callFunction("manageOperations", {
+        action: "retryWxShipping",
+        ...payload
+      });
+      showToast((retryResult && retryResult.message) || "已重试微信发货同步");
+    } else {
+      if (action === "pickup") await callFunction("manageOperations", { action: "markPickupDone", ...payload });
+      if (action === "prepareDone") await callFunction("manageOperations", { action: "markPreparingDone", ...payload });
+      if (action === "cancel") await callFunction("manageOperations", { action: "cancelOrder", ...payload, reason: orderForm.cancelReason.trim() });
+      showToast("订单已更新");
     }
-    if (action === "pickup") await callFunction("manageOperations", { action: "markPickupDone", ...payload });
-    if (action === "prepareDone") await callFunction("manageOperations", { action: "markPreparingDone", ...payload });
-    if (action === "cancel") await callFunction("manageOperations", { action: "cancelOrder", ...payload, reason: orderForm.cancelReason.trim() });
-    showToast("订单已更新");
     if (action === "cancel") orderForm.cancelReason = "";
     await loadOrders();
     await refreshSummary();
   });
+}
+
+function wxShippingStatusText(order) {
+  if (!order) return "-";
+  if (order.wxShippingUploaded) {
+    return order.wxShippingSkipped ? "微信已发货（幂等）" : "已同步微信";
+  }
+  if (order.wxShippingError) {
+    return `同步失败：${order.wxShippingError}`;
+  }
+  if (order.deliveryMethod === "shipping" && order.status === "待发货") {
+    return "待发货后同步";
+  }
+  if ((order.deliveryMethod === "pickup" || order.deliveryMethod === "onsite") && order.payStatus === "paid") {
+    return "待同步（支付成功应自动上传）";
+  }
+  if (order.payMode === "wechat" || order.transactionId) {
+    return "未同步";
+  }
+  return "非微信支付，无需同步";
 }
 
 function protectCsvCell(value) {
@@ -3654,11 +3710,22 @@ onBeforeUnmount(() => {
       </form>
     </section>
 
-    <section v-else class="admin-layout">
+    <section v-else class="admin-layout" :class="{ 'nav-open': state.navOpen }">
+      <div
+        v-if="state.navOpen"
+        class="nav-mask"
+        aria-hidden="true"
+        @click="closeNav"
+      ></div>
       <aside class="sidebar">
         <div class="logo-stack">
-          <span>禾 煦</span>
-          <strong>HEXU TEA</strong>
+          <div class="logo-stack-main">
+            <span>禾 煦</span>
+            <strong>HEXU TEA</strong>
+          </div>
+          <button class="mobile-nav-close" type="button" aria-label="关闭菜单" @click="closeNav">
+            <X :size="20" :stroke-width="1.8" />
+          </button>
         </div>
         <nav class="nav-list">
           <div v-for="group in visibleNavGroups" :key="group.label" class="nav-group">
@@ -3698,6 +3765,24 @@ onBeforeUnmount(() => {
       </section>
 
       <section v-else class="workspace" :aria-busy="!!state.loading">
+        <header class="mobile-chrome">
+          <button class="mobile-nav-toggle" type="button" aria-label="打开菜单" @click="toggleNav">
+            <Menu :size="20" :stroke-width="1.8" />
+          </button>
+          <div class="mobile-chrome-title">
+            <strong>禾煦</strong>
+            <span>{{ currentTitle[0] }}</span>
+          </div>
+          <button
+            class="mobile-nav-toggle"
+            type="button"
+            aria-label="刷新当前模块"
+            :disabled="!!state.loading"
+            @click="loadActiveTab"
+          >
+            <RefreshCw :size="18" :stroke-width="1.8" :class="{ spinning: !!state.loading }" />
+          </button>
+        </header>
         <header class="topbar">
           <div>
             <h1>{{ currentTitle[0] }}</h1>
@@ -4161,9 +4246,15 @@ onBeforeUnmount(() => {
                 <p>{{ step.detail || "-" }}</p>
               </div>
             </div>
+            <DetailRow label="微信发货" :value="wxShippingStatusText(selectedOrder)" />
             <div class="ship-box" v-if="selectedOrder.status === '待发货'">
-              <label><span>快递公司</span><input v-model="orderForm.trackingCompany" placeholder="如 顺丰"></label>
-              <label><span>快递单号</span><input v-model="orderForm.trackingNo" placeholder="填写后标记发货"></label>
+              <label>
+                <span>快递公司</span>
+                <select v-model="orderForm.trackingCompany" aria-label="快递公司">
+                  <option v-for="item in EXPRESS_COMPANY_OPTIONS" :key="item.code" :value="item.code">{{ item.label }}（{{ item.code }}）</option>
+                </select>
+              </label>
+              <label><span>快递单号</span><input v-model="orderForm.trackingNo" placeholder="填写后标记发货，将同步微信"></label>
             </div>
             <label v-if="selectedOrder.status === '待支付' || selectedOrder.status === '待确认'" class="cancel-box">
               <span>取消原因</span>
@@ -4174,6 +4265,12 @@ onBeforeUnmount(() => {
               <button v-if="(selectedOrder.status === '已付款' || selectedOrder.status === '制作中') && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('prepareDone', selectedOrder)">标记完成（可选）</button>
               <button v-if="selectedOrder.status === '待发货' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('ship', selectedOrder)">标记发货</button>
               <button v-if="selectedOrder.status === '待自提' && hasPermission('order.write')" class="secondary-action" type="button" @click="orderAction('pickup', selectedOrder)">完成自提</button>
+              <button
+                v-if="hasPermission('order.write') && selectedOrder.transactionId && !selectedOrder.wxShippingUploaded"
+                class="secondary-action"
+                type="button"
+                @click="orderAction('retryWxShipping', selectedOrder)"
+              >重试微信发货同步</button>
               <button v-if="(selectedOrder.status === '待支付' || selectedOrder.status === '待确认') && hasPermission('order.write')" class="danger-action" type="button" @click="orderAction('cancel', selectedOrder)">取消订单</button>
               <button v-if="hasPermission('afterSale.write')" class="secondary-action" type="button" @click="startAfterSale(selectedOrder)">转售后处理</button>
               <div v-if="!hasPermission('order.write') && !hasPermission('afterSale.write')" class="permission-note">当前角色仅可查看订单。</div>
