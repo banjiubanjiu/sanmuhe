@@ -186,7 +186,7 @@ async function findTrustedItem(type, id) {
   try {
     const result = await db.collection(collection).where({ id }).limit(1).get();
     const item = result.data && result.data[0];
-    if (item && item.visible !== false) {
+    if (item && item.visible !== false && item.removed !== true) {
       return {
         collection,
         docId: item._id,

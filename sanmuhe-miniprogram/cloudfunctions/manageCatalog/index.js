@@ -14,7 +14,7 @@ const allowedCollections = {
   events: "events"
 };
 
-const writeActions = new Set(["create", "update", "delete", "restore"]);
+const writeActions = new Set(["create", "update", "delete", "restore", "remove"]);
 const rolePermissionMap = {
   admin: ["*"],
   operator: ["catalog.read", "catalog.write"],
@@ -88,7 +88,18 @@ function assertOptionalNumber(value, label, options = {}) {
 
 function normalizeAction(action) {
   const value = cleanText(action, 20) || "list";
-  return ["list", "get", "create", "update", "delete", "restore"].includes(value) ? value : "";
+  return ["list", "get", "create", "update", "delete", "restore", "remove"].includes(value) ? value : "";
+}
+
+/** 已软删除（列表默认不展示） */
+function isRemovedItem(item) {
+  return !!(item && item.removed === true);
+}
+
+/** 已下架但未删除（含活动历史用 deleted 表示下架） */
+function isOffShelfItem(item) {
+  if (!item || isRemovedItem(item)) return false;
+  return item.visible === false || item.deleted === true;
 }
 
 function normalizeCollection(collection) {
@@ -438,6 +449,9 @@ function normalizePayload(collection, payload) {
   if (collection !== "events" && data.visible === undefined) {
     data.visible = true;
   }
+  if (data.removed === undefined) {
+    data.removed = false;
+  }
   if (collection === "events") {
     if (data.deleted === undefined) {
       data.deleted = false;
@@ -516,7 +530,12 @@ async function listItems(collection, options) {
   await ensureCollection(collection);
   const result = await db.collection(collection).limit(100).get();
   const includeHidden = options && options.includeHidden;
+  const includeRemoved = options && options.includeRemoved;
   const items = (result.data || []).filter((item) => {
+    // 软删除：默认不进列表（行业：删除后列表不再展示）
+    if (isRemovedItem(item) && !includeRemoved) {
+      return false;
+    }
     if (includeHidden) {
       return true;
     }
@@ -547,8 +566,9 @@ exports.main = async (event = {}, context = {}) => {
   try {
     caller = await getCaller(context);
     const includeHidden = !!event.includeHidden;
+    const includeRemoved = !!event.includeRemoved;
 
-    if (writeActions.has(action) || includeHidden) {
+    if (writeActions.has(action) || includeHidden || includeRemoved) {
       try {
         assertCanWrite(caller);
       } catch (error) {
@@ -564,7 +584,7 @@ exports.main = async (event = {}, context = {}) => {
     await requirePermissionWithAudit(role, writeActions.has(action) ? "catalog.write" : "catalog.read", caller, action, { collection });
 
     if (action === "list") {
-      const items = await listItems(collection, { includeHidden });
+      const items = await listItems(collection, { includeHidden, includeRemoved });
       return { ok: true, collection, items };
     }
 
@@ -577,7 +597,10 @@ exports.main = async (event = {}, context = {}) => {
 
     if (action === "get") {
       const item = await findByBusinessId(collection, id);
-      if (item && item.visible === false && !event.includeHidden) {
+      if (item && isRemovedItem(item) && !event.includeRemoved) {
+        return { ok: false, collection, item: null };
+      }
+      if (item && item.visible === false && !event.includeHidden && !event.includeRemoved) {
         return { ok: false, collection, item: null };
       }
       return { ok: !!item, collection, item: item ? withInventory(item) : null };
@@ -644,6 +667,10 @@ exports.main = async (event = {}, context = {}) => {
     }
 
     if (action === "delete") {
+      // 下架：前台不可见，列表仍可见，可恢复（行业：下架 ≠ 删除）
+      if (isRemovedItem(existing)) {
+        return { ok: false, message: "资料已删除，无法下架；如需再用请重新创建" };
+      }
       const reason = requireAuditReason(event, "下架商品、茶室或活动");
       const data = collection === "events"
         ? { deleted: true, visible: false, updatedAt: db.serverDate() }
@@ -660,12 +687,45 @@ exports.main = async (event = {}, context = {}) => {
     }
 
     if (action === "restore") {
+      // 恢复上架：仅针对未软删除的下架资料
+      if (isRemovedItem(existing)) {
+        return { ok: false, message: "已删除的资料不可恢复上架，请重新创建" };
+      }
       const reason = requireAuditReason(event, "恢复商品、茶室或活动");
       const data = collection === "events"
         ? { deleted: false, visible: true, updatedAt: db.serverDate() }
         : { visible: true, updatedAt: db.serverDate() };
       await db.collection(collection).doc(existing._id).update({ data });
       await writeAdminAuditLog(caller, "catalog.restore", {
+        collection,
+        id,
+        name: existing.name || existing.title || "",
+        reason,
+        changes: auditDiff(existing, Object.assign({}, existing, data), Object.keys(data).filter((field) => field !== "updatedAt"))
+      });
+      return { ok: true, collection, id };
+    }
+
+    if (action === "remove") {
+      // 软删除：须先下架；列表默认不再展示；历史订单快照不受影响
+      if (isRemovedItem(existing)) {
+        return { ok: true, collection, id, alreadyRemoved: true };
+      }
+      if (!isOffShelfItem(existing)) {
+        return { ok: false, message: "请先下架后再删除" };
+      }
+      const reason = requireAuditReason(event, "删除商品、茶室或活动");
+      const data = {
+        removed: true,
+        visible: false,
+        updatedAt: db.serverDate()
+      };
+      // 活动端本来用 deleted 过滤前台，一并打上避免露出
+      if (collection === "events") {
+        data.deleted = true;
+      }
+      await db.collection(collection).doc(existing._id).update({ data });
+      await writeAdminAuditLog(caller, "catalog.remove", {
         collection,
         id,
         name: existing.name || existing.title || "",

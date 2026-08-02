@@ -65,7 +65,7 @@ const PACKAGE_INFO = {
   ]
 };
 
-const SAVED_VIEWS_KEY = "hexi-admin-saved-views-v1";
+const SAVED_VIEWS_KEY = "hexu-admin-saved-views-v1";
 const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "reservations", "signups", "customers", "content", "audit", "notifications"]);
 const ORDER_ALERT_POLL_MS = 5000;
 const ORDER_ALERT_SEEN_LIMIT = 200;
@@ -2219,8 +2219,28 @@ async function saveCatalog() {
   });
 }
 
+function isCatalogRemoved(item) {
+  return !!(item && item.removed === true);
+}
+
+/** 已下架且未删除（活动历史用 deleted 表示下架） */
+function isCatalogOffShelf(item) {
+  if (!item || isCatalogRemoved(item)) return false;
+  return item.visible === false || item.deleted === true;
+}
+
+function catalogStatusLabel(item) {
+  if (isCatalogRemoved(item)) return "已删除";
+  if (isCatalogOffShelf(item)) return "已下架";
+  return item.status || "上架";
+}
+
 async function toggleCatalog(item) {
-  const restore = item.visible === false || item.deleted;
+  if (isCatalogRemoved(item)) {
+    showToast("已删除的资料不可恢复，请重新创建");
+    return;
+  }
+  const restore = isCatalogOffShelf(item);
   if (!restore && !(await requireTypedConfirm(`确认下架 ${displayName(item)}？`, item.id || displayName(item)))) return;
   const reason = await promptActionReason(`${restore ? "恢复" : "下架"} ${displayName(item)}`);
   if (!reason) return;
@@ -2232,6 +2252,39 @@ async function toggleCatalog(item) {
       reason
     });
     showToast(restore ? "已恢复" : "已下架");
+    await loadCatalog();
+  });
+}
+
+/** 行业规则：须先下架，再软删除；二次确认 + 原因审计 */
+async function removeCatalog(item) {
+  if (!item?.id) return;
+  if (isCatalogRemoved(item)) {
+    showToast("资料已删除");
+    return;
+  }
+  if (!isCatalogOffShelf(item)) {
+    showToast("请先下架后再删除");
+    return;
+  }
+  const name = displayName(item);
+  if (!(await requireTypedConfirm(
+    `确认删除「${name}」？删除后列表不再显示，历史订单中的信息仍保留。此操作不可恢复上架。`,
+    item.id || name
+  ))) return;
+  const reason = await promptActionReason(`删除 ${name}`);
+  if (!reason) return;
+  await withLoading("删除资料", async () => {
+    await callFunction("manageCatalog", {
+      action: "remove",
+      collection: state.collection,
+      id: item.id,
+      reason
+    });
+    if (state.selectedCatalogId === item.id) {
+      closeCatalogDrawer();
+    }
+    showToast("已删除");
     await loadCatalog();
   });
 }
@@ -2616,7 +2669,7 @@ async function exportCustomerData(customer) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `hexi-customer-${customer.phone || customer.id || Date.now()}.json`;
+    a.download = `hexu-customer-${customer.phone || customer.id || Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast("用户数据已导出");
@@ -2717,7 +2770,7 @@ function downloadCsv(filename, columns, rows) {
 
 function csvFilename(name) {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  return `hexi-${name}-${stamp}.csv`;
+  return `hexu-${name}-${stamp}.csv`;
 }
 
 async function fetchExportRows({ action, rowsKey, label, payload = {} }) {
@@ -3575,8 +3628,8 @@ onBeforeUnmount(() => {
     <section v-if="state.view === 'login'" class="login-screen">
       <div class="login-art">
         <div class="brand-block">
-          <span>禾 熙</span>
-          <strong>HEXI TEA</strong>
+          <span>禾 煦</span>
+          <strong>HEXU TEA</strong>
         </div>
         <div class="ink-copy">
           <p>经营后台</p>
@@ -3604,8 +3657,8 @@ onBeforeUnmount(() => {
     <section v-else class="admin-layout">
       <aside class="sidebar">
         <div class="logo-stack">
-          <span>禾 熙</span>
-          <strong>HEXI TEA</strong>
+          <span>禾 煦</span>
+          <strong>HEXU TEA</strong>
         </div>
         <nav class="nav-list">
           <div v-for="group in visibleNavGroups" :key="group.label" class="nav-group">
@@ -3978,10 +4031,18 @@ onBeforeUnmount(() => {
                     <td>{{ item.category || item.capacity || "-" }}</td>
                     <td>{{ item.price !== undefined ? `¥${money(item.price)}` : "-" }}</td>
                     <td>{{ displayInventory(item) }}</td>
-                    <td><span :class="['status-pill', item.visible === false || item.deleted ? 'neutral' : 'good']">{{ item.visible === false || item.deleted ? "已下架" : (item.status || "上架") }}</span></td>
+                    <td><span :class="['status-pill', isCatalogOffShelf(item) || isCatalogRemoved(item) ? 'neutral' : 'good']">{{ catalogStatusLabel(item) }}</span></td>
                     <td>
-                      <button v-if="hasPermission('catalog.write')" class="ghost-button" type="button" @click.stop="editCatalog(item)">编辑</button>
-                      <button v-if="hasPermission('catalog.write')" class="ghost-button" type="button" @click.stop="toggleCatalog(item)">{{ item.visible === false || item.deleted ? "恢复" : "下架" }}</button>
+                      <div class="row-actions" @click.stop>
+                        <button v-if="hasPermission('catalog.write')" class="ghost-button small" type="button" @click="editCatalog(item)">编辑</button>
+                        <button v-if="hasPermission('catalog.write')" class="ghost-button small" type="button" @click="toggleCatalog(item)">{{ isCatalogOffShelf(item) ? "恢复" : "下架" }}</button>
+                        <button
+                          v-if="hasPermission('catalog.write') && isCatalogOffShelf(item)"
+                          class="ghost-button small danger-text"
+                          type="button"
+                          @click="removeCatalog(item)"
+                        >删除</button>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -4032,6 +4093,12 @@ onBeforeUnmount(() => {
                 <label class="switch"><input v-model="forms.catalog.visible" type="checkbox"> 前台可见</label>
                 <div class="drawer-actions wide">
                   <button type="button" class="secondary-action" @click="closeCatalogDrawer">取消</button>
+                  <button
+                    v-if="hasPermission('catalog.write') && !isCreatingCatalog && isCatalogOffShelf(forms.catalog)"
+                    class="danger-action"
+                    type="button"
+                    @click="removeCatalog(forms.catalog)"
+                  >删除</button>
                   <button v-if="hasPermission('catalog.write')" class="primary-action" type="submit">{{ isCreatingCatalog ? "上架" : "保存" }}</button>
                   <div v-else class="permission-note">当前角色仅可查看。</div>
                 </div>

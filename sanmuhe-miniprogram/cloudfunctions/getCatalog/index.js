@@ -47,7 +47,9 @@ async function getCollectionData(collection) {
       ? { visible: true, deleted: false }
       : { visible: true };
     const result = await db.collection(collection).where(where).limit(100).get();
-    return sortCatalog((result.data || []).map(withInventory));
+    // 软删除（removed）的资料不进小程序目录
+    const items = (result.data || []).filter((item) => item.removed !== true).map(withInventory);
+    return sortCatalog(items);
   } catch (error) {
     return [];
   }

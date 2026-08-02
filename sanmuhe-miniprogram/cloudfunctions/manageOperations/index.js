@@ -3100,7 +3100,7 @@ async function disableRecord(collection, id, caller) {
 function normalizeSettings(data = {}) {
   return {
     key: "store",
-    brandName: cleanText(data.brandName, 80) || "禾煦 HEXI TEA",
+    brandName: cleanText(data.brandName, 80) || "禾煦 HEXU TEA",
     slogan: cleanText(data.slogan, 120),
     storeName: cleanText(data.storeName, 80),
     address: cleanText(data.address, 160),

@@ -247,6 +247,28 @@ textarea:focus {
   background: rgba(255, 253, 247, 0.74);
 }
 
+.ghost-button.danger-text {
+  color: #9f4636;
+  border-color: rgba(182, 90, 70, 0.28);
+}
+
+.ghost-button.danger-text:hover {
+  color: #7b4437;
+  border-color: rgba(182, 90, 70, 0.4);
+  background: rgba(249, 231, 226, 0.55);
+}
+
+.row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.row-actions .ghost-button {
+  margin: 0;
+}
+
 .danger-action {
   color: #fffdf7;
   background: var(--admin-danger);
@@ -2303,10 +2325,12 @@ textarea:focus {
 }
 
 .drawer-actions .primary-action,
-.drawer-actions .secondary-action {
+.drawer-actions .secondary-action,
+.drawer-actions .danger-action {
   width: auto;
   min-width: 112px;
   flex: 0 0 auto;
+  margin-top: 0;
 }
 
 .data-panel {
