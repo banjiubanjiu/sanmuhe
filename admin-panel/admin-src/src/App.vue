@@ -170,17 +170,14 @@ const contentTabs = [
   { key: "all", label: "全部内容" }
 ];
 
+// 首页快捷入口固定 6 项，保证 3×2 规整网格（其余入口走左侧导航）
 const quickActions = [
-  { tab: "reservations", label: "新增预约", icon: CalendarCheck },
-  { tab: "signups", label: "新增活动", icon: TicketPercent },
-  { tab: "content", label: "发布内容", icon: PenLine },
+  { tab: "reservations", label: "茶室预约", icon: CalendarCheck },
+  { tab: "signups", label: "活动报名", icon: TicketPercent },
   { tab: "orders", label: "订单管理", icon: ClipboardList },
-  { tab: "afterSales", label: "售后处理", icon: BadgeDollarSign },
-  { tab: "inventory", label: "库存流水", icon: Package },
-  { tab: "system", label: "系统体检", icon: ShieldCheck },
-  { tab: "notifications", label: "通知日志", icon: Bell },
-  { tab: "customers", label: "用户管理", icon: Users },
-  { tab: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing }
+  { tab: "catalog", label: "商品资料", icon: Package },
+  { tab: "content", label: "运营内容", icon: PenLine },
+  { tab: "customers", label: "用户管理", icon: Users }
 ];
 
 const permissionCatalog = [
@@ -308,6 +305,23 @@ const state = reactive({
   activeTab: "dashboard",
   collection: "tea_products",
   contentType: "home_carousel",
+  catalogDrawerOpen: false,
+  /** 各模块详情/编辑抽屉：列表默认全宽，点选后再打开 */
+  drawers: {
+    order: false,
+    afterSale: false,
+    inventory: false,
+    reservation: false,
+    signup: false,
+    customer: false,
+    content: false,
+    audit: false,
+    notification: false,
+    role: false,
+    backup: false,
+    coupon: false,
+    campaign: false
+  },
   loading: "",
   loadingTab: "",
   loginError: "",
@@ -577,14 +591,53 @@ const headerSignalCount = computed(() => {
   const summary = state.systemStatus?.summary || {};
   return Number(summary.warn || 0) + Number(summary.error || 0);
 });
-const selectedOrder = computed(() => state.orders.find((item) => item._id === state.selectedOrderId) || state.orders[0] || null);
-const selectedAfterSale = computed(() => state.afterSales.find((item) => item._id === state.selectedAfterSaleId) || state.afterSales[0] || null);
-const selectedAuditLog = computed(() => state.auditLogs.find((item) => item._id === state.selectedAuditLogId) || state.auditLogs[0] || null);
-const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || state.reservations[0] || null);
-const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || state.signups[0] || null);
-const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || state.customers[0] || null);
+const selectedOrder = computed(() => state.orders.find((item) => item._id === state.selectedOrderId) || null);
+const selectedAfterSale = computed(() => state.afterSales.find((item) => item._id === state.selectedAfterSaleId) || null);
+const selectedAuditLog = computed(() => state.auditLogs.find((item) => item._id === state.selectedAuditLogId) || null);
+const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || null);
+const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || null);
+const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || null);
 const selectedCustomerSignal = computed(() => customerSignal(selectedCustomer.value));
-const selectedRole = computed(() => state.adminRoles.find((item) => item.id === state.selectedRoleId) || state.adminRoles[0] || null);
+const selectedRole = computed(() => state.adminRoles.find((item) => item.id === state.selectedRoleId) || null);
+
+function openDrawer(key) {
+  if (key in state.drawers) state.drawers[key] = true;
+}
+
+function closeDrawer(key) {
+  if (key in state.drawers) state.drawers[key] = false;
+}
+
+function selectOrder(order) {
+  state.selectedOrderId = order?._id || "";
+  openDrawer("order");
+}
+
+function selectAfterSale(order) {
+  state.selectedAfterSaleId = order?._id || "";
+  if (order) fillAfterSaleForm(order);
+  openDrawer("afterSale");
+}
+
+function selectReservation(record) {
+  state.selectedReservationId = record?._id || "";
+  openDrawer("reservation");
+}
+
+function selectSignup(record) {
+  state.selectedSignupId = record?._id || "";
+  openDrawer("signup");
+}
+
+function selectCustomer(customer) {
+  state.selectedCustomerId = customer?.id || "";
+  openDrawer("customer");
+}
+
+function selectAuditLog(log) {
+  state.selectedAuditLogId = log?._id || "";
+  openDrawer("audit");
+}
 const currentRolePreset = computed(() => state.rolePresets.find((item) => item.key === roleForm.roleKey) || state.rolePresets[0] || null);
 const currentPermissionGroups = computed(() => {
   const permissions = currentRolePreset.value?.permissions || [];
@@ -2057,27 +2110,30 @@ async function loadCatalog() {
       includeHidden: true
     });
     state.catalogItems = result.items || [];
-    // 优先保留当前编辑/新建中的 id（例如刚创建的商品）
+    // 抽屉打开时：同步表单到最新数据；关闭时只维护列表高亮，不强行打开编辑
     const preferredId = state.selectedCatalogId || forms.catalog.id;
+    if (state.catalogDrawerOpen && preferredId) {
+      const found = state.catalogItems.find((item) => item.id === preferredId);
+      if (found) {
+        state.selectedCatalogId = preferredId;
+        Object.assign(forms.catalog, emptyCatalog(), found);
+        if (forms.catalog.image && !forms.catalog.thumb) forms.catalog.thumb = forms.catalog.image;
+        return;
+      }
+      if (isCreatingCatalog.value) return;
+    }
     if (preferredId && state.catalogItems.some((item) => item.id === preferredId)) {
       state.selectedCatalogId = preferredId;
-      editCatalog(state.catalogItems.find((item) => item.id === preferredId));
       return;
     }
-    // 正在新建且尚未入库：不要用列表第一项覆盖表单
-    if (preferredId && !state.catalogItems.some((item) => item.id === preferredId) && forms.catalog.id === preferredId) {
-      state.selectedCatalogId = preferredId;
-      return;
-    }
-    state.selectedCatalogId = state.catalogItems[0]?.id || "";
-    editCatalog(state.catalogItems.find((item) => item.id === state.selectedCatalogId) || null);
+    state.selectedCatalogId = "";
   });
 }
 
 function selectCollection(key) {
   state.collection = key;
   state.selectedCatalogId = "";
-  resetCatalog();
+  state.catalogDrawerOpen = false;
   loadCatalog();
 }
 
@@ -2086,14 +2142,17 @@ function openRoomsCatalog() {
   selectCollection("rooms");
 }
 
+function closeCatalogDrawer() {
+  state.catalogDrawerOpen = false;
+}
+
 function resetCatalog() {
   const nextId = `${state.collection}-${Date.now()}`;
-  // 新建时清空列表选中，避免保存后仍定位到旧商品
   state.selectedCatalogId = nextId;
+  state.catalogDrawerOpen = true;
   Object.assign(forms.catalog, emptyCatalog(), {
     id: nextId,
     status: state.collection === "events" ? "报名中" : state.collection === "rooms" ? "可预定" : "上架",
-    // 无图也能保存：默认占位图（可再上传替换）
     image: "/assets/images/product-tea-001-organic-black.jpg",
     thumb: "/assets/images/product-tea-001-organic-black.jpg"
   });
@@ -2105,8 +2164,8 @@ function editCatalog(item) {
     return;
   }
   state.selectedCatalogId = item.id;
+  state.catalogDrawerOpen = true;
   Object.assign(forms.catalog, emptyCatalog(), item);
-  // 兼容旧数据：有图无缩略图时自动补齐
   if (forms.catalog.image && !forms.catalog.thumb) {
     forms.catalog.thumb = forms.catalog.image;
   }
@@ -2250,8 +2309,7 @@ async function startAfterSale(order) {
     showToast("已转入售后");
     state.activeTab = "afterSales";
     await loadAfterSales();
-    state.selectedAfterSaleId = order._id;
-    fillAfterSaleForm(state.afterSales.find((item) => item._id === order._id) || order);
+    selectAfterSale(state.afterSales.find((item) => item._id === order._id) || order);
   });
 }
 
@@ -2358,8 +2416,8 @@ async function loadAdminRoles() {
     const result = await callFunction("manageOperations", { action: "listAdminRoles" });
     state.adminRoles = result.roles || [];
     state.rolePresets = result.presets || [];
-    state.selectedRoleId = state.adminRoles[0]?.id || "";
-    editRole(selectedRole.value);
+    // 不自动打开角色编辑抽屉
+    if (!state.drawers.role) state.selectedRoleId = "";
   });
 }
 
@@ -2373,6 +2431,7 @@ function resetRole() {
     disabled: false
   });
   state.selectedRoleId = "";
+  openDrawer("role");
 }
 
 function editRole(role) {
@@ -2389,6 +2448,7 @@ function editRole(role) {
     roleKey: role.roleKey || "clerk",
     disabled: role.disabled === true
   });
+  openDrawer("role");
 }
 
 async function saveAdminRole() {
@@ -2891,13 +2951,14 @@ async function loadContent() {
       type: state.contentType
     });
     state.contentItems = result.items || [];
-    editContent(state.contentItems[0] || null);
+    // 不自动打开编辑抽屉
   });
 }
 
 function selectContentType(type) {
   state.contentType = type;
-  resetContent();
+  state.drawers.content = false;
+  state.selectedContentKey = "";
   loadContent();
 }
 
@@ -2914,7 +2975,8 @@ function resetContent() {
     sort: 10,
     visible: true
   });
-  state.selectedContentKey = "";
+  state.selectedContentKey = forms.content.key;
+  openDrawer("content");
 }
 
 function editContent(item) {
@@ -2924,6 +2986,7 @@ function editContent(item) {
   }
   state.selectedContentKey = item.key;
   Object.assign(forms.content, item);
+  openDrawer("content");
 }
 
 async function saveContent() {
@@ -2971,6 +3034,7 @@ async function loadMarketing() {
 function resetCoupon() {
   Object.assign(forms.coupon, emptyCoupon());
   state.selectedCouponId = "";
+  openDrawer("coupon");
 }
 
 function editCoupon(item) {
@@ -2980,6 +3044,7 @@ function editCoupon(item) {
   }
   state.selectedCouponId = item.id;
   Object.assign(forms.coupon, emptyCoupon(), item);
+  openDrawer("coupon");
 }
 
 async function saveCoupon() {
@@ -3027,6 +3092,7 @@ async function disableCoupon(item = forms.coupon) {
 function resetCampaign() {
   Object.assign(forms.campaign, emptyCampaign());
   state.selectedCampaignId = "";
+  openDrawer("campaign");
 }
 
 function editCampaign(item) {
@@ -3036,6 +3102,7 @@ function editCampaign(item) {
   }
   state.selectedCampaignId = item.id;
   Object.assign(forms.campaign, emptyCampaign(), item);
+  openDrawer("campaign");
 }
 
 async function saveCampaign() {
@@ -3150,15 +3217,30 @@ function applyKeywordToTab(tab, keyword) {
 
 function selectRecordFromSearch(tab, id) {
   if (!id) return;
-  if (tab === "orders" && state.orders.some((item) => item._id === id)) state.selectedOrderId = id;
-  if (tab === "afterSales" && state.afterSales.some((item) => item._id === id)) {
-    state.selectedAfterSaleId = id;
-    fillAfterSaleForm(selectedAfterSale.value);
+  if (tab === "orders") {
+    const order = state.orders.find((item) => item._id === id);
+    if (order) selectOrder(order);
   }
-  if (tab === "reservations" && state.reservations.some((item) => item._id === id)) state.selectedReservationId = id;
-  if (tab === "signups" && state.signups.some((item) => item._id === id)) state.selectedSignupId = id;
-  if (tab === "customers" && state.customers.some((item) => item.id === id)) state.selectedCustomerId = id;
-  if (tab === "audit" && state.auditLogs.some((item) => item._id === id)) state.selectedAuditLogId = id;
+  if (tab === "afterSales") {
+    const row = state.afterSales.find((item) => item._id === id);
+    if (row) selectAfterSale(row);
+  }
+  if (tab === "reservations") {
+    const row = state.reservations.find((item) => item._id === id);
+    if (row) selectReservation(row);
+  }
+  if (tab === "signups") {
+    const row = state.signups.find((item) => item._id === id);
+    if (row) selectSignup(row);
+  }
+  if (tab === "customers") {
+    const row = state.customers.find((item) => item.id === id);
+    if (row) selectCustomer(row);
+  }
+  if (tab === "audit") {
+    const row = state.auditLogs.find((item) => item._id === id);
+    if (row) selectAuditLog(row);
+  }
 }
 
 async function openSearchResult(group, item) {
@@ -3718,135 +3800,138 @@ onBeforeUnmount(() => {
           </article>
         </section>
 
-        <section v-if="state.activeTab === 'dashboard'" class="dashboard-grid">
-          <article class="panel-card hero-panel">
-            <div class="panel-title">
-              <div>
-                <h2>茶室预约概览</h2>
-              </div>
-              <button class="secondary-action small icon-action" type="button" @click="switchTab('reservations')">
-                <CalendarDays :size="15" :stroke-width="1.8" />
-                查看日历
-              </button>
-            </div>
-            <div class="room-board-date">
-              <span aria-hidden="true">‹</span>
-              <strong>{{ state.dashboard?.dateLabel || state.reservationCalendarDate }}</strong>
-              <span aria-hidden="true">›</span>
-            </div>
-            <div class="room-board">
-              <div class="room-board-head">
-                <span>茶室</span>
-                <span>10:00</span>
-                <span>12:30</span>
-                <span>15:00</span>
-                <span>17:30</span>
-                <span>20:00</span>
-              </div>
-              <div v-for="room in (state.dashboard?.roomBoard || [])" :key="room.id || room.room || room.name" class="room-line">
-                <strong>
-                  <b>{{ room.name || room.room }}</b>
-                  <small>{{ room.capacity || "" }}</small>
-                </strong>
-                <span v-for="slot in room.slots" :key="slot.time" :class="['slot', slot.status === '空闲' || slot.status === '可预约' ? 'free' : slot.status === '进行中' ? 'active' : 'busy']">
-                  <b>{{ slot.status || "可预约" }}</b>
-                  <small v-if="slot.name">{{ slot.name }}</small>
-                  <small v-if="slot.people">{{ slot.people }}人</small>
-                </span>
-              </div>
-            </div>
-            <EmptyState
-              v-if="(state.dashboard?.roomBoard || []).length === 0"
-              title="暂无茶室配置"
-              hint="配置真实茶室后，首页才会展示今日可预约时段。"
-              action-label="配置茶室"
-              @action="openRoomsCatalog"
-            />
-            <div class="room-legend">
-              <span><i class="free"></i>可预约</span>
-              <span><i class="busy"></i>已预约</span>
-              <span><i class="active"></i>进行中</span>
-              <span><i class="done"></i>已结束</span>
-            </div>
-          </article>
-          <article class="panel-card action-panel">
-            <div class="panel-title"><h2>快捷操作</h2></div>
-            <div class="quick-grid">
-              <button v-for="action in visibleQuickActions" :key="action.label" type="button" @click="switchTab(action.tab)">
-                <span><component :is="action.icon" :size="24" :stroke-width="1.7" /></span>
-                {{ action.label }}
-              </button>
-              <div v-if="visibleQuickActions.length === 0" class="empty-state">当前角色暂无快捷操作</div>
-            </div>
-          </article>
-          <article class="panel-card list-panel">
-            <div class="panel-title"><h2>最新预约</h2><button class="link-more" type="button" @click="switchTab('reservations')">查看更多 ›</button></div>
-            <div class="flow-list feed-list">
-              <button v-for="item in (state.dashboard?.recentReservations || [])" :key="item._id" type="button" @click="switchTab('reservations')">
-                <span class="feed-avatar">{{ (maskName(item.name || item.customerName) || "访").slice(0, 1) }}</span>
-                <span class="feed-main">
-                  <strong>{{ maskName(item.name || item.customerName) || "访客" }}</strong>
-                  <small>{{ item.day || item.date }} · {{ item.roomName || item.room }}</small>
-                </span>
-                <em>{{ item.status || "已预约" }}</em>
-              </button>
-            </div>
-          </article>
-          <article class="panel-card list-panel">
-            <div class="panel-title"><h2>最新活动报名</h2><button class="link-more" type="button" @click="switchTab('signups')">查看更多 ›</button></div>
-            <div class="flow-list feed-list media-feed">
-              <button v-for="item in (state.dashboard?.recentSignups || [])" :key="item._id" type="button" @click="switchTab('signups')">
-                <img v-if="displayImage(item.image || item.cover || item.eventImage)" :src="displayImage(item.image || item.cover || item.eventImage)" alt="">
-                <span v-else class="feed-thumb">{{ (item.eventTitle || item.title || "茶").slice(0, 1) }}</span>
-                <span class="feed-main">
-                  <strong>{{ item.eventTitle || item.title || "活动报名" }}</strong>
-                  <small>{{ maskName(item.name || item.customerName) || "访客" }} · {{ item.status }}</small>
-                </span>
-                <em>{{ item.people || item.count || 1 }}人报名</em>
-              </button>
-            </div>
-          </article>
-          <article class="panel-card list-panel">
-            <div class="panel-title"><h2>最新订单</h2><button class="link-more" type="button" @click="switchTab('orders')">查看更多 ›</button></div>
-            <div class="flow-list feed-list media-feed">
-              <button v-for="item in (state.dashboard?.recentOrders || [])" :key="item._id" type="button" @click="switchTab('orders')">
-                <img v-if="displayImage(item.image || item.cover || item.items?.[0]?.image)" :src="displayImage(item.image || item.cover || item.items?.[0]?.image)" alt="">
-                <span v-else class="feed-thumb">单</span>
-                <span class="feed-main">
-                  <strong>{{ item.orderNo || "订单" }}</strong>
-                  <small>{{ item.status }} · {{ formatDate(item.createdAt) }}</small>
-                </span>
-                <em>¥{{ money(item.total) }}</em>
-              </button>
-            </div>
-          </article>
-          <article class="panel-card insight-card">
-            <div class="panel-title">
-              <h2>数据概览</h2>
-              <select aria-label="统计周期"><option>本月</option><option>本周</option></select>
-            </div>
-            <div class="privacy-note">{{ dashboardScopeText }}</div>
-            <div class="donut-row">
-              <div :class="['donut', { 'no-data': !dashboardInsight.totalCount }]" :style="dashboardDonutStyle">
-                <div>
-                  <span>总营业额</span>
-                  <strong>¥{{ numberText(dashboardInsight.revenue) }}</strong>
+        <section v-if="state.activeTab === 'dashboard'" class="dashboard-home">
+          <div class="dashboard-main">
+            <article class="panel-card hero-panel">
+              <div class="panel-title">
+                <h2>今日茶室</h2>
+                <div class="panel-title-meta">
+                  <strong class="board-date">{{ state.dashboard?.dateLabel || state.reservationCalendarDate }}</strong>
+                  <button class="secondary-action small icon-action" type="button" @click="switchTab('reservations')">
+                    <CalendarDays :size="15" :stroke-width="1.8" />
+                    预约管理
+                  </button>
                 </div>
               </div>
-              <ul class="donut-legend">
-                <li v-for="segment in dashboardInsight.segments" :key="segment.label" :class="segment.className">
-                  <span></span>{{ segment.label }} <strong>{{ segment.value }}%</strong>
-                </li>
-              </ul>
-            </div>
-            <div class="insight-stats">
-              <span>总订单数<strong>{{ numberText(dashboardInsight.orderCount) }}</strong></span>
-              <span>客单价<strong>¥{{ numberText(dashboardInsight.averagePrice) }}</strong></span>
-            </div>
-          </article>
+              <div class="room-board">
+                <div class="room-board-head">
+                  <span>茶室</span>
+                  <span>10:00</span>
+                  <span>12:30</span>
+                  <span>15:00</span>
+                  <span>17:30</span>
+                  <span>20:00</span>
+                </div>
+                <div v-for="room in (state.dashboard?.roomBoard || [])" :key="room.id || room.room || room.name" class="room-line">
+                  <strong>
+                    <b>{{ room.name || room.room }}</b>
+                    <small>{{ room.capacity || "" }}</small>
+                  </strong>
+                  <span v-for="slot in room.slots" :key="slot.time" :class="['slot', slot.status === '空闲' || slot.status === '可预约' ? 'free' : slot.status === '进行中' ? 'active' : 'busy']">
+                    <b>{{ slot.status || "可预约" }}</b>
+                    <small v-if="slot.name">{{ slot.name }}</small>
+                    <small v-if="slot.people">{{ slot.people }}人</small>
+                  </span>
+                </div>
+              </div>
+              <EmptyState
+                v-if="(state.dashboard?.roomBoard || []).length === 0"
+                title="暂无茶室配置"
+                hint="在商品管理中配置茶室后，这里会显示今日时段。"
+                action-label="配置茶室"
+                @action="openRoomsCatalog"
+              />
+              <div class="room-legend">
+                <span><i class="free"></i>可预约</span>
+                <span><i class="busy"></i>已预约</span>
+                <span><i class="active"></i>进行中</span>
+                <span><i class="done"></i>已结束</span>
+              </div>
+            </article>
+
+            <aside class="dashboard-side">
+              <article class="panel-card action-panel">
+                <div class="panel-title"><h2>快捷入口</h2></div>
+                <div class="quick-grid">
+                  <button v-for="action in visibleQuickActions" :key="action.label" type="button" @click="switchTab(action.tab)">
+                    <span><component :is="action.icon" :size="22" :stroke-width="1.7" /></span>
+                    {{ action.label }}
+                  </button>
+                  <div v-if="visibleQuickActions.length === 0" class="empty-state">暂无快捷入口</div>
+                </div>
+              </article>
+              <article class="panel-card insight-card">
+                <div class="panel-title"><h2>今日结构</h2></div>
+                <div class="insight-stats compact">
+                  <span>订单<strong>{{ numberText(dashboardInsight.orderCount) }}</strong></span>
+                  <span>客单价<strong>¥{{ numberText(dashboardInsight.averagePrice) }}</strong></span>
+                  <span>营业额<strong>¥{{ numberText(dashboardInsight.revenue) }}</strong></span>
+                </div>
+                <ul class="donut-legend compact">
+                  <li v-for="segment in dashboardInsight.segments" :key="segment.label" :class="segment.className">
+                    <span></span>{{ segment.label }} <strong>{{ segment.value }}%</strong>
+                  </li>
+                </ul>
+              </article>
+            </aside>
+          </div>
+
+          <div class="dashboard-feeds">
+            <article class="panel-card list-panel">
+              <div class="panel-title">
+                <h2>最新预约</h2>
+                <button class="link-more" type="button" @click="switchTab('reservations')">更多 ›</button>
+              </div>
+              <div class="flow-list feed-list">
+                <button v-for="item in (state.dashboard?.recentReservations || []).slice(0, 6)" :key="item._id" type="button" @click="switchTab('reservations')">
+                  <span class="feed-avatar">{{ (maskName(item.name || item.customerName) || "访").slice(0, 1) }}</span>
+                  <span class="feed-main">
+                    <strong>{{ maskName(item.name || item.customerName) || "访客" }}</strong>
+                    <small>{{ item.day || item.date }} · {{ item.roomName || item.room }}</small>
+                  </span>
+                  <em>{{ item.status || "已预约" }}</em>
+                </button>
+                <p v-if="!(state.dashboard?.recentReservations || []).length" class="feed-empty">暂无预约</p>
+              </div>
+            </article>
+            <article class="panel-card list-panel">
+              <div class="panel-title">
+                <h2>最新报名</h2>
+                <button class="link-more" type="button" @click="switchTab('signups')">更多 ›</button>
+              </div>
+              <div class="flow-list feed-list">
+                <button v-for="item in (state.dashboard?.recentSignups || []).slice(0, 6)" :key="item._id" type="button" @click="switchTab('signups')">
+                  <span class="feed-avatar">{{ (item.eventTitle || item.title || "茶").slice(0, 1) }}</span>
+                  <span class="feed-main">
+                    <strong>{{ item.eventTitle || item.title || "活动报名" }}</strong>
+                    <small>{{ maskName(item.name || item.customerName) || "访客" }} · {{ item.status }}</small>
+                  </span>
+                  <em>{{ item.people || item.count || 1 }}人</em>
+                </button>
+                <p v-if="!(state.dashboard?.recentSignups || []).length" class="feed-empty">暂无报名</p>
+              </div>
+            </article>
+            <article class="panel-card list-panel">
+              <div class="panel-title">
+                <h2>最新订单</h2>
+                <button class="link-more" type="button" @click="switchTab('orders')">更多 ›</button>
+              </div>
+              <div class="flow-list feed-list">
+                <button v-for="item in (state.dashboard?.recentOrders || []).slice(0, 6)" :key="item._id" type="button" @click="switchTab('orders')">
+                  <span class="feed-avatar">单</span>
+                  <span class="feed-main">
+                    <strong>{{ item.orderNo || "订单" }}</strong>
+                    <small>{{ item.status }} · {{ formatDate(item.createdAt) }}</small>
+                  </span>
+                  <em>¥{{ money(item.total) }}</em>
+                </button>
+                <p v-if="!(state.dashboard?.recentOrders || []).length" class="feed-empty">暂无订单</p>
+              </div>
+            </article>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'catalog'" class="split-panel">
+        <section v-if="state.activeTab === 'catalog'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <div class="segmented">
@@ -3864,6 +3949,7 @@ onBeforeUnmount(() => {
                 <Plus :size="15" :stroke-width="1.8" /> 新建{{ collectionTabs.find((t) => t.key === state.collection)?.label || "资料" }}
               </button>
             </div>
+            <p class="list-hint">点击一行打开右侧编辑；默认只看列表，更接近日常进销存操作。</p>
             <div class="table-wrap">
               <table>
                 <caption>商品、堂饮茶单、茶室和活动资料列表</caption>
@@ -3872,10 +3958,10 @@ onBeforeUnmount(() => {
                   <tr
                     v-for="item in filteredCatalog"
                     :key="item.id"
-                    :class="['interactive-row', { selected: state.selectedCatalogId === item.id }]"
+                    :class="['interactive-row', { selected: state.catalogDrawerOpen && state.selectedCatalogId === item.id }]"
                     role="button"
                     tabindex="0"
-                    :aria-selected="state.selectedCatalogId === item.id"
+                    :aria-selected="state.catalogDrawerOpen && state.selectedCatalogId === item.id"
                     :aria-label="`编辑资料：${displayName(item)}`"
                     @click="editCatalog(item)"
                     @keydown.enter.prevent="editCatalog(item)"
@@ -3886,58 +3972,68 @@ onBeforeUnmount(() => {
                     <td>{{ item.price !== undefined ? `¥${money(item.price)}` : "-" }}</td>
                     <td>{{ displayInventory(item) }}</td>
                     <td><span :class="['status-pill', item.visible === false || item.deleted ? 'neutral' : 'good']">{{ item.visible === false || item.deleted ? "已下架" : (item.status || "上架") }}</span></td>
-                    <td><button v-if="hasPermission('catalog.write')" class="ghost-button" type="button" @click.stop="toggleCatalog(item)">{{ item.visible === false || item.deleted ? "恢复" : "下架" }}</button></td>
+                    <td>
+                      <button v-if="hasPermission('catalog.write')" class="ghost-button" type="button" @click.stop="editCatalog(item)">编辑</button>
+                      <button v-if="hasPermission('catalog.write')" class="ghost-button" type="button" @click.stop="toggleCatalog(item)">{{ item.visible === false || item.deleted ? "恢复" : "下架" }}</button>
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <EmptyState v-if="filteredCatalog.length === 0" :title="emptyTitle('catalog')" :hint="emptyHint('catalog')" :action-label="emptyActionLabel('catalog')" @action="handleEmptyAction('catalog')" />
           </article>
-          <aside class="panel-card editor-panel">
-            <div class="panel-title">
-              <h2>{{ isCreatingCatalog ? "新建资料" : "编辑资料" }}</h2>
-              <button v-if="hasPermission('catalog.write')" class="ghost-button icon-action" type="button" @click="resetCatalog"><Plus :size="15" :stroke-width="1.8" /> 新建</button>
-            </div>
-            <p v-if="isCreatingCatalog" class="editor-hint">请填写名称与价格，图片可上传或先用默认图；点「保存到云端」完成新增。</p>
-            <form class="editor-grid" @submit.prevent="saveCatalog">
-              <label><span>ID</span><input v-model="forms.catalog.id" required :readonly="!isCreatingCatalog"></label>
-              <label><span>名称</span><input v-model="forms.catalog.name" :placeholder="state.collection === 'events' ? '可留空，使用标题' : '例如：明前龙井'"></label>
-              <label><span>标题</span><input v-model="forms.catalog.title"></label>
-              <label><span>分类</span><input v-model="forms.catalog.category"></label>
-              <label><span>价格</span><input v-model.number="forms.catalog.price" type="number" min="0"></label>
-              <label><span>单位/规格</span><input v-model="forms.catalog.unit" placeholder="道 / 壶 / 50g / 份"></label>
-              <label><span>库存</span><input v-model.number="forms.catalog.stock" type="number" min="0"></label>
-              <label><span>名额</span><input v-model.number="forms.catalog.quota" type="number" min="1"></label>
-              <label><span>已报名</span><input v-model.number="forms.catalog.signed" type="number" min="0"></label>
-              <label><span>日期</span><input v-model="forms.catalog.date"></label>
-              <label><span>时间</span><input v-model="forms.catalog.time"></label>
-              <label><span>地点</span><input v-model="forms.catalog.place"></label>
-              <label><span>容量</span><input v-model="forms.catalog.capacity"></label>
-              <label><span>楼层</span><input v-model="forms.catalog.floor"></label>
-              <label><span>产地</span><input v-model="forms.catalog.origin"></label>
-              <label><span>焙火</span><input v-model="forms.catalog.roast"></label>
-              <label><span>排序</span><input v-model.number="forms.catalog.sort" type="number" min="0"></label>
-              <label><span>状态</span><input v-model="forms.catalog.status"></label>
-              <label class="wide"><span>图片 URL</span><input v-model="forms.catalog.image"></label>
-              <label class="file-picker wide">
-                <span>上传图片</span>
-                <Upload :size="17" :stroke-width="1.8" />
-                <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
-                <em>{{ uploadState.catalog || "选择本地图片上传到云存储" }}</em>
-              </label>
-              <label class="wide"><span>缩略图 URL</span><input v-model="forms.catalog.thumb"></label>
-              <label class="wide"><span>简介</span><textarea v-model="forms.catalog.summary" rows="3"></textarea></label>
-              <label class="wide"><span>详情</span><textarea v-model="forms.catalog.detail" rows="4"></textarea></label>
-              <label class="wide"><span>口感</span><textarea v-model="forms.catalog.taste" rows="3"></textarea></label>
-              <label class="wide"><span>说明</span><textarea v-model="forms.catalog.notes" rows="3"></textarea></label>
-              <label class="switch"><input v-model="forms.catalog.visible" type="checkbox"> 前台可见</label>
-              <button v-if="hasPermission('catalog.write')" class="primary-action wide" type="submit">保存到云端</button>
-              <div v-else class="permission-note wide">当前角色仅可查看商品资料。</div>
-            </form>
-          </aside>
+
+          <!-- 右侧滑出编辑：不全屏并排占版面 -->
+          <div v-if="state.catalogDrawerOpen" class="editor-drawer" role="dialog" aria-modal="true" :aria-label="isCreatingCatalog ? '新建资料' : '编辑资料'">
+            <div class="editor-drawer-mask" @click="closeCatalogDrawer"></div>
+            <aside class="panel-card editor-panel drawer-panel">
+              <div class="panel-title">
+                <h2>{{ isCreatingCatalog ? "新建资料" : "编辑资料" }}</h2>
+                <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeCatalogDrawer">×</button>
+              </div>
+              <p v-if="isCreatingCatalog" class="editor-hint">填写名称与价格后保存；图片可上传，也可先用默认图。</p>
+              <form class="editor-grid" @submit.prevent="saveCatalog">
+                <label><span>ID</span><input v-model="forms.catalog.id" required :readonly="!isCreatingCatalog"></label>
+                <label><span>名称</span><input v-model="forms.catalog.name" :placeholder="state.collection === 'events' ? '可留空，使用标题' : '例如：明前龙井'"></label>
+                <label><span>标题</span><input v-model="forms.catalog.title"></label>
+                <label><span>分类</span><input v-model="forms.catalog.category"></label>
+                <label><span>价格</span><input v-model.number="forms.catalog.price" type="number" min="0"></label>
+                <label><span>单位/规格</span><input v-model="forms.catalog.unit" placeholder="道 / 壶 / 50g / 份"></label>
+                <label><span>库存</span><input v-model.number="forms.catalog.stock" type="number" min="0"></label>
+                <label v-if="state.collection === 'events'"><span>名额</span><input v-model.number="forms.catalog.quota" type="number" min="1"></label>
+                <label v-if="state.collection === 'events'"><span>已报名</span><input v-model.number="forms.catalog.signed" type="number" min="0"></label>
+                <label v-if="state.collection === 'events' || state.collection === 'rooms'"><span>日期</span><input v-model="forms.catalog.date"></label>
+                <label v-if="state.collection === 'events' || state.collection === 'rooms'"><span>时间</span><input v-model="forms.catalog.time"></label>
+                <label v-if="state.collection === 'events' || state.collection === 'rooms'"><span>地点</span><input v-model="forms.catalog.place"></label>
+                <label v-if="state.collection === 'rooms'"><span>容量</span><input v-model="forms.catalog.capacity"></label>
+                <label v-if="state.collection === 'rooms'"><span>楼层</span><input v-model="forms.catalog.floor"></label>
+                <label v-if="state.collection === 'tea_products'"><span>产地</span><input v-model="forms.catalog.origin"></label>
+                <label v-if="state.collection === 'tea_products'"><span>焙火</span><input v-model="forms.catalog.roast"></label>
+                <label><span>排序</span><input v-model.number="forms.catalog.sort" type="number" min="0"></label>
+                <label><span>状态</span><input v-model="forms.catalog.status"></label>
+                <label class="wide"><span>图片</span><input v-model="forms.catalog.image" placeholder="上传后自动填入，也可手填 URL"></label>
+                <label class="file-picker wide">
+                  <span>上传图片</span>
+                  <Upload :size="17" :stroke-width="1.8" />
+                  <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
+                  <em>{{ uploadState.catalog || "选择本地图片上传到云存储" }}</em>
+                </label>
+                <label class="wide"><span>简介</span><textarea v-model="forms.catalog.summary" rows="3"></textarea></label>
+                <label class="wide"><span>详情</span><textarea v-model="forms.catalog.detail" rows="4"></textarea></label>
+                <label v-if="state.collection === 'tea_products'" class="wide"><span>口感</span><textarea v-model="forms.catalog.taste" rows="3"></textarea></label>
+                <label class="wide"><span>说明</span><textarea v-model="forms.catalog.notes" rows="3"></textarea></label>
+                <label class="switch"><input v-model="forms.catalog.visible" type="checkbox"> 前台可见</label>
+                <div class="drawer-actions wide">
+                  <button type="button" class="secondary-action" @click="closeCatalogDrawer">取消</button>
+                  <button v-if="hasPermission('catalog.write')" class="primary-action" type="submit">{{ isCreatingCatalog ? "创建并上架" : "保存" }}</button>
+                  <div v-else class="permission-note">当前角色仅可查看。</div>
+                </div>
+              </form>
+            </aside>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'orders'" class="split-panel">
+        <section v-if="state.activeTab === 'orders'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <select v-model="filters.orderStatus" class="line-input" aria-label="筛选订单状态" @change="resetPageAndLoad('orders', loadOrders)">
@@ -3947,8 +4043,9 @@ onBeforeUnmount(() => {
               <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
             </div>
+            <p class="list-hint">点击一笔订单，右侧滑出详情与处理动作。</p>
             <div class="record-list">
-              <button v-for="order in state.orders" :key="order._id" :class="['record-row', { selected: state.selectedOrderId === order._id }]" type="button" @click="state.selectedOrderId = order._id">
+              <button v-for="order in state.orders" :key="order._id" :class="['record-row', { selected: state.drawers.order && state.selectedOrderId === order._id }]" type="button" @click="selectOrder(order)">
                 <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
                 <span class="record-meta">
                   <span>{{ maskName(order.name || order.contactName) || "访客" }} · {{ formatDate(order.createdAt) }}</span>
@@ -3963,8 +4060,10 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('orders').page >= pageMetaFor('orders').pageCount" @click="changePage('orders', 1, loadOrders)">下一页</button>
             </div>
           </article>
-          <aside class="panel-card detail-panel" v-if="selectedOrder">
-            <div class="panel-title"><h2>订单详情</h2><span :class="['status-pill', statusTone(selectedOrder.status)]">{{ selectedOrder.status }}</span></div>
+          <div v-if="state.drawers.order && selectedOrder" class="editor-drawer" role="dialog" aria-modal="true" aria-label="订单详情">
+            <div class="editor-drawer-mask" @click="closeDrawer('order')"></div>
+            <aside class="panel-card detail-panel drawer-panel">
+            <div class="panel-title"><h2>订单详情</h2><span :class="['status-pill', statusTone(selectedOrder.status)]">{{ selectedOrder.status }}</span><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('order')">×</button></div>
             <DetailRow label="订单号" :value="selectedOrder.orderNo || selectedOrder._id" />
             <DetailRow label="金额" :value="`¥${money(selectedOrder.total)}`" />
             <DetailRow label="支付" :value="selectedOrder.payMode === 'manual' ? (selectedOrder.payStatus === 'manual' ? '免支付·待确认' : (selectedOrder.payStatus || '免支付')) : (selectedOrder.payStatus || '-')" />
@@ -4005,17 +4104,11 @@ onBeforeUnmount(() => {
               <button v-if="hasPermission('afterSale.write')" class="secondary-action" type="button" @click="startAfterSale(selectedOrder)">转售后处理</button>
               <div v-if="!hasPermission('order.write') && !hasPermission('afterSale.write')" class="permission-note">当前角色仅可查看订单。</div>
             </div>
-          </aside>
-          <aside v-else class="panel-card detail-panel quiet-detail">
-            <div class="detail-empty">
-              <span><ClipboardList :size="22" :stroke-width="1.8" /></span>
-              <strong>选择一笔订单</strong>
-              <p>订单号、支付、配送、商品明细和处理时间线会在这里集中核对。</p>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'afterSales'" class="split-panel">
+        <section v-if="state.activeTab === 'afterSales'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <select v-model="filters.afterSaleStatus" class="line-input" aria-label="筛选售后状态" @change="resetPageAndLoad('afterSales', loadAfterSales)">
@@ -4029,9 +4122,9 @@ onBeforeUnmount(() => {
               <button
                 v-for="order in state.afterSales"
                 :key="order._id"
-                :class="['record-row', { selected: state.selectedAfterSaleId === order._id }]"
+                :class="['record-row', { selected: state.drawers.afterSale && state.selectedAfterSaleId === order._id }]"
                 type="button"
-                @click="state.selectedAfterSaleId = order._id; fillAfterSaleForm(order)"
+                @click="selectAfterSale(order)"
               >
                 <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
                 <span class="record-meta">
@@ -4047,8 +4140,10 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('afterSales').page >= pageMetaFor('afterSales').pageCount" @click="changePage('afterSales', 1, loadAfterSales)">下一页</button>
             </div>
           </article>
-          <aside class="panel-card editor-panel" v-if="selectedAfterSale">
-            <div class="panel-title"><h2>售后处理</h2><span :class="['status-pill', statusTone(selectedAfterSale.afterSaleStatus || '未处理')]">{{ selectedAfterSale.afterSaleStatus || "未处理" }}</span></div>
+          <div v-if="state.drawers.afterSale && selectedAfterSale" class="editor-drawer" role="dialog" aria-modal="true" aria-label="售后处理">
+            <div class="editor-drawer-mask" @click="closeDrawer('afterSale')"></div>
+            <aside class="panel-card editor-panel drawer-panel">
+            <div class="panel-title"><h2>售后处理</h2><span :class="['status-pill', statusTone(selectedAfterSale.afterSaleStatus || '未处理')]">{{ selectedAfterSale.afterSaleStatus || "未处理" }}</span><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('afterSale')">×</button></div>
             <DetailRow label="订单号" :value="selectedAfterSale.orderNo || selectedAfterSale._id" />
             <DetailRow label="金额" :value="`¥${money(selectedAfterSale.total)}`" />
             <DetailRow label="客户" :value="maskName(selectedAfterSale.name || selectedAfterSale.contactName || selectedAfterSale.consignee) || '-'" />
@@ -4066,25 +4161,23 @@ onBeforeUnmount(() => {
               <label><span>退款金额</span><input v-model.number="afterSaleForm.refundAmount" type="number" min="0"></label>
               <label class="wide"><span>售后原因</span><input v-model="afterSaleForm.reason" placeholder="如用户申请退款、商品异常"></label>
               <label class="wide"><span>处理备注</span><textarea v-model="afterSaleForm.note" rows="4"></textarea></label>
-              <button v-if="hasPermission('afterSale.write')" class="primary-action wide" type="submit">保存售后状态</button>
-              <div v-else class="permission-note wide">当前角色仅可查看售后记录。</div>
+              <div class="drawer-actions wide">
+                <button type="button" class="secondary-action" @click="closeDrawer('afterSale')">关闭</button>
+                <button v-if="hasPermission('afterSale.write')" class="primary-action" type="submit">保存售后状态</button>
+                <div v-else class="permission-note">当前角色仅可查看售后记录。</div>
+              </div>
             </form>
-          </aside>
-          <aside v-else class="panel-card detail-panel quiet-detail">
-            <div class="detail-empty">
-              <span><BadgeDollarSign :size="22" :stroke-width="1.8" /></span>
-              <strong>选择一笔售后</strong>
-              <p>退款金额、处理备注、售后状态和审计原因会在这里完成闭环。</p>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'inventory'" class="split-panel">
+        <section v-if="state.activeTab === 'inventory'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <input v-model="filters.inventoryKeyword" class="line-input" aria-label="搜索库存流水" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('inventory', loadInventoryLogs)">筛选</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportInventoryLogs">{{ exportScopeLabel }}</button>
+              <button v-if="hasPermission('inventory.write')" class="primary-action small" type="button" @click="openDrawer('inventory')">人工调整库存</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -4109,20 +4202,26 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('inventory').page >= pageMetaFor('inventory').pageCount" @click="changePage('inventory', 1, loadInventoryLogs)">下一页</button>
             </div>
           </article>
-          <aside class="panel-card editor-panel">
-            <div class="panel-title"><h2>人工调整库存</h2></div>
+          <div v-if="state.drawers.inventory" class="editor-drawer" role="dialog" aria-modal="true" aria-label="人工调整库存">
+            <div class="editor-drawer-mask" @click="closeDrawer('inventory')"></div>
+            <aside class="panel-card editor-panel drawer-panel">
+            <div class="panel-title"><h2>人工调整库存</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('inventory')">×</button></div>
             <form class="editor-grid" @submit.prevent="adjustInventory">
               <label><span>类型</span><select v-model="inventoryForm.collection"><option value="tea_products">茶叶</option><option value="drinks">堂饮茶单</option></select></label>
               <label><span>商品 ID</span><input v-model="inventoryForm.id" required placeholder="如 tea-001"></label>
               <label><span>调整数量</span><input v-model.number="inventoryForm.delta" type="number" required placeholder="正数增加，负数减少"></label>
               <label class="wide"><span>原因</span><textarea v-model="inventoryForm.note" rows="4" placeholder="盘点、损耗、补货等"></textarea></label>
-              <button v-if="hasPermission('inventory.write')" class="primary-action wide" type="submit">写入库存流水</button>
-              <div v-else class="permission-note wide">当前角色仅可查看库存流水。</div>
+              <div class="drawer-actions wide">
+                <button type="button" class="secondary-action" @click="closeDrawer('inventory')">取消</button>
+                <button v-if="hasPermission('inventory.write')" class="primary-action" type="submit">写入库存流水</button>
+                <div v-else class="permission-note">当前角色仅可查看库存流水。</div>
+              </div>
             </form>
-          </aside>
+            </aside>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'reservations' || state.activeTab === 'signups'" class="split-panel">
+        <section v-if="state.activeTab === 'reservations' || state.activeTab === 'signups'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <select v-if="state.activeTab === 'reservations'" v-model="filters.reservationStatus" class="line-input" aria-label="筛选预约状态" @change="resetPageAndLoad('reservations', loadReservations)">
@@ -4157,7 +4256,7 @@ onBeforeUnmount(() => {
                 :key="record._id"
                 :class="['record-row', { selected: (state.activeTab === 'reservations' ? state.selectedReservationId : state.selectedSignupId) === record._id }]"
                 type="button"
-                @click="state.activeTab === 'reservations' ? state.selectedReservationId = record._id : state.selectedSignupId = record._id"
+                @click="state.activeTab === 'reservations' ? selectReservation(record) : selectSignup(record)"
               >
                 <strong><span>{{ record.roomName || record.eventTitle || record.title || record.name || "记录" }}</span><em>{{ record.day || record.date || formatDate(record.createdAt) }}</em></strong>
                 <span class="record-meta">
@@ -4178,8 +4277,10 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('signups').page >= pageMetaFor('signups').pageCount" @click="changePage('signups', 1, loadSignups)">下一页</button>
             </div>
           </article>
-          <aside class="panel-card detail-panel" v-if="state.activeTab === 'reservations' ? selectedReservation : selectedSignup">
-            <div class="panel-title"><h2>{{ state.activeTab === 'reservations' ? "预约详情" : "报名详情" }}</h2></div>
+          <div v-if="(state.activeTab === 'reservations' ? (state.drawers.reservation && selectedReservation) : (state.drawers.signup && selectedSignup))" class="editor-drawer" role="dialog" aria-modal="true" :aria-label="state.activeTab === 'reservations' ? '预约详情' : '报名详情'">
+            <div class="editor-drawer-mask" @click="state.activeTab === 'reservations' ? closeDrawer('reservation') : closeDrawer('signup')"></div>
+            <aside class="panel-card detail-panel drawer-panel">
+            <div class="panel-title"><h2>{{ state.activeTab === 'reservations' ? "预约详情" : "报名详情" }}</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="state.activeTab === 'reservations' ? closeDrawer('reservation') : closeDrawer('signup')">×</button></div>
             <template v-if="state.activeTab === 'reservations'">
               <DetailRow label="茶室" :value="selectedReservation.roomName || selectedReservation.room || '-'" />
               <DetailRow label="客户" :value="maskName(selectedReservation.name || selectedReservation.customerName) || '-'" />
@@ -4225,24 +4326,18 @@ onBeforeUnmount(() => {
               </div>
               <div v-else class="permission-note">当前角色仅可查看报名。</div>
             </template>
-          </aside>
-          <aside v-else class="panel-card detail-panel quiet-detail">
-            <div class="detail-empty">
-              <span><CalendarCheck :size="22" :stroke-width="1.8" /></span>
-              <strong>{{ state.activeTab === 'reservations' ? "选择一条预约" : "选择一条报名" }}</strong>
-              <p>{{ state.activeTab === 'reservations' ? "茶室、时段、人数和处理动作会在这里显示。" : "报名人、电话、状态流转和到场核销会在这里显示。" }}</p>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'customers'" class="split-panel">
+        <section v-if="state.activeTab === 'customers'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <input v-model="filters.customerKeyword" class="line-input" aria-label="搜索用户" placeholder="姓名、手机号、OpenID" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportCustomers">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
-              <button v-for="customer in state.customers" :key="customer.id" :class="['record-row', { selected: state.selectedCustomerId === customer.id }]" type="button" @click="state.selectedCustomerId = customer.id">
+              <button v-for="customer in state.customers" :key="customer.id" :class="['record-row', { selected: state.drawers.customer && state.selectedCustomerId === customer.id }]" type="button" @click="selectCustomer(customer)">
                 <strong><span>{{ customerDisplayName(customer) }}</span><em>{{ customerLevel(customer) }}</em></strong>
                 <span class="record-meta">
                   <span>消费 ¥{{ money(customerSpend(customer)) }} · 订单 {{ customer.orders || 0 }}</span>
@@ -4257,8 +4352,10 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('customers').page >= pageMetaFor('customers').pageCount" @click="changePage('customers', 1, loadCustomers)">下一页</button>
             </div>
           </article>
-          <aside class="panel-card detail-panel" v-if="selectedCustomer">
-            <div class="panel-title"><h2>用户画像</h2></div>
+          <div v-if="state.drawers.customer && selectedCustomer" class="editor-drawer" role="dialog" aria-modal="true" aria-label="用户画像">
+            <div class="editor-drawer-mask" @click="closeDrawer('customer')"></div>
+            <aside class="panel-card detail-panel drawer-panel">
+            <div class="panel-title"><h2>用户画像</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('customer')">×</button></div>
             <DetailRow label="标识" :value="maskOpenid(selectedCustomer.openid || selectedCustomer.id) || '-'" />
             <DetailRow label="手机号" :value="maskPhone(selectedCustomer.phone) || '-'" />
             <DetailRow label="累计消费" :value="`¥${money(customerSpend(selectedCustomer))}`" />
@@ -4283,17 +4380,11 @@ onBeforeUnmount(() => {
               <button v-if="hasPermission('privacy.delete')" class="danger-action" type="button" @click="deleteCustomerData(selectedCustomer)">删除个人数据</button>
               <div v-if="!hasPermission('export.read') && !hasPermission('privacy.delete')" class="permission-note">当前角色仅可查看用户画像。</div>
             </div>
-          </aside>
-          <aside v-else class="panel-card detail-panel quiet-detail">
-            <div class="detail-empty">
-              <span><UserRound :size="22" :stroke-width="1.8" /></span>
-              <strong>选择一位用户</strong>
-              <p>脱敏联系方式、累计消费、积分、最近访问和隐私动作会在这里显示。</p>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'content'" class="split-panel">
+        <section v-if="state.activeTab === 'content'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <div class="segmented">
@@ -4311,8 +4402,10 @@ onBeforeUnmount(() => {
               <EmptyState v-if="state.contentItems.length === 0" :title="emptyTitle('content')" :hint="emptyHint('content')" :action-label="emptyActionLabel('content')" @action="handleEmptyAction('content')" />
             </div>
           </article>
-          <aside class="panel-card editor-panel">
-            <div class="panel-title"><h2>内容编辑</h2></div>
+          <div v-if="state.drawers.content" class="editor-drawer" role="dialog" aria-modal="true" aria-label="内容编辑">
+            <div class="editor-drawer-mask" @click="closeDrawer('content')"></div>
+            <aside class="panel-card editor-panel drawer-panel">
+            <div class="panel-title"><h2>内容编辑</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('content')">×</button></div>
             <form class="editor-grid" @submit.prevent="saveContent">
               <label><span>Key</span><input v-model="forms.content.key" required></label>
               <label><span>类型</span><input v-model="forms.content.type"></label>
@@ -4330,11 +4423,15 @@ onBeforeUnmount(() => {
               <label><span>链接目标</span><input v-model="forms.content.linkTarget"></label>
               <label><span>排序</span><input v-model.number="forms.content.sort" type="number" min="0"></label>
               <label class="switch"><input v-model="forms.content.visible" type="checkbox"> 启用</label>
-              <button v-if="hasPermission('content.write')" class="primary-action" type="submit">保存内容</button>
-              <button v-if="hasPermission('content.write')" class="danger-action" type="button" @click="deleteContent(forms.content)">停用内容</button>
-              <div v-else class="permission-note wide">当前角色仅可查看内容。</div>
+              <div class="drawer-actions wide">
+                <button type="button" class="secondary-action" @click="closeDrawer('content')">取消</button>
+                <button v-if="hasPermission('content.write')" class="primary-action" type="submit">保存内容</button>
+                <button v-if="hasPermission('content.write')" class="danger-action" type="button" @click="deleteContent(forms.content)">停用内容</button>
+                <div v-else class="permission-note">当前角色仅可查看内容。</div>
+              </div>
             </form>
-          </aside>
+            </aside>
+          </div>
         </section>
 
         <section v-if="state.activeTab === 'analytics'" class="analytics-layout">
@@ -4411,10 +4508,12 @@ onBeforeUnmount(() => {
             </table>
             <EmptyState v-if="state.couponStats.length === 0" title="暂无优惠券领取记录" hint="领取和核销后会自动形成转化统计。" :action-label="emptyActionLabel('marketing')" @action="handleEmptyAction('marketing')" />
           </article>
-          <form v-if="hasPermission('marketing.write')" class="panel-card editor-form" @submit.prevent="saveCoupon">
+          <div v-if="state.drawers.coupon && hasPermission('marketing.write')" class="editor-drawer" role="dialog" aria-modal="true" aria-label="优惠券编辑">
+            <div class="editor-drawer-mask" @click="closeDrawer('coupon')"></div>
+            <form class="panel-card editor-form drawer-panel" @submit.prevent="saveCoupon">
             <div class="panel-title">
               <h2>{{ state.selectedCouponId ? "编辑优惠券" : "新建优惠券" }}</h2>
-              <button class="link-more" type="button" @click="resetCoupon">清空</button>
+              <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('coupon')">×</button>
             </div>
             <label><span>名称</span><input v-model="forms.coupon.name"></label>
             <label><span>面额</span><input v-model.number="forms.coupon.amount" type="number" min="0" step="0.01"></label>
@@ -4425,13 +4524,19 @@ onBeforeUnmount(() => {
             <label><span>开始日期</span><input v-model="forms.coupon.startAt" type="date"></label>
             <label><span>结束日期</span><input v-model="forms.coupon.endAt" type="date"></label>
             <label class="wide"><span>优惠说明</span><textarea v-model="forms.coupon.description" rows="3"></textarea></label>
-            <button class="primary-action icon-action" type="submit"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 保存优惠券</button>
-            <button v-if="state.selectedCouponId" class="danger-action icon-action" type="button" @click="disableCoupon()"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 停用优惠券</button>
+            <div class="drawer-actions">
+              <button type="button" class="secondary-action" @click="closeDrawer('coupon')">取消</button>
+              <button class="primary-action icon-action" type="submit"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 保存优惠券</button>
+              <button v-if="state.selectedCouponId" class="danger-action icon-action" type="button" @click="disableCoupon()"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 停用优惠券</button>
+            </div>
           </form>
-          <form v-if="hasPermission('marketing.write')" class="panel-card editor-form" @submit.prevent="saveCampaign">
+          </div>
+          <div v-if="state.drawers.campaign && hasPermission('marketing.write')" class="editor-drawer" role="dialog" aria-modal="true" aria-label="营销计划编辑">
+            <div class="editor-drawer-mask" @click="closeDrawer('campaign')"></div>
+            <form class="panel-card editor-form drawer-panel" @submit.prevent="saveCampaign">
             <div class="panel-title">
               <h2>{{ state.selectedCampaignId ? "编辑营销计划" : "新建营销计划" }}</h2>
-              <button class="link-more" type="button" @click="resetCampaign">清空</button>
+              <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('campaign')">×</button>
             </div>
             <label><span>名称</span><input v-model="forms.campaign.name"></label>
             <label><span>类型</span><input v-model="forms.campaign.type"></label>
@@ -4439,12 +4544,16 @@ onBeforeUnmount(() => {
             <label><span>开始日期</span><input v-model="forms.campaign.startAt" type="date"></label>
             <label><span>结束日期</span><input v-model="forms.campaign.endAt" type="date"></label>
             <label><span>摘要</span><textarea v-model="forms.campaign.summary" rows="3"></textarea></label>
-            <button class="primary-action icon-action" type="submit"><Send :size="16" :stroke-width="1.8" /> 保存计划</button>
-            <button v-if="state.selectedCampaignId" class="danger-action icon-action" type="button" @click="disableCampaign()"><Send :size="16" :stroke-width="1.8" /> 停用计划</button>
+            <div class="drawer-actions">
+              <button type="button" class="secondary-action" @click="closeDrawer('campaign')">取消</button>
+              <button class="primary-action icon-action" type="submit"><Send :size="16" :stroke-width="1.8" /> 保存计划</button>
+              <button v-if="state.selectedCampaignId" class="danger-action icon-action" type="button" @click="disableCampaign()"><Send :size="16" :stroke-width="1.8" /> 停用计划</button>
+            </div>
           </form>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'audit'" class="split-panel">
+        <section v-if="state.activeTab === 'audit'" class="list-workspace">
           <article class="panel-card data-panel audit-panel">
             <div class="panel-toolbar">
               <input v-model="filters.auditKeyword" class="line-input" aria-label="搜索审计日志" placeholder="动作、管理员、详情" @keydown.enter="resetPageAndLoad('audit', loadAuditLogs)">
@@ -4464,9 +4573,9 @@ onBeforeUnmount(() => {
                     tabindex="0"
                     :aria-selected="state.selectedAuditLogId === log._id"
                     :aria-label="`查看审计日志：${log.action || '后台操作'}`"
-                    @click="state.selectedAuditLogId = log._id"
-                    @keydown.enter.prevent="state.selectedAuditLogId = log._id"
-                    @keydown.space.prevent="state.selectedAuditLogId = log._id"
+                    @click="selectAuditLog(log)"
+                    @keydown.enter.prevent="selectAuditLog(log)"
+                    @keydown.space.prevent="selectAuditLog(log)"
                   >
                     <td>{{ formatDate(log.createdAt) }}</td>
                     <td>{{ log.action }}</td>
@@ -4483,8 +4592,10 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('audit').page >= pageMetaFor('audit').pageCount" @click="changePage('audit', 1, loadAuditLogs)">下一页</button>
             </div>
           </article>
-          <aside class="panel-card detail-panel" v-if="selectedAuditLog">
-            <div class="panel-title"><h2>审计详情</h2><span class="status-pill neutral">{{ selectedAuditLog.action }}</span></div>
+          <div v-if="state.drawers.audit && selectedAuditLog" class="editor-drawer" role="dialog" aria-modal="true" aria-label="审计详情">
+            <div class="editor-drawer-mask" @click="closeDrawer('audit')"></div>
+            <aside class="panel-card detail-panel drawer-panel">
+            <div class="panel-title"><h2>审计详情</h2><span class="status-pill neutral">{{ selectedAuditLog.action }}</span><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('audit')">×</button></div>
             <DetailRow label="时间" :value="formatDate(selectedAuditLog.createdAt)" />
             <DetailRow label="管理员" :value="selectedAuditLog.adminUid || selectedAuditLog.adminOpenid || '-'" />
             <DetailRow label="摘要" :value="auditSummary(selectedAuditLog)" />
@@ -4501,15 +4612,17 @@ onBeforeUnmount(() => {
               <h3>原始详情</h3>
               <code>{{ JSON.stringify(selectedAuditLog.detail || {}, null, 2) }}</code>
             </div>
-          </aside>
+            </aside>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'notifications'" class="split-panel">
+        <section v-if="state.activeTab === 'notifications'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <input v-model="filters.notificationKeyword" class="line-input" aria-label="搜索通知日志" placeholder="类型、OpenID、模板、原因" @keydown.enter="resetPageAndLoad('notifications', loadNotificationLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('notifications', loadNotificationLogs)">筛选</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportNotificationLogs">{{ exportScopeLabel }}</button>
+              <button v-if="hasPermission('notification.write')" class="primary-action small" type="button" @click="openDrawer('notification')">测试通知</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -4533,15 +4646,21 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('notifications').page >= pageMetaFor('notifications').pageCount" @click="changePage('notifications', 1, loadNotificationLogs)">下一页</button>
             </div>
           </article>
-          <aside v-if="hasPermission('notification.write')" class="panel-card editor-panel">
-            <div class="panel-title"><h2>测试通知</h2></div>
+          <div v-if="state.drawers.notification && hasPermission('notification.write')" class="editor-drawer" role="dialog" aria-modal="true" aria-label="测试通知">
+            <div class="editor-drawer-mask" @click="closeDrawer('notification')"></div>
+            <aside class="panel-card editor-panel drawer-panel">
+            <div class="panel-title"><h2>测试通知</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('notification')">×</button></div>
             <form class="editor-grid" @submit.prevent="sendTestNotice">
               <label><span>类型</span><select v-model="noticeTestForm.kind"><option value="reservationStatus">预约状态</option><option value="eventStatus">活动报名</option><option value="orderShipped">订单发货</option><option value="orderPaid">订单支付</option></select></label>
               <label><span>OpenID</span><input v-model="noticeTestForm.openid" placeholder="用户 OpenID"></label>
               <label class="wide"><span>备注</span><textarea v-model="noticeTestForm.note" rows="3"></textarea></label>
-              <button class="primary-action wide" type="submit">发送测试通知</button>
+              <div class="drawer-actions wide">
+                <button type="button" class="secondary-action" @click="closeDrawer('notification')">取消</button>
+                <button class="primary-action" type="submit">发送测试通知</button>
+              </div>
             </form>
-          </aside>
+            </aside>
+          </div>
         </section>
 
         <section v-if="state.activeTab === 'system'" class="system-grid">
@@ -4595,7 +4714,7 @@ onBeforeUnmount(() => {
           </article>
         </section>
 
-        <section v-if="state.activeTab === 'roles'" class="split-panel">
+        <section v-if="state.activeTab === 'roles'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <button v-if="hasPermission('roles.manage')" class="secondary-action small icon-action" type="button" @click="resetRole"><Plus :size="15" :stroke-width="1.8" /> 新建角色</button>
@@ -4608,8 +4727,10 @@ onBeforeUnmount(() => {
               <EmptyState v-if="state.adminRoles.length === 0" :title="emptyTitle('roles')" :hint="emptyHint('roles')" :action-label="emptyActionLabel('roles')" @action="handleEmptyAction('roles')" />
             </div>
           </article>
-          <aside class="panel-card editor-panel">
-            <div class="panel-title"><h2>角色编辑</h2></div>
+          <div v-if="state.drawers.role" class="editor-drawer" role="dialog" aria-modal="true" aria-label="角色编辑">
+            <div class="editor-drawer-mask" @click="closeDrawer('role')"></div>
+            <aside class="panel-card editor-panel drawer-panel">
+            <div class="panel-title"><h2>角色编辑</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('role')">×</button></div>
             <form class="editor-grid" @submit.prevent="saveAdminRole">
               <label><span>标识类型</span><select v-model="roleForm.subjectType"><option value="username">用户名</option><option value="uid">UID</option><option value="openid">OpenID</option></select></label>
               <label><span>角色</span><select v-model="roleForm.roleKey"><option value="admin">管理员</option><option value="operator">运营</option><option value="clerk">店员</option></select></label>
@@ -4628,14 +4749,23 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </div>
-              <button v-if="hasPermission('roles.manage')" class="primary-action wide" type="submit">保存角色</button>
+              <div class="drawer-actions wide">
+                <button type="button" class="secondary-action" @click="closeDrawer('role')">取消</button>
+                <button v-if="hasPermission('roles.manage')" class="primary-action" type="submit">保存角色</button>
+              </div>
             </form>
-          </aside>
+            </aside>
+          </div>
         </section>
 
-        <section v-if="state.activeTab === 'backups'" class="split-panel">
+        <section v-if="state.activeTab === 'backups'" class="list-workspace">
           <article class="panel-card data-panel">
-            <div class="panel-title"><h2>备份记录</h2><button class="secondary-action small" type="button" @click="loadBackupLogs">刷新</button></div>
+            <div class="panel-title"><h2>备份记录</h2>
+              <div class="panel-toolbar" style="margin:0">
+                <button class="secondary-action small" type="button" @click="loadBackupLogs">刷新</button>
+                <button v-if="hasPermission('backup.create')" class="primary-action small" type="button" @click="openDrawer('backup')">创建备份</button>
+              </div>
+            </div>
             <div class="table-wrap">
               <table>
                 <caption>云端备份记录</caption>
@@ -4659,15 +4789,21 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('backups').page >= pageMetaFor('backups').pageCount" @click="changePage('backups', 1, loadBackupLogs)">下一页</button>
             </div>
           </article>
-          <aside class="panel-card editor-panel">
-            <div class="panel-title"><h2>创建备份</h2></div>
+          <div v-if="state.drawers.backup" class="editor-drawer" role="dialog" aria-modal="true" aria-label="创建备份">
+            <div class="editor-drawer-mask" @click="closeDrawer('backup')"></div>
+            <aside class="panel-card editor-panel drawer-panel">
+            <div class="panel-title"><h2>创建备份</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('backup')">×</button></div>
             <form class="editor-grid" @submit.prevent="createDataBackup">
               <label><span>每个集合上限</span><input v-model.number="backupForm.limit" type="number" min="50" max="1000"></label>
-              <div class="privacy-note wide">备份会导出订单、预约、报名、会员、商品、内容、优惠券、审计、通知和库存日志，并写入云存储 admin-backups/。若集合总量超过上限，记录会标记为可能截断。</div>
-              <button v-if="hasPermission('backup.create')" class="primary-action wide icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建云端备份</button>
-              <div v-else class="permission-note wide">当前角色仅可查看备份记录。</div>
+              <div class="privacy-note wide">导出订单、预约、会员、商品等关键集合到云存储；超过上限会标记为可能截断。</div>
+              <div class="drawer-actions wide">
+                <button type="button" class="secondary-action" @click="closeDrawer('backup')">取消</button>
+                <button v-if="hasPermission('backup.create')" class="primary-action icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建云端备份</button>
+                <div v-else class="permission-note">当前角色仅可查看备份记录。</div>
+              </div>
             </form>
-          </aside>
+            </aside>
+          </div>
         </section>
 
         <section v-if="state.activeTab === 'settings'" class="panel-card settings-panel">
