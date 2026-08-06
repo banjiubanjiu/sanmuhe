@@ -4416,6 +4416,82 @@ tr.selected td:first-child {
   line-height: 1.45;
 }
 
+/* 方案 A：商品列表顶部分类胶囊 */
+.catalog-category-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 4px 0 2px;
+}
+
+.catalog-cat-chip {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid rgba(49, 52, 48, 0.12);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: #3d463f;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.catalog-cat-chip:hover {
+  border-color: rgba(31, 91, 60, 0.35);
+  color: #1f5b3c;
+}
+
+.catalog-cat-chip.active {
+  border-color: #1f5b3c;
+  background: rgba(31, 91, 60, 0.1);
+  color: #1f5b3c;
+  font-weight: 600;
+}
+
+.catalog-cat-config {
+  margin-left: auto;
+}
+
+/* 配置分类 · 居中宽弹窗 */
+.category-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: rgba(28, 32, 28, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.category-modal {
+  width: min(720px, 100%);
+  max-height: min(86vh, 900px);
+  overflow: auto;
+  padding: 18px 20px 16px;
+  border-radius: 16px;
+  box-shadow: 0 20px 48px rgba(20, 28, 22, 0.18);
+}
+
+.category-modal .panel-title {
+  margin-bottom: 6px;
+}
+
+.category-modal .editor-hint {
+  margin-bottom: 14px;
+}
+
+.category-modal .category-manager-form {
+  margin-bottom: 12px;
+}
+
+.category-modal .category-manager-table {
+  margin-bottom: 8px;
+}
+
 /* 必填星号 */
 .req {
   margin-left: 2px;

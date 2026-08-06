@@ -8,6 +8,14 @@
 - Before previewing or uploading the mini program, confirm `project.config.json` ignores `admin/`, `admin-src/`, `node_modules/`, and admin build dependencies so the source package stays below the WeChat size limit.
 - When adding new generated assets, state whether they are local-only design references, mini program package assets, CloudBase storage files, or CloudBase-hosted admin assets.
 
+### Cloud storage image rules (summary)
+
+- **Business photos** (tea products, drinks, carousel, rooms, events, etc.): CloudBase storage under `mp-assets/images/`, DB fields store `cloud://...` fileIDs. Toggle/helpers: `sanmuhe-miniprogram/config/assets.js` (`USE_CLOUD_ASSETS=true`).
+- **UI icons only**: keep in `sanmuhe-miniprogram/assets/icons/` package paths.
+- **Upload**: `tcb storage upload ./assets/images mp-assets/images`; admin form uses `cloudApp.uploadFile` → `admin/<collection>/...`.
+- **ACL**: storage must be user-readable for business images (not PRIVATE-only).
+- **Full rules, path prefixes, CDN, seed sync, forbidden practices**: `sanmuhe-miniprogram/AGENTS.md` → **Cloud Storage Images (业务图规则)**.
+
 ## Icons
 
 - For UI icons (tab bar, bottom actions, list meta, empty states), **use a professional icon library first**—default **Lucide** (`lucide-static`, ISC). Do not invent icons, reuse wrong metaphors (e.g. star for share), or AI-generate UI glyphs when a library icon exists.

@@ -464,7 +464,7 @@ function orderQueueHint() {
 }
 
 const loginForm = reactive({ username: "", password: "" });
-const uploadState = reactive({ catalog: "", content: "" });
+const uploadState = reactive({ catalog: "", content: "", category: "" });
 const orderForm = reactive({
   trackingCompany: "SF",
   trackingNo: "",
@@ -1489,6 +1489,23 @@ const managedCategoryNames = computed(() =>
     .map((item) => String(item.name || "").trim())
     .filter(Boolean)
 );
+
+/** 配置面板用：分类 + 商品数（只统计未删除） */
+const managedCategoriesWithCount = computed(() =>
+  managedCategoriesForCollection.value.map((cat) => {
+    const name = String(cat.name || "").trim();
+    let rows = state.catalogItems || [];
+    if (isDrinksCollection()) rows = rows.filter(isDrinkTeaRow);
+    const productCount = rows.filter(
+      (item) => !isCatalogRemoved(item) && String(item.category || "").trim() === name
+    ).length;
+    return Object.assign({}, cat, { productCount });
+  })
+);
+
+function setCatalogCategoryFilter(name) {
+  filters.catalogCategory = String(name || "").trim();
+}
 
 /** 堂饮列表行：只要档位下的茶品，不要旧「档位当商品」脏数据 */
 function isDrinkTeaRow(item) {
@@ -2723,7 +2740,11 @@ async function uploadFormImage(target, event) {
   if (!file) return;
   uploadState[target] = "上传中";
   try {
-    const folder = target === "catalog" ? state.collection : "content";
+    const folder = target === "catalog"
+      ? state.collection
+      : target === "category"
+        ? "product_categories"
+        : "content";
     const result = await cloudApp.uploadFile({
       cloudPath: `admin/${folder}/${Date.now()}-${sanitizeFileName(file.name)}`,
       filePath: file
@@ -2737,6 +2758,7 @@ async function uploadFormImage(target, event) {
       }
     }
     if (target === "content") forms.content.image = fileId;
+    if (target === "category") categoryForm.image = fileId;
     uploadState[target] = `已上传：${file.name}`;
     showToast("图片已上传到云存储");
   } catch (error) {
@@ -3358,6 +3380,7 @@ function resetCategoryForm() {
   categoryForm.brewStyle = "热泡茶";
   categoryForm.color = "";
   categoryForm.image = "";
+  uploadState.category = "";
 }
 
 async function saveManagedCategory() {
@@ -3466,7 +3489,7 @@ async function ensureProductCategory(name, channel) {
   if (exists) return;
   // 堂饮分类=档位，含价格；禁止用茶名误建空档位
   if (channel === "drinks") {
-    throw new Error("请先在「管理分类」中创建档位（初见/知味…），再添加茶品");
+    throw new Error("请先在「配置档位」中创建档位（初见/知味…），再添加茶品");
   }
   const id = `cat-tea-${Date.now()}`;
   const maxSort = managedCategoriesForCollection.value.reduce(
@@ -3628,7 +3651,7 @@ function editCatalog(item) {
   }
   // 旧档位文档（teaGroups）不应在茶品列表里编辑；仍尽量展示
   if (isDrinksCollection() && Array.isArray(item.teaGroups) && item.teaGroups.length && !item.categoryId) {
-    showToast("这是旧版档位数据，请用「管理分类」维护档位，茶品请新建");
+    showToast("这是旧版档位数据，请用「配置档位」维护档位，茶品请新建");
   }
   syncCatalogCategoryChoice();
   syncDrinkCategoryIdFromName();
@@ -3670,7 +3693,7 @@ async function saveCatalog() {
         const tier = managedCategoriesForCollection.value.find(
           (item) => String(item.name || "").trim() === String(forms.catalog.category || "").trim()
         );
-        if (!tier) throw new Error("请先在「管理分类」创建档位，再添加该档位下的茶品");
+        if (!tier) throw new Error("请先在「配置档位」创建档位，再添加该档位下的茶品");
         forms.catalog.categoryId = tier.id;
       }
       forms.catalog.groupName = String(forms.catalog.groupName || "").trim();
@@ -5956,19 +5979,55 @@ onBeforeUnmount(() => {
                 <button type="button" class="active">茶室资源</button>
               </div>
               <div class="catalog-filters">
-                <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="名称 / ID / 分类">
+                <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="名称 / ID">
                 <select v-model="filters.catalogShelf" class="line-input catalog-select" aria-label="上架状态">
                   <option value="">全部状态</option>
                   <option v-for="opt in CATALOG_SHELF_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </select>
-                <select v-model="filters.catalogCategory" class="line-input catalog-select" :aria-label="isDrinksCollection() ? '档位' : '分类'">
-                  <option value="">{{ isDrinksCollection() ? "全部档位" : "全部分类" }}</option>
+                <!-- 事件/茶室仍用下拉；茶叶/堂饮改用下方分类条 -->
+                <select
+                  v-if="!supportsProductShelf()"
+                  v-model="filters.catalogCategory"
+                  class="line-input catalog-select"
+                  aria-label="分类"
+                >
+                  <option value="">全部分类</option>
                   <option v-for="cat in catalogCategoryOptions" :key="cat" :value="cat">{{ cat }}</option>
                 </select>
                 <select v-model="filters.catalogFlag" class="line-input catalog-select" aria-label="标记">
                   <option v-for="opt in CATALOG_FLAG_OPTIONS" :key="opt.value || 'all'" :value="opt.value">{{ opt.label }}</option>
                 </select>
               </div>
+            </div>
+            <!-- 方案 A：顶部分类胶囊筛选 + 配置入口 -->
+            <div
+              v-if="supportsProductShelf() && state.activeTab === 'catalog'"
+              class="catalog-category-bar"
+              role="tablist"
+              :aria-label="isDrinksCollection() ? '按档位筛选' : '按分类筛选'"
+            >
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="!filters.catalogCategory"
+                :class="['catalog-cat-chip', { active: !filters.catalogCategory }]"
+                @click="setCatalogCategoryFilter('')"
+              >全部</button>
+              <button
+                v-for="cat in managedCategoryNames"
+                :key="`chip-${cat}`"
+                type="button"
+                role="tab"
+                :aria-selected="filters.catalogCategory === cat"
+                :class="['catalog-cat-chip', { active: filters.catalogCategory === cat }]"
+                @click="setCatalogCategoryFilter(cat)"
+              >{{ cat }}</button>
+              <button
+                v-if="hasPermission('catalog.write')"
+                type="button"
+                class="catalog-cat-config ghost-button small"
+                @click="openCategoryManager"
+              >{{ isDrinksCollection() ? "配置档位" : "配置分类" }}</button>
             </div>
             <p v-if="state.activeTab === 'rooms' || state.collection === 'rooms'" class="catalog-single-store-hint">
               茶室是<strong>可预约资源</strong>（名称/图/容量/可约状态），不是商品 SKU。
@@ -5983,12 +6042,6 @@ onBeforeUnmount(() => {
                   <button class="ghost-button small" type="button" @click="batchCatalogShelf('on')">批量上架</button>
                   <button class="ghost-button small" type="button" @click="clearCatalogSelection">取消选择</button>
                 </template>
-                <button
-                  v-if="hasPermission('catalog.write') && supportsProductShelf()"
-                  class="ghost-button small"
-                  type="button"
-                  @click="openCategoryManager"
-                >{{ isDrinksCollection() ? "管理档位" : "管理分类" }}</button>
                 <button
                   v-if="hasPermission('catalog.write')"
                   class="primary-action small"
@@ -6095,7 +6148,7 @@ onBeforeUnmount(() => {
               </div>
               <p class="editor-hint">
                 {{ isDrinksCollection()
-                  ? "堂饮：分类＝点单左侧档位（初见/知味…），本页维护档位下的茶品。档位价格请点「管理档位」。"
+                  ? "堂饮：分类＝点单左侧档位（初见/知味…），本页维护档位下的茶品。档位请点「配置档位」。"
                   : isTeaProductsCollection()
                     ? "标 * 为必填：名称、类别、上架状态、销售规格（名/售价/库存）、主图。产地·年份·口感可空。"
                     : state.collection === "rooms"
@@ -6236,7 +6289,7 @@ onBeforeUnmount(() => {
                     <input v-model="forms.catalog.groupName" placeholder="可空；知味下可填：岩茶 / 红茶 / 单丛">
                   </label>
                   <label class="wide"><span>一句话</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
-                  <p class="wide specs-editor-hint">价格在「管理分类」里按档位设置；本页只维护该档位下可选茶品，与点单页右侧一致。</p>
+                  <p class="wide specs-editor-hint">价格在「配置档位」里按档位设置；本页只维护该档位下可选茶品，与点单页右侧一致。</p>
 
                   <label class="file-picker wide">
                     <span>茶品图</span>
@@ -6323,28 +6376,29 @@ onBeforeUnmount(() => {
             </aside>
           </div>
 
-          <!-- 类别管理：茶叶=茶类；堂饮=点单档位（初见/知味…） -->
+          <!-- 方案 A：配置分类/档位 — 居中宽弹窗（非窄侧栏） -->
           <div
             v-if="state.categoryManagerOpen"
-            class="editor-drawer"
+            class="category-modal-backdrop"
             role="dialog"
             aria-modal="true"
-            :aria-label="`管理${isDrinksCollection() ? '堂饮档位' : '茶叶类别'}`"
+            :aria-label="isDrinksCollection() ? '配置堂饮档位' : '配置茶叶分类'"
+            @click.self="closeCategoryManager"
+            @keydown.esc.prevent="closeCategoryManager"
           >
-            <div class="editor-drawer-mask" @click="closeCategoryManager"></div>
-            <aside class="panel-card editor-panel drawer-panel">
+            <div class="category-modal panel-card">
               <div class="panel-title">
-                <h2>管理{{ isDrinksCollection() ? "堂饮档位" : "茶叶类别" }}</h2>
+                <h2>{{ isDrinksCollection() ? "配置档位" : "配置分类" }}</h2>
                 <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeCategoryManager">×</button>
               </div>
               <p class="editor-hint">
                 {{ isDrinksCollection()
-                  ? "档位＝点单左侧分类（初见/知味…），含价格与主图；其下茶品在列表里「新建」添加。"
-                  : "每个商品必选一个类别；类别决定商城侧栏。排序数字越小越靠前。" }}
+                  ? "档位＝点单左侧（初见/知味…），含价格与主图；茶品在列表「新建」并挂到档位下。"
+                  : "分类决定商城侧栏与列表筛选。排序越小越靠前。可在上方胶囊条快速筛选商品。" }}
               </p>
               <form class="editor-grid category-manager-form" @submit.prevent="saveManagedCategory">
                 <label>
-                  <span>{{ isDrinksCollection() ? "档位名称" : "类别名称" }}</span>
+                  <span>{{ isDrinksCollection() ? "档位名称" : "类别名称" }} <em class="req">*</em></span>
                   <input v-model="categoryForm.name" required maxlength="20" :placeholder="isDrinksCollection() ? '如：初见' : '如：红茶'">
                 </label>
                 <label>
@@ -6353,11 +6407,11 @@ onBeforeUnmount(() => {
                 </label>
                 <template v-if="isDrinksCollection()">
                   <label>
-                    <span>价格</span>
+                    <span>价格 <em class="req">*</em></span>
                     <input v-model.number="categoryForm.price" type="number" min="0" step="0.01" required>
                   </label>
                   <label>
-                    <span>单位</span>
+                    <span>单位 <em class="req">*</em></span>
                     <input v-model="categoryForm.unit" required placeholder="道 / 壶">
                   </label>
                   <label class="wide">
@@ -6368,16 +6422,23 @@ onBeforeUnmount(() => {
                     <span>冲泡</span>
                     <input v-model="categoryForm.brewStyle" placeholder="热泡茶">
                   </label>
-                  <label class="wide">
-                    <span>档位主图路径</span>
-                    <input v-model="categoryForm.image" placeholder="/assets/images/… 或 cloud://">
+                  <label class="file-picker wide">
+                    <span>档位主图</span>
+                    <Upload :size="17" :stroke-width="1.8" />
+                    <input accept="image/*" type="file" @change="uploadFormImage('category', $event)">
+                    <em>{{ uploadState.category || "点击上传到云存储" }}</em>
                   </label>
+                  <div class="wide catalog-image-preview">
+                    <img v-if="displayImage(categoryForm.image)" :src="displayImage(categoryForm.image)" alt="档位主图预览">
+                    <div v-else-if="categoryForm.image && String(categoryForm.image).startsWith('cloud://')" class="catalog-image-placeholder">已绑定云存储图片</div>
+                    <div v-else class="catalog-image-placeholder">上传后点单页大图即用此图</div>
+                  </div>
                 </template>
                 <label class="wide category-manager-actions">
                   <span></span>
                   <div class="row-actions">
-                    <button v-if="categoryForm.id" type="button" class="ghost-button small" @click="resetCategoryForm">新建下一条</button>
-                    <button class="primary-action small" type="submit">{{ categoryForm.id ? "保存" : (isDrinksCollection() ? "添加档位" : "添加类别") }}</button>
+                    <button v-if="categoryForm.id" type="button" class="ghost-button small" @click="resetCategoryForm">清空表单</button>
+                    <button class="primary-action small" type="submit">{{ categoryForm.id ? "保存" : (isDrinksCollection() ? "添加档位" : "添加分类") }}</button>
                   </div>
                 </label>
               </form>
@@ -6385,18 +6446,20 @@ onBeforeUnmount(() => {
                 <table>
                   <thead>
                     <tr>
-                      <th scope="col">{{ isDrinksCollection() ? "档位" : "类别" }}</th>
+                      <th scope="col">{{ isDrinksCollection() ? "档位" : "分类" }}</th>
                       <th v-if="isDrinksCollection()" scope="col">价格</th>
                       <th scope="col">排序</th>
+                      <th scope="col">商品数</th>
                       <th scope="col">状态</th>
                       <th scope="col">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="item in managedCategoriesForCollection" :key="item.id">
+                    <tr v-for="item in managedCategoriesWithCount" :key="item.id">
                       <td><strong>{{ item.name }}</strong><small>{{ item.id }}</small></td>
                       <td v-if="isDrinksCollection()">¥{{ money(item.price) }} / {{ item.unit || item.badge || "道" }}</td>
                       <td>{{ item.sort ?? "-" }}</td>
+                      <td>{{ item.productCount }}</td>
                       <td>
                         <span :class="['status-pill', item.visible === false ? 'neutral' : 'good']">
                           {{ item.visible === false ? "已停用" : "启用" }}
@@ -6405,6 +6468,7 @@ onBeforeUnmount(() => {
                       <td>
                         <div class="row-actions">
                           <button class="ghost-button small" type="button" @click="editManagedCategory(item)">编辑</button>
+                          <button class="ghost-button small" type="button" @click="setCatalogCategoryFilter(item.name); closeCategoryManager()">看商品</button>
                           <button class="ghost-button small" type="button" @click="toggleManagedCategory(item)">
                             {{ item.visible === false ? "启用" : "停用" }}
                           </button>
@@ -6415,15 +6479,15 @@ onBeforeUnmount(() => {
                   </tbody>
                 </table>
                 <EmptyState
-                  v-if="!managedCategoriesForCollection.length"
-                  :title="isDrinksCollection() ? '还没有档位' : '还没有类别'"
-                  :hint="isDrinksCollection() ? '先添加初见/知味等档位，再在列表新建茶品。' : '先添加类别，再建商品时下拉选择。'"
+                  v-if="!managedCategoriesWithCount.length"
+                  :title="isDrinksCollection() ? '还没有档位' : '还没有分类'"
+                  :hint="isDrinksCollection() ? '先添加初见/知味等档位，再在列表新建茶品。' : '先添加分类，再建商品时下拉选择。'"
                 />
               </div>
               <div class="drawer-actions wide">
                 <button type="button" class="secondary-action" @click="closeCategoryManager">完成</button>
               </div>
-            </aside>
+            </div>
           </div>
         </section>
 

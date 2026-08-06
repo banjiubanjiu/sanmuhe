@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>商品分类管理 · 专业交互调研</title>
+  <style>
+    :root {
+      --ink: #1a211c;
+      --muted: #5c645c;
+      --line: rgba(26, 33, 28, 0.12);
+      --bg: #f6f3ec;
+      --card: #fffcf6;
+      --green: #1f5b3c;
+      --gold: #8a6230;
+      --warn: #b45309;
+      --soft: #e8efe9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-size: 26px; margin: 0 0 8px; letter-spacing: 0.02em; }
+    .sub { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+    h2 { font-size: 18px; margin: 32px 0 12px; color: var(--green); }
+    h3 { font-size: 15px; margin: 20px 0 8px; }
+    p, li { font-size: 14px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin: 12px 0;
+    }
+    .grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+    @media (min-width: 800px) {
+      .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+      .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: var(--card);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th { background: var(--soft); font-weight: 600; }
+    tr:last-child td { border-bottom: 0; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: var(--soft);
+      color: var(--green);
+      font-weight: 600;
+    }
+    .tag.warn { background: #fef3c7; color: var(--warn); }
+    .tag.bad { background: #fee2e2; color: #b91c1c; }
+    .tag.ok { background: #dcfce7; color: #166534; }
+    .mock {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+      min-height: 220px;
+      position: relative;
+      font-size: 12px;
+    }
+    .mock-bar {
+      height: 36px;
+      background: #f0ebe3;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 600;
+    }
+    .mock-body { display: flex; min-height: 180px; }
+    .mock-side {
+      width: 72px;
+      background: #eef2ee;
+      border-right: 1px solid var(--line);
+      padding: 10px 6px;
+      color: var(--muted);
+      writing-mode: vertical-rl;
+      text-align: center;
+      letter-spacing: 0.1em;
+    }
+    .mock-main { flex: 1; padding: 12px; }
+    .mock-drawer {
+      position: absolute;
+      right: 0; top: 36px; bottom: 0;
+      width: 38%;
+      background: #fffdf8;
+      border-left: 1px solid var(--line);
+      box-shadow: -8px 0 24px rgba(0,0,0,.08);
+      padding: 12px;
+    }
+    .mock-drawer.narrow { width: 28%; }
+    .chip {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      margin: 0 6px 6px 0;
+      background: #fff;
+    }
+    .chip.active { border-color: var(--green); background: var(--soft); color: var(--green); font-weight: 600; }
+    .btn {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--green);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .btn.ghost {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .muted { color: var(--muted); }
+    .rec {
+      border-left: 4px solid var(--green);
+      padding-left: 12px;
+      margin: 8px 0;
+    }
+    ol.steps { padding-left: 20px; }
+    ol.steps li { margin: 6px 0; }
+    .footer { margin-top: 36px; font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>商品「管理分类」交互调研</h1>
+    <p class="sub">针对禾煦后台：商品管理 → 茶叶 →「管理分类」窄侧栏别扭问题 · 对照行业做法 · 给出推荐方案（先方案不改代码）</p>
+
+    <div class="card">
+      <strong>你的直觉是对的。</strong>
+      <p class="muted" style="margin:8px 0 0">
+        把「分类/集合」的增删改塞进商品列表旁边的窄抽屉，在主流电商后台里并不常见。
+        抽屉更适合「编辑当前商品」或「列表筛选」；分类本身是<strong>独立主数据</strong>，应有更宽的工作台或内嵌面板。
+      </p>
+    </div>
+
+    <h2>1. 当前问题（现状）</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>现在怎么做</h3>
+        <ul>
+          <li>商品列表页工具栏：<code>管理分类</code> 按钮</li>
+          <li>点开 → 右侧窄抽屉</li>
+          <li>抽屉里：名称 / 排序 / 启停 + 表格</li>
+          <li>商品编辑时再下拉选分类</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>为什么别扭</h3>
+        <ul>
+          <li><strong>信息架构错位</strong>：分类是「结构配置」，商品是「SKU 列表」，两者任务不同</li>
+          <li><strong>抽屉过窄</strong>：表格 + 排序 + 操作挤在一侧，难扫一眼</li>
+          <li><strong>上下文断裂</strong>：在列表上改分类，却看不到「每个分类有多少商品」</li>
+          <li><strong>入口权重</strong>：「管理分类」像临时工具，不像正式配置</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>示意：窄侧栏（现状感）</h3>
+    <div class="mock">
+      <div class="mock-bar">商品管理 · 茶叶</div>
+      <div class="mock-body">
+        <div class="mock-side">列表</div>
+        <div class="mock-main">
+          <div class="row">
+            <span class="chip">筛选…</span>
+            <span class="btn ghost">管理分类</span>
+            <span class="btn">新建</span>
+          </div>
+          <div class="muted">红茶 · 有机红茶 · ¥10 起 …</div>
+          <div class="muted">白茶 · 福鼎老白茶 · ¥78 …</div>
+        </div>
+        <div class="mock-drawer narrow">
+          <div style="font-weight:700;margin-bottom:8px">管理分类</div>
+          <div class="muted" style="font-size:11px;line-height:1.4">
+            名称<br>排序<br>表格挤在这里…<br>操作按钮换行…
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2>2. 行业专业做法（调研结论）</h2>
+    <p class="muted">综合 Shopify / 国内电商后台 / B 端组件规范（Modal vs Drawer）与信息架构常见模式：</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>模式</th>
+          <th>适用</th>
+          <th>行业例子</th>
+          <th>评价</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>独立「分类/集合」页</strong></td>
+          <td>分类可增删改排序，需看商品数、启停</td>
+          <td>Shopify Collections、有赞/微商城「商品分类」菜单</td>
+          <td><span class="tag ok">最专业</span> 主数据独立</td>
+        </tr>
+        <tr>
+          <td><strong>商品页内嵌：顶栏/左侧分类树 + 列表</strong></td>
+          <td>分类少（≤10）、以浏览筛选为主</td>
+          <td>多数中小电商后台「左侧分类 + 右侧商品」</td>
+          <td><span class="tag ok">很适合茶类</span> 红茶/白茶…就几项</td>
+        </tr>
+        <tr>
+          <td><strong>商品表单里选分类 + 内联「+新建」</strong></td>
+          <td>只想快速加一个类名</td>
+          <td>Notion/部分 SaaS 的 create-on-the-fly</td>
+          <td><span class="tag">轻量</span> 不替代完整管理</td>
+        </tr>
+        <tr>
+          <td><strong>居中弹窗 Dialog</strong></td>
+          <td>字段少、任务短（改名/排序一次搞定）</td>
+          <td>Ant Design / Element 后台规范</td>
+          <td><span class="tag">可用</span> 比窄抽屉宽</td>
+        </tr>
+        <tr>
+          <td><strong>侧抽屉 Drawer</strong></td>
+          <td>编辑「当前行商品」、筛选面板</td>
+          <td>Onething Design：Drawer 适合 filter / 上下文辅助</td>
+          <td><span class="tag warn">不适合当分类主台</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card">
+      <h3>Modal vs Drawer（组件选择原则）</h3>
+      <ul>
+        <li><strong>Drawer</strong>：辅助当前页任务，不打断列表上下文（筛选、看详情、改一条商品）</li>
+        <li><strong>Modal</strong>：短任务、需聚焦确认（新建一个分类名称）</li>
+        <li><strong>独立页 / 全宽工作台</strong>：字段多、要表格、要排序拖拽、要看关联数量 —— 分类管理属于这类</li>
+      </ul>
+      <p class="muted" style="margin:0">参考：Onething「Modal vs Drawer」、Eleken Modal UX、国内 B 端「列表 + 弹窗/独立页」通用模式。</p>
+    </div>
+
+    <h2>3. 对照禾煦业务</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>茶叶分类</h3>
+        <p>约 5 个：红茶、白茶、岩茶、普洱茶、单丛（+偶发自定义）</p>
+        <p class="muted">数量少、结构扁、几乎不嵌套 → <strong>不必做复杂树</strong>。</p>
+      </div>
+      <div class="card">
+        <h3>堂饮档位</h3>
+        <p>约 5 个：初见、知味…，且带价格/单位/主图</p>
+        <p class="muted">比茶叶「重」→ 更需要宽表编辑区（已是「管理档位」语义）。</p>
+      </div>
+    </div>
+
+    <h2>4. 推荐方案（按优先级）</h2>
+
+    <div class="card">
+      <div class="row">
+        <span class="tag ok">推荐首选 · A</span>
+        <strong>商品页「分类条」+ 轻量管理面板（宽）</strong>
+      </div>
+      <p class="rec">分类是导航/筛选，不是塞在窄抽屉里的次要按钮。</p>
+      <ol class="steps">
+        <li>商品列表上方增加 <strong>分类 Tab / 胶囊条</strong>：全部 | 红茶 | 白茶 | …</li>
+        <li>条末放 <strong>「配置分类」</strong>（文案比「管理分类」更像设置）</li>
+        <li>配置打开 <strong>居中宽弹窗</strong> 或 <strong>全宽底部/居中 560–720px 面板</strong>，不是 280px 侧栏</li>
+        <li>面板内：表格（名称、排序、商品数、启停、操作）+ 顶部「添加分类」一行表单</li>
+        <li>商品编辑仍用下拉选分类；下拉旁可有「+」快速新建（可选）</li>
+      </ol>
+    </div>
+
+    <h3>示意：A 方案</h3>
+    <div class="mock">
+      <div class="mock-bar">商品管理 · 茶叶</div>
+      <div class="mock-body">
+        <div class="mock-main" style="width:100%">
+          <div class="row">
+            <span class="chip active">全部</span>
+            <span class="chip">红茶</span>
+            <span class="chip">白茶</span>
+            <span class="chip">岩茶</span>
+            <span class="chip">普洱茶</span>
+            <span class="chip">单丛</span>
+            <span class="btn ghost">配置分类</span>
+            <span class="btn" style="margin-left:auto">新建茶叶</span>
+          </div>
+          <div class="muted">列表全宽 · 按当前分类筛选商品</div>
+          <div style="margin-top:12px;border:1px dashed var(--line);border-radius:10px;padding:14px;background:#fff">
+            <div style="font-weight:700;margin-bottom:8px">配置分类 · 宽面板</div>
+            <div class="muted">名称 · 排序 · 商品数 · 启停 · 编辑/删除 —— 表格可读</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <span class="tag">备选 · B</span>
+        <strong>左侧固定分类栏（树/列表）</strong>
+      </div>
+      <p>商品管理整页改成：左 200–240px 分类，右商品表。点分类即筛选；栏底「管理…」进弹窗。</p>
+      <p class="muted">适合以后分类变多；当前 5 类略重，但非常「电商后台」。</p>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <span class="tag">备选 · C</span>
+        <strong>侧栏一级菜单「商品分类」独立页</strong>
+      </div>
+      <p>与「商品管理」并列：分类 CRUD 全页表格。Shopify Collections 思路。</p>
+      <p class="muted">最清晰，但多一个导航入口；茶类数量少时略重。</p>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <span class="tag bad">不推荐维持</span>
+        <strong>窄右侧抽屉当分类主界面</strong>
+      </div>
+      <p class="muted">与 Drawer 设计意图不符；表格与操作密度不匹配。</p>
+    </div>
+
+    <h2>5. 若只改一刀（最小改动）</h2>
+    <div class="card">
+      <ol class="steps">
+        <li>保留入口在商品页，但改成 <strong>居中 Dialog（宽 560–640px）</strong>，不要窄 Drawer</li>
+        <li>表格增加「商品数」列（只读）</li>
+        <li>列表顶增加分类筛选胶囊（复用同一数据源）</li>
+        <li>文案：「管理分类」→「配置分类」或「分类设置」</li>
+      </ol>
+      <p class="muted" style="margin:0">成本低，能立刻消掉「窄侧栏」的别扭感，且符合「分类配置用聚焦面板」的惯例。</p>
+    </div>
+
+    <h2>6. 建议拍板</h2>
+    <table>
+      <thead>
+        <tr><th>你的偏好</th><th>建议落地</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>少改结构、先顺手</td>
+          <td><strong>最小改动</strong>：宽 Dialog + 顶部分类筛选</td>
+        </tr>
+        <tr>
+          <td>要更像专业电商后台</td>
+          <td><strong>方案 A 完整版</strong>：分类条 + 宽配置面板 + 商品数</td>
+        </tr>
+        <tr>
+          <td>以后分类会很多 / 要运营专人管</td>
+          <td><strong>方案 C</strong>：独立「商品分类」页</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card" style="margin-top:16px">
+      <strong>我的建议（禾煦现状）</strong>
+      <p style="margin:8px 0 0">茶类只有约 5 个、偏运营轻量后台 → 优先 <span class="tag ok">方案 A / 最小改动</span>：
+        <strong>列表顶部分类筛选 + 宽弹窗配置分类</strong>。堂饮「管理档位」同理改成宽面板（档位字段更多，更不宜窄抽屉）。</p>
+    </div>
+
+    <p class="footer">
+      资料方向：Shopify Collections / Product Type、Baymard 分类导航、Onething Modal vs Drawer、国内 B 端列表+弹窗惯例。
+      本页为调研结论，确认方案后再改代码。
+    </p>
+  </div>
+</body>
+</html>

@@ -7,6 +7,87 @@
 - Do not add admin-only source or build output to the mini program preview package. Keep `admin/`, `admin-src/`, `node_modules/`, `package-lock.json`, `package.json`, and `vite.config.mjs` ignored in `project.config.json`.
 - Before any preview/upload task, check package size contributors with `du -h --max-depth=1 sanmuhe-miniprogram` and large files with `find sanmuhe-miniprogram -maxdepth 3 -type f -size +500k`.
 
+## Cloud Storage Images (业务图规则)
+
+业务图片走 **CloudBase 云存储**；UI 图标走小程序包。实现入口：`config/assets.js`、`config/cloud.js`。
+
+### 环境与路径约定
+
+| 项 | 值 |
+|---|---|
+| envId | `cloudbase-d2gq023qn50e9d82f` |
+| 云文件前缀 | `cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/` |
+| 业务图目录 | `mp-assets/images/<filename>` |
+| 库内字段 | `image` / `thumb` / `detailImage` 存 **fileID**（`cloud://...`）或 https |
+| 本地源文件 | `assets/images/`（开发源与上传源；**不是**上线唯一来源） |
+| 开关 | `USE_CLOUD_ASSETS = true`（`config/assets.js`）— 业务图映射到云路径 |
+
+完整 fileID 示例：
+
+```text
+cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-001-organic-black.jpg
+```
+
+公有读 CDN（后台预览可用，与 fileID 同路径后缀）：
+
+```text
+https://636c-cloudbase-d2gq023qn50e9d82f-1458290161.tcb.qcloud.la/mp-assets/images/<filename>
+```
+
+### 哪些图必须上云
+
+- 商城茶叶主图 / 缩略图 / 详情图
+- 堂饮档位主图、档位下茶品图
+- 首页轮播、茶室/预约主图、活动图、客服二维码/头图等运营素材
+- 后台「上传图片」产生的文件（路径：`admin/<collection|content>/<timestamp>-name`）
+
+### 哪些图留在小程序包
+
+- **仅** `assets/icons/**`（tab、按钮、状态等 UI 图标）
+- 不要把商品大图只放在包内当生产数据
+
+### 读写与权限
+
+- 存储 ACL 须允许用户读业务图：推荐 **「所有用户可读，仅创建者与管理员可写」**（CLI：`tcb storage set-acl` 选对应项，或 `tcb storage rules`）。
+- 小程序：`wx.cloud` 已初始化后，`<image src="cloud://...">` 可直接用 fileID。
+- 管理后台 Web：`cloudApp.uploadFile` 上传；预览时将 `cloud://` 转为上述 CDN URL（见 admin `displayImage`）。
+- 校验允许：`cloud://`、`http(s)://`、临时兼容 `/assets/`（新数据优先云路径）。
+
+### 映射 helper（必守）
+
+- `localImage(path)` / `toCloudPath(path)`：本地 `/assets/images/x.jpg` → `cloud://.../mp-assets/images/x.jpg`。
+- `USE_CLOUD_ASSETS=true` 时：**不要**把已有 `cloud://` 强行改回 `/assets/`。
+- 图标路径含 `assets/icons/` 时**始终本地**，不上传、不改写。
+
+### 批量上传 / 同步（agent 操作）
+
+```bash
+PROJ=/home/colin/softdev/sanmuhe/sanmuhe/sanmuhe-miniprogram
+cd "$PROJ"
+
+# 1) 上传本地业务图到云（目录 → mp-assets/images）
+tcb storage upload ./assets/images mp-assets/images --times 3
+
+# 2) 确认可读（可选）
+tcb storage get-acl
+tcb storage url mp-assets/images/product-tea-001-organic-black.jpg
+
+# 3) seed 中 image/thumb/detailImage 写 cloud:// 后部署并同步
+#    seed 版本与 frontendSeed.json 一并更新
+tcb fn deploy seedDemoData --dir cloudfunctions/seedDemoData --force
+# SEED_DEMO_ENABLED=true 时 invoke（用完改回 false）
+tcb fn invoke seedDemoData --params '{"reason":"同步业务图 cloud://"}'
+```
+
+- 新增一张业务图：先放 `assets/images/`（源），上传到 `mp-assets/images/`，库字段写 `cloud://.../mp-assets/images/<file>`；或经后台上传拿 fileID。
+- 改图后：更新存储对象 + 数据库字段（或重新 seed），并清 DevTools 缓存（`cache --clean storage` 如有裂图）。
+
+### 禁止
+
+- 新商品/运营位只写 `/assets/images/...` 且不上传云（会重新绑死主包、难运维）。
+- 把 `admin/` 构建产物或整包 `assets/images` 大图依赖塞进预览包当唯一来源。
+- 在存储 PRIVATE（仅创建者可读）下假定真机 `cloud://` 一定能显示——业务图需用户可读 ACL。
+
 ## Icons (Use An Icon Library First)
 
 UI icons must look professional and match action semantics. Prefer a licensed icon library over inventing SVGs, reusing unrelated assets (e.g. star for share), or AI-generating icons.
