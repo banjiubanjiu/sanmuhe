@@ -1,5 +1,5 @@
 {
-  "version": "hexi-dinein-tier-teas-20260806",
+  "version": "hexi-cloud-assets-20260806",
   "collections": {
     "product_categories": [
       {
@@ -48,7 +48,7 @@
         "tagline": "初识好茶，邂逅本真之味",
         "brewStyle": "热泡茶",
         "color": "#8d4a2f",
-        "image": "/assets/images/product-drink-001-chujian.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-drink-001-chujian.jpg",
         "sort": 10,
         "visible": true
       },
@@ -63,7 +63,7 @@
         "tagline": "细品层次，感知茶中真味",
         "brewStyle": "热泡茶",
         "color": "#7b4e34",
-        "image": "/assets/images/product-drink-002-zhiwei.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-drink-002-zhiwei.jpg",
         "sort": 20,
         "visible": true
       },
@@ -78,7 +78,7 @@
         "tagline": "臻选名岩，珍藏一味",
         "brewStyle": "热泡茶",
         "color": "#6b3f2f",
-        "image": "/assets/images/product-drink-003-zhencang.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-drink-003-zhencang.jpg",
         "sort": 30,
         "visible": true
       },
@@ -93,7 +93,7 @@
         "tagline": "一壶暖茶，从容叙旧",
         "brewStyle": "热泡茶",
         "color": "#9aa477",
-        "image": "/assets/images/product-drink-004-pengcha.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-drink-004-pengcha.jpg",
         "sort": 40,
         "visible": true
       },
@@ -108,7 +108,7 @@
         "tagline": "芳华入盏，温润于心",
         "brewStyle": "热泡茶",
         "color": "#c17831",
-        "image": "/assets/images/product-drink-005-fangming.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-drink-005-fangming.jpg",
         "sort": 50,
         "visible": true
       }
@@ -120,7 +120,7 @@
         "category": "初见",
         "categoryId": "drink-001",
         "groupName": "",
-        "image": "/assets/images/product-tea-001-organic-black.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-001-organic-black.jpg",
         "subtitle": "花果蜜香 · 汤色红亮",
         "visible": true,
         "sort": 10
@@ -131,7 +131,7 @@
         "category": "初见",
         "categoryId": "drink-001",
         "groupName": "",
-        "image": "/assets/images/product-tea-010-gongxiang.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-010-gongxiang.jpg",
         "subtitle": "清香高扬 · 鲜爽回甘",
         "visible": true,
         "sort": 20
@@ -142,7 +142,7 @@
         "category": "初见",
         "categoryId": "drink-001",
         "groupName": "",
-        "image": "/assets/images/product-tea-004-mtn-white.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-004-mtn-white.jpg",
         "subtitle": "清甜干净 · 余韵绵长",
         "visible": true,
         "sort": 30
@@ -153,7 +153,7 @@
         "category": "初见",
         "categoryId": "drink-001",
         "groupName": "",
-        "image": "/assets/images/product-tea-008-puer.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-008-puer.jpg",
         "subtitle": "陈韵沉稳 · 汤感醇厚",
         "visible": true,
         "sort": 40
@@ -164,7 +164,7 @@
         "category": "知味",
         "categoryId": "drink-002",
         "groupName": "岩茶",
-        "image": "/assets/images/product-tea-007-floral-dhp.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-007-floral-dhp.jpg",
         "subtitle": "花果馥郁 · 岩韵分明",
         "visible": true,
         "sort": 10
@@ -175,7 +175,7 @@
         "category": "知味",
         "categoryId": "drink-002",
         "groupName": "岩茶",
-        "image": "/assets/images/product-tea-006-aged-rock.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-006-aged-rock.jpg",
         "subtitle": "药香转参 · 汤水绵柔",
         "visible": true,
         "sort": 20
@@ -186,7 +186,7 @@
         "category": "知味",
         "categoryId": "drink-002",
         "groupName": "红茶",
-        "image": "/assets/images/product-tea-001-organic-black.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-001-organic-black.jpg",
         "subtitle": "花果蜜香 · 水路细腻",
         "visible": true,
         "sort": 30
@@ -197,7 +197,7 @@
         "category": "知味",
         "categoryId": "drink-002",
         "groupName": "红茶",
-        "image": "/assets/images/product-tea-002-wild-black.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-002-wild-black.jpg",
         "subtitle": "松烟底韵 · 甜润顺口",
         "visible": true,
         "sort": 40
@@ -208,7 +208,7 @@
         "category": "知味",
         "categoryId": "drink-002",
         "groupName": "单丛",
-        "image": "/assets/images/product-tea-011-mielan.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-011-mielan.jpg",
         "subtitle": "蜜甜浓郁 · 兰香清雅",
         "visible": true,
         "sort": 50
@@ -219,7 +219,7 @@
         "category": "知味",
         "categoryId": "drink-002",
         "groupName": "单丛",
-        "image": "/assets/images/product-tea-010-gongxiang.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-010-gongxiang.jpg",
         "subtitle": "清香纯粹 · 夏日鲜爽",
         "visible": true,
         "sort": 60
@@ -230,7 +230,7 @@
         "category": "知味",
         "categoryId": "drink-002",
         "groupName": "单丛",
-        "image": "/assets/images/product-tea-011-mielan.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-011-mielan.jpg",
         "subtitle": "高山蜜韵 · 汤感稠糯",
         "visible": true,
         "sort": 70
@@ -241,7 +241,7 @@
         "category": "臻藏",
         "categoryId": "drink-003",
         "groupName": "",
-        "image": "/assets/images/product-tea-005-rougui.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-005-rougui.jpg",
         "subtitle": "辛锐桂皮香 · 喉韵清凉",
         "visible": true,
         "sort": 10
@@ -252,7 +252,7 @@
         "category": "烹茶暖叙",
         "categoryId": "drink-004",
         "groupName": "",
-        "image": "/assets/images/product-tea-003-aged-white.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-003-aged-white.jpg",
         "subtitle": "醇润陈香 · 温和不伤胃",
         "visible": true,
         "sort": 10
@@ -263,7 +263,7 @@
         "category": "烹茶暖叙",
         "categoryId": "drink-004",
         "groupName": "",
-        "image": "/assets/images/product-tea-008-puer.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-008-puer.jpg",
         "subtitle": "温润醇和 · 一壶从容",
         "visible": true,
         "sort": 20
@@ -274,7 +274,7 @@
         "category": "烹茶暖叙",
         "categoryId": "drink-004",
         "groupName": "",
-        "image": "/assets/images/product-drink-004-pengcha.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-drink-004-pengcha.jpg",
         "subtitle": "温和调养 · 宜日常暖饮",
         "visible": true,
         "sort": 30
@@ -285,7 +285,7 @@
         "category": "芳茗润茶",
         "categoryId": "drink-005",
         "groupName": "",
-        "image": "/assets/images/product-drink-005-fangming.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-drink-005-fangming.jpg",
         "subtitle": "玫瑰清芳 · 温润于心",
         "visible": true,
         "sort": 10
@@ -302,39 +302,49 @@
         "origin": "云南临沧有机茶园",
         "roast": "2025",
         "taste": "香气为花果香与蜜香交织，带点山野气韵。茶汤鲜红明亮、入口甘甜，滋味浓厚，水路细腻，回甘清甜。",
-        "stock": 200,
+        "stock": 146,
         "color": "#8d4a2f",
-        "image": "/assets/images/product-tea-001-organic-black.jpg",
-        "thumb": "/assets/images/product-tea-001-organic-black.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-001-organic-black.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-001-organic-black.jpg",
         "detail": "散装与礼盒多种规格可选。建议盖碗冲泡，沸水醒茶后细品花果蜜香。",
         "specs": [
           {
             "label": "一泡",
             "weight": "5g",
             "price": 10,
-            "stockUnits": 1
+            "stock": 120,
+            "lockedStock": 0,
+            "soldStock": 0
           },
           {
             "label": "20泡袋/盒",
             "weight": "100g",
             "price": 168,
-            "stockUnits": 20
+            "stock": 8,
+            "lockedStock": 0,
+            "soldStock": 0
           },
           {
             "label": "伴手礼盒",
             "weight": "50g",
             "price": 98,
-            "stockUnits": 10
+            "stock": 12,
+            "lockedStock": 0,
+            "soldStock": 0
           },
           {
             "label": "纳福礼盒（15泡）",
             "weight": "75g",
             "price": 188,
-            "stockUnits": 15
+            "stock": 6,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 10
+        "sort": 10,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-002",
@@ -348,19 +358,23 @@
         "taste": "花香果香浓郁，口感甘甜纯净，汤感细腻。",
         "stock": 80,
         "color": "#7a3f2a",
-        "image": "/assets/images/product-tea-002-wild-black.jpg",
-        "thumb": "/assets/images/product-tea-002-wild-black.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-002-wild-black.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-002-wild-black.jpg",
         "detail": "体验装小罐，适合初次认识临沧野生红茶风味。",
         "specs": [
           {
             "label": "50g/小罐",
             "weight": "50g",
             "price": 48,
-            "stockUnits": 1
+            "stock": 80,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 20
+        "sort": 20,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-003",
@@ -374,19 +388,23 @@
         "taste": "醇、润、甜、陈，十年干仓老寿眉，药枣香突出，茶汤温和不伤胃。",
         "stock": 60,
         "color": "#9aa477",
-        "image": "/assets/images/product-tea-003-aged-white.jpg",
-        "thumb": "/assets/images/product-tea-003-aged-white.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-003-aged-white.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-003-aged-white.jpg",
         "detail": "十年干仓老寿眉，适合盖碗或煮饮，温和顺口。",
         "specs": [
           {
             "label": "50g/小罐",
             "weight": "50g",
             "price": 78,
-            "stockUnits": 1
+            "stock": 60,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 30
+        "sort": 30,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-004",
@@ -400,19 +418,23 @@
         "taste": "高山小白，清甜干净，适合日常浅饮与试泡。",
         "stock": 120,
         "color": "#a8b48a",
-        "image": "/assets/images/product-tea-004-mtn-white.jpg",
-        "thumb": "/assets/images/product-tea-004-mtn-white.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-004-mtn-white.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-004-mtn-white.jpg",
         "detail": "单泡规格，便于随身携带与门店试饮。",
         "specs": [
           {
             "label": "一泡",
             "weight": "5g",
             "price": 8,
-            "stockUnits": 1
+            "stock": 120,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 40
+        "sort": 40,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-005",
@@ -424,27 +446,33 @@
         "origin": "福建武夷山马头岩",
         "roast": "2025",
         "taste": "香气辛锐持久，富有层次。干香为辛锐桂皮香、焦糖香，茶汤馥郁、醇厚、绵滑，带有明显的辛辣感，其回甘迅捷，且带有清凉喉韵，尾水清甜如蔗汁。",
-        "stock": 40,
+        "stock": 35,
         "color": "#7b4e34",
-        "image": "/assets/images/product-tea-005-rougui.jpg",
-        "thumb": "/assets/images/product-tea-005-rougui.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-005-rougui.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-005-rougui.jpg",
         "detail": "马头岩核心产区手工制作。首泡快速出汤，后续按口感递增。",
         "specs": [
           {
             "label": "单泡",
             "weight": "8.3g",
             "price": 50,
-            "stockUnits": 1
+            "stock": 30,
+            "lockedStock": 0,
+            "soldStock": 0
           },
           {
             "label": "20泡袋/盒",
             "weight": "166g",
             "price": 888,
-            "stockUnits": 20
+            "stock": 5,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 50
+        "sort": 50,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-006",
@@ -458,19 +486,23 @@
         "taste": "具药香转参香阶段，梅子花香，汤水滋味绵柔，略带武夷酸感。",
         "stock": 50,
         "color": "#6b3f2f",
-        "image": "/assets/images/product-tea-006-aged-rock.jpg",
-        "thumb": "/assets/images/product-tea-006-aged-rock.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-006-aged-rock.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-006-aged-rock.jpg",
         "detail": "陈年岩茶，适合慢品老韵与药参香。",
         "specs": [
           {
             "label": "单泡",
             "weight": "8.3g",
             "price": 20,
-            "stockUnits": 1
+            "stock": 50,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 60
+        "sort": 60,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-007",
@@ -484,19 +516,23 @@
         "taste": "花果香馥郁、清幽而细润，似桂花、蜜桃、果甜交织，层次丰富，岩韵明显。入口醇厚顺滑、鲜爽甜润，回甘生津持久，喉韵绵长。",
         "stock": 70,
         "color": "#8a5a3a",
-        "image": "/assets/images/product-tea-007-floral-dhp.jpg",
-        "thumb": "/assets/images/product-tea-007-floral-dhp.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-007-floral-dhp.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-007-floral-dhp.jpg",
         "detail": "正岩花香路线，适合功夫泡细品岩韵。",
         "specs": [
           {
             "label": "单泡",
             "weight": "8.3g",
             "price": 20,
-            "stockUnits": 1
+            "stock": 70,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 70
+        "sort": 70,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-008",
@@ -510,19 +546,23 @@
         "taste": "陈韵沉稳，适合日常单泡品饮与茶席搭配。",
         "stock": 60,
         "color": "#6b3f2f",
-        "image": "/assets/images/product-tea-008-puer.jpg",
-        "thumb": "/assets/images/product-tea-008-puer.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-008-puer.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-008-puer.jpg",
         "detail": "2011 年归藏，单泡规格便于品鉴与分享。",
         "specs": [
           {
             "label": "单泡",
             "weight": "8.3g",
             "price": 20,
-            "stockUnits": 1
+            "stock": 60,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 80
+        "sort": 80,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-009",
@@ -536,25 +576,31 @@
         "taste": "黄栀香型单丛，花香清扬，茶汤顺滑。",
         "stock": 55,
         "color": "#8f7f4d",
-        "image": "/assets/images/product-tea-009-huangzhixiang.jpg",
-        "thumb": "/assets/images/product-tea-009-huangzhixiang.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-009-huangzhixiang.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-009-huangzhixiang.jpg",
         "detail": "体验装与散装罐装可选，盖碗冲泡可闻栀子花香。",
         "specs": [
           {
             "label": "30g/罐",
             "weight": "30g",
             "price": 48,
-            "stockUnits": 1
+            "stock": 40,
+            "lockedStock": 0,
+            "soldStock": 0
           },
           {
             "label": "125g/罐",
             "weight": "125g",
             "price": 160,
-            "stockUnits": 4
+            "stock": 15,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 90
+        "sort": 90,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-010",
@@ -566,27 +612,33 @@
         "origin": "潮州凤凰山",
         "roast": "2026",
         "taste": "鲜、清、雅、甜，标准清香型单丛，花香纯粹高扬；口感清爽无负担，适合偏爱淡香鲜爽口感人群、夏日冲泡。",
-        "stock": 50,
+        "stock": 47,
         "color": "#7f9d60",
-        "image": "/assets/images/product-tea-010-gongxiang.jpg",
-        "thumb": "/assets/images/product-tea-010-gongxiang.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-010-gongxiang.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-010-gongxiang.jpg",
         "detail": "清香型代表，夏日与入门单丛优选。",
         "specs": [
           {
             "label": "30g/罐",
             "weight": "30g",
             "price": 68,
-            "stockUnits": 1
+            "stock": 35,
+            "lockedStock": 0,
+            "soldStock": 0
           },
           {
             "label": "125g/罐",
             "weight": "125g",
             "price": 260,
-            "stockUnits": 4
+            "stock": 12,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 100
+        "sort": 100,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-011",
@@ -598,27 +650,33 @@
         "origin": "潮州乌岽高山核心茶园",
         "roast": "2026",
         "taste": "蜜甜浓郁、兰香清雅，入口绵柔醇厚，蜜甜铺满口腔，回甘迅猛持久，喉底留存淡淡兰韵；茶汤顺滑稠糯，耐泡稳定。",
-        "stock": 45,
+        "stock": 40,
         "color": "#c2a34a",
-        "image": "/assets/images/product-tea-011-mielan.jpg",
-        "thumb": "/assets/images/product-tea-011-mielan.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-011-mielan.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-011-mielan.jpg",
         "detail": "乌岽高山核心茶园，蜜兰香高扬耐泡。",
         "specs": [
           {
             "label": "40g/罐",
             "weight": "40g",
             "price": 98,
-            "stockUnits": 1
+            "stock": 30,
+            "lockedStock": 0,
+            "soldStock": 0
           },
           {
             "label": "125g/罐",
             "weight": "125g",
             "price": 280,
-            "stockUnits": 3
+            "stock": 10,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 110
+        "sort": 110,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-012",
@@ -632,19 +690,23 @@
         "taste": "芝兰清雅，香气细腻，茶汤醇和。",
         "stock": 35,
         "color": "#8f7f4d",
-        "image": "/assets/images/product-tea-012-zhilan.jpg",
-        "thumb": "/assets/images/product-tea-012-zhilan.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-012-zhilan.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-012-zhilan.jpg",
         "detail": "散装 125g 罐装，适合日常与馈赠。",
         "specs": [
           {
             "label": "125g/罐",
             "weight": "125g",
             "price": 260,
-            "stockUnits": 1
+            "stock": 35,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 120
+        "sort": 120,
+        "lockedStock": 0,
+        "soldStock": 0
       },
       {
         "id": "tea-013",
@@ -658,19 +720,23 @@
         "taste": "凤凰单丛名枞风味，香气高锐，岩韵与花蜜交织。",
         "stock": 28,
         "color": "#7b4e34",
-        "image": "/assets/images/product-tea-013-jilongkan.jpg",
-        "thumb": "/assets/images/product-tea-013-jilongkan.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-013-jilongkan.jpg",
+        "thumb": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/product-tea-013-jilongkan.jpg",
         "detail": "名枞级单丛，125g 罐装。",
         "specs": [
           {
             "label": "125g/罐",
             "weight": "125g",
             "price": 350,
-            "stockUnits": 1
+            "stock": 28,
+            "lockedStock": 0,
+            "soldStock": 0
           }
         ],
         "visible": true,
-        "sort": 130
+        "sort": 130,
+        "lockedStock": 0,
+        "soldStock": 0
       }
     ],
     "rooms": [
@@ -681,7 +747,7 @@
         "capacity": "6人以内",
         "price": 188,
         "floor": "满 2 小时起 ｜ 半小时加时 ｜ 6 位以内",
-        "image": "/assets/images/reservation-hero.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/reservation-hero.jpg",
         "features": [
           "满 2 小时起",
           "半小时加时",
@@ -704,8 +770,8 @@
         "quota": 12,
         "signed": 28,
         "price": 68,
-        "image": "/assets/images/event-yangxin-tea.jpg",
-        "detailImage": "/assets/images/event-detail-content-1.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-yangxin-tea.jpg",
+        "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-1.jpg",
         "summary": "在茶香与静心中，慢慢安住自己",
         "status": "报名中",
         "visible": true,
@@ -722,8 +788,8 @@
         "quota": 10,
         "signed": 45,
         "price": 0,
-        "image": "/assets/images/event-tea-class.jpg",
-        "detailImage": "/assets/images/event-detail-content-2.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-tea-class.jpg",
+        "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-2.jpg",
         "summary": "从识香、泡茶到品饮，轻松了解基础茶知识",
         "status": "报名中",
         "visible": true,
@@ -740,8 +806,8 @@
         "quota": 8,
         "signed": 16,
         "price": 128,
-        "image": "/assets/images/event-seasonal-tea.jpg",
-        "detailImage": "/assets/images/event-detail-content-3.jpg",
+        "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-seasonal-tea.jpg",
+        "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-3.jpg",
         "summary": "顺时品茶，感受节气与日常之美",
         "status": "报名中",
         "visible": true,
@@ -757,7 +823,7 @@
       "title": "谷雨新茶",
       "subtitle": "清润一季",
       "summary": "春去夏来，茶韵正清\n山野之气，凝于一杯",
-      "image": "/assets/images/home-carousel-1.jpg",
+      "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/home-carousel-1.jpg",
       "badge": "新",
       "linkType": "page",
       "linkTarget": "/pages/shop/index",
@@ -770,7 +836,7 @@
       "title": "雅室新席",
       "subtitle": "静候一盏",
       "summary": "茶器、茶席、茶室\n把日常安放得更从容",
-      "image": "/assets/images/home-carousel-2.jpg",
+      "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/home-carousel-2.jpg",
       "badge": "雅",
       "linkType": "page",
       "linkTarget": "/pages/reservation/index",
@@ -783,7 +849,7 @@
       "title": "堂饮茶单上新",
       "subtitle": "清甜入夏",
       "summary": "一席一味，门店现泡\n与好友从容共饮",
-      "image": "/assets/images/home-carousel-3.jpg",
+      "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/home-carousel-3.jpg",
       "badge": "饮",
       "linkType": "page",
       "linkTarget": "/pages/shop/index",
@@ -830,7 +896,7 @@
       "capacity": "6人以内",
       "price": 188,
       "floor": "满 2 小时起 ｜ 半小时加时 ｜ 6 位以内",
-      "image": "/assets/images/reservation-hero.jpg",
+      "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/reservation-hero.jpg",
       "features": [
         "满 2 小时起",
         "半小时加时",

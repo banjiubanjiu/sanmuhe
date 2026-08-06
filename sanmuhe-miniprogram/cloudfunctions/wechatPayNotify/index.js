@@ -175,6 +175,33 @@ function inventorySnapshot(item = {}) {
   };
 }
 
+function applySpecInventoryDelta(item, specLabel, deltaLocked, deltaSold) {
+  const specs = Array.isArray(item.specs) ? item.specs.map((spec) => Object.assign({}, spec)) : [];
+  if (!specs.length) return null;
+  const label = String(specLabel || "").trim();
+  let index = specs.findIndex((spec) => String(spec.label || "").trim() === label);
+  if (index < 0) index = 0;
+  const current = specs[index] || {};
+  specs[index] = Object.assign({}, current, {
+    stock: Math.max(0, Number(current.stock) || 0),
+    lockedStock: Math.max(0, Math.max(0, Number(current.lockedStock) || 0) + deltaLocked),
+    soldStock: Math.max(0, Math.max(0, Number(current.soldStock) || 0) + deltaSold)
+  });
+  return {
+    specs,
+    stock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.stock) || 0), 0),
+    lockedStock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.lockedStock) || 0), 0),
+    soldStock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.soldStock) || 0), 0)
+  };
+}
+
+function usesSpecInventory(item, lock = {}) {
+  return lock.mode === "spec"
+    || (Array.isArray(item.specs)
+      && item.specs.some((spec) => spec && spec.stock !== undefined && spec.stock !== null && spec.stock !== "")
+      && lock.specLabel);
+}
+
 async function writeInventoryLog(entry = {}) {
   try {
     await ensureCollection("inventory_logs");
@@ -209,7 +236,46 @@ async function confirmInventory(locks, orderNo) {
       continue;
     }
     const latest = await db.collection(lock.collection).doc(lock.docId).get();
-    const before = inventorySnapshot(latest.data || {});
+    const item = latest.data || {};
+    if (usesSpecInventory(item, lock)) {
+      const beforeSpec = (item.specs || []).find((spec) => String(spec.label || "").trim() === String(lock.specLabel || "").trim()) || (item.specs || [])[0] || {};
+      const before = {
+        stock: Math.max(0, Number(beforeSpec.stock) || 0),
+        lockedStock: Math.max(0, Number(beforeSpec.lockedStock) || 0),
+        soldStock: Math.max(0, Number(beforeSpec.soldStock) || 0)
+      };
+      const next = applySpecInventoryDelta(item, lock.specLabel, -lock.quantity, lock.quantity);
+      if (next) {
+        await db.collection(lock.collection).doc(lock.docId).update({
+          data: {
+            specs: next.specs,
+            stock: next.stock,
+            lockedStock: next.lockedStock,
+            soldStock: next.soldStock,
+            updatedAt: db.serverDate()
+          }
+        });
+      }
+      await writeInventoryLog({
+        collection: lock.collection,
+        docId: lock.docId,
+        itemId: lock.id || "",
+        itemName: lock.specLabel ? `${lock.name || ""} / ${lock.specLabel}` : (lock.name || ""),
+        type: "payment_confirm",
+        quantity: lock.quantity,
+        beforeStock: before.stock,
+        afterStock: before.stock,
+        beforeLockedStock: before.lockedStock,
+        afterLockedStock: Math.max(0, before.lockedStock - lock.quantity),
+        beforeSoldStock: before.soldStock,
+        afterSoldStock: before.soldStock + lock.quantity,
+        orderNo,
+        operator: "wechatPayNotify",
+        note: "支付成功确认规格库存"
+      });
+      continue;
+    }
+    const before = inventorySnapshot(item);
     await db.collection(lock.collection).doc(lock.docId).update({
       data: {
         lockedStock: _.inc(-lock.quantity),

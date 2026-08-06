@@ -71,14 +71,24 @@ function normalizeSpecs(product) {
       const label = String(spec.label || spec.unit || product.unit || "默认").trim();
       const weight = String(spec.weight || "").trim();
       const display = weight && label.indexOf(weight) < 0 ? `${label} · ${weight}` : label;
+      const hasStock = spec.stock !== undefined && spec.stock !== null && spec.stock !== "";
+      const stock = hasStock ? Math.max(0, Number(spec.stock) || 0) : "";
+      const lockedStock = Math.max(0, Number(spec.lockedStock) || 0);
+      const soldStock = Math.max(0, Number(spec.soldStock) || 0);
+      const availableStock = hasStock
+        ? (spec.availableStock !== undefined
+          ? Math.max(0, Number(spec.availableStock) || 0)
+          : Math.max(0, stock - lockedStock - soldStock))
+        : "";
       const item = {
         label,
         weight,
         price: Math.max(0, Number(spec.price) || 0),
-        stockUnits: Math.max(1, Number(spec.stockUnits) || 1),
+        stock,
+        availableStock,
+        isSoldOut: availableStock !== "" && availableStock <= 0,
         display,
         pillText: "",
-        // 规格区只展示名称，价格/克数只出现在主价格行
         chipTitle: label
       };
       item.pillText = pickPillText(item);
@@ -94,7 +104,9 @@ function normalizeSpecs(product) {
         label,
         weight: label,
         price,
-        stockUnits: legacySpecMultipliers[label],
+        stock: "",
+        availableStock: "",
+        isSoldOut: false,
         display: label,
         pillText: label,
         chipTitle: label
@@ -103,11 +115,16 @@ function normalizeSpecs(product) {
   }
 
   const price = Math.max(0, Number(product.price) || 0);
+  const productAvail = product.availableStock !== undefined
+    ? Math.max(0, Number(product.availableStock) || 0)
+    : (product.stock !== undefined ? Math.max(0, Number(product.stock) || 0) : "");
   return [{
     label: unit,
     weight: "",
     price,
-    stockUnits: 1,
+    stock: productAvail,
+    availableStock: productAvail,
+    isSoldOut: productAvail !== "" && productAvail <= 0,
     display: unit,
     pillText: unit,
     chipTitle: unit
@@ -118,15 +135,19 @@ function normalizeProduct(product) {
   const specs = normalizeSpecs(product);
   const defaultSpec = specs[0];
   const taste = String(product.taste || "").trim();
+  const hasSpecStock = specs.some((spec) => spec.availableStock !== "");
+  const availableStock = hasSpecStock
+    ? specs.reduce((sum, spec) => sum + (spec.availableStock === "" ? 0 : Number(spec.availableStock) || 0), 0)
+    : product.availableStock;
   return Object.assign({}, product, {
     sold: product.soldStock || product.sold || 0,
-    availableStock: product.availableStock,
+    availableStock,
     unit: defaultSpec.label,
     specs,
     hasMultiSpecs: specs.length > 1,
     specLayout: resolveSpecLayout(specs),
     taste,
-    tasteExpandable: taste.length > TASTE_CLAMP_CHARS,
+    tasteExpandable: taste.length > TASTE_CLAMP_CHARS
   });
 }
 
@@ -148,12 +169,19 @@ function buildContactMeta(product) {
 
 function buildViewState(product, selectedSpecLabel, favored) {
   const selected = findSpec(product.specs, selectedSpecLabel) || product.specs[0];
+  const avail = selected.availableStock;
+  const isSoldOut = selected.isSoldOut || (avail !== "" && avail <= 0);
+  const stockHint = isSoldOut
+    ? "该规格已售罄"
+    : (avail !== "" && avail <= 10 ? `仅余 ${avail} 件` : "");
   return Object.assign({
     product,
     selectedSpec: selected.label,
     selectedSpecDisplay: selected.display,
     priceUnit: pickPriceUnit(selected),
     displayPrice: selected.price,
+    selectedSoldOut: isSoldOut,
+    selectedStockHint: stockHint,
     favored: !!favored,
     tasteExpanded: false
   }, buildContactMeta(product));
@@ -167,6 +195,8 @@ Page({
     priceUnit: "",
     quantity: 1,
     displayPrice: 0,
+    selectedSoldOut: false,
+    selectedStockHint: "",
     favored: false,
     tasteExpanded: false,
     contactSessionFrom: "product-detail",
@@ -199,11 +229,14 @@ Page({
     if (!matched) {
       return;
     }
+    const next = buildViewState(this.data.product, matched.label, this.data.favored);
     this.setData({
-      selectedSpec: matched.label,
-      selectedSpecDisplay: matched.display,
-      priceUnit: pickPriceUnit(matched),
-      displayPrice: matched.price
+      selectedSpec: next.selectedSpec,
+      selectedSpecDisplay: next.selectedSpecDisplay,
+      priceUnit: next.priceUnit,
+      displayPrice: next.displayPrice,
+      selectedSoldOut: next.selectedSoldOut,
+      selectedStockHint: next.selectedStockHint
     });
   },
 
@@ -220,7 +253,11 @@ Page({
   },
 
   addProduct() {
-    const { product, selectedSpec, quantity, displayPrice } = this.data;
+    const { product, selectedSpec, quantity, displayPrice, selectedSoldOut } = this.data;
+    if (selectedSoldOut) {
+      wx.showToast({ title: "该规格已售罄", icon: "none" });
+      return;
+    }
     addToCart({
       id: product.id,
       type: "tea",

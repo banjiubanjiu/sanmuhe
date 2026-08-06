@@ -665,6 +665,33 @@ function inventorySnapshot(item = {}) {
   };
 }
 
+function applySpecInventoryDelta(item, specLabel, deltaLocked, deltaSold, deltaStock = 0) {
+  const specs = Array.isArray(item.specs) ? item.specs.map((spec) => Object.assign({}, spec)) : [];
+  if (!specs.length) return null;
+  const label = String(specLabel || "").trim();
+  let index = specs.findIndex((spec) => String(spec.label || "").trim() === label);
+  if (index < 0) index = 0;
+  const current = specs[index] || {};
+  specs[index] = Object.assign({}, current, {
+    stock: Math.max(0, Math.max(0, Number(current.stock) || 0) + deltaStock),
+    lockedStock: Math.max(0, Math.max(0, Number(current.lockedStock) || 0) + deltaLocked),
+    soldStock: Math.max(0, Math.max(0, Number(current.soldStock) || 0) + deltaSold)
+  });
+  return {
+    specs,
+    stock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.stock) || 0), 0),
+    lockedStock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.lockedStock) || 0), 0),
+    soldStock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.soldStock) || 0), 0)
+  };
+}
+
+function usesSpecInventory(item, lock = {}) {
+  return lock.mode === "spec"
+    || (Array.isArray(item.specs)
+      && item.specs.some((spec) => spec && spec.stock !== undefined && spec.stock !== null && spec.stock !== "")
+      && !!lock.specLabel);
+}
+
 async function releaseInventory(locks, meta = {}) {
   for (const lock of locks || []) {
     if (!lock.docId || lock.quantity <= 0) {
@@ -672,7 +699,46 @@ async function releaseInventory(locks, meta = {}) {
     }
     try {
       const beforeDoc = await db.collection(lock.collection).doc(lock.docId).get();
-      const before = inventorySnapshot(beforeDoc.data || {});
+      const item = beforeDoc.data || {};
+      if (usesSpecInventory(item, lock)) {
+        const beforeSpec = (item.specs || []).find((spec) => String(spec.label || "").trim() === String(lock.specLabel || "").trim()) || {};
+        const before = {
+          stock: Math.max(0, Number(beforeSpec.stock) || 0),
+          lockedStock: Math.max(0, Number(beforeSpec.lockedStock) || 0),
+          soldStock: Math.max(0, Number(beforeSpec.soldStock) || 0)
+        };
+        const next = applySpecInventoryDelta(item, lock.specLabel, -lock.quantity, 0);
+        if (next) {
+          await db.collection(lock.collection).doc(lock.docId).update({
+            data: {
+              specs: next.specs,
+              stock: next.stock,
+              lockedStock: next.lockedStock,
+              soldStock: next.soldStock,
+              updatedAt: db.serverDate()
+            }
+          });
+        }
+        await writeInventoryLog({
+          collection: lock.collection,
+          docId: lock.docId,
+          itemId: lock.id || "",
+          itemName: lock.specLabel ? `${lock.name || ""} / ${lock.specLabel}` : (lock.name || ""),
+          type: meta.type || "release",
+          quantity: lock.quantity,
+          beforeStock: before.stock,
+          afterStock: before.stock,
+          beforeLockedStock: before.lockedStock,
+          afterLockedStock: Math.max(0, before.lockedStock - lock.quantity),
+          beforeSoldStock: before.soldStock,
+          afterSoldStock: before.soldStock,
+          orderNo: meta.orderNo || "",
+          operator: meta.operator || "system",
+          note: meta.note || "释放规格库存"
+        });
+        continue;
+      }
+      const before = inventorySnapshot(item);
       await db.collection(lock.collection).doc(lock.docId).update({
         data: {
           lockedStock: _.inc(-lock.quantity),
@@ -708,7 +774,46 @@ async function confirmInventory(locks, orderNo, operator = "admin") {
       continue;
     }
     const latest = await db.collection(lock.collection).doc(lock.docId).get();
-    const before = inventorySnapshot(latest.data || {});
+    const item = latest.data || {};
+    if (usesSpecInventory(item, lock)) {
+      const beforeSpec = (item.specs || []).find((spec) => String(spec.label || "").trim() === String(lock.specLabel || "").trim()) || {};
+      const before = {
+        stock: Math.max(0, Number(beforeSpec.stock) || 0),
+        lockedStock: Math.max(0, Number(beforeSpec.lockedStock) || 0),
+        soldStock: Math.max(0, Number(beforeSpec.soldStock) || 0)
+      };
+      const next = applySpecInventoryDelta(item, lock.specLabel, -lock.quantity, lock.quantity);
+      if (next) {
+        await db.collection(lock.collection).doc(lock.docId).update({
+          data: {
+            specs: next.specs,
+            stock: next.stock,
+            lockedStock: next.lockedStock,
+            soldStock: next.soldStock,
+            updatedAt: db.serverDate()
+          }
+        });
+      }
+      await writeInventoryLog({
+        collection: lock.collection,
+        docId: lock.docId,
+        itemId: lock.id || "",
+        itemName: lock.specLabel ? `${lock.name || ""} / ${lock.specLabel}` : (lock.name || ""),
+        type: "manual_confirm",
+        quantity: lock.quantity,
+        beforeStock: before.stock,
+        afterStock: before.stock,
+        beforeLockedStock: before.lockedStock,
+        afterLockedStock: Math.max(0, before.lockedStock - lock.quantity),
+        beforeSoldStock: before.soldStock,
+        afterSoldStock: before.soldStock + lock.quantity,
+        orderNo,
+        operator,
+        note: "管理员确认免支付订单，规格库存转为已售"
+      });
+      continue;
+    }
+    const before = inventorySnapshot(item);
     await db.collection(lock.collection).doc(lock.docId).update({
       data: {
         lockedStock: _.inc(-lock.quantity),
@@ -905,9 +1010,9 @@ async function readCollectionPage(collection, options = {}) {
   };
 }
 
-async function listCollection(collection, status, keyword, event, keywordFields = []) {
+async function listCollection(collection, status, keyword, event, keywordFields = [], extraWhere = {}) {
   await ensureCollection(collection);
-  const where = {};
+  const where = Object.assign({}, extraWhere || {});
   if (status && status !== "all") {
     where.status = status;
   }
@@ -3103,6 +3208,63 @@ async function adjustInventory(event, caller) {
   if (!existing) {
     return { ok: false, message: "商品不存在" };
   }
+  const specLabel = cleanText(event.specLabel || event.spec || "", 40);
+  const hasSpecStock = Array.isArray(existing.specs)
+    && existing.specs.some((spec) => spec && spec.stock !== undefined && spec.stock !== null && spec.stock !== "");
+  if (collection === "tea_products" && hasSpecStock) {
+    const targetLabel = specLabel
+      || String((existing.specs.find((spec) => Number(spec.stock) >= 0) || existing.specs[0] || {}).label || "").trim();
+    const beforeSpec = existing.specs.find((spec) => String(spec.label || "").trim() === targetLabel) || existing.specs[0] || {};
+    const before = {
+      stock: Math.max(0, Number(beforeSpec.stock) || 0),
+      lockedStock: Math.max(0, Number(beforeSpec.lockedStock) || 0),
+      soldStock: Math.max(0, Number(beforeSpec.soldStock) || 0)
+    };
+    const afterStock = before.stock + delta;
+    if (afterStock < before.lockedStock + before.soldStock) {
+      return { ok: false, message: "调整后该规格库存不能小于已锁定和已售数量" };
+    }
+    const next = applySpecInventoryDelta(existing, targetLabel, 0, 0, delta);
+    if (!next) {
+      return { ok: false, message: "规格库存更新失败" };
+    }
+    await db.collection(collection).doc(existing._id).update({
+      data: {
+        specs: next.specs,
+        stock: next.stock,
+        lockedStock: next.lockedStock,
+        soldStock: next.soldStock,
+        updatedAt: db.serverDate()
+      }
+    });
+    await writeInventoryLog({
+      collection,
+      docId: existing._id,
+      itemId: existing.id,
+      itemName: `${existing.name || existing.id} / ${targetLabel}`,
+      type: "manual_adjust",
+      quantity: delta,
+      beforeStock: before.stock,
+      afterStock,
+      beforeLockedStock: before.lockedStock,
+      afterLockedStock: before.lockedStock,
+      beforeSoldStock: before.soldStock,
+      afterSoldStock: before.soldStock,
+      operator: callerLabel(caller),
+      note: note + (targetLabel ? `（规格 ${targetLabel}）` : "")
+    });
+    await writeAdminAuditLog(caller, "adjustInventory", {
+      collection,
+      id,
+      specLabel: targetLabel,
+      delta,
+      beforeStock: before.stock,
+      afterStock,
+      note
+    });
+    return { ok: true, beforeStock: before.stock, afterStock, specLabel: targetLabel };
+  }
+
   const before = inventorySnapshot(existing);
   const afterStock = before.stock + delta;
   if (afterStock < before.lockedStock + before.soldStock) {
@@ -4180,7 +4342,24 @@ exports.main = async (event = {}, context = {}) => {
       return await markPreparingDone(event, caller);
     }
     if (action === "listReservations") {
-      const result = await listCollection("reservations", status, keyword, event, ["room", "roomName", "name", "customerName", "phone", "mobile", "status"]);
+      const day = cleanText(event.day || event.date, 20);
+      const extraWhere = {};
+      // 与小程序落库 day 字段对齐（YYYY-MM-DD）；用于当日台历/待办
+      if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        extraWhere.day = day;
+      }
+      // 当日工作台需要拉齐更多条，避免半页截断导致台历缺席
+      if (extraWhere.day && !event.pageSize) {
+        event = Object.assign({}, event, { pageSize: 100 });
+      }
+      const result = await listCollection(
+        "reservations",
+        status,
+        keyword,
+        event,
+        ["room", "roomName", "name", "customerName", "phone", "mobile", "status", "reservationNo"],
+        extraWhere
+      );
       await writeExportAuditLog(caller, event, action, "预约", result.page);
       return { ok: true, reservations: result.items, page: result.page };
     }

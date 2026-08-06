@@ -9,8 +9,8 @@ const cloudConfig = require("./cloud");
 // 与 content_blocks 轮播同一文件桶前缀
 const CLOUD_FILE_HOST = `cloud://${cloudConfig.envId}.636c-${cloudConfig.envId}-1458290161`;
 
-// 首页/核心展示默认本地，避免 ACL/云初始化导致破图
-const USE_CLOUD_ASSETS = false;
+// 业务图走云存储 mp-assets/（商品/轮播/茶室等）；图标仍本地
+const USE_CLOUD_ASSETS = true;
 
 function toLocalPath(path) {
   const raw = String(path || "").trim();
@@ -64,11 +64,10 @@ function localImage(path) {
     return "";
   }
   if (clean.indexOf("cloud://") === 0 || clean.indexOf("http") === 0) {
-    // 云端 content 已是 cloud:// 时：默认改回本地同源文件（若可映射）
+    // 已关闭云素材时，才把已知业务图映射回包内路径（离线兜底）
     if (!USE_CLOUD_ASSETS && clean.indexOf("cloud://") === 0) {
       const fileName = clean.split("?")[0].split("/").filter(Boolean).pop() || "";
       if (fileName && /\.(jpe?g|png|webp|gif)$/i.test(fileName)) {
-        // 常见：mp-assets/images/xxx 或 carousel 路径
         if (/home-carousel|home-brand|product-|event-|order-hero|profile-|reservation-|contact-/.test(fileName)) {
           return `/assets/images/${fileName}`;
         }

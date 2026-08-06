@@ -43,11 +43,20 @@ function cleanText(value, maxLength) {
 
 function normalizeTrustedSpecs(item) {
   if (Array.isArray(item.specs) && item.specs.length) {
-    return item.specs.map((spec) => ({
-      label: cleanText(spec.label || spec.unit, 40),
-      price: Math.max(0, Number(spec.price) || 0),
-      stockUnits: Math.max(1, Number(spec.stockUnits) || 1)
-    })).filter((spec) => spec.label);
+    return item.specs.map((spec) => {
+      const label = cleanText(spec.label || spec.unit, 40);
+      if (!label) return null;
+      const row = {
+        label,
+        price: Math.max(0, Number(spec.price) || 0)
+      };
+      if (spec.stock !== undefined && spec.stock !== null && spec.stock !== "") {
+        row.stock = Math.max(0, Number(spec.stock) || 0);
+        row.lockedStock = Math.max(0, Number(spec.lockedStock) || 0);
+        row.soldStock = Math.max(0, Number(spec.soldStock) || 0);
+      }
+      return row;
+    }).filter(Boolean);
   }
   return [];
 }
@@ -62,16 +71,18 @@ function resolveTeaSpec(trusted, unitLabel) {
   if (requested && legacySpecMultipliers[requested]) {
     return {
       label: requested,
-      price: Math.round((Number(trusted.price) || 0) * legacySpecMultipliers[requested]),
-      stockUnits: legacySpecMultipliers[requested]
+      price: Math.round((Number(trusted.price) || 0) * legacySpecMultipliers[requested])
     };
   }
   const fallbackUnit = cleanText(trusted.unit, 40) || "默认";
   return {
     label: fallbackUnit,
-    price: Math.max(0, Number(trusted.price) || 0),
-    stockUnits: 1
+    price: Math.max(0, Number(trusted.price) || 0)
   };
+}
+
+function specHasOwnStock(spec) {
+  return !!(spec && spec.stock !== undefined && spec.stock !== null && spec.stock !== "");
 }
 
 function getTrustedTeaChoices(trusted) {
@@ -131,16 +142,21 @@ function getTrustedPrice(type, trusted, options) {
   return resolveTeaSpec(trusted, options && options.unit).price;
 }
 
-function hasStockControl(item) {
-  return item && item.stock !== undefined && item.stock !== null && item.stock !== "";
+function hasStockControl(item, type, options) {
+  if (!item) return false;
+  if (type === "tea") {
+    const specs = item.specs || [];
+    if (specs.some(specHasOwnStock)) {
+      const resolved = resolveTeaSpec(item, options && options.unit);
+      return specHasOwnStock(resolved);
+    }
+  }
+  return item.stock !== undefined && item.stock !== null && item.stock !== "";
 }
 
-function getRequiredStockUnits(type, quantity, trusted, options) {
-  if (type === "tea") {
-    const resolved = resolveTeaSpec(trusted, options && options.unit);
-    return quantity * (resolved.stockUnits || 1);
-  }
-  return quantity;
+/** 每规格 1 件扣 1 库存；不再使用 stockUnits 换算 */
+function getRequiredStockUnits(type, quantity) {
+  return Math.max(1, Math.min(99, Number(quantity) || 1));
 }
 
 function getInventorySnapshot(item) {
@@ -152,6 +168,60 @@ function getInventorySnapshot(item) {
     lockedStock,
     soldStock,
     availableStock: Math.max(0, stock - lockedStock - soldStock)
+  };
+}
+
+function getSpecInventorySnapshot(item, specLabel) {
+  const specs = Array.isArray(item && item.specs) ? item.specs : [];
+  const hasPerSpec = specs.some(specHasOwnStock);
+  if (hasPerSpec) {
+    const label = cleanText(specLabel, 40);
+    const matched = specs.find((spec) => cleanText(spec.label, 40) === label) || specs[0];
+    if (!matched || !specHasOwnStock(matched)) {
+      return null;
+    }
+    const stock = Math.max(0, Number(matched.stock) || 0);
+    const lockedStock = Math.max(0, Number(matched.lockedStock) || 0);
+    const soldStock = Math.max(0, Number(matched.soldStock) || 0);
+    return {
+      mode: "spec",
+      label: cleanText(matched.label, 40),
+      stock,
+      lockedStock,
+      soldStock,
+      availableStock: Math.max(0, stock - lockedStock - soldStock)
+    };
+  }
+  const product = getInventorySnapshot(item);
+  return Object.assign({ mode: "product", label: cleanText(specLabel, 40) }, product);
+}
+
+function applySpecInventoryDelta(item, specLabel, deltaLocked, deltaSold) {
+  const specs = Array.isArray(item.specs)
+    ? item.specs.map((spec) => Object.assign({}, spec))
+    : [];
+  const label = cleanText(specLabel, 40);
+  let index = specs.findIndex((spec) => cleanText(spec.label, 40) === label);
+  if (index < 0) index = 0;
+  if (!specs[index]) {
+    return null;
+  }
+  const current = specs[index];
+  const nextLocked = Math.max(0, Math.max(0, Number(current.lockedStock) || 0) + deltaLocked);
+  const nextSold = Math.max(0, Math.max(0, Number(current.soldStock) || 0) + deltaSold);
+  specs[index] = Object.assign({}, current, {
+    stock: Math.max(0, Number(current.stock) || 0),
+    lockedStock: nextLocked,
+    soldStock: nextSold
+  });
+  const totalStock = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.stock) || 0), 0);
+  const totalLocked = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.lockedStock) || 0), 0);
+  const totalSold = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.soldStock) || 0), 0);
+  return {
+    specs,
+    stock: totalStock,
+    lockedStock: totalLocked,
+    soldStock: totalSold
   };
 }
 
@@ -326,19 +396,23 @@ async function sanitizeItems(items) {
       cleanItem.image = trusted.image;
     }
 
-    if (hasStockControl(trusted)) {
-      const requiredStock = getRequiredStockUnits(type, quantity, trusted, options);
-      const inventory = getInventorySnapshot(trusted);
-      if (inventory.availableStock < requiredStock) {
-        throw new Error(`${trusted.name} 库存不足`);
+    if (hasStockControl(trusted, type, options)) {
+      const requiredStock = getRequiredStockUnits(type, quantity);
+      const specLabel = type === "tea" ? cleanText(options && options.unit, 40) : "";
+      const inventory = type === "tea"
+        ? getSpecInventorySnapshot(trusted, specLabel || (trusted.specs && trusted.specs[0] && trusted.specs[0].label))
+        : getInventorySnapshot(trusted);
+      if (!inventory || inventory.availableStock < requiredStock) {
+        throw new Error(`${trusted.name}${specLabel ? `（${specLabel}）` : ""} 库存不足`);
       }
-      cleanItem.stockUnits = requiredStock;
       inventoryLocks.push({
         collection: trusted.collection,
         docId: trusted.docId,
         id,
         name: trusted.name,
-        quantity: requiredStock
+        quantity: requiredStock,
+        specLabel: inventory.label || specLabel || "",
+        mode: inventory.mode || "product"
       });
     }
 
@@ -361,7 +435,47 @@ async function lockInventory(locks, orderNo) {
     }
 
     const latest = await db.collection(lock.collection).doc(lock.docId).get();
-    const item = latest.data;
+    const item = latest.data || {};
+    const useSpec = lock.mode === "spec" || (Array.isArray(item.specs) && item.specs.some(specHasOwnStock));
+    if (useSpec) {
+      const inventory = getSpecInventorySnapshot(item, lock.specLabel);
+      if (!inventory || inventory.availableStock < lock.quantity) {
+        throw new Error(`${lock.name}${lock.specLabel ? `（${lock.specLabel}）` : ""} 库存不足`);
+      }
+      const next = applySpecInventoryDelta(item, inventory.label || lock.specLabel, lock.quantity, 0);
+      if (!next) {
+        throw new Error(`${lock.name} 规格库存更新失败`);
+      }
+      await db.collection(lock.collection).doc(lock.docId).update({
+        data: {
+          specs: next.specs,
+          stock: next.stock,
+          lockedStock: next.lockedStock,
+          soldStock: next.soldStock,
+          updatedAt: db.serverDate()
+        }
+      });
+      await writeInventoryLog({
+        collection: lock.collection,
+        docId: lock.docId,
+        itemId: lock.id || "",
+        itemName: lock.specLabel ? `${lock.name} / ${lock.specLabel}` : (lock.name || ""),
+        type: "order_lock",
+        quantity: lock.quantity,
+        beforeStock: inventory.stock,
+        afterStock: inventory.stock,
+        beforeLockedStock: inventory.lockedStock,
+        afterLockedStock: inventory.lockedStock + lock.quantity,
+        beforeSoldStock: inventory.soldStock,
+        afterSoldStock: inventory.soldStock,
+        orderNo,
+        operator: "createOrder",
+        note: "创建订单锁定规格库存"
+      });
+      applied.push(Object.assign({}, lock, { mode: "spec", specLabel: inventory.label || lock.specLabel }));
+      continue;
+    }
+
     const inventory = getInventorySnapshot(item);
     if (inventory.availableStock < lock.quantity) {
       throw new Error(`${lock.name} 库存不足`);
@@ -403,7 +517,42 @@ async function releaseInventory(locks) {
     }
     try {
       const latest = await db.collection(lock.collection).doc(lock.docId).get();
-      const inventory = getInventorySnapshot(latest.data || {});
+      const item = latest.data || {};
+      const useSpec = lock.mode === "spec" || (Array.isArray(item.specs) && item.specs.some(specHasOwnStock) && lock.specLabel);
+      if (useSpec) {
+        const inventory = getSpecInventorySnapshot(item, lock.specLabel) || getInventorySnapshot(item);
+        const next = applySpecInventoryDelta(item, lock.specLabel, -lock.quantity, 0);
+        if (next) {
+          await db.collection(lock.collection).doc(lock.docId).update({
+            data: {
+              specs: next.specs,
+              stock: next.stock,
+              lockedStock: next.lockedStock,
+              soldStock: next.soldStock,
+              updatedAt: db.serverDate()
+            }
+          });
+        }
+        await writeInventoryLog({
+          collection: lock.collection,
+          docId: lock.docId,
+          itemId: lock.id || "",
+          itemName: lock.specLabel ? `${lock.name} / ${lock.specLabel}` : (lock.name || ""),
+          type: "order_lock_rollback",
+          quantity: lock.quantity,
+          beforeStock: inventory.stock,
+          afterStock: inventory.stock,
+          beforeLockedStock: inventory.lockedStock,
+          afterLockedStock: Math.max(0, inventory.lockedStock - lock.quantity),
+          beforeSoldStock: inventory.soldStock,
+          afterSoldStock: inventory.soldStock,
+          orderNo: lock.orderNo || "",
+          operator: "createOrder",
+          note: "订单取消释放规格库存"
+        });
+        continue;
+      }
+      const inventory = getInventorySnapshot(item);
       await db.collection(lock.collection).doc(lock.docId).update({
         data: {
           lockedStock: _.inc(-lock.quantity),
@@ -863,7 +1012,42 @@ async function confirmPaidInventory(locks, orderNo) {
       continue;
     }
     const latest = await db.collection(lock.collection).doc(lock.docId).get();
-    const inventory = getInventorySnapshot(latest.data || {});
+    const item = latest.data || {};
+    const useSpec = lock.mode === "spec" || (Array.isArray(item.specs) && item.specs.some(specHasOwnStock) && lock.specLabel);
+    if (useSpec) {
+      const inventory = getSpecInventorySnapshot(item, lock.specLabel) || getInventorySnapshot(item);
+      const next = applySpecInventoryDelta(item, lock.specLabel, -lock.quantity, lock.quantity);
+      if (next) {
+        await db.collection(lock.collection).doc(lock.docId).update({
+          data: {
+            specs: next.specs,
+            stock: next.stock,
+            lockedStock: next.lockedStock,
+            soldStock: next.soldStock,
+            updatedAt: db.serverDate()
+          }
+        });
+      }
+      await writeInventoryLog({
+        collection: lock.collection,
+        docId: lock.docId,
+        itemId: lock.id || "",
+        itemName: lock.specLabel ? `${lock.name} / ${lock.specLabel}` : (lock.name || ""),
+        type: "order_paid",
+        quantity: lock.quantity,
+        beforeStock: inventory.stock,
+        afterStock: inventory.stock,
+        beforeLockedStock: inventory.lockedStock,
+        afterLockedStock: Math.max(0, inventory.lockedStock - lock.quantity),
+        beforeSoldStock: inventory.soldStock,
+        afterSoldStock: inventory.soldStock + lock.quantity,
+        orderNo,
+        operator: "createOrder",
+        note: "支付确认规格库存"
+      });
+      continue;
+    }
+    const inventory = getInventorySnapshot(item);
     await db.collection(lock.collection).doc(lock.docId).update({
       data: {
         lockedStock: _.inc(-lock.quantity),

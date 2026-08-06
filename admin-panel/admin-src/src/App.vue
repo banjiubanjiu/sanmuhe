@@ -360,6 +360,8 @@ const state = reactive({
   backupLogs: [],
   lastLoadedAt: {},
   reservations: [],
+  /** 茶室资源（预约台历行）；从 rooms 集合读取，非商品管理 */
+  roomResources: [],
   signups: [],
   customers: [],
   contentItems: [],
@@ -590,7 +592,7 @@ const emptyCatalogSpec = () => ({
   label: "",
   weight: "",
   price: 0,
-  stockUnits: 1
+  stock: 0
 });
 
 const emptyCatalog = () => ({
@@ -808,7 +810,7 @@ function selectAfterSale(order) {
 
 function selectReservation(record) {
   state.selectedReservationId = record?._id || "";
-  openDrawer("reservation");
+  // 预约工作台用右侧主从详情，不再弹全屏遮罩抽屉
 }
 
 function selectSignup(record) {
@@ -876,24 +878,254 @@ const accessBlockHint = computed(() => {
     ? "该账号已被停用，后台不会继续读取经营数据。请使用仍在启用状态的管理员账号重新登录。"
     : "该账号没有任何后台模块权限，无法查看订单、预约、用户或系统配置。";
 });
+function parseTimeToMinutes(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return NaN;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function formatMinutesToTime(total) {
+  const safe = Math.max(0, Number(total) || 0);
+  const hour = Math.floor(safe / 60);
+  const minute = safe % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/** 台历时刻列表：读设置里的可约时段与步长 */
+const reservationBoardSlotTimes = computed(() => {
+  const settings = state.settings || {};
+  const open = parseTimeToMinutes(settings.bookingOpenTime || "10:00");
+  const close = parseTimeToMinutes(settings.bookingCloseTime || "21:30");
+  const step = Math.max(15, Math.min(60, Number(settings.bookingSlotStepMinutes) || 30));
+  if (!Number.isFinite(open) || !Number.isFinite(close) || close <= open) {
+    return ["10:00", "12:30", "15:00", "17:30", "20:00"];
+  }
+  const times = [];
+  for (let m = open; m < close; m += step) {
+    times.push(formatMinutesToTime(m));
+  }
+  return times.length ? times : ["10:00"];
+});
+
+const reservationBoardColumnStyle = computed(() => {
+  const n = Math.max(1, reservationBoardSlotTimes.value.length);
+  return {
+    gridTemplateColumns: `118px repeat(${n}, minmax(58px, 1fr))`
+  };
+});
+
+function reservationTimeRange(item = {}) {
+  const start = parseTimeToMinutes(item.time || item.slot);
+  let end = parseTimeToMinutes(item.endTime);
+  if (!Number.isFinite(end) && Number.isFinite(start)) {
+    const dur = Number(item.durationMinutes)
+      || Number(state.settings?.bookingMinDurationMinutes)
+      || 120;
+    end = start + Math.max(30, dur);
+  }
+  return { start, end };
+}
+
+function reservationSlotLabel(item = {}) {
+  const start = String(item.time || item.slot || "").trim();
+  const end = String(item.endTime || "").trim();
+  if (start && end) return `${start}–${end}`;
+  return start || end || "—";
+}
+
+function reservationPayLabel(item = {}) {
+  const pay = String(item.payStatus || "").trim();
+  const map = {
+    paid: "已支付",
+    pending: "待支付",
+    refunding: "退款中",
+    refunded: "已退款",
+    partial_refunded: "部分退款",
+    cancelled: "已取消支付"
+  };
+  if (map[pay]) return map[pay];
+  if (pay) return pay;
+  if (/待支付/.test(item.status || "")) return "待支付";
+  if (/已确认|已完成/.test(item.status || "")) return "已支付";
+  return "—";
+}
+
+/** 当日台历：按茶室分行，按 time–endTime 与格子区间重叠标占用 */
 const reservationCalendarRows = computed(() => {
   const day = state.reservationCalendarDate;
-  const slots = ["10:00", "12:30", "15:00", "17:30", "20:00"];
+  const slotTimes = reservationBoardSlotTimes.value;
+  const step = Math.max(15, Math.min(60, Number(state.settings?.bookingSlotStepMinutes) || 30));
+  const slotMins = slotTimes.map(parseTimeToMinutes);
+
   const rows = {};
-  state.reservations
-    .filter((item) => (item.day || item.date || "").slice(0, 10) === day && item.status !== "已取消")
+  const ensureRow = (key, roomId = "") => {
+    if (!rows[key]) {
+      rows[key] = {
+        room: key,
+        roomId: roomId || "",
+        slots: slotTimes.map((time, index) => ({
+          time,
+          startMins: slotMins[index],
+          endMins: slotMins[index] + step,
+          busy: false,
+          record: null,
+          records: []
+        }))
+      };
+    }
+    return rows[key];
+  };
+
+  (state.roomResources || []).forEach((room) => {
+    if (!room || room.removed === true) return;
+    if (room.visible === false) return;
+    const name = String(room.name || room.title || room.id || "茶室").trim();
+    ensureRow(name, room.id);
+  });
+
+  (state.reservations || [])
+    .filter((item) => (item.day || item.date || "").slice(0, 10) === day && !/已取消/.test(item.status || ""))
     .forEach((item) => {
-      const room = item.roomName || item.room || "未分配茶室";
-      if (!rows[room]) {
-        rows[room] = { room, slots: slots.map((slot) => ({ time: slot, record: null })) };
-      }
-      const target = rows[room].slots.find((slot) => slot.time === item.time || slot.time === item.slot);
-      if (target) {
-        target.record = item;
-      }
+      const roomKey = String(item.roomName || item.room || "未分配茶室").trim() || "未分配茶室";
+      const row = ensureRow(roomKey, item.roomId || "");
+      const { start, end } = reservationTimeRange(item);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+      row.slots.forEach((slot) => {
+        if (start < slot.endMins && end > slot.startMins) {
+          slot.busy = true;
+          slot.records.push(item);
+          if (!slot.record) slot.record = item;
+        }
+      });
     });
+
   return Object.values(rows);
 });
+
+/** 当日列表（与台历同日） */
+const reservationsForCalendarDay = computed(() => {
+  const day = state.reservationCalendarDate;
+  return (state.reservations || []).filter((item) => (item.day || item.date || "").slice(0, 10) === day);
+});
+
+const reservationDayStats = computed(() => {
+  const rows = reservationsForCalendarDay.value;
+  const count = (re) => rows.filter((item) => re.test(String(item.status || ""))).length;
+  return {
+    total: rows.length,
+    pendingPay: count(/待支付/),
+    confirmed: count(/已确认/),
+    completed: count(/已完成/),
+    noshow: count(/未到店/),
+    cancelled: count(/已取消/),
+    abnormal: count(/异常/)
+  };
+});
+
+/** 资源台历：横跨事件条（非格子墙） */
+const reservationTimelineModel = computed(() => {
+  const open = parseTimeToMinutes(state.settings?.bookingOpenTime || "10:00");
+  const close = parseTimeToMinutes(state.settings?.bookingCloseTime || "21:30");
+  const openSafe = Number.isFinite(open) ? open : 10 * 60;
+  const closeSafe = Number.isFinite(close) && close > openSafe ? close : openSafe + 11 * 60 + 30;
+  const span = Math.max(60, closeSafe - openSafe);
+  const hourMarks = [];
+  for (let m = openSafe; m <= closeSafe; m += 60) {
+    hourMarks.push({
+      time: formatMinutesToTime(m),
+      leftPct: ((m - openSafe) / span) * 100
+    });
+  }
+
+  const day = state.reservationCalendarDate;
+  const dayItems = (state.reservations || []).filter(
+    (item) => (item.day || item.date || "").slice(0, 10) === day && !/已取消/.test(item.status || "")
+  );
+
+  const rowMap = {};
+  const ensure = (name, roomId = "") => {
+    const key = name || "茶室";
+    if (!rowMap[key]) rowMap[key] = { room: key, roomId, events: [] };
+    return rowMap[key];
+  };
+
+  (state.roomResources || []).forEach((room) => {
+    if (!room || room.removed === true || room.visible === false) return;
+    ensure(String(room.name || room.title || room.id || "茶室").trim(), room.id);
+  });
+
+  dayItems.forEach((item) => {
+    const roomName = String(item.roomName || item.room || "未分配茶室").trim() || "未分配茶室";
+    const row = ensure(roomName, item.roomId || "");
+    const { start, end } = reservationTimeRange(item);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+    const left = ((Math.max(start, openSafe) - openSafe) / span) * 100;
+    const right = ((Math.min(end, closeSafe) - openSafe) / span) * 100;
+    const width = Math.max(2.5, right - left);
+    row.events.push({
+      id: item._id,
+      record: item,
+      leftPct: Math.max(0, Math.min(100, left)),
+      widthPct: Math.max(2.5, Math.min(100 - left, width)),
+      label: `${maskName(item.name || item.customerName) || "访客"} · ${reservationSlotLabel(item)}`,
+      status: item.status || "",
+      tone: statusTone(item.status)
+    });
+  });
+
+  return {
+    openLabel: formatMinutesToTime(openSafe),
+    closeLabel: formatMinutesToTime(closeSafe),
+    hourMarks,
+    rows: Object.values(rowMap)
+  };
+});
+
+/** 表格数据：当日 + 状态筛选（状态在客户端再滤一层，配合 workflow） */
+const reservationTableRows = computed(() => {
+  let rows = reservationsForCalendarDay.value.slice();
+  const status = String(filters.reservationStatus || "").trim();
+  if (status) {
+    rows = rows.filter((item) => String(item.status || "") === status);
+  }
+  const keyword = String(filters.reservationKeyword || "").trim().toLowerCase();
+  if (keyword) {
+    rows = rows.filter((item) => {
+      const hay = [
+        item.roomName,
+        item.room,
+        item.name,
+        item.customerName,
+        item.phone,
+        item.mobile,
+        item.reservationNo,
+        item.status
+      ].join(" ").toLowerCase();
+      return hay.includes(keyword);
+    });
+  }
+  // 待办优先：待支付 > 已确认 > 其他
+  const rank = (s) => {
+    if (/待支付/.test(s)) return 0;
+    if (/异常/.test(s)) return 1;
+    if (/已确认/.test(s)) return 2;
+    if (/已完成/.test(s)) return 3;
+    return 4;
+  };
+  rows.sort((a, b) => {
+    const d = rank(String(a.status || "")) - rank(String(b.status || ""));
+    if (d !== 0) return d;
+    return parseTimeToMinutes(a.time || a.slot) - parseTimeToMinutes(b.time || b.slot);
+  });
+  return rows;
+});
+
+function setReservationStatusFilter(status) {
+  filters.reservationStatus = status || "";
+  // 数据已按日拉取，状态筛选在客户端即可
+}
+
 const dashboardInsight = computed(() => {
   const summary = state.dashboard?.summary || {};
   const revenue = Number(summary.monthRevenue || summary.totalRevenue || 0);
@@ -1187,15 +1419,25 @@ function normalizeCatalogSpecs(raw) {
       if (!item || typeof item !== "object") return null;
       const label = String(item.label || item.unit || "").trim();
       if (!label) return null;
+      // 兼容旧 stockUnits：若无独立 stock，不当作库存
+      const stock = item.stock !== undefined && item.stock !== null && item.stock !== ""
+        ? Math.max(0, Number(item.stock) || 0)
+        : 0;
       return {
         label: label.slice(0, 40),
         weight: String(item.weight || "").trim().slice(0, 20),
         price: Math.max(0, Number(item.price) || 0),
-        stockUnits: Math.max(1, Number(item.stockUnits) || 1)
+        stock
       };
     })
     .filter(Boolean)
     .slice(0, 12);
+}
+
+function syncCatalogStockFromSpecs() {
+  if (!isTeaProductsCollection()) return;
+  const specs = normalizeCatalogSpecs(forms.catalog.specs);
+  forms.catalog.stock = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.stock) || 0), 0);
 }
 
 function addCatalogSpec() {
@@ -1222,6 +1464,7 @@ function syncCatalogPriceFromSpecs() {
   if (!specs.length) return;
   forms.catalog.price = specs[0].price;
   if (specs[0].label) forms.catalog.unit = specs[0].label;
+  syncCatalogStockFromSpecs();
 }
 
 /** 当前商品渠道下的可配置类别（按 sort；已删除不展示） */
@@ -1586,14 +1829,15 @@ function buildWorkflowSteps(tab) {
     ];
   }
   if (tab === "reservations") {
-    const occupied = reservationCalendarRows.value.reduce((sum, row) => sum + row.slots.filter((slot) => slot.record).length, 0);
+    const s = reservationDayStats.value;
+    const day = state.reservationCalendarDate;
     return [
-      workflowStep("日历占用", occupied, state.reservationCalendarDate, "focus"),
-      workflowStep("待支付", countWhere(state.reservations, (item) => hasStatus(item, [/待支付/])), "限时待付", "warn"),
-      workflowStep("已确认", countWhere(state.reservations, (item) => hasStatus(item, [/已确认/])), "等待到店", "good"),
-      workflowStep("未到店", countWhere(state.reservations, (item) => hasStatus(item, [/未到店/])), "爽约", "warn"),
-      workflowStep("已完成", countWhere(state.reservations, (item) => hasStatus(item, [/已完成/])), "已履约", "good"),
-      workflowStep("已取消", countWhere(state.reservations, (item) => hasStatus(item, [/已取消/])), "需保留原因", "neutral")
+      workflowStep("当日预约", s.total, day, "focus"),
+      workflowStep("待支付", s.pendingPay, "限时待付", "warn"),
+      workflowStep("已确认", s.confirmed, "等待到店", "good"),
+      workflowStep("未到店", s.noshow, "爽约", "warn"),
+      workflowStep("已完成", s.completed, "已履约", "good"),
+      workflowStep("已取消", s.cancelled, "已释放时段", "neutral")
     ];
   }
   if (tab === "signups") {
@@ -1801,6 +2045,77 @@ function isSafePagePath(value) {
 function isUrlish(value) {
   const text = String(value || "").trim();
   return !text || text.startsWith("cloud://") || text.startsWith("http://") || text.startsWith("https://") || text.startsWith("/assets/");
+}
+
+/**
+ * 茶叶年份：年份面板（与常见 DatePicker「选年」一致）
+ * 范围覆盖陈茶（1950 起）～明年；可清空。
+ */
+const TEA_YEAR_MIN = 1950;
+const TEA_YEAR_MAX = new Date().getFullYear() + 1;
+const yearPickerOpen = ref(false);
+const yearPickerDecade = ref(Math.floor(new Date().getFullYear() / 10) * 10);
+
+function decadeStartForYear(yearValue) {
+  const n = Number(yearValue);
+  if (Number.isFinite(n) && n >= TEA_YEAR_MIN && n <= TEA_YEAR_MAX) {
+    return Math.floor(n / 10) * 10;
+  }
+  return Math.floor(new Date().getFullYear() / 10) * 10;
+}
+
+const yearPickerCells = computed(() => {
+  const start = yearPickerDecade.value;
+  // 一屏 12 格：上一年 + 本十年 10 年 + 下一年（边缘可点到邻十年）
+  const cells = [];
+  for (let i = -1; i <= 10; i += 1) {
+    const y = start + i;
+    cells.push({
+      year: y,
+      label: String(y),
+      inDecade: i >= 0 && i <= 9,
+      disabled: y < TEA_YEAR_MIN || y > TEA_YEAR_MAX
+    });
+  }
+  return cells;
+});
+
+const yearPickerRangeLabel = computed(() => {
+  const start = yearPickerDecade.value;
+  return `${start} – ${start + 9}`;
+});
+
+function openYearPicker() {
+  yearPickerDecade.value = decadeStartForYear(forms.catalog.year);
+  yearPickerOpen.value = true;
+}
+
+function closeYearPicker() {
+  yearPickerOpen.value = false;
+}
+
+function toggleYearPicker() {
+  if (yearPickerOpen.value) closeYearPicker();
+  else openYearPicker();
+}
+
+function shiftYearPickerDecade(delta) {
+  const next = yearPickerDecade.value + delta;
+  const minDecade = Math.floor(TEA_YEAR_MIN / 10) * 10;
+  const maxDecade = Math.floor(TEA_YEAR_MAX / 10) * 10;
+  yearPickerDecade.value = Math.min(maxDecade, Math.max(minDecade, next));
+}
+
+function selectTeaYear(year) {
+  if (year === "" || year === null || year === undefined) {
+    forms.catalog.year = "";
+    closeYearPicker();
+    return;
+  }
+  const y = Number(year);
+  if (!Number.isFinite(y) || y < TEA_YEAR_MIN || y > TEA_YEAR_MAX) return;
+  forms.catalog.year = String(y);
+  closeYearPicker();
 }
 
 function assertText(value, message) {
@@ -2219,10 +2534,21 @@ async function batchCatalogShelf(action) {
   });
 }
 
+/** 后台预览：cloud:// 转公有 CDN；本地 /assets 走相对路径 */
 function displayImage(src) {
-  if (!src || src.startsWith("cloud://")) return "";
-  if (src.startsWith("/assets/")) return `..${src}`;
-  return src;
+  const raw = String(src || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (raw.startsWith("/assets/")) return `..${raw}`;
+  if (raw.startsWith("cloud://")) {
+    // cloud://envId.bucket/path -> https://bucket.tcb.qcloud.la/path
+    const slash = raw.indexOf("/", "cloud://".length);
+    if (slash > 0) {
+      const filePath = raw.slice(slash + 1);
+      return `https://636c-cloudbase-d2gq023qn50e9d82f-1458290161.tcb.qcloud.la/${filePath}`;
+    }
+  }
+  return raw;
 }
 
 function formatDate(value) {
@@ -3229,6 +3555,7 @@ function openRoomsCatalog() {
 
 function closeCatalogDrawer() {
   state.catalogDrawerOpen = false;
+  closeYearPicker();
 }
 
 function resetCatalog() {
@@ -3241,17 +3568,19 @@ function resetCatalog() {
   const defaultCategory = categoryPresetsForCollection()[0]
     || managedCategoryNames.value[0]
     || "";
+  const cloudImg = (name) =>
+    `cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/${name}`;
   const defaultImage = isDrinksCollection()
-    ? "/assets/images/product-tea-001-organic-black.jpg"
+    ? cloudImg("product-tea-001-organic-black.jpg")
     : state.collection === "rooms"
-      ? "/assets/images/reservation-hero.jpg"
-      : "/assets/images/product-tea-001-organic-black.jpg";
+      ? cloudImg("reservation-hero.jpg")
+      : cloudImg("product-tea-001-organic-black.jpg");
   Object.assign(forms.catalog, emptyCatalog(), {
     id: nextId,
     status: baseStatus,
     category: defaultCategory,
     categoryId: "",
-    groupName: isDrinksCollection() ? "本席可选" : "",
+    groupName: "",
     subtitle: "",
     shelfStatus: "on",
     image: defaultImage,
@@ -3285,7 +3614,7 @@ function editCatalog(item) {
           label: String(item.unit || "").trim() || "默认规格",
           weight: "",
           price: Math.max(0, Number(item.price) || 0),
-          stockUnits: 1
+          stock: Math.max(0, Number(item.stock) || 0)
         }])
       : [],
     teaGroups: [],
@@ -3310,7 +3639,7 @@ async function saveCatalog() {
   try {
     assertText(forms.catalog.id, "请填写资料 ID");
     if (state.collection !== "events") assertText(forms.catalog.name || forms.catalog.title, "请填写名称");
-    if (!isDrinksCollection()) {
+    if (!isDrinksCollection() && !isTeaProductsCollection()) {
       assertNonNegative(forms.catalog.price, "价格不能为负数");
       assertNonNegative(forms.catalog.stock, "库存不能为负数");
     }
@@ -3328,10 +3657,12 @@ async function saveCatalog() {
       if (!specs.length) throw new Error("请至少填写 1 个销售规格");
       for (const spec of specs) {
         if (spec.price < 0) throw new Error("规格价格不能为负数");
-        if (spec.stockUnits < 1) throw new Error("规格扣库存单位至少为 1");
+        if (spec.stock < 0) throw new Error("规格库存不能为负数");
       }
       forms.catalog.specs = specs;
       syncCatalogPriceFromSpecs();
+      syncCatalogStockFromSpecs();
+      forms.catalog.year = String(forms.catalog.year || "").trim();
     }
     if (isDrinksCollection()) {
       syncDrinkCategoryIdFromName();
@@ -3342,7 +3673,7 @@ async function saveCatalog() {
         if (!tier) throw new Error("请先在「管理分类」创建档位，再添加该档位下的茶品");
         forms.catalog.categoryId = tier.id;
       }
-      forms.catalog.groupName = String(forms.catalog.groupName || "本席可选").trim() || "本席可选";
+      forms.catalog.groupName = String(forms.catalog.groupName || "").trim();
       forms.catalog.price = 0;
       forms.catalog.stock = 0;
       delete forms.catalog.teaGroups;
@@ -3387,7 +3718,7 @@ async function saveCatalog() {
   } else if (isDrinksCollection()) {
     payload.category = String(payload.category || "").trim();
     payload.categoryId = String(payload.categoryId || "").trim();
-    payload.groupName = String(payload.groupName || "本席可选").trim() || "本席可选";
+    payload.groupName = String(payload.groupName || "").trim();
     payload.subtitle = String(payload.subtitle || "").trim();
     payload.price = 0;
     delete payload.specs;
@@ -3865,17 +4196,55 @@ async function downloadBackup(log) {
   });
 }
 
+async function ensureReservationWorkspaceContext() {
+  if (!state.settings || !Object.keys(state.settings).length || !state.settings.bookingOpenTime) {
+    try {
+      const result = await callFunction("manageOperations", { action: "getSettings" });
+      state.settings = Object.assign({}, state.settings || {}, result.settings || {});
+    } catch (_error) {
+      // 台历回退默认 10:00–21:30
+    }
+  }
+  try {
+    const roomsResult = await callFunction("manageCatalog", {
+      action: "list",
+      collection: "rooms",
+      includeHidden: true
+    });
+    state.roomResources = (roomsResult.items || []).filter((item) => item && item.removed !== true);
+  } catch (_error) {
+    state.roomResources = state.roomResources || [];
+  }
+}
+
 async function loadReservations() {
   await withLoading("读取预约", async () => {
+    await ensureReservationWorkspaceContext();
+    const page = pagePayload("reservations");
     const result = await callFunction("manageOperations", {
       action: "listReservations",
       status: filters.reservationStatus,
       keyword: filters.reservationKeyword,
-      ...pagePayload("reservations")
+      day: state.reservationCalendarDate,
+      // 当日台历需要尽可能全量
+      page: page.page || 1,
+      pageSize: Math.max(Number(page.pageSize) || 20, 100)
     });
     state.reservations = result.reservations || [];
     setPageMeta("reservations", result.page);
-    state.selectedReservationId = state.reservations[0]?._id || "";
+    const dayRows = (state.reservations || []).filter(
+      (item) => (item.day || item.date || "").slice(0, 10) === state.reservationCalendarDate
+    );
+    if (state.selectedReservationId) {
+      const still = dayRows.some((item) => item._id === state.selectedReservationId);
+      if (!still) state.selectedReservationId = dayRows[0]?._id || "";
+    } else if (dayRows.length) {
+      // 默认选中当日第一条待办，右侧详情立刻可用
+      const pending = dayRows.find((item) => /待支付|已确认|异常/.test(String(item.status || "")));
+      state.selectedReservationId = (pending || dayRows[0])._id;
+    } else {
+      state.selectedReservationId = "";
+    }
   });
 }
 
@@ -3883,6 +4252,29 @@ function shiftReservationCalendar(step) {
   const date = new Date(`${state.reservationCalendarDate}T00:00:00`);
   date.setDate(date.getDate() + step);
   state.reservationCalendarDate = date.toISOString().slice(0, 10);
+  resetPageAndLoad("reservations", loadReservations);
+}
+
+function jumpReservationCalendarToday() {
+  state.reservationCalendarDate = new Date().toISOString().slice(0, 10);
+  resetPageAndLoad("reservations", loadReservations);
+}
+
+function openReservationSlot(slot) {
+  const record = slot?.record || (slot?.records && slot.records[0]);
+  if (record) selectReservation(record);
+}
+
+function reservationPrimaryHint(row) {
+  if (!row) return "";
+  const status = row.status || "";
+  if (/待支付/.test(status)) return "顾客尚未支付，超时将自动释放时段。";
+  if (/已确认/.test(status)) return "已付费待到店：可标记完成或未到店；取消须选择退款策略。";
+  if (/异常/.test(status)) return "支付或状态异常，请核对后退款或恢复。";
+  if (/已完成/.test(status)) return "服务已完成；如需售后可发起退款。";
+  if (/未到店/.test(status)) return "终态：未到店（预付款默认不退，除非售后退款策略另议）。";
+  if (/已取消/.test(status)) return "已取消，时段已释放。";
+  return "查看明细并按状态操作。";
 }
 
 async function loadSignups() {
@@ -5005,8 +5397,9 @@ function emptyTitle(tab = state.activeTab) {
       : "暂无订单",
     afterSales: "暂无售后记录",
     inventory: "暂无库存流水",
-    reservations: "当天暂无预约",
+    reservations: "当日暂无预约",
     signups: "暂无活动报名",
+    rooms: "暂无茶室资源",
     customers: "暂无用户记录",
     content: "暂无运营内容",
     marketing: "暂无营销记录",
@@ -5028,7 +5421,8 @@ function emptyHint(tab = state.activeTab) {
       : "新订单支付或提交后会出现在这里。",
     afterSales: "订单转入售后后，可在这里处理退款状态闭环。",
     inventory: "订单锁定、支付扣减、取消释放和人工调整会自动沉淀流水。",
-    reservations: "选择其他日期，或等待小程序端提交预约。",
+    reservations: "可切换日期，或检查小程序是否已有支付/提交。也可先配置茶室资源与预约计价。",
+    rooms: "在「茶室资源」维护可约茶席；计价在「设置 → 预约计价」。",
     signups: "活动报名、到场和未到场核销会集中展示。",
     customers: "有订单、预约或报名后会自动形成用户画像。",
     content: "新建轮播、卡片或公告后会同步给小程序端。",
@@ -5456,7 +5850,7 @@ onBeforeUnmount(() => {
               <EmptyState
                 v-if="(state.dashboard?.roomBoard || []).length === 0"
                 title="暂无茶室配置"
-                hint="在商品管理中配置茶室后，这里会显示今日时段。"
+                hint="在「茶室资源」维护可约茶席后，这里会显示今日时段。"
                 action-label="配置茶室"
                 @action="openRoomsCatalog"
               />
@@ -5703,7 +6097,7 @@ onBeforeUnmount(() => {
                 {{ isDrinksCollection()
                   ? "堂饮：分类＝点单左侧档位（初见/知味…），本页维护档位下的茶品。档位价格请点「管理档位」。"
                   : isTeaProductsCollection()
-                    ? "商城茶叶：先选类别（红茶/白茶…），再填规格与主图。类别可在「管理分类」配置。"
+                    ? "标 * 为必填：名称、类别、上架状态、销售规格（名/售价/库存）、主图。产地·年份·口感可空。"
                     : state.collection === "rooms"
                       ? "资源字段：名称、容量、说明、主图、可约状态。计价请到「设置管理 → 预约计价」。"
                       : "填写前台展示与履约所需信息后保存。" }}
@@ -5714,64 +6108,112 @@ onBeforeUnmount(() => {
 
                 <!-- ===== 商城茶叶 ===== -->
                 <template v-if="isTeaProductsCollection()">
-                  <label><span>名称</span><input v-model="forms.catalog.name" required placeholder="例如：有机红茶"></label>
                   <label>
-                    <span>类别</span>
+                    <span>名称 <em class="req" aria-label="必填">*</em></span>
+                    <input v-model="forms.catalog.name" required placeholder="例如：有机红茶">
+                  </label>
+                  <label>
+                    <span>类别 <em class="req" aria-label="必填">*</em></span>
                     <select v-model="catalogCategoryChoice" class="catalog-select-input" required @change="onCatalogCategoryChoiceChange">
                       <option v-for="cat in catalogCategorySelectOptions" :key="cat" :value="cat">{{ cat }}</option>
                       <option :value="SELECT_CUSTOM_VALUE">自定义…</option>
                     </select>
                   </label>
                   <label v-if="catalogCategoryChoice === SELECT_CUSTOM_VALUE">
-                    <span>自定义类别</span>
+                    <span>自定义类别 <em class="req" aria-label="必填">*</em></span>
                     <input v-model="forms.catalog.category" required placeholder="输入新类别名，保存时自动登记">
                   </label>
                   <label>
-                    <span>上架状态</span>
-                    <select v-model="forms.catalog.shelfStatus" class="catalog-select-input" @change="applyCatalogShelfStatus(forms.catalog.shelfStatus)">
+                    <span>上架状态 <em class="req" aria-label="必填">*</em></span>
+                    <select v-model="forms.catalog.shelfStatus" class="catalog-select-input" required @change="applyCatalogShelfStatus(forms.catalog.shelfStatus)">
                       <option v-for="opt in CATALOG_SHELF_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                     </select>
                   </label>
-                  <label><span>库存</span><input v-model.number="forms.catalog.stock" type="number" min="0" required></label>
-                  <label><span>产地</span><input v-model="forms.catalog.origin" placeholder="前台详情展示"></label>
-                  <label><span>年份</span><input v-model="forms.catalog.year" placeholder="有则展示，可空"></label>
+                  <label><span>产地</span><input v-model="forms.catalog.origin" placeholder="选填，前台详情展示"></label>
+                  <div class="year-picker-field">
+                    <span>年份</span>
+                    <div class="year-picker" :class="{ open: yearPickerOpen }">
+                      <button
+                        type="button"
+                        class="year-picker-trigger catalog-select-input"
+                        :aria-expanded="yearPickerOpen"
+                        aria-haspopup="dialog"
+                        @click="toggleYearPicker"
+                      >
+                        {{ forms.catalog.year || "选择年份（可空）" }}
+                      </button>
+                      <div v-if="yearPickerOpen" class="year-picker-panel" role="dialog" aria-label="选择年份">
+                        <div class="year-picker-header">
+                          <button type="button" class="year-picker-nav" aria-label="上一个十年" @click="shiftYearPickerDecade(-10)">‹</button>
+                          <strong>{{ yearPickerRangeLabel }}</strong>
+                          <button type="button" class="year-picker-nav" aria-label="下一个十年" @click="shiftYearPickerDecade(10)">›</button>
+                        </div>
+                        <div class="year-picker-grid">
+                          <button
+                            v-for="cell in yearPickerCells"
+                            :key="cell.year"
+                            type="button"
+                            class="year-picker-cell"
+                            :class="{
+                              muted: !cell.inDecade,
+                              active: String(forms.catalog.year) === cell.label,
+                              disabled: cell.disabled
+                            }"
+                            :disabled="cell.disabled"
+                            @click="selectTeaYear(cell.year)"
+                          >{{ cell.label }}</button>
+                        </div>
+                        <div class="year-picker-footer">
+                          <button type="button" class="ghost-button small" @click="selectTeaYear('')">不填</button>
+                          <button type="button" class="ghost-button small" @click="closeYearPicker">关闭</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   <div class="wide specs-editor">
                     <div class="specs-editor-head">
-                      <strong>销售规格</strong>
+                      <strong>销售规格 <em class="req" aria-label="必填">*</em></strong>
                       <button type="button" class="ghost-button small" @click="addCatalogSpec">＋ 添加规格</button>
                     </div>
-                    <p class="specs-editor-hint">商城选规格与计价。至少 1 条；首条为列表展示价。</p>
+                    <p class="specs-editor-hint">至少 1 条。规格名 / 售价 / 库存为必填；净含量选填。每个规格独立库存，首条为列表展示价。</p>
                     <table class="specs-table">
                       <thead>
-                        <tr><th>规格名</th><th>净含量</th><th>售价</th><th>扣库存</th><th></th></tr>
+                        <tr>
+                          <th>规格名 <em class="req">*</em></th>
+                          <th>净含量</th>
+                          <th>售价 <em class="req">*</em></th>
+                          <th>库存 <em class="req">*</em></th>
+                          <th></th>
+                        </tr>
                       </thead>
                       <tbody>
                         <tr v-for="(spec, index) in forms.catalog.specs" :key="`spec-${index}`">
                           <td><input v-model="spec.label" placeholder="一泡 / 50g" required @change="syncCatalogPriceFromSpecs"></td>
                           <td><input v-model="spec.weight" placeholder="5g"></td>
                           <td><input v-model.number="spec.price" type="number" min="0" step="0.01" required @change="syncCatalogPriceFromSpecs"></td>
-                          <td><input v-model.number="spec.stockUnits" type="number" min="1" step="1"></td>
+                          <td><input v-model.number="spec.stock" type="number" min="0" step="1" required @change="syncCatalogStockFromSpecs"></td>
                           <td>
                             <button v-if="forms.catalog.specs.length > 1" type="button" class="ghost-button small danger-text" @click="removeCatalogSpec(index)">删</button>
                           </td>
                         </tr>
                       </tbody>
                     </table>
+                    <p class="specs-editor-hint">合计可售库存：{{ forms.catalog.stock || 0 }}</p>
                   </div>
 
                   <label class="file-picker wide">
-                    <span>主图</span>
+                    <span>主图 <em class="req" aria-label="必填">*</em></span>
                     <Upload :size="17" :stroke-width="1.8" />
                     <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
-                    <em>{{ uploadState.catalog || "列表与详情主图，建议 1:1" }}</em>
+                    <em>{{ uploadState.catalog || "必填；列表与详情主图，建议 1:1" }}</em>
                   </label>
                   <div class="wide catalog-image-preview">
                     <img v-if="displayImage(forms.catalog.image)" :src="displayImage(forms.catalog.image)" alt="商品主图预览">
                     <div v-else-if="forms.catalog.image && String(forms.catalog.image).startsWith('cloud://')" class="catalog-image-placeholder">已绑定云存储图片</div>
-                    <div v-else class="catalog-image-placeholder">请上传主图</div>
+                    <div v-else class="catalog-image-placeholder">请上传主图（必填）</div>
                   </div>
-                  <label class="wide"><span>口感</span><textarea v-model="forms.catalog.taste" rows="3" placeholder="商城列表与详情展示"></textarea></label>
+                  <label class="wide"><span>口感</span><textarea v-model="forms.catalog.taste" rows="3" placeholder="选填，商城列表与详情展示"></textarea></label>
                 </template>
 
                 <!-- ===== 堂饮：档位下的茶品 ===== -->
@@ -5791,7 +6233,7 @@ onBeforeUnmount(() => {
                   </label>
                   <label>
                     <span>分组</span>
-                    <input v-model="forms.catalog.groupName" placeholder="本席可选 / 岩茶 / 红茶（可选）">
+                    <input v-model="forms.catalog.groupName" placeholder="可空；知味下可填：岩茶 / 红茶 / 单丛">
                   </label>
                   <label class="wide"><span>一句话</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
                   <p class="wide specs-editor-hint">价格在「管理分类」里按档位设置；本页只维护该档位下可选茶品，与点单页右侧一致。</p>
@@ -6241,97 +6683,195 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-if="state.activeTab === 'reservations' || state.activeTab === 'signups'" class="list-workspace">
+        <section v-if="state.activeTab === 'reservations'" class="reservation-workspace">
+          <div class="reservation-split">
+            <article class="panel-card data-panel reservation-main">
+              <div class="panel-toolbar reservation-toolbar">
+                <div class="calendar-strip" role="group" aria-label="预约日期">
+                  <button type="button" aria-label="前一天" @click="shiftReservationCalendar(-1)">‹</button>
+                  <strong>{{ state.reservationCalendarDate }}</strong>
+                  <button type="button" aria-label="后一天" @click="shiftReservationCalendar(1)">›</button>
+                  <button type="button" class="strip-today" @click="jumpReservationCalendarToday">今天</button>
+                </div>
+                <div class="order-biz-tabs" role="tablist" aria-label="预约状态">
+                  <button type="button" role="tab" :aria-selected="!filters.reservationStatus" :class="['order-biz-tab', { active: !filters.reservationStatus }]" @click="setReservationStatusFilter('')">全部</button>
+                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '待支付'" :class="['order-biz-tab', { active: filters.reservationStatus === '待支付' }]" @click="setReservationStatusFilter('待支付')">待支付</button>
+                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已确认'" :class="['order-biz-tab', { active: filters.reservationStatus === '已确认' }]" @click="setReservationStatusFilter('已确认')">已确认</button>
+                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已完成'" :class="['order-biz-tab', { active: filters.reservationStatus === '已完成' }]" @click="setReservationStatusFilter('已完成')">已完成</button>
+                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '未到店'" :class="['order-biz-tab', { active: filters.reservationStatus === '未到店' }]" @click="setReservationStatusFilter('未到店')">未到店</button>
+                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已取消'" :class="['order-biz-tab', { active: filters.reservationStatus === '已取消' }]" @click="setReservationStatusFilter('已取消')">已取消</button>
+                </div>
+                <input v-model="filters.reservationKeyword" class="line-input" aria-label="搜索茶室预约" placeholder="茶室 / 姓名 / 手机 / 单号" @keydown.enter.prevent>
+                <div class="reservation-toolbar-more">
+                  <button class="ghost-button small" type="button" @click="resetPageAndLoad('reservations', loadReservations)">刷新</button>
+                  <button v-if="hasPermission('export.read')" class="ghost-button small" type="button" @click="exportReservations">导出</button>
+                  <button v-if="hasPermission('catalog.read')" class="ghost-button small" type="button" @click="openRoomsCatalog">茶室资源</button>
+                  <button v-if="hasPermission('settings.read')" class="ghost-button small" type="button" @click="switchTab('settings')">预约计价</button>
+                </div>
+              </div>
+
+              <details class="reservation-timeline-panel">
+                <summary>
+                  资源台历
+                  <small>{{ reservationTimelineModel.openLabel }}–{{ reservationTimelineModel.closeLabel }} · 点击色条打开详情</small>
+                </summary>
+                <div class="timeline-axis" aria-hidden="true">
+                  <span
+                    v-for="mark in reservationTimelineModel.hourMarks"
+                    :key="mark.time"
+                    class="timeline-axis-mark"
+                    :style="{ left: mark.leftPct + '%' }"
+                  >{{ mark.time }}</span>
+                </div>
+                <div v-for="row in reservationTimelineModel.rows" :key="row.room" class="timeline-row">
+                  <strong class="timeline-room">{{ row.room }}</strong>
+                  <div class="timeline-track">
+                    <button
+                      v-for="ev in row.events"
+                      :key="ev.id"
+                      type="button"
+                      class="timeline-event"
+                      :data-tone="ev.tone"
+                      :class="{ selected: state.selectedReservationId === ev.id }"
+                      :style="{ left: ev.leftPct + '%', width: ev.widthPct + '%' }"
+                      :title="ev.label + ' · ' + ev.status"
+                      @click="selectReservation(ev.record)"
+                    >
+                      <span>{{ ev.label }}</span>
+                    </button>
+                  </div>
+                </div>
+                <p v-if="!reservationTimelineModel.rows.length" class="timeline-empty">暂无茶室资源，请先在「茶室资源」配置。</p>
+              </details>
+
+              <div class="table-wrap reservation-table-wrap">
+                <table class="reservation-table">
+                  <caption class="sr-only">当日预约列表</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">状态</th>
+                      <th scope="col">时段</th>
+                      <th scope="col">茶室</th>
+                      <th scope="col">客户</th>
+                      <th scope="col">人数</th>
+                      <th scope="col">支付</th>
+                      <th scope="col">金额</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="record in reservationTableRows"
+                      :key="record._id"
+                      :class="{ selected: state.selectedReservationId === record._id }"
+                      tabindex="0"
+                      role="button"
+                      :aria-selected="state.selectedReservationId === record._id"
+                      @click="selectReservation(record)"
+                      @keydown.enter.prevent="selectReservation(record)"
+                    >
+                      <td><span :class="['status-pill', statusTone(record.status)]">{{ record.status || '—' }}</span></td>
+                      <td><strong class="mono-time">{{ reservationSlotLabel(record) }}</strong></td>
+                      <td>{{ record.roomName || record.room || '—' }}</td>
+                      <td>
+                        <strong>{{ maskName(record.name || record.customerName) || '访客' }}</strong>
+                        <small v-if="record.phone || record.mobile">{{ maskPhone(record.phone || record.mobile) }}</small>
+                      </td>
+                      <td>{{ record.people || record.count || '—' }}</td>
+                      <td>{{ reservationPayLabel(record) }}</td>
+                      <td>¥{{ money(record.total != null ? record.total : record.price) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <EmptyState
+                  v-if="reservationTableRows.length === 0"
+                  :title="emptyTitle('reservations')"
+                  :hint="emptyHint('reservations')"
+                  action-label="配置茶室"
+                  @action="openRoomsCatalog"
+                />
+              </div>
+            </article>
+
+            <aside class="panel-card detail-panel reservation-detail-pane" aria-label="预约详情">
+              <template v-if="selectedReservation">
+                <div class="panel-title">
+                  <h2>预约详情</h2>
+                  <span :class="['status-pill', statusTone(selectedReservation.status)]">{{ selectedReservation.status || '—' }}</span>
+                </div>
+                <p class="reservation-task-hint">{{ reservationPrimaryHint(selectedReservation) }}</p>
+                <div v-if="hasPermission('reservation.write') && reservationAdminActions(selectedReservation).length" class="action-row reservation-primary-actions">
+                  <button
+                    v-for="action in reservationAdminActions(selectedReservation)"
+                    :key="`side-${action.key}`"
+                    :class="action.kind === 'danger' ? 'danger-action' : (action.key === 'complete' ? 'primary-action' : 'secondary-action')"
+                    type="button"
+                    @click="runReservationAction(action)"
+                  >{{ action.label }}</button>
+                </div>
+                <DetailRow label="茶室" :value="selectedReservation.roomName || selectedReservation.room || selectedReservation.storeName || '-'" />
+                <DetailRow label="客户" :value="maskName(selectedReservation.name || selectedReservation.customerName) || '-'" />
+                <DetailRow label="电话" :value="maskPhone(selectedReservation.phone || selectedReservation.mobile) || '-'" />
+                <DetailRow label="日期" :value="selectedReservation.day || selectedReservation.date || '-'" />
+                <DetailRow label="时段" :value="reservationSlotLabel(selectedReservation)" />
+                <DetailRow label="人数" :value="selectedReservation.people || selectedReservation.count || '-'" />
+                <DetailRow label="支付" :value="reservationPayLabel(selectedReservation)" />
+                <DetailRow label="金额" :value="selectedReservation.total != null || selectedReservation.price != null ? `¥${money(selectedReservation.total != null ? selectedReservation.total : selectedReservation.price)}` : '-'" />
+                <DetailRow label="单号" :value="selectedReservation.reservationNo || selectedReservation._id || '-'" />
+                <div class="record-timeline" v-if="recordTimeline(selectedReservation).length">
+                  <h3>预约时间线</h3>
+                  <div v-for="step in recordTimeline(selectedReservation)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
+                    <span></span>
+                    <strong>{{ step.title }}</strong>
+                    <small>{{ formatDate(step.time) }}</small>
+                    <p>{{ step.detail || "-" }}</p>
+                  </div>
+                </div>
+                <div v-if="!hasPermission('reservation.write')" class="permission-note">当前角色仅可查看预约。</div>
+                <p v-else-if="!reservationAdminActions(selectedReservation).length" class="permission-note">当前为终态或无可操作项。</p>
+              </template>
+              <div v-else class="reservation-detail-empty">
+                <strong>选择一条预约</strong>
+                <span>从左侧表格点选当日订单，可处理完成、未到店、取消与退款。</span>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section v-if="state.activeTab === 'signups'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <select v-if="state.activeTab === 'reservations'" v-model="filters.reservationStatus" class="line-input" aria-label="筛选预约状态" @change="resetPageAndLoad('reservations', loadReservations)">
-                <option value="">全部状态</option><option>待支付</option><option>已确认</option><option>已完成</option><option>未到店</option><option>已取消</option><option>异常待处理</option>
-              </select>
-              <select v-else v-model="filters.signupStatus" class="line-input" aria-label="筛选报名状态" @change="resetPageAndLoad('signups', loadSignups)">
+              <select v-model="filters.signupStatus" class="line-input" aria-label="筛选报名状态" @change="resetPageAndLoad('signups', loadSignups)">
                 <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已到场</option><option>未到场</option><option>已完成</option><option>已取消</option>
               </select>
-              <input v-if="state.activeTab === 'reservations'" v-model="filters.reservationKeyword" class="line-input" aria-label="搜索茶室预约" placeholder="茶室、姓名、手机号" @keydown.enter="resetPageAndLoad('reservations', loadReservations)">
-              <input v-else v-model="filters.signupKeyword" class="line-input" aria-label="搜索活动报名" placeholder="活动、姓名、手机号" @keydown.enter="resetPageAndLoad('signups', loadSignups)">
-              <button v-if="state.activeTab === 'reservations' && hasPermission('export.read')" class="secondary-action small" type="button" @click="exportReservations">{{ exportScopeLabel }}</button>
-              <button v-else-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportSignups">{{ exportScopeLabel }}</button>
-            </div>
-            <div v-if="state.activeTab === 'reservations'" class="calendar-strip">
-              <button type="button" @click="shiftReservationCalendar(-1)">‹</button>
-              <strong>{{ state.reservationCalendarDate }}</strong>
-              <button type="button" @click="shiftReservationCalendar(1)">›</button>
-            </div>
-            <div v-if="state.activeTab === 'reservations'" class="calendar-board compact-board">
-              <div v-for="row in reservationCalendarRows" :key="row.room" class="calendar-row">
-                <strong>{{ row.room }}</strong>
-                <span v-for="slot in row.slots" :key="slot.time" :class="['calendar-slot', slot.record ? 'busy' : 'free']">
-                  <b>{{ slot.time }}</b>
-                  <small>{{ slot.record ? `${maskName(slot.record.name || slot.record.customerName) || '访客'} · ${slot.record.people || 1}人` : "可预约" }}</small>
-                </span>
-              </div>
-              <EmptyState v-if="reservationCalendarRows.length === 0" :title="emptyTitle('reservations')" :hint="emptyHint('reservations')" :action-label="emptyActionLabel('reservations')" @action="handleEmptyAction('reservations')" />
+              <input v-model="filters.signupKeyword" class="line-input" aria-label="搜索活动报名" placeholder="活动、姓名、手机号" @keydown.enter="resetPageAndLoad('signups', loadSignups)">
+              <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportSignups">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
               <button
-                v-for="record in (state.activeTab === 'reservations' ? state.reservations : state.signups)"
+                v-for="record in state.signups"
                 :key="record._id"
-                :class="['record-row', { selected: (state.activeTab === 'reservations' ? state.selectedReservationId : state.selectedSignupId) === record._id }]"
+                :class="['record-row', { selected: state.selectedSignupId === record._id }]"
                 type="button"
-                @click="state.activeTab === 'reservations' ? selectReservation(record) : selectSignup(record)"
+                @click="selectSignup(record)"
               >
-                <strong><span>{{ record.roomName || record.eventTitle || record.title || record.name || "记录" }}</span><em>{{ record.day || record.date || formatDate(record.createdAt) }}</em></strong>
+                <strong><span>{{ record.eventTitle || record.title || record.name || "记录" }}</span><em>{{ record.day || record.date || formatDate(record.createdAt) }}</em></strong>
                 <span class="record-meta">
                   <span>{{ maskName(record.name || record.customerName) || "访客" }}</span>
                   <i :class="['record-status', statusTone(record.status)]">{{ record.status }}</i>
                 </span>
               </button>
-              <EmptyState v-if="(state.activeTab === 'reservations' ? state.reservations : state.signups).length === 0" :title="emptyTitle(state.activeTab)" :hint="emptyHint(state.activeTab)" :action-label="emptyActionLabel(state.activeTab)" @action="handleEmptyAction(state.activeTab)" />
+              <EmptyState v-if="state.signups.length === 0" :title="emptyTitle('signups')" :hint="emptyHint('signups')" :action-label="emptyActionLabel('signups')" @action="handleEmptyAction('signups')" />
             </div>
-            <div v-if="state.activeTab === 'reservations' && pageMetaFor('reservations').total > pageMetaFor('reservations').pageSize" class="pager">
-              <span>{{ pageRangeText('reservations') }}</span>
-              <button type="button" :disabled="pageMetaFor('reservations').page <= 1" @click="changePage('reservations', -1, loadReservations)">上一页</button>
-              <button type="button" :disabled="pageMetaFor('reservations').page >= pageMetaFor('reservations').pageCount" @click="changePage('reservations', 1, loadReservations)">下一页</button>
-            </div>
-            <div v-if="state.activeTab === 'signups' && pageMetaFor('signups').total > pageMetaFor('signups').pageSize" class="pager">
+            <div v-if="pageMetaFor('signups').total > pageMetaFor('signups').pageSize" class="pager">
               <span>{{ pageRangeText('signups') }}</span>
               <button type="button" :disabled="pageMetaFor('signups').page <= 1" @click="changePage('signups', -1, loadSignups)">上一页</button>
               <button type="button" :disabled="pageMetaFor('signups').page >= pageMetaFor('signups').pageCount" @click="changePage('signups', 1, loadSignups)">下一页</button>
             </div>
           </article>
-          <div v-if="(state.activeTab === 'reservations' ? (state.drawers.reservation && selectedReservation) : (state.drawers.signup && selectedSignup))" class="editor-drawer" role="dialog" aria-modal="true" :aria-label="state.activeTab === 'reservations' ? '预约详情' : '报名详情'">
-            <div class="editor-drawer-mask" @click="state.activeTab === 'reservations' ? closeDrawer('reservation') : closeDrawer('signup')"></div>
+          <div v-if="state.drawers.signup && selectedSignup" class="editor-drawer" role="dialog" aria-modal="true" aria-label="报名详情">
+            <div class="editor-drawer-mask" @click="closeDrawer('signup')"></div>
             <aside class="panel-card detail-panel drawer-panel">
-            <div class="panel-title"><h2>{{ state.activeTab === 'reservations' ? "预约详情" : "报名详情" }}</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="state.activeTab === 'reservations' ? closeDrawer('reservation') : closeDrawer('signup')">×</button></div>
-            <template v-if="state.activeTab === 'reservations'">
-              <DetailRow label="茶室" :value="selectedReservation.roomName || selectedReservation.room || selectedReservation.storeName || '-'" />
-              <DetailRow label="客户" :value="maskName(selectedReservation.name || selectedReservation.customerName) || '-'" />
-              <DetailRow label="日期" :value="selectedReservation.day || selectedReservation.date || '-'" />
-              <DetailRow label="时段" :value="selectedReservation.endTime ? `${selectedReservation.time || ''}–${selectedReservation.endTime}` : (selectedReservation.time || selectedReservation.slot || '-')" />
-              <DetailRow label="人数" :value="selectedReservation.people || selectedReservation.count || '-'" />
-              <DetailRow label="业务状态" :value="selectedReservation.status || '-'" />
-              <DetailRow label="支付状态" :value="selectedReservation.payStatus || '-'" />
-              <DetailRow label="金额" :value="selectedReservation.total != null || selectedReservation.price != null ? `¥${money(selectedReservation.total != null ? selectedReservation.total : selectedReservation.price)}` : '-'" />
-              <div class="record-timeline" v-if="recordTimeline(selectedReservation).length">
-                <h3>预约时间线</h3>
-                <div v-for="step in recordTimeline(selectedReservation)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
-                  <span></span>
-                  <strong>{{ step.title }}</strong>
-                  <small>{{ formatDate(step.time) }}</small>
-                  <p>{{ step.detail || "-" }}</p>
-                </div>
-              </div>
-              <div v-if="hasPermission('reservation.write')" class="action-row">
-                <button
-                  v-for="action in reservationAdminActions(selectedReservation)"
-                  :key="action.key"
-                  :class="action.kind === 'danger' ? 'danger-action' : 'secondary-action'"
-                  type="button"
-                  @click="runReservationAction(action)"
-                >{{ action.label }}</button>
-                <p v-if="!reservationAdminActions(selectedReservation).length" class="permission-note">当前为终态或无可操作项（已取消 / 未到店 / 已完成已退款等）。</p>
-              </div>
-              <div v-else class="permission-note">当前角色仅可查看预约。</div>
-            </template>
-            <template v-else>
+              <div class="panel-title"><h2>报名详情</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('signup')">×</button></div>
               <DetailRow label="活动" :value="selectedSignup.eventTitle || selectedSignup.title || '-'" />
               <DetailRow label="客户" :value="maskName(selectedSignup.name || selectedSignup.customerName) || '-'" />
               <DetailRow label="电话" :value="maskPhone(selectedSignup.phone || selectedSignup.mobile) || '-'" />
@@ -6353,7 +6893,6 @@ onBeforeUnmount(() => {
                 <button class="danger-action" type="button" @click="updateRecord('signup', selectedSignup._id, '已取消')">取消</button>
               </div>
               <div v-else class="permission-note">当前角色仅可查看报名。</div>
-            </template>
             </aside>
           </div>
         </section>

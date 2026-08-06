@@ -29,9 +29,24 @@ function resolveDefaultSpec(product) {
 function normalizeTeaProducts(products) {
   return products.map((item) => {
     const specs = Array.isArray(item.specs) ? item.specs : [];
-    const availableStock = item.availableStock !== undefined && item.availableStock !== ""
-      ? Math.max(0, Number(item.availableStock) || 0)
-      : (item.stock !== undefined ? Math.max(0, Number(item.stock) || 0) : "");
+    const hasSpecStock = specs.some((spec) => spec && spec.stock !== undefined && spec.stock !== null && spec.stock !== "");
+    let availableStock = "";
+    if (hasSpecStock) {
+      availableStock = specs.reduce((sum, spec) => {
+        if (!spec || spec.stock === undefined || spec.stock === null || spec.stock === "") return sum;
+        if (spec.availableStock !== undefined && spec.availableStock !== "") {
+          return sum + Math.max(0, Number(spec.availableStock) || 0);
+        }
+        const stock = Math.max(0, Number(spec.stock) || 0);
+        const locked = Math.max(0, Number(spec.lockedStock) || 0);
+        const sold = Math.max(0, Number(spec.soldStock) || 0);
+        return sum + Math.max(0, stock - locked - sold);
+      }, 0);
+    } else if (item.availableStock !== undefined && item.availableStock !== "") {
+      availableStock = Math.max(0, Number(item.availableStock) || 0);
+    } else if (item.stock !== undefined) {
+      availableStock = Math.max(0, Number(item.stock) || 0);
+    }
     const hasMultipleSpecs = specs.length > 1;
     const isSoldOut = availableStock !== "" && availableStock <= 0;
     const specPrices = specs

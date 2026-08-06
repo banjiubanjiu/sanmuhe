@@ -18,13 +18,48 @@ function sortCatalog(items) {
 }
 
 function withInventory(item) {
-  if (!item || item.stock === undefined || item.stock === null || item.stock === "") {
+  if (!item) {
     return item;
   }
-  const stock = Math.max(0, Number(item.stock) || 0);
-  const lockedStock = Math.max(0, Number(item.lockedStock) || 0);
-  const soldStock = Math.max(0, Number(item.soldStock) || 0);
-  return Object.assign({}, item, {
+  let next = item;
+  if (Array.isArray(item.specs) && item.specs.length) {
+    const specs = item.specs.map((spec) => {
+      if (!spec || typeof spec !== "object") return spec;
+      if (spec.stock === undefined || spec.stock === null || spec.stock === "") {
+        return spec;
+      }
+      const stock = Math.max(0, Number(spec.stock) || 0);
+      const lockedStock = Math.max(0, Number(spec.lockedStock) || 0);
+      const soldStock = Math.max(0, Number(spec.soldStock) || 0);
+      return Object.assign({}, spec, {
+        stock,
+        lockedStock,
+        soldStock,
+        availableStock: Math.max(0, stock - lockedStock - soldStock)
+      });
+    });
+    const hasSpecStock = specs.some((spec) => spec && spec.stock !== undefined && spec.stock !== null && spec.stock !== "");
+    if (hasSpecStock) {
+      const totalStock = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec && spec.stock) || 0), 0);
+      const totalLocked = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec && spec.lockedStock) || 0), 0);
+      const totalSold = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec && spec.soldStock) || 0), 0);
+      next = Object.assign({}, item, {
+        specs,
+        stock: totalStock,
+        lockedStock: totalLocked,
+        soldStock: totalSold
+      });
+    } else {
+      next = Object.assign({}, item, { specs });
+    }
+  }
+  if (next.stock === undefined || next.stock === null || next.stock === "") {
+    return next;
+  }
+  const stock = Math.max(0, Number(next.stock) || 0);
+  const lockedStock = Math.max(0, Number(next.lockedStock) || 0);
+  const soldStock = Math.max(0, Number(next.soldStock) || 0);
+  return Object.assign({}, next, {
     stock,
     lockedStock,
     soldStock,

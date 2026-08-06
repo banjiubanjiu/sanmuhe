@@ -1,4 +1,4 @@
-// 茶品/茶单主图：走云存储 cloud://（mp-assets/），不占小程序 2MB 主包
+// 茶品/茶单主图：USE_CLOUD_ASSETS=true 时 localImage 映射到云存储 cloud://mp-assets/
 const { localImage } = require("../config/assets");
 const IMG = {
   tea001: localImage("assets/images/product-tea-001-organic-black.jpg"),
@@ -113,7 +113,7 @@ const drinks = [
 ];
 
 // 禾煦茶品目录（零售茶叶，价格与规格来自官方目录）
-// specs: { label 展示名, weight 净含量说明, price 售价, stockUnits 扣库存单位 }
+// specs: { label 展示名, weight 净含量说明, price 售价, stock 该规格库存 }
 const teaProducts = [
   {
     id: "tea-001",
@@ -131,10 +131,10 @@ const teaProducts = [
     thumb: IMG.tea001,
     detail: "散装与礼盒多种规格可选。建议盖碗冲泡，沸水醒茶后细品花果蜜香。",
     specs: [
-      { label: "一泡", weight: "5g", price: 10, stockUnits: 1 },
-      { label: "20泡袋/盒", weight: "100g", price: 168, stockUnits: 20 },
-      { label: "伴手礼盒", weight: "50g", price: 98, stockUnits: 10 },
-      { label: "纳福礼盒（15泡）", weight: "75g", price: 188, stockUnits: 15 }
+      { label: "一泡", weight: "5g", price: 10, stock: 1 },
+      { label: "20泡袋/盒", weight: "100g", price: 168, stock: 20 },
+      { label: "伴手礼盒", weight: "50g", price: 98, stock: 10 },
+      { label: "纳福礼盒（15泡）", weight: "75g", price: 188, stock: 15 }
     ]
   },
   {
@@ -153,7 +153,7 @@ const teaProducts = [
     thumb: IMG.tea002,
     detail: "体验装小罐，适合初次认识临沧野生红茶风味。",
     specs: [
-      { label: "50g/小罐", weight: "50g", price: 48, stockUnits: 1 }
+      { label: "50g/小罐", weight: "50g", price: 48, stock: 1 }
     ]
   },
   {
@@ -172,7 +172,7 @@ const teaProducts = [
     thumb: IMG.tea003,
     detail: "十年干仓老寿眉，适合盖碗或煮饮，温和顺口。",
     specs: [
-      { label: "50g/小罐", weight: "50g", price: 78, stockUnits: 1 }
+      { label: "50g/小罐", weight: "50g", price: 78, stock: 1 }
     ]
   },
   {
@@ -191,7 +191,7 @@ const teaProducts = [
     thumb: IMG.tea004,
     detail: "单泡规格，便于随身携带与门店试饮。",
     specs: [
-      { label: "一泡", weight: "5g", price: 8, stockUnits: 1 }
+      { label: "一泡", weight: "5g", price: 8, stock: 1 }
     ]
   },
   {
@@ -210,8 +210,8 @@ const teaProducts = [
     thumb: IMG.tea005,
     detail: "马头岩核心产区手工制作。首泡快速出汤，后续按口感递增。",
     specs: [
-      { label: "单泡", weight: "8.3g", price: 50, stockUnits: 1 },
-      { label: "20泡袋/盒", weight: "166g", price: 888, stockUnits: 20 }
+      { label: "单泡", weight: "8.3g", price: 50, stock: 1 },
+      { label: "20泡袋/盒", weight: "166g", price: 888, stock: 20 }
     ]
   },
   {
@@ -230,7 +230,7 @@ const teaProducts = [
     thumb: IMG.tea006,
     detail: "陈年岩茶，适合慢品老韵与药参香。",
     specs: [
-      { label: "单泡", weight: "8.3g", price: 20, stockUnits: 1 }
+      { label: "单泡", weight: "8.3g", price: 20, stock: 1 }
     ]
   },
   {
@@ -249,7 +249,7 @@ const teaProducts = [
     thumb: IMG.tea007,
     detail: "正岩花香路线，适合功夫泡细品岩韵。",
     specs: [
-      { label: "单泡", weight: "8.3g", price: 20, stockUnits: 1 }
+      { label: "单泡", weight: "8.3g", price: 20, stock: 1 }
     ]
   },
   {
@@ -268,7 +268,7 @@ const teaProducts = [
     thumb: IMG.tea008,
     detail: "2011 年归藏，单泡规格便于品鉴与分享。",
     specs: [
-      { label: "单泡", weight: "8.3g", price: 20, stockUnits: 1 }
+      { label: "单泡", weight: "8.3g", price: 20, stock: 1 }
     ]
   },
   {
@@ -287,8 +287,8 @@ const teaProducts = [
     thumb: IMG.tea009,
     detail: "体验装与散装罐装可选，盖碗冲泡可闻栀子花香。",
     specs: [
-      { label: "30g/罐", weight: "30g", price: 48, stockUnits: 1 },
-      { label: "125g/罐", weight: "125g", price: 160, stockUnits: 4 }
+      { label: "30g/罐", weight: "30g", price: 48, stock: 1 },
+      { label: "125g/罐", weight: "125g", price: 160, stock: 4 }
     ]
   },
   {
@@ -307,8 +307,8 @@ const teaProducts = [
     thumb: IMG.tea010,
     detail: "清香型代表，夏日与入门单丛优选。",
     specs: [
-      { label: "30g/罐", weight: "30g", price: 68, stockUnits: 1 },
-      { label: "125g/罐", weight: "125g", price: 260, stockUnits: 4 }
+      { label: "30g/罐", weight: "30g", price: 68, stock: 1 },
+      { label: "125g/罐", weight: "125g", price: 260, stock: 4 }
     ]
   },
   {
@@ -327,8 +327,8 @@ const teaProducts = [
     thumb: IMG.tea011,
     detail: "乌岽高山核心茶园，蜜兰香高扬耐泡。",
     specs: [
-      { label: "40g/罐", weight: "40g", price: 98, stockUnits: 1 },
-      { label: "125g/罐", weight: "125g", price: 280, stockUnits: 3 }
+      { label: "40g/罐", weight: "40g", price: 98, stock: 1 },
+      { label: "125g/罐", weight: "125g", price: 280, stock: 3 }
     ]
   },
   {
@@ -347,7 +347,7 @@ const teaProducts = [
     thumb: IMG.tea012,
     detail: "散装 125g 罐装，适合日常与馈赠。",
     specs: [
-      { label: "125g/罐", weight: "125g", price: 260, stockUnits: 1 }
+      { label: "125g/罐", weight: "125g", price: 260, stock: 1 }
     ]
   },
   {
@@ -366,7 +366,7 @@ const teaProducts = [
     thumb: IMG.tea013,
     detail: "名枞级单丛，125g 罐装。",
     specs: [
-      { label: "125g/罐", weight: "125g", price: 350, stockUnits: 1 }
+      { label: "125g/罐", weight: "125g", price: 350, stock: 1 }
     ]
   }
 ];

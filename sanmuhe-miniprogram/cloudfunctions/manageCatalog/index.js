@@ -445,13 +445,27 @@ function normalizePayload(collection, payload) {
       if (!label) {
         return null;
       }
-      return {
+      const spec = {
         label,
         weight: cleanText(item.weight, 20),
         price: Math.max(0, Number(item.price) || 0),
-        stockUnits: Math.max(1, Number(item.stockUnits) || 1)
+        // 每规格各自库存（行业默认：独立 SKU 库存）
+        stock: Math.max(0, Number(item.stock) || 0)
       };
+      if (item.lockedStock !== undefined) {
+        spec.lockedStock = Math.max(0, Number(item.lockedStock) || 0);
+      }
+      if (item.soldStock !== undefined) {
+        spec.soldStock = Math.max(0, Number(item.soldStock) || 0);
+      }
+      return spec;
     }).filter(Boolean);
+    // 商品层库存汇总，便于列表展示与兼容旧逻辑
+    if (collection === "tea_products" && data.specs.length) {
+      data.stock = data.specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.stock) || 0), 0);
+      data.lockedStock = data.specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.lockedStock) || 0), 0);
+      data.soldStock = data.specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.soldStock) || 0), 0);
+    }
   }
   if (source.year !== undefined) {
     data.year = cleanText(source.year, 20);
@@ -524,13 +538,45 @@ function validateCatalogPayload(collection, payload, source = {}, options = {}) 
 }
 
 function withInventory(item) {
-  if (!item || item.stock === undefined || item.stock === null || item.stock === "") {
+  if (!item) {
     return item;
   }
-  const stock = Math.max(0, Number(item.stock) || 0);
-  const lockedStock = Math.max(0, Number(item.lockedStock) || 0);
-  const soldStock = Math.max(0, Number(item.soldStock) || 0);
-  return Object.assign({}, item, {
+  let next = item;
+  // 茶叶：规格各自库存，附带 availableStock
+  if (Array.isArray(item.specs) && item.specs.length) {
+    const specs = item.specs.map((spec) => {
+      if (!spec || typeof spec !== "object") return spec;
+      if (spec.stock === undefined || spec.stock === null || spec.stock === "") {
+        return spec;
+      }
+      const stock = Math.max(0, Number(spec.stock) || 0);
+      const lockedStock = Math.max(0, Number(spec.lockedStock) || 0);
+      const soldStock = Math.max(0, Number(spec.soldStock) || 0);
+      return Object.assign({}, spec, {
+        stock,
+        lockedStock,
+        soldStock,
+        availableStock: Math.max(0, stock - lockedStock - soldStock)
+      });
+    });
+    const totalStock = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec && spec.stock) || 0), 0);
+    const totalLocked = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec && spec.lockedStock) || 0), 0);
+    const totalSold = specs.reduce((sum, spec) => sum + Math.max(0, Number(spec && spec.soldStock) || 0), 0);
+    const hasSpecStock = specs.some((spec) => spec && spec.stock !== undefined && spec.stock !== null && spec.stock !== "");
+    next = Object.assign({}, item, {
+      specs,
+      stock: hasSpecStock ? totalStock : item.stock,
+      lockedStock: hasSpecStock ? totalLocked : item.lockedStock,
+      soldStock: hasSpecStock ? totalSold : item.soldStock
+    });
+  }
+  if (next.stock === undefined || next.stock === null || next.stock === "") {
+    return next;
+  }
+  const stock = Math.max(0, Number(next.stock) || 0);
+  const lockedStock = Math.max(0, Number(next.lockedStock) || 0);
+  const soldStock = Math.max(0, Number(next.soldStock) || 0);
+  return Object.assign({}, next, {
     stock,
     lockedStock,
     soldStock,
@@ -665,12 +711,32 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "update") {
       const payload = normalizePayload(collection, event.data || {});
       delete payload.id;
+      // 茶叶规格库存：保留各规格已锁定/已售，只改运营填写的 stock
+      if (collection === "tea_products" && Array.isArray(payload.specs) && Array.isArray(existing.specs)) {
+        const existingByLabel = {};
+        existing.specs.forEach((spec) => {
+          if (spec && spec.label) existingByLabel[String(spec.label)] = spec;
+        });
+        payload.specs = payload.specs.map((spec) => {
+          const prev = existingByLabel[spec.label] || {};
+          const lockedStock = Math.max(0, Number(prev.lockedStock) || 0);
+          const soldStock = Math.max(0, Number(prev.soldStock) || 0);
+          const stock = Math.max(0, Number(spec.stock) || 0);
+          if (stock < lockedStock + soldStock) {
+            invalidInput(`规格「${spec.label}」库存不能小于已锁定+已售（${lockedStock + soldStock}）`);
+          }
+          return Object.assign({}, spec, { lockedStock, soldStock, stock });
+        });
+        payload.stock = payload.specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.stock) || 0), 0);
+        payload.lockedStock = payload.specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.lockedStock) || 0), 0);
+        payload.soldStock = payload.specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.soldStock) || 0), 0);
+      }
       validateCatalogPayload(collection, payload, event.data || {}, { existing });
       const sensitiveFields = changedSensitiveCatalogFields(existing, payload);
       const reason = sensitiveFields.length ? requireAuditReason(event, "修改价格、库存、名额或状态") : cleanAuditReason(event);
       if ((collection === "drinks" || collection === "tea_products") && payload.stock !== undefined) {
-        const lockedStock = Math.max(0, Number(existing.lockedStock) || 0);
-        const soldStock = Math.max(0, Number(existing.soldStock) || 0);
+        const lockedStock = Math.max(0, Number(payload.lockedStock !== undefined ? payload.lockedStock : existing.lockedStock) || 0);
+        const soldStock = Math.max(0, Number(payload.soldStock !== undefined ? payload.soldStock : existing.soldStock) || 0);
         if (payload.stock < lockedStock + soldStock) {
           return { ok: false, message: "总库存不能小于已锁定和已售数量" };
         }

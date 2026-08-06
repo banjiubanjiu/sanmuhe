@@ -244,6 +244,26 @@ function inventorySnapshot(item = {}) {
   };
 }
 
+function applySpecInventoryDelta(item, specLabel, deltaLocked) {
+  const specs = Array.isArray(item.specs) ? item.specs.map((spec) => Object.assign({}, spec)) : [];
+  if (!specs.length) return null;
+  const label = String(specLabel || "").trim();
+  let index = specs.findIndex((spec) => String(spec.label || "").trim() === label);
+  if (index < 0) index = 0;
+  const current = specs[index] || {};
+  specs[index] = Object.assign({}, current, {
+    stock: Math.max(0, Number(current.stock) || 0),
+    lockedStock: Math.max(0, Math.max(0, Number(current.lockedStock) || 0) + deltaLocked),
+    soldStock: Math.max(0, Number(current.soldStock) || 0)
+  });
+  return {
+    specs,
+    stock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.stock) || 0), 0),
+    lockedStock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.lockedStock) || 0), 0),
+    soldStock: specs.reduce((sum, spec) => sum + Math.max(0, Number(spec.soldStock) || 0), 0)
+  };
+}
+
 async function writeInventoryLog(entry = {}) {
   try {
     await ensureCollection("inventory_logs");
@@ -279,7 +299,47 @@ async function releaseInventory(locks, order) {
     }
     try {
       const latest = await db.collection(lock.collection).doc(lock.docId).get();
-      const before = inventorySnapshot(latest.data || {});
+      const item = latest.data || {};
+      const useSpec = lock.mode === "spec"
+        || (Array.isArray(item.specs)
+          && item.specs.some((spec) => spec && spec.stock !== undefined && spec.stock !== null && spec.stock !== "")
+          && lock.specLabel);
+      if (useSpec) {
+        const beforeSpec = (item.specs || []).find((spec) => String(spec.label || "").trim() === String(lock.specLabel || "").trim()) || {};
+        const beforeLocked = Math.max(0, Number(beforeSpec.lockedStock) || 0);
+        const quantity = Math.min(beforeLocked, Math.max(0, Number(lock.quantity) || 0));
+        if (quantity <= 0) continue;
+        const next = applySpecInventoryDelta(item, lock.specLabel, -quantity);
+        if (next) {
+          await db.collection(lock.collection).doc(lock.docId).update({
+            data: {
+              specs: next.specs,
+              stock: next.stock,
+              lockedStock: next.lockedStock,
+              soldStock: next.soldStock,
+              updatedAt: db.serverDate()
+            }
+          });
+        }
+        await writeInventoryLog({
+          collection: lock.collection,
+          docId: lock.docId,
+          itemId: lock.id || "",
+          itemName: lock.specLabel ? `${lock.name || ""} / ${lock.specLabel}` : (lock.name || ""),
+          type: "customer_cancel_release",
+          quantity,
+          beforeStock: Math.max(0, Number(beforeSpec.stock) || 0),
+          afterStock: Math.max(0, Number(beforeSpec.stock) || 0),
+          beforeLockedStock: beforeLocked,
+          afterLockedStock: Math.max(0, beforeLocked - quantity),
+          beforeSoldStock: Math.max(0, Number(beforeSpec.soldStock) || 0),
+          afterSoldStock: Math.max(0, Number(beforeSpec.soldStock) || 0),
+          orderNo: order.orderNo || "",
+          note: "顾客取消未支付订单，释放规格库存锁定"
+        });
+        continue;
+      }
+      const before = inventorySnapshot(item);
       const quantity = Math.min(before.lockedStock, Math.max(0, Number(lock.quantity) || 0));
       if (quantity <= 0) {
         continue;
