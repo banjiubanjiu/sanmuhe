@@ -18,8 +18,15 @@
     </view>
   </view>
 
-  <!-- 视觉与其它入口统一；button 仅作透明点击层以支持 open-type="contact" -->
-  <view class="contact-card online-card">
+  <!-- 整卡即 button，避免透明遮罩点不到右侧「去咨询」 -->
+  <button
+    class="contact-card online-card contact-card-btn"
+    open-type="contact"
+    session-from="{{sessionFrom}}"
+    show-message-card="{{false}}"
+    hover-class="contact-card-hover"
+    bindcontact="handleContact"
+  >
     <view class="icon-wrap">
       <view class="chat-icon">
         <view class="chat-dot"></view>
@@ -32,15 +39,7 @@
       <view class="card-subtitle">订单 / 茶品 / 茶室 / 活动咨询</view>
     </view>
     <view class="card-action online-action">去咨询 <text>›</text></view>
-    <button
-      class="contact-hit"
-      open-type="contact"
-      session-from="{{sessionFrom}}"
-      show-message-card="{{false}}"
-      hover-class="none"
-      bindcontact="handleContact"
-    ></button>
-  </view>
+  </button>
 
   <view class="contact-card" bindtap="callPhone">
     <view class="icon-wrap">

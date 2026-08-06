@@ -1023,14 +1023,72 @@ function enrichOrderForAdmin(order = {}) {
   });
 }
 
+/**
+ * 店员待办队列状态（按业务线）
+ * - dinein：已付/制作中/待确认（店内交付）
+ * - retail：待发货/待自提
+ * - 全部：上述 + 待支付（防漏单）
+ */
+function todoStatusesForBiz(bizType) {
+  const normalized = normalizeOrderBizType(bizType);
+  if (normalized === "dinein") {
+    return ["已付款", "制作中", "待确认"];
+  }
+  if (normalized === "retail") {
+    return ["待发货", "待自提"];
+  }
+  return ["待支付", "待确认", "已付款", "制作中", "待发货", "待自提"];
+}
+
+function parseStatusList(event = {}) {
+  if (Array.isArray(event.statuses)) {
+    return event.statuses.map((item) => cleanText(item, 40)).filter(Boolean);
+  }
+  if (Array.isArray(event.statusIn)) {
+    return event.statusIn.map((item) => cleanText(item, 40)).filter(Boolean);
+  }
+  const raw = cleanText(event.statuses || event.statusIn, 200);
+  if (raw && raw.includes(",")) {
+    return raw.split(",").map((item) => cleanText(item, 40)).filter(Boolean);
+  }
+  return [];
+}
+
+function buildOrderStatusWhere(event = {}, bizType = "") {
+  const queue = cleanText(event.queue || event.orderQueue || event.view, 20).toLowerCase();
+  const single = cleanText(event.status, 40);
+  const list = parseStatusList(event);
+
+  if (queue === "todo" || queue === "work" || queue === "pending") {
+    // 待办队列：固定多状态；若前端同时传了单状态则收窄（少见）
+    const todo = todoStatusesForBiz(bizType);
+    if (single && single !== "all" && todo.includes(single)) {
+      return { status: single };
+    }
+    return { status: _.in(todo) };
+  }
+
+  if (list.length === 1) {
+    return { status: list[0] };
+  }
+  if (list.length > 1) {
+    return { status: _.in(list) };
+  }
+  if (single && single !== "all") {
+    return { status: single };
+  }
+  return null;
+}
+
 async function listOrdersForAdmin(event = {}) {
   await ensureCollection("orders");
-  const status = cleanText(event.status, 40);
   const keyword = cleanText(event.keyword, 80);
   const bizType = normalizeOrderBizType(event.bizType || event.orderBizType || event.line);
+  const queue = cleanText(event.queue || event.orderQueue || event.view, 20).toLowerCase();
   const clauses = [];
-  if (status && status !== "all") {
-    clauses.push({ status });
+  const statusWhere = buildOrderStatusWhere(event, bizType);
+  if (statusWhere) {
+    clauses.push(statusWhere);
   }
   const bizWhere = buildOrderBizWhere(bizType);
   if (bizWhere) {
@@ -1057,9 +1115,39 @@ async function listOrdersForAdmin(event = {}) {
     orderBy: "createdAt",
     event
   });
+  const isTodo = queue === "todo" || queue === "work" || queue === "pending";
+  const appliedStatuses = isTodo
+    ? todoStatusesForBiz(bizType)
+    : (parseStatusList(event).length
+      ? parseStatusList(event)
+      : (cleanText(event.status, 40) && cleanText(event.status, 40) !== "all" ? [cleanText(event.status, 40)] : []));
+
+  // 待办为空时给前端展示「库里其实有单」，避免误以为数据丢了
+  let allTotal = null;
+  if (isTodo) {
+    try {
+      const bizOnly = buildOrderBizWhere(bizType);
+      let countQuery = db.collection("orders");
+      if (bizOnly) {
+        countQuery = countQuery.where(bizOnly);
+      }
+      const countResult = await countQuery.count();
+      allTotal = Number(countResult.total || 0);
+    } catch (error) {
+      allTotal = null;
+    }
+  }
+
   return {
     items: (result.items || []).map(enrichOrderForAdmin),
-    page: result.page
+    page: result.page,
+    meta: {
+      queue: queue || "",
+      bizType: bizType || "",
+      statuses: appliedStatuses,
+      todoTotal: Number(result.page && result.page.total) || 0,
+      allTotal
+    }
   };
 }
 

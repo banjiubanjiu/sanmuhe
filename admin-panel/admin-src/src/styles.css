@@ -2328,6 +2328,14 @@ svg.spinning {
   background: rgba(222, 235, 217, 0.92);
 }
 
+.order-queue-hint {
+  margin: 0 0 12px;
+  padding: 0 2px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .record-status.warn {
   color: #8a682b;
   background: rgba(235, 221, 188, 0.86);

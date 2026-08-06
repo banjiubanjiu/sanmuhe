@@ -141,29 +141,26 @@ page {
   margin-top: 28rpx;
 }
 
-/* 透明点击层：保留微信客服能力，不破坏卡片布局 */
-.contact-hit {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 2;
+/* button 重置为卡片样式，整卡可点 open-type=contact */
+.contact-card-btn {
   width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 18rpx;
-  background: transparent;
-  opacity: 0;
+  text-align: left;
+  line-height: inherit;
+  font-weight: inherit;
 }
 
-.contact-hit::after {
+.contact-card-btn::after {
   border: none;
+}
+
+.contact-card-hover {
+  opacity: 0.92;
 }
 
 .online-action {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
   color: #315f34;
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 26rpx;

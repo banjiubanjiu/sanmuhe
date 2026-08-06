@@ -229,7 +229,7 @@ const pageTitles = {
   dashboard: ["经营首页", "今日概览"],
   reservations: ["茶室预约", ""],
   signups: ["活动报名", ""],
-  orders: ["订单管理", ""],
+  orders: ["订单管理", "待办工作台"],
   afterSales: ["售后管理", ""],
   inventory: ["库存流水", ""],
   customers: ["用户管理", ""],
@@ -375,6 +375,8 @@ const state = reactive({
   },
   selectedCatalogId: "",
   selectedOrderId: "",
+  /** listOrders 返回的队列元信息（待办/库总量） */
+  orderListMeta: { queue: "", bizType: "", statuses: [], todoTotal: 0, allTotal: null },
   selectedAfterSaleId: "",
   selectedAuditLogId: "",
   selectedReservationId: "",
@@ -395,6 +397,8 @@ const filters = reactive({
   global: "",
   catalog: "",
   orderBizType: "",
+  /** todo=店员待办队列（默认）；all=可查全部/单状态 */
+  orderQueue: "todo",
   orderStatus: "",
   orderKeyword: "",
   afterSaleStatus: "",
@@ -415,6 +419,35 @@ const ORDER_BIZ_OPTIONS = [
   { value: "dinein", label: "堂饮点单" },
   { value: "retail", label: "茶叶商城" }
 ];
+
+/** 视图：待办工作台 vs 全部 */
+const ORDER_QUEUE_OPTIONS = [
+  { value: "todo", label: "待办" },
+  { value: "all", label: "全部" }
+];
+
+/** 各业务线默认待办状态（与 manageOperations.todoStatusesForBiz 对齐） */
+function todoStatusesForBiz(bizType = "") {
+  if (bizType === "dinein") return ["已付款", "制作中", "待确认"];
+  if (bizType === "retail") return ["待发货", "待自提"];
+  return ["待支付", "待确认", "已付款", "制作中", "待发货", "待自提"];
+}
+
+function orderQueueHint() {
+  const meta = state.orderListMeta || {};
+  const listTotal = Number(state.pagination.orders?.total || state.orders.length || 0);
+  if (filters.orderQueue !== "todo") {
+    const statusPart = filters.orderStatus ? `状态：${filters.orderStatus}` : "全部状态";
+    return `${statusPart} · 当前 ${listTotal} 笔`;
+  }
+  const biz = ORDER_BIZ_OPTIONS.find((item) => item.value === filters.orderBizType)?.label || "全部业务";
+  const statuses = todoStatusesForBiz(filters.orderBizType).join(" / ");
+  const allTotal = meta.allTotal != null ? Number(meta.allTotal) : null;
+  if (allTotal != null && allTotal > listTotal) {
+    return `待办 · ${biz} · ${statuses} · 待办 ${listTotal} 笔 / 库中 ${allTotal} 笔（历史在「全部」）`;
+  }
+  return `待办 · ${biz} · ${statuses} · ${listTotal} 笔`;
+}
 
 const loginForm = reactive({ username: "", password: "" });
 const uploadState = reactive({ catalog: "", content: "" });
@@ -777,10 +810,15 @@ const activeFilterLabels = computed(() => {
   };
   if (state.activeTab === "catalog") add("资料", filters.catalog);
   if (state.activeTab === "orders") {
+    if (filters.orderQueue === "all") {
+      add("视图", "全部");
+    }
     if (filters.orderBizType) {
       add("业务线", ORDER_BIZ_OPTIONS.find((item) => item.value === filters.orderBizType)?.label || filters.orderBizType);
     }
-    add("状态", filters.orderStatus);
+    if (filters.orderQueue === "all") {
+      add("状态", filters.orderStatus);
+    }
     add("关键词", filters.orderKeyword);
   }
   if (state.activeTab === "afterSales") {
@@ -805,7 +843,14 @@ const activeFilterLabels = computed(() => {
 });
 const hasClearableFilters = computed(() => {
   if (state.activeTab === "catalog") return !!filters.catalog.trim();
-  if (state.activeTab === "orders") return !!(filters.orderBizType || filters.orderStatus || filters.orderKeyword.trim());
+  if (state.activeTab === "orders") {
+    return !!(
+      filters.orderBizType
+      || filters.orderQueue !== "todo"
+      || filters.orderStatus
+      || filters.orderKeyword.trim()
+    );
+  }
   if (state.activeTab === "afterSales") return !!(filters.afterSaleStatus || filters.afterSaleKeyword.trim());
   if (state.activeTab === "inventory") return !!filters.inventoryKeyword.trim();
   if (state.activeTab === "reservations") return !!(filters.reservationStatus || filters.reservationKeyword.trim());
@@ -962,6 +1007,27 @@ function boolText(value) {
 
 function buildWorkflowSteps(tab) {
   if (tab === "orders") {
+    // 待办工作台：只展示当前队列相关步骤，避免已完成干扰
+    if (filters.orderQueue === "todo") {
+      if (filters.orderBizType === "dinein") {
+        return [
+          workflowStep("已付款", countWhere(state.orders, (item) => hasStatus(item, [/^已付款$/])), "堂饮待交付", "warn"),
+          workflowStep("制作中", countWhere(state.orders, (item) => hasStatus(item, [/制作中/])), "制作中", "warn"),
+          workflowStep("待确认", countWhere(state.orders, (item) => hasStatus(item, [/待确认/])), "免支付待确认", "focus")
+        ];
+      }
+      if (filters.orderBizType === "retail") {
+        return [
+          workflowStep("待发货", countWhere(state.orders, (item) => hasStatus(item, [/待发货/])), "填单发货", "focus"),
+          workflowStep("待自提", countWhere(state.orders, (item) => hasStatus(item, [/待自提/])), "门店核销", "warn")
+        ];
+      }
+      return [
+        workflowStep("待支付", countWhere(state.orders, (item) => hasStatus(item, [/待支付/])), "跟进支付", "warn"),
+        workflowStep("堂饮待办", countWhere(state.orders, (item) => hasStatus(item, [/已付款|制作中|待确认/])), "店内交付", "warn"),
+        workflowStep("商城待办", countWhere(state.orders, (item) => hasStatus(item, [/待发货|待自提/])), "发货/自提", "focus")
+      ];
+    }
     return [
       workflowStep("已付款", countWhere(state.orders, (item) => hasStatus(item, [/已付款|制作中/])), "堂饮已付（口头交付即可）", "warn"),
       workflowStep("待确认", countWhere(state.orders, (item) => hasStatus(item, [/待确认/])), "历史免支付单（如有）", "warn"),
@@ -2489,17 +2555,52 @@ async function removeCatalog(item) {
   });
 }
 
+function orderListQueryPayload() {
+  const payload = {
+    bizType: filters.orderBizType,
+    keyword: filters.orderKeyword
+  };
+  if (filters.orderQueue === "todo") {
+    payload.queue = "todo";
+  } else if (filters.orderStatus) {
+    payload.status = filters.orderStatus;
+  }
+  return payload;
+}
+
+function setOrderQueue(queue) {
+  filters.orderQueue = queue === "all" ? "all" : "todo";
+  if (filters.orderQueue === "todo") {
+    filters.orderStatus = "";
+  }
+  resetPageAndLoad("orders", loadOrders);
+}
+
+function setOrderBizType(bizType) {
+  filters.orderBizType = bizType || "";
+  // 切换业务线时保持待办视图，符合店员「先干活」心智
+  if (!filters.orderQueue) {
+    filters.orderQueue = "todo";
+  }
+  resetPageAndLoad("orders", loadOrders);
+}
+
 async function loadOrders() {
   await withLoading("读取订单", async () => {
     const result = await callFunction("manageOperations", {
       action: "listOrders",
-      bizType: filters.orderBizType,
-      status: filters.orderStatus,
-      keyword: filters.orderKeyword,
+      ...orderListQueryPayload(),
       ...pagePayload("orders")
     });
     state.orders = result.orders || [];
     setPageMeta("orders", result.page);
+    state.orderListMeta = {
+      queue: result.meta?.queue || filters.orderQueue || "",
+      bizType: result.meta?.bizType || filters.orderBizType || "",
+      statuses: Array.isArray(result.meta?.statuses) ? result.meta.statuses : [],
+      todoTotal: Number(result.meta?.todoTotal ?? result.page?.total) || 0,
+      allTotal: result.meta?.allTotal != null ? Number(result.meta.allTotal) : null
+    };
     state.selectedOrderId = state.orders[0]?._id || "";
   });
 }
@@ -3173,11 +3274,7 @@ async function exportOrders() {
       action: "listOrders",
       rowsKey: "orders",
       label: "订单",
-      payload: {
-        bizType: filters.orderBizType,
-        status: filters.orderStatus,
-        keyword: filters.orderKeyword
-      }
+      payload: orderListQueryPayload()
     });
     if (!rows) return;
     downloadCsv(csvFilename("orders"), [
@@ -3748,7 +3845,14 @@ function persistSavedViews() {
 
 function snapshotActiveFilters(tab = state.activeTab) {
   if (tab === "catalog") return { collection: state.collection, keyword: filters.catalog.trim() };
-  if (tab === "orders") return { bizType: filters.orderBizType, status: filters.orderStatus, keyword: filters.orderKeyword.trim() };
+  if (tab === "orders") {
+    return {
+      bizType: filters.orderBizType,
+      queue: filters.orderQueue || "todo",
+      status: filters.orderStatus,
+      keyword: filters.orderKeyword.trim()
+    };
+  }
   if (tab === "afterSales") return { status: filters.afterSaleStatus, keyword: filters.afterSaleKeyword.trim() };
   if (tab === "inventory") return { keyword: filters.inventoryKeyword.trim() };
   if (tab === "reservations") return { date: state.reservationCalendarDate, status: filters.reservationStatus, keyword: filters.reservationKeyword.trim() };
@@ -3801,8 +3905,10 @@ async function applySavedView(view) {
   }
   if (view.tab === "orders") {
     filters.orderBizType = snapshot.bizType || "";
+    filters.orderQueue = snapshot.queue === "all" ? "all" : "todo";
     filters.orderStatus = snapshot.status || "";
     filters.orderKeyword = snapshot.keyword || "";
+    if (filters.orderQueue === "todo") filters.orderStatus = "";
   }
   if (view.tab === "afterSales") {
     filters.afterSaleStatus = snapshot.status || "";
@@ -3840,6 +3946,7 @@ function clearActiveFilters() {
   if (state.activeTab === "catalog") filters.catalog = "";
   if (state.activeTab === "orders") {
     filters.orderBizType = "";
+    filters.orderQueue = "todo";
     filters.orderStatus = "";
     filters.orderKeyword = "";
   }
@@ -3868,7 +3975,9 @@ function emptyTitle(tab = state.activeTab) {
   if (hasClearableFilters.value) return "没有匹配当前筛选";
   return {
     catalog: "暂无商品资料",
-    orders: "暂无订单",
+    orders: filters.orderQueue === "todo"
+      ? (state.orderListMeta?.allTotal > 0 ? "当前没有待办订单" : "暂无订单")
+      : "暂无订单",
     afterSales: "暂无售后记录",
     inventory: "暂无库存流水",
     reservations: "当天暂无预约",
@@ -3887,7 +3996,11 @@ function emptyHint(tab = state.activeTab) {
   if (hasClearableFilters.value) return "当前条件过窄，可以清除筛选后重新查看。";
   return {
     catalog: "在右侧保存资料后会同步写入前台可用数据。",
-    orders: "新订单支付或提交后会出现在这里。",
+    orders: filters.orderQueue === "todo"
+      ? (state.orderListMeta?.allTotal > 0
+        ? `库中还有 ${state.orderListMeta.allTotal} 笔订单（多为已完成/已取消），不在待办里。点下方「查看全部订单」。`
+        : "没有需要立刻处理的单。支付成功后的堂饮/待发货/待自提会出现在这里。")
+      : "新订单支付或提交后会出现在这里。",
     afterSales: "订单转入售后后，可在这里处理退款状态闭环。",
     inventory: "订单锁定、支付扣减、取消释放和人工调整会自动沉淀流水。",
     reservations: "选择其他日期，或等待小程序端提交预约。",
@@ -3903,6 +4016,9 @@ function emptyHint(tab = state.activeTab) {
 }
 
 function emptyActionLabel(tab = state.activeTab) {
+  if (tab === "orders" && filters.orderQueue === "todo" && Number(state.orderListMeta?.allTotal || 0) > 0) {
+    return "查看全部订单";
+  }
   if (hasClearableFilters.value) return "清除筛选";
   const labels = {
     catalog: hasPermission("catalog.write") ? "新建" : "刷新资料",
@@ -3916,6 +4032,10 @@ function emptyActionLabel(tab = state.activeTab) {
 }
 
 function handleEmptyAction(tab = state.activeTab) {
+  if (tab === "orders" && filters.orderQueue === "todo" && Number(state.orderListMeta?.allTotal || 0) > 0) {
+    setOrderQueue("all");
+    return;
+  }
   if (hasClearableFilters.value) {
     clearActiveFilters();
     return;
@@ -4526,6 +4646,17 @@ onBeforeUnmount(() => {
         <section v-if="state.activeTab === 'orders'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar order-biz-toolbar">
+              <div class="order-biz-tabs" role="tablist" aria-label="订单视图">
+                <button
+                  v-for="opt in ORDER_QUEUE_OPTIONS"
+                  :key="`queue-${opt.value}`"
+                  type="button"
+                  role="tab"
+                  :aria-selected="filters.orderQueue === opt.value"
+                  :class="['order-biz-tab', { active: filters.orderQueue === opt.value }]"
+                  @click="setOrderQueue(opt.value)"
+                >{{ opt.label }}</button>
+              </div>
               <div class="order-biz-tabs" role="tablist" aria-label="订单业务线">
                 <button
                   v-for="opt in ORDER_BIZ_OPTIONS"
@@ -4534,10 +4665,16 @@ onBeforeUnmount(() => {
                   role="tab"
                   :aria-selected="filters.orderBizType === opt.value"
                   :class="['order-biz-tab', { active: filters.orderBizType === opt.value }]"
-                  @click="filters.orderBizType = opt.value; resetPageAndLoad('orders', loadOrders)"
+                  @click="setOrderBizType(opt.value)"
                 >{{ opt.label }}</button>
               </div>
-              <select v-model="filters.orderStatus" class="line-input" aria-label="筛选订单状态" @change="resetPageAndLoad('orders', loadOrders)">
+              <select
+                v-if="filters.orderQueue === 'all'"
+                v-model="filters.orderStatus"
+                class="line-input"
+                aria-label="筛选订单状态"
+                @change="resetPageAndLoad('orders', loadOrders)"
+              >
                 <option value="">全部状态</option>
                 <option>待支付</option><option>已付款</option><option>制作中</option><option>待确认</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
@@ -4545,6 +4682,7 @@ onBeforeUnmount(() => {
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('orders', loadOrders)">搜索</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
             </div>
+            <p class="order-queue-hint">{{ orderQueueHint() }}</p>
 
             <div class="record-list">
               <button v-for="order in state.orders" :key="order._id" :class="['record-row', { selected: state.drawers.order && state.selectedOrderId === order._id }]" type="button" @click="selectOrder(order)">

@@ -9,7 +9,8 @@ const fallbackContact = {
   store: STORE.name,
   address: STORE.address,
   wechat: STORE.wechat,
-  heroImage: STORE.heroImage || "/assets/images/reservation-hero.jpg",
+  // 联系页专用无字背景，避免与页内「禾煦茶书房」文案叠字
+  heroImage: "/assets/images/contact-hero.jpg",
   qrCode: "/assets/images/contact-qr.jpg"
 };
 
