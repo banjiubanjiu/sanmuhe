@@ -2,6 +2,7 @@ const {
   getStore,
   getTeaRoom,
   getBookingPolicy,
+  bookingPolicyFromSettings,
   buildSlotTimes,
   calculateReservationPrice,
   toMinutes
@@ -11,13 +12,25 @@ const { getBookingDays } = require("../../utils/date");
 const { withPrivacy } = require("../../utils/privacy");
 
 const CONTACT_KEY = "sanmuhe_contact";
-const STORE = getStore();
-const TEA_ROOM = getTeaRoom();
-const BOOKING = getBookingPolicy();
-const MAX_PEOPLE = BOOKING.maxPeople;
-const MIN_DURATION = BOOKING.minDurationMinutes;
-const SLOT_STEP = BOOKING.slotStepMinutes;
-const ALL_SLOT_TIMES = buildSlotTimes();
+const LOCAL_FALLBACK_STORE = getStore();
+const LOCAL_FALLBACK_ROOM = getTeaRoom();
+/** 运行时策略：默认本地，loadCatalog 后被 store_settings 覆盖 */
+let activePolicy = getBookingPolicy();
+let allSlotTimes = buildSlotTimes(activePolicy);
+
+function policyMaxPeople() {
+  return Math.max(1, Number(activePolicy.maxPeople) || 6);
+}
+function policyMinDuration() {
+  return Math.max(30, Number(activePolicy.minDurationMinutes) || 120);
+}
+function policySlotStep() {
+  return Math.max(15, Number(activePolicy.slotStepMinutes) || 30);
+}
+function setActivePolicy(policy) {
+  activePolicy = policy || getBookingPolicy();
+  allSlotTimes = buildSlotTimes(activePolicy);
+}
 
 function getDayText(days, value) {
   const day = days.find((item) => item.value === value);
@@ -30,27 +43,70 @@ function decorateDays(days) {
   }));
 }
 
-/** 页面展示的茶席：永远锚定本店主数据；仅同步云端营业状态 */
-function resolveTeaRoom(remoteRoom) {
-  const base = getTeaRoom();
-  if (!remoteRoom) {
-    return base;
-  }
-  return Object.assign({}, base, {
-    status: remoteRoom.status || base.status,
-    image: remoteRoom.image || base.image
-  });
+/**
+ * 把后台 rooms 文档映射为预约页展示结构。
+ * 名称/容量/图片/状态以后台为准；地址/城市可来自 store_settings。
+ */
+function mapCatalogRoom(item, settings = {}) {
+  if (!item) return null;
+  const name = String(item.name || item.title || "").trim() || "茶室";
+  const features = Array.isArray(item.features)
+    ? item.features.map((f) => String(f || "").trim()).filter(Boolean)
+    : String(item.floor || "")
+      .split(/[｜|·,/，]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const capacityText = String(item.capacity || "").trim();
+  const maxPeopleMatch = capacityText.match(/(\d+)\s*人/);
+  const maxPeople = maxPeopleMatch
+    ? Math.max(1, Number(maxPeopleMatch[1]) || policyMaxPeople())
+    : policyMaxPeople();
+  const unavailable = item.visible === false
+    || item.removed === true
+    || /订满|暂停|下架|不可/.test(String(item.status || ""));
+
+  return {
+    id: String(item.id || "").trim(),
+    storeId: String(item.storeId || settings.storeId || LOCAL_FALLBACK_STORE.id || "").trim(),
+    name,
+    displayName: name,
+    capacity: capacityText || `${maxPeople}人以内`,
+    maxPeople,
+    floor: String(item.floor || "").trim(),
+    features: features.length ? features.slice(0, 4) : ["满 2 小时起", "半小时加时"],
+    image: item.image || item.thumb || LOCAL_FALLBACK_ROOM.image,
+    price: Number(item.price) || 0,
+    status: String(item.status || (unavailable ? "已订满" : "可预定")).trim() || "可预定",
+    available: !unavailable,
+    city: String(settings.city || item.city || LOCAL_FALLBACK_STORE.city || "").trim(),
+    address: String(settings.address || item.place || item.address || LOCAL_FALLBACK_STORE.address || "").trim()
+  };
+}
+
+function localFallbackRoom(settings = {}) {
+  return mapCatalogRoom({
+    id: LOCAL_FALLBACK_ROOM.id,
+    storeId: LOCAL_FALLBACK_STORE.id,
+    name: LOCAL_FALLBACK_ROOM.name || LOCAL_FALLBACK_STORE.name,
+    capacity: LOCAL_FALLBACK_ROOM.capacity,
+    floor: LOCAL_FALLBACK_ROOM.floor,
+    features: LOCAL_FALLBACK_ROOM.features,
+    image: LOCAL_FALLBACK_ROOM.image,
+    price: LOCAL_FALLBACK_ROOM.priceFrom || LOCAL_FALLBACK_ROOM.price,
+    status: LOCAL_FALLBACK_ROOM.status,
+    visible: true
+  }, settings);
 }
 
 function isSlotReserved(startTime, endTime, reservedSlots) {
   const startMins = toMinutes(startTime);
-  const endMins = endTime ? toMinutes(endTime) : startMins + MIN_DURATION;
+  const endMins = endTime ? toMinutes(endTime) : startMins + policyMinDuration();
   if (!(startMins < endMins)) {
     return false;
   }
   return (reservedSlots || []).some((slot) => {
     const s = toMinutes(slot.time);
-    const e = slot.endTime ? toMinutes(slot.endTime) : s + (slot.durationMinutes || MIN_DURATION);
+    const e = slot.endTime ? toMinutes(slot.endTime) : s + (slot.durationMinutes || policyMinDuration());
     if (!(s < e)) {
       return false;
     }
@@ -66,7 +122,7 @@ function isPointCovered(time, reservedSlots) {
   }
   return (reservedSlots || []).some((slot) => {
     const s = toMinutes(slot.time);
-    const e = slot.endTime ? toMinutes(slot.endTime) : s + (slot.durationMinutes || MIN_DURATION);
+    const e = slot.endTime ? toMinutes(slot.endTime) : s + (slot.durationMinutes || policyMinDuration());
     // 左闭右开：结束点本身可作下一场开始
     return Number.isFinite(s) && Number.isFinite(e) && point >= s && point < e;
   });
@@ -95,7 +151,7 @@ function applyQuote(startTime, endTime) {
   if (!startTime || !endTime) {
     return emptySelection();
   }
-  const quote = calculateReservationPrice(startTime, endTime);
+  const quote = calculateReservationPrice(startTime, endTime, activePolicy);
   if (!quote.ok) {
     return Object.assign(emptySelection(), {
       selectedTime: startTime,
@@ -127,7 +183,7 @@ function buildSlotCells(reservedSlots, startTime, endTime, now = new Date()) {
   const startMins = startTime ? toMinutes(startTime) : null;
   const endMins = endTime ? toMinutes(endTime) : null;
 
-  return ALL_SLOT_TIMES.map((time) => {
+  return allSlotTimes.map((time) => {
     const mins = toMinutes(time);
     let status = "free";
     let tag = "";
@@ -187,10 +243,15 @@ Page(withPrivacy({
   data: {
     days: [],
     visibleDays: [],
-    maxPeople: MAX_PEOPLE,
-    minHours: MIN_DURATION / 60,
-    slotStepMinutes: SLOT_STEP,
-    selectedRoom: resolveTeaRoom(),
+    maxPeople: policyMaxPeople(),
+    minHours: policyMinDuration() / 60,
+    slotStepMinutes: policySlotStep(),
+    giftTeaCopy: (activePolicy.giftTea && activePolicy.giftTea.copy) || "",
+    dayBasePrice: (activePolicy.periods && activePolicy.periods[0] && activePolicy.periods[0].basePrice) || 188,
+    rooms: [],
+    selectedRoomId: "",
+    selectedRoom: localFallbackRoom(),
+    roomPerks: (localFallbackRoom().features || []).slice(0, 3),
     selectedDay: "",
     selectedDayText: "",
     slotCells: [],
@@ -242,14 +303,25 @@ Page(withPrivacy({
     return cells;
   },
 
+  currentRoomId() {
+    return (this.data.selectedRoom && this.data.selectedRoom.id)
+      || this.data.selectedRoomId
+      || LOCAL_FALLBACK_ROOM.id;
+  },
+
+  currentStoreId() {
+    return (this.data.selectedRoom && this.data.selectedRoom.storeId)
+      || LOCAL_FALLBACK_STORE.id;
+  },
+
   loadReservedSlots(day) {
     if (!day) {
       return;
     }
     listReservedSlots({
       day,
-      roomId: TEA_ROOM.id,
-      storeId: STORE.id
+      roomId: this.currentRoomId(),
+      storeId: this.currentStoreId()
     }).then((result) => {
       if (!result || result.ok === false) {
         return;
@@ -280,21 +352,77 @@ Page(withPrivacy({
   loadCatalog() {
     getCatalog().then((catalog) => {
       const settings = catalog.settings || {};
-      const remoteRoom = catalog.rooms && catalog.rooms[0] ? catalog.rooms[0] : null;
-      const room = resolveTeaRoom(remoteRoom);
-      if (settings.address) {
-        room.address = settings.address;
+      // 计价规则以后台设置为准
+      setActivePolicy(bookingPolicyFromSettings(settings));
+
+      const remoteRooms = Array.isArray(catalog.rooms) ? catalog.rooms : [];
+      let rooms = remoteRooms
+        .map((item) => mapCatalogRoom(item, settings))
+        .filter((item) => item && item.id);
+
+      // 云端无可见茶室：本地兜底仅在非云端成功时使用；云端成功但为空则明确不可约
+      if (!rooms.length) {
+        if (catalog.fromCloud) {
+          const empty = localFallbackRoom(settings);
+          empty.status = "已订满";
+          empty.name = "暂无可预约茶室";
+          empty.displayName = "暂无可预约茶室";
+          empty.available = false;
+          rooms = [empty];
+        } else {
+          rooms = [localFallbackRoom(settings)];
+        }
       }
-      if (settings.city) {
-        room.city = settings.city;
-      }
-      if (catalog.fromCloud && (!catalog.rooms || !catalog.rooms.length)) {
-        room.status = "已订满";
-        room.name = "暂无可预约茶室";
-        room.displayName = "暂无可预约茶室";
-      }
-      this.setData({ selectedRoom: room });
+
+      const prevId = this.data.selectedRoomId || (this.data.selectedRoom && this.data.selectedRoom.id);
+      const selected = rooms.find((item) => item.id === prevId && item.available)
+        || rooms.find((item) => item.available)
+        || rooms[0];
+      const cap = selected.maxPeople || policyMaxPeople();
+
+      this.setData({
+        rooms,
+        selectedRoomId: selected.id,
+        selectedRoom: selected,
+        roomPerks: (selected.features || []).slice(0, 3),
+        maxPeople: cap,
+        minHours: policyMinDuration() / 60,
+        slotStepMinutes: policySlotStep(),
+        giftTeaCopy: (activePolicy.giftTea && activePolicy.giftTea.copy) || "",
+        dayBasePrice: (activePolicy.periods && activePolicy.periods[0] && activePolicy.periods[0].basePrice) || 188,
+        people: Math.min(this.data.people || 2, cap),
+        slotCells: this.refreshCells(this.data.selectedTime, this.data.selectedEnd, this.data.reservedSlots)
+      }, () => {
+        if (this.data.selectedDay) {
+          this.loadReservedSlots(this.data.selectedDay);
+        }
+      });
     });
+  },
+
+  selectRoom(event) {
+    const roomId = event.currentTarget.dataset.id;
+    const room = (this.data.rooms || []).find((item) => item.id === roomId);
+    if (!room || !room.available) {
+      wx.showToast({ title: "该茶室暂不可约", icon: "none" });
+      return;
+    }
+    if (room.id === this.data.selectedRoomId) {
+      return;
+    }
+    this.setData(Object.assign({
+      selectedRoomId: room.id,
+      selectedRoom: room,
+      roomPerks: (room.features || []).slice(0, 3),
+      maxPeople: room.maxPeople || policyMaxPeople(),
+      people: Math.min(this.data.people || 2, room.maxPeople || policyMaxPeople()),
+      pickMode: "start"
+    }, emptySelection(), {
+      slotCells: this.refreshCells("", "", this.data.reservedSlots)
+    }));
+    if (this.data.selectedDay) {
+      this.loadReservedSlots(this.data.selectedDay);
+    }
   },
 
   chooseDay(event) {
@@ -346,7 +474,7 @@ Page(withPrivacy({
         selectedTime: time,
         selectedEnd: "",
         selectedSlotLabel: `${time} 起`,
-        feeLabel: `请再选结束时间（至少满 ${MIN_DURATION / 60} 小时）`,
+        feeLabel: `请再选结束时间（至少满 ${policyMinDuration() / 60} 小时）`,
         slotCells: this.refreshCells(time, "", reservedSlots)
       }));
       return;
@@ -358,7 +486,7 @@ Page(withPrivacy({
         selectedTime: time,
         selectedEnd: "",
         selectedSlotLabel: `${time} 起`,
-        feeLabel: `请再选结束时间（至少满 ${MIN_DURATION / 60} 小时）`,
+        feeLabel: `请再选结束时间（至少满 ${policyMinDuration() / 60} 小时）`,
         priceReady: false,
         selectedPrice: 0,
         pickMode: "end",
@@ -377,7 +505,7 @@ Page(withPrivacy({
         selectedTime: time,
         selectedEnd: "",
         selectedSlotLabel: `${time} 起`,
-        feeLabel: `请再选结束时间（至少满 ${MIN_DURATION / 60} 小时）`,
+        feeLabel: `请再选结束时间（至少满 ${policyMinDuration() / 60} 小时）`,
         priceReady: false,
         selectedPrice: 0,
         pickMode: "end",
@@ -387,9 +515,9 @@ Page(withPrivacy({
     }
 
     const duration = endMins - startMins;
-    if (duration < MIN_DURATION) {
+    if (duration < policyMinDuration()) {
       wx.showToast({
-        title: `至少预订 ${MIN_DURATION / 60} 小时`,
+        title: `至少预订 ${policyMinDuration() / 60} 小时`,
         icon: "none"
       });
       return;
@@ -420,7 +548,7 @@ Page(withPrivacy({
     if (!this.data.priceReady || !this.data.selectedTime || !this.data.selectedEnd) {
       wx.showToast({
         title: this.data.selectedTime
-          ? `请再选结束时间（满 ${MIN_DURATION / 60} 小时）`
+          ? `请再选结束时间（满 ${policyMinDuration() / 60} 小时）`
           : "请先选择开始时间",
         icon: "none"
       });
@@ -451,7 +579,7 @@ Page(withPrivacy({
 
   setPeople(event) {
     const next = this.data.people + Number(event.currentTarget.dataset.step);
-    this.setData({ people: Math.max(1, Math.min(MAX_PEOPLE, next)) });
+    this.setData({ people: Math.max(1, Math.min(policyMaxPeople(), next)) });
   },
 
   onInput(event) {
@@ -480,12 +608,18 @@ Page(withPrivacy({
       wx.showToast({ title: "请填写 11 位手机号", icon: "none" });
       return;
     }
-    if (people > MAX_PEOPLE) {
-      wx.showToast({ title: `每场限 ${MAX_PEOPLE} 位以内`, icon: "none" });
+    const room = this.data.selectedRoom || {};
+    const maxPeople = Number(room.maxPeople || this.data.maxPeople || policyMaxPeople()) || policyMaxPeople();
+    if (!room.id || room.available === false) {
+      wx.showToast({ title: "请选择可预约茶室", icon: "none" });
+      return;
+    }
+    if (people > maxPeople) {
+      wx.showToast({ title: `每场限 ${maxPeople} 位以内`, icon: "none" });
       return;
     }
 
-    const quote = calculateReservationPrice(selectedTime, selectedEnd);
+    const quote = calculateReservationPrice(selectedTime, selectedEnd, activePolicy);
     if (!quote.ok) {
       wx.showToast({ title: quote.message || "请重新选择时段", icon: "none" });
       return;
@@ -497,8 +631,9 @@ Page(withPrivacy({
     }
 
     const payload = {
-      storeId: STORE.id,
-      roomId: TEA_ROOM.id,
+      storeId: room.storeId || this.currentStoreId(),
+      roomId: room.id,
+      roomName: room.displayName || room.name,
       day: selectedDay,
       time: selectedTime,
       endTime: selectedEnd,

@@ -183,6 +183,52 @@
   line-height: 1.45;
 }
 
+.room-picker {
+  position: relative;
+  z-index: 1;
+  margin-top: 28rpx;
+}
+
+.room-scroll {
+  margin-top: 16rpx;
+  white-space: nowrap;
+}
+
+.room-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6rpx;
+  min-width: 180rpx;
+  margin-right: 14rpx;
+  padding: 18rpx 20rpx;
+  border: 1rpx solid rgba(111, 92, 68, 0.18);
+  border-radius: 18rpx;
+  background: rgba(255, 252, 246, 0.92);
+  vertical-align: top;
+}
+
+.room-chip.active {
+  border-color: rgba(90, 132, 76, 0.55);
+  background: rgba(90, 132, 76, 0.1);
+}
+
+.room-chip.disabled {
+  opacity: 0.45;
+}
+
+.room-chip-name {
+  color: #2a241d;
+  font-size: 26rpx;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.room-chip-meta {
+  color: #7a7166;
+  font-size: 20rpx;
+  line-height: 1.2;
+}
+
 .perk-row {
   position: relative;
   z-index: 1;

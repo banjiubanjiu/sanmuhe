@@ -7,6 +7,7 @@ function getFallbackCatalog() {
     teaProducts,
     rooms,
     events,
+    productCategories: [],
     content: {
       homeSlides
     },
@@ -87,6 +88,7 @@ function normalizeCatalogList(source, key, localItems, trustRemote) {
   const remote = Array.isArray(source[key]) ? source[key] : [];
   if (trustRemote) {
     // 云端可见列表为空时回退本地，避免前台被刷成空白
+    // rooms 与其它 catalog 一样：以后台（云端）列表为准
     if (!remote.length) {
       return localItems.slice();
     }
@@ -103,6 +105,7 @@ function enrichCatalog(catalog, options = {}) {
     teaProducts: normalizeCatalogList(source, "teaProducts", teaProducts, trustRemote),
     rooms: normalizeCatalogList(source, "rooms", rooms, trustRemote),
     events: normalizeCatalogList(source, "events", events, trustRemote),
+    productCategories: Array.isArray(source.productCategories) ? source.productCategories : [],
     content: source.content || { homeSlides: [] },
     settings: source.settings || null,
     fromCloud: trustRemote

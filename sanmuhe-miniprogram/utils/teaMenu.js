@@ -220,6 +220,30 @@ function shortTagsFromText(text, max = 3) {
 
 function buildTeaOptions(item, teaGroups) {
   const fallbackImage = item.image || localImage("assets/images/product-drink-001-chujian.jpg");
+  // 新模型：getCatalog 可能附带 teaItems（带图/副文案）
+  if (Array.isArray(item.teaItems) && item.teaItems.length) {
+    return item.teaItems.map((tea) => {
+      const name = cleanText(tea && tea.name);
+      if (!name) return null;
+      const meta = TEA_OPTION_META[name] || {};
+      const groupName = cleanText(tea.groupName) || "本席可选";
+      const category = inferCategory(name, groupName);
+      const subtitle = cleanText(tea.subtitle)
+        || meta.subtitle
+        || (groupName.indexOf("本") !== 0 ? `${groupName}可选` : "本席精选茶款");
+      const tags = Array.isArray(meta.tags) && meta.tags.length
+        ? meta.tags
+        : shortTagsFromText(subtitle || category, 3);
+      return {
+        name,
+        category,
+        image: tea.image || meta.image || fallbackImage,
+        subtitle,
+        tags: tags.length ? tags : [category],
+        groupName
+      };
+    }).filter(Boolean);
+  }
   return teaGroups.reduce((result, group) => {
     group.options.forEach((name) => {
       const meta = TEA_OPTION_META[name] || {};

@@ -14,7 +14,7 @@
   </view>
 
   <view class="hero-section">
-    <image class="hero-image" src="/assets/images/reservation-hero.jpg" mode="aspectFill"></image>
+    <image class="hero-image" src="{{selectedRoom.image || '/assets/images/reservation-hero.jpg'}}" mode="aspectFill"></image>
     <view class="hero-shade"></view>
   </view>
 
@@ -27,7 +27,7 @@
       <view class="room-overline">
         <text>PRIVATE TEA ROOM</text>
         <view></view>
-        <text>01</text>
+        <text>{{rooms.length > 1 ? '选席' : '01'}}</text>
       </view>
       <view class="room-name">{{selectedRoom.displayName}}</view>
       <view class="room-city">{{selectedRoom.city}}</view>
@@ -37,10 +37,30 @@
       </view>
     </view>
 
+    <view wx:if="{{rooms.length > 1}}" class="room-picker">
+      <view class="section-label">
+        <view class="section-title-group">
+          <text class="section-index">00</text>
+          <view class="block-title">选择茶室</view>
+        </view>
+      </view>
+      <scroll-view scroll-x class="room-scroll" enhanced show-scrollbar="{{false}}">
+        <view
+          wx:for="{{rooms}}"
+          wx:key="id"
+          class="room-chip {{selectedRoomId === item.id ? 'active' : ''}} {{item.available ? '' : 'disabled'}}"
+          data-id="{{item.id}}"
+          bindtap="selectRoom"
+        >
+          <text class="room-chip-name">{{item.displayName}}</text>
+          <text class="room-chip-meta">{{item.capacity || item.status}}</text>
+        </view>
+      </scroll-view>
+    </view>
+
     <view class="perk-row">
-      <view class="perk-item">满 {{minHours}} 小时起</view>
-      <view class="perk-item">半小时加时</view>
-      <view class="perk-item">6 位以内</view>
+      <view class="perk-item" wx:for="{{roomPerks}}" wx:key="*this">{{item}}</view>
+      <view class="perk-item" wx:if="{{!roomPerks.length}}">满 {{minHours}} 小时起</view>
     </view>
 
     <view class="section-block">
@@ -168,7 +188,7 @@
         <textarea class="textarea-field" placeholder="备注（选填）" data-field="note" value="{{note}}" bindinput="onInput"></textarea>
       </view>
 
-      <view class="booking-note">无论是否用满，所选时段均归您；最短 {{minHours}} 小时。含赠 2 泡茶（价值 ¥78）。提交后需在 {{lockMinutes}} 分钟内完成微信支付，支付成功即确认预约。已支付预约须提前 {{cancelAdvanceHours}} 小时取消，费用原路退回。</view>
+      <view class="booking-note">无论是否用满，所选时段均归您；最短 {{minHours}} 小时。{{giftTeaCopy}}提交后需在 {{lockMinutes}} 分钟内完成微信支付，支付成功即确认预约。已支付预约须提前 {{cancelAdvanceHours}} 小时取消，费用原路退回。日间满时长起价 ¥{{dayBasePrice}}（以后台设置的预约规则为准）。</view>
 
       <button class="submit-reserve" hover-class="none" bindtap="submitReservation">支付并预约 · ¥{{selectedPrice}}</button>
     </view>

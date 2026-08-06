@@ -39,7 +39,7 @@ function buildSearchResults(query, catalog) {
       type: "room",
       label: "茶室",
       items: catalog.rooms,
-      getMeta: (item) => `${item.capacity || ""} · ¥${item.price}/小时`
+      getMeta: (item) => `${item.capacity || "茶室"} · ${item.status || "可预约"}`
     },
     {
       type: "event",

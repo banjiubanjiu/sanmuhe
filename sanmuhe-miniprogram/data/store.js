@@ -1,10 +1,11 @@
 /**
- * 禾煦门店主数据（Single-store first）
+ * 本地兜底与预约规则（时段/价带）
  *
- * 产品当前只有一家实体店。预约、联系、首页茶室入口都应消费这里，
- * 而不是各自硬编码，更不要用多店演示名（观山/听雨…）冒充门店。
+ * 茶室列表/名称/可约状态以后台 rooms + getCatalog 为准。
+ * 本文件仅在：云端未就绪、或需要本地 fallback 时使用；
+ * 不再作为「只允许一间茶室」的产品硬约束。
  *
- * 以后若开分店：mode 改为 multi，并按 storeId 扩展列表即可。
+ * 联系页地址、营业时段价带等可逐步迁到 store_settings，由后台配置。
  */
 
 const STORE_MODE = "single";
@@ -93,28 +94,28 @@ function isHalfHourAligned(hhmm) {
   return mins % booking.slotStepMinutes === 0;
 }
 
-function getPeriodForStart(startTime) {
+function getPeriodForStart(startTime, policy = booking) {
+  const periods = policy.periods || booking.periods;
   const startMins = toMinutes(startTime);
   if (!Number.isFinite(startMins)) {
-    return booking.periods[0];
+    return periods[0];
   }
-  // 从后往前：命中晚间起点则归晚间
-  for (let i = booking.periods.length - 1; i >= 0; i -= 1) {
-    const period = booking.periods[i];
+  for (let i = periods.length - 1; i >= 0; i -= 1) {
+    const period = periods[i];
     if (startMins >= toMinutes(period.start)) {
       return period;
     }
   }
-  return booking.periods[0];
+  return periods[0];
 }
 
 /**
- * 生成半小时时间点列表（含 open，含 close 作为可选结束点）
+ * 生成时间点列表（含 open，含 close 作为可选结束点）
  */
-function buildSlotTimes() {
-  const open = toMinutes(booking.openTime);
-  const close = toMinutes(booking.closeTime);
-  const step = booking.slotStepMinutes;
+function buildSlotTimes(policy = booking) {
+  const open = toMinutes(policy.openTime || booking.openTime);
+  const close = toMinutes(policy.closeTime || booking.closeTime);
+  const step = Math.max(1, Number(policy.slotStepMinutes) || booking.slotStepMinutes);
   const times = [];
   for (let m = open; m <= close; m += step) {
     times.push(fromMinutes(m));
@@ -122,40 +123,52 @@ function buildSlotTimes() {
   return times;
 }
 
+function isStepAligned(hhmm, policy = booking) {
+  const mins = toMinutes(hhmm);
+  const step = Math.max(1, Number(policy.slotStepMinutes) || booking.slotStepMinutes);
+  if (!Number.isFinite(mins)) {
+    return false;
+  }
+  return mins % step === 0;
+}
+
 /**
- * 计费：满 2 小时基础价 + 每超出 30 分钟加价
- * @returns {{ ok, price, basePrice, extraHalfHours, halfHourPrice, durationMinutes, period, periodLabel, feeLabel } | { ok:false, message }}
+ * 计费：满 minDuration 基础价 + 每超出 step 加价
+ * policy 来自后台 store_settings（bookingPolicyFromSettings）
  */
-function calculateReservationPrice(startTime, endTime) {
+function calculateReservationPrice(startTime, endTime, policyInput) {
+  const policy = policyInput || booking;
+  const step = Math.max(1, Number(policy.slotStepMinutes) || booking.slotStepMinutes);
+  const minDuration = Math.max(step, Number(policy.minDurationMinutes) || booking.minDurationMinutes);
   const startMins = toMinutes(startTime);
   const endMins = toMinutes(endTime);
   if (!Number.isFinite(startMins) || !Number.isFinite(endMins)) {
     return { ok: false, message: "请选择开始与结束时间" };
   }
-  if (!isHalfHourAligned(startTime) || !isHalfHourAligned(endTime)) {
-    return { ok: false, message: "时间需按半小时选择" };
+  if (!isStepAligned(startTime, policy) || !isStepAligned(endTime, policy)) {
+    return { ok: false, message: `时间需按 ${step} 分钟选择` };
   }
   if (endMins <= startMins) {
     return { ok: false, message: "结束时间需晚于开始时间" };
   }
 
   const durationMinutes = endMins - startMins;
-  if (durationMinutes < booking.minDurationMinutes) {
+  if (durationMinutes < minDuration) {
     return {
       ok: false,
-      message: `每场至少预订 ${booking.minDurationMinutes / 60} 小时（无论是否用满均归您）`
+      message: `每场至少预订 ${minDuration / 60} 小时（无论是否用满均归您）`
     };
   }
 
-  const open = toMinutes(booking.openTime);
-  const close = toMinutes(booking.closeTime);
+  const open = toMinutes(policy.openTime || booking.openTime);
+  const close = toMinutes(policy.closeTime || booking.closeTime);
   if (startMins < open || endMins > close) {
     return { ok: false, message: "所选时间不在可预约营业时段内" };
   }
 
-  const period = getPeriodForStart(startTime);
-  const extraMinutes = durationMinutes - booking.minDurationMinutes;
-  const extraHalfHours = Math.round(extraMinutes / booking.slotStepMinutes);
+  const period = getPeriodForStart(startTime, policy);
+  const extraMinutes = durationMinutes - minDuration;
+  const extraHalfHours = Math.round(extraMinutes / step);
   const halfHourPrice = Number(period.halfHourPrice) || 0;
   const basePrice = Number(period.basePrice) || 0;
   const price = basePrice + extraHalfHours * halfHourPrice;
@@ -166,7 +179,7 @@ function calculateReservationPrice(startTime, endTime) {
   if (extraHalfHours > 0) {
     feeLabel += ` · 基础¥${basePrice}+加时¥${extraHalfHours * halfHourPrice}`;
   } else {
-    feeLabel += ` · 满 2 小时`;
+    feeLabel += ` · 满 ${minDuration / 60} 小时`;
   }
 
   return {
@@ -205,6 +218,54 @@ function getBookingPolicy() {
   return booking;
 }
 
+/**
+ * 将后台 store_settings 转为预约页/计费使用的 policy。
+ * 无配置字段时保留本地默认（188/208 价带）。
+ */
+function bookingPolicyFromSettings(settings = {}) {
+  const halfRaw = Number(settings.bookingHalfHourPrice);
+  const halfHourPrice = Number.isFinite(halfRaw) && halfRaw >= 0 ? halfRaw : booking.periods[0].halfHourPrice;
+  const dayBaseRaw = Number(settings.bookingDayBasePrice);
+  const eveningBaseRaw = Number(settings.bookingEveningBasePrice);
+  const dayBase = Number.isFinite(dayBaseRaw) && dayBaseRaw >= 0 ? dayBaseRaw : booking.periods[0].basePrice;
+  const eveningBase = Number.isFinite(eveningBaseRaw) && eveningBaseRaw >= 0 ? eveningBaseRaw : booking.periods[1].basePrice;
+  const openTime = String(settings.bookingOpenTime || booking.openTime).trim() || booking.openTime;
+  const closeTime = String(settings.bookingCloseTime || booking.closeTime).trim() || booking.closeTime;
+  const slotStepMinutes = Math.max(15, Math.min(60, Number(settings.bookingSlotStepMinutes) || booking.slotStepMinutes));
+  const minDurationMinutes = Math.max(30, Math.min(480, Number(settings.bookingMinDurationMinutes) || booking.minDurationMinutes));
+  const maxPeople = Math.max(1, Math.min(30, Number(settings.bookingMaxPeople) || booking.maxPeople));
+  return {
+    slotStepMinutes,
+    minDurationMinutes,
+    maxPeople,
+    openTime,
+    closeTime,
+    giftTea: {
+      cups: Math.max(0, Number(settings.bookingGiftTeaCups) || booking.giftTea.cups),
+      valueYuan: Math.max(0, Number(settings.bookingGiftTeaValueYuan) || booking.giftTea.valueYuan),
+      copy: String(settings.bookingGiftTeaCopy || booking.giftTea.copy).trim() || booking.giftTea.copy
+    },
+    periods: [
+      {
+        id: "day",
+        label: String(settings.bookingDayLabel || "日间").trim() || "日间",
+        start: String(settings.bookingDayStart || booking.periods[0].start).trim() || booking.periods[0].start,
+        end: String(settings.bookingDayEnd || booking.periods[0].end).trim() || booking.periods[0].end,
+        basePrice: dayBase,
+        halfHourPrice
+      },
+      {
+        id: "evening",
+        label: String(settings.bookingEveningLabel || "晚间").trim() || "晚间",
+        start: String(settings.bookingEveningStart || booking.periods[1].start).trim() || booking.periods[1].start,
+        end: String(settings.bookingEveningEnd || booking.periods[1].end).trim() || booking.periods[1].end,
+        basePrice: eveningBase,
+        halfHourPrice
+      }
+    ]
+  };
+}
+
 function isSingleStore() {
   return STORE_MODE === "single";
 }
@@ -229,12 +290,14 @@ module.exports = {
   getTeaRoom,
   getRooms,
   getBookingPolicy,
+  bookingPolicyFromSettings,
   isSingleStore,
   displayReservationPlace,
   toMinutes,
   fromMinutes,
   pad2,
   isHalfHourAligned,
+  isStepAligned,
   getPeriodForStart,
   buildSlotTimes,
   calculateReservationPrice

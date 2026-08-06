@@ -183,7 +183,79 @@ async function writeInventoryLog(entry = {}) {
   }
 }
 
+function buildTeaGroupsFromItems(teas) {
+  const groupOrder = [];
+  const groupMap = {};
+  (teas || []).forEach((tea) => {
+    if (!tea || tea.visible === false || tea.removed === true) return;
+    const groupName = cleanText(tea.groupName || "本席可选", 40) || "本席可选";
+    const name = cleanText(tea.name, 40);
+    if (!name) return;
+    if (!groupMap[groupName]) {
+      groupMap[groupName] = [];
+      groupOrder.push(groupName);
+    }
+    groupMap[groupName].push(name);
+  });
+  return groupOrder.map((name) => ({ name, options: groupMap[name] }));
+}
+
+async function findTrustedDrinkTier(id) {
+  await ensureCollection("product_categories");
+  await ensureCollection("drinks");
+  try {
+    const tierResult = await db.collection("product_categories").where({ id, channel: "drinks" }).limit(1).get();
+    const tier = tierResult.data && tierResult.data[0];
+    if (tier && tier.visible !== false && tier.removed !== true) {
+      let teas = [];
+      try {
+        const teaResult = await db.collection("drinks")
+          .where({ categoryId: id, visible: true })
+          .limit(100)
+          .get();
+        teas = (teaResult.data || []).filter((item) => item.removed !== true);
+        if (!teas.length) {
+          const byName = await db.collection("drinks")
+            .where({ category: tier.name, visible: true })
+            .limit(100)
+            .get();
+          teas = (byName.data || []).filter((item) => item.removed !== true && !item.teaGroups);
+        }
+      } catch (error) {
+        teas = [];
+      }
+      const teaGroups = buildTeaGroupsFromItems(teas);
+      const unit = cleanText(tier.unit || tier.badge, 40) || "道";
+      return {
+        collection: "product_categories",
+        docId: tier._id,
+        id: tier.id,
+        name: cleanText(tier.name, 80),
+        price: Math.max(0, Number(tier.price) || 0),
+        unit,
+        notes: teas.map((item) => cleanText(item.name, 40)).filter(Boolean).join(" / "),
+        teaGroups,
+        specs: [],
+        image: cleanText(tier.thumb || tier.image, 240),
+        stock: undefined,
+        lockedStock: undefined,
+        soldStock: undefined
+      };
+    }
+  } catch (error) {
+    // fall through to legacy drinks 档位 doc
+  }
+  return null;
+}
+
 async function findTrustedItem(type, id) {
+  if (type === "drink") {
+    const fromTier = await findTrustedDrinkTier(id);
+    if (fromTier) {
+      return fromTier;
+    }
+  }
+
   const collection = type === "tea" ? "tea_products" : "drinks";
   await ensureCollection(collection);
 
@@ -191,6 +263,10 @@ async function findTrustedItem(type, id) {
     const result = await db.collection(collection).where({ id }).limit(1).get();
     const item = result.data && result.data[0];
     if (item && item.visible !== false && item.removed !== true) {
+      // 新模型下 drinks 是茶品行，不可单独作为档位计价下单
+      if (type === "drink" && item.categoryId) {
+        return null;
+      }
       return {
         collection,
         docId: item._id,

@@ -13,6 +13,7 @@ const backupCollections = [
   "members",
   "tea_products",
   "drinks",
+  "product_categories",
   "rooms",
   "events",
   "content_blocks",

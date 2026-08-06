@@ -109,6 +109,7 @@ const EmptyState = {
 const navItems = [
   { key: "dashboard", label: "首页", icon: Home },
   { key: "reservations", label: "茶室预约", icon: CalendarCheck },
+  { key: "rooms", label: "茶室资源", icon: CalendarDays },
   { key: "signups", label: "茶事活动", icon: TicketPercent },
   { key: "orders", label: "订单管理", icon: ClipboardList },
   { key: "afterSales", label: "售后管理", icon: BadgeDollarSign },
@@ -128,7 +129,7 @@ const navItems = [
 
 const navGroups = [
   { label: "经营工作台", items: ["dashboard", "orders", "afterSales", "inventory"] },
-  { label: "门店服务", items: ["reservations", "signups", "customers"] },
+  { label: "门店服务", items: ["reservations", "rooms", "signups", "customers"] },
   { label: "内容与增长", items: ["catalog", "content", "analytics", "marketing"] },
   { label: "系统治理", items: ["audit", "notifications", "system", "roles", "backups", "settings"] }
 ];
@@ -141,6 +142,7 @@ const navItemMap = navItems.reduce((map, item) => {
 const tabPermissions = {
   dashboard: "dashboard.read",
   reservations: "reservation.read",
+  rooms: "catalog.read",
   signups: "signup.read",
   orders: "order.read",
   afterSales: "afterSale.read",
@@ -160,8 +162,7 @@ const tabPermissions = {
 
 const collectionTabs = [
   { key: "tea_products", label: "茶叶", listTitle: "茶叶列表", entityLabel: "茶叶" },
-  { key: "drinks", label: "堂饮茶单", listTitle: "堂饮列表", entityLabel: "堂饮" },
-  { key: "rooms", label: "茶室", listTitle: "茶室列表", entityLabel: "茶室" },
+  { key: "drinks", label: "堂饮茶单", listTitle: "档位下茶品", entityLabel: "茶品" },
   { key: "events", label: "活动", listTitle: "活动列表", entityLabel: "活动" }
 ];
 
@@ -228,6 +229,7 @@ const EXPORT_MAX_ROWS = 5000;
 const pageTitles = {
   dashboard: ["经营首页", "今日概览"],
   reservations: ["茶室预约", ""],
+  rooms: ["茶室资源", "可预约空间"],
   signups: ["活动报名", ""],
   orders: ["订单管理", "待办工作台"],
   afterSales: ["售后管理", ""],
@@ -249,6 +251,7 @@ const pageTitles = {
 const moduleProfiles = {
   dashboard: { group: "经营", subject: "首页", countLabel: "项", note: "" },
   reservations: { group: "门店", subject: "预约", countLabel: "条", note: "" },
+  rooms: { group: "门店", subject: "茶室", countLabel: "间", note: "" },
   signups: { group: "门店", subject: "报名", countLabel: "条", note: "" },
   orders: { group: "经营", subject: "订单", countLabel: "笔", note: "" },
   afterSales: { group: "经营", subject: "售后", countLabel: "笔", note: "" },
@@ -271,6 +274,7 @@ const writePermissionsByTab = {
   afterSales: ["afterSale.write"],
   inventory: ["inventory.write"],
   reservations: ["reservation.write"],
+  rooms: ["catalog.write"],
   signups: ["signup.write"],
   customers: ["export.read", "privacy.delete"],
   catalog: ["catalog.write"],
@@ -288,6 +292,7 @@ const riskPolicyByTab = {
   afterSales: "退款状态需保留处理备注",
   inventory: "人工调整需填写库存原因",
   reservations: "取消预约需记录业务原因",
+  rooms: "茶室上下架影响小程序可约列表",
   signups: "取消报名需记录业务原因",
   customers: "导出/删除个人数据需原因",
   catalog: "价格库存状态变更需原因",
@@ -308,6 +313,7 @@ const state = reactive({
   collection: "tea_products",
   contentType: "home_carousel",
   catalogDrawerOpen: false,
+  selectedCatalogIds: [],
   /** 手机端侧栏导航抽屉 */
   navOpen: false,
   /** 各模块详情/编辑抽屉：列表默认全宽，点选后再打开 */
@@ -340,6 +346,9 @@ const state = reactive({
   summary: [],
   dashboard: null,
   catalogItems: [],
+  /** 商品类别（product_categories），茶叶/堂饮共用 */
+  productCategories: [],
+  categoryManagerOpen: false,
   orders: [],
   afterSales: [],
   inventoryLogs: [],
@@ -396,6 +405,9 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 const filters = reactive({
   global: "",
   catalog: "",
+  catalogShelf: "",
+  catalogCategory: "",
+  catalogFlag: "",
   orderBizType: "",
   /** todo=店员待办队列（默认）；all=可查全部/单状态 */
   orderQueue: "todo",
@@ -481,6 +493,30 @@ const inventoryForm = reactive({
   delta: 0,
   note: ""
 });
+/** 调库抽屉：按类型加载的商品列表 */
+const inventoryProductOptions = ref([]);
+/** 分类下拉当前选项（含 SELECT_CUSTOM_VALUE） */
+const catalogCategoryChoice = ref("");
+/** 活动日期：HTML date 绑定（YYYY-MM-DD），保存时格式化为前台展示文案 */
+const catalogDateIso = ref("");
+/** 类别管理：新建/编辑表单（堂饮类别=档位，含价格/单位） */
+const categoryForm = reactive({
+  id: "",
+  name: "",
+  sort: 10,
+  channel: "tea_products",
+  visible: true,
+  price: 0,
+  unit: "道",
+  badge: "",
+  serviceType: "tasting",
+  tagline: "",
+  brewStyle: "热泡茶",
+  color: "",
+  image: ""
+});
+/** 内容链接目标：页面预设或自定义 */
+const contentLinkTargetChoice = ref("");
 const noticeTestForm = reactive({
   kind: "reservationStatus",
   openid: "",
@@ -550,6 +586,13 @@ let broadcastSessionId = 0;
 const seenOrderAlertKeys = new Set();
 const globalSearchInput = ref(null);
 
+const emptyCatalogSpec = () => ({
+  label: "",
+  weight: "",
+  price: 0,
+  stockUnits: 1
+});
+
 const emptyCatalog = () => ({
   id: "",
   name: "",
@@ -565,7 +608,9 @@ const emptyCatalog = () => ({
   place: "",
   quota: 30,
   signed: 0,
-  status: "",
+  status: "上架",
+  /** 表单用：on | off | draft，保存时映射 visible/status */
+  shelfStatus: "on",
   image: "",
   thumb: "",
   notes: "",
@@ -573,11 +618,89 @@ const emptyCatalog = () => ({
   summary: "",
   detail: "",
   origin: "",
+  year: "",
   roast: "",
   sort: 10,
   visible: true,
-  deleted: false
+  deleted: false,
+  specs: [],
+  /** 堂饮茶品：所属档位 id（drink-001） */
+  categoryId: "",
+  /** 档位内分组（知味下的岩茶/红茶…） */
+  groupName: "",
+  subtitle: "",
+  /** 兼容旧数据；新堂饮不再用 teaGroups 文本 */
+  teaGroups: [],
+  tagline: "",
+  brewStyle: "热泡茶",
+  serviceType: "tasting",
+  notes: ""
 });
+
+/** 零售茶叶才用 specs 计价；堂饮是「档位 + 可选茶」 */
+function isTeaProductsCollection(collection = state.collection) {
+  return collection === "tea_products";
+}
+
+function isDrinksCollection(collection = state.collection) {
+  return collection === "drinks";
+}
+
+/** 茶叶/堂饮支持上架状态枚举 */
+function supportsProductShelf(collection = state.collection) {
+  return isTeaProductsCollection(collection) || isDrinksCollection(collection);
+}
+
+const CATALOG_SHELF_OPTIONS = [
+  { value: "on", label: "上架" },
+  { value: "off", label: "下架" },
+  { value: "draft", label: "草稿" }
+];
+
+const CATALOG_FLAG_OPTIONS = [
+  { value: "", label: "全部标记" },
+  { value: "low_stock", label: "低库存" },
+  { value: "no_image", label: "缺图片" }
+];
+
+/** 下拉中的「自定义」哨兵值，不落库 */
+const SELECT_CUSTOM_VALUE = "__custom__";
+
+/** 无云端类别时的兜底预设（与 seed product_categories 对齐） */
+const TEA_CATEGORY_PRESETS = ["红茶", "白茶", "岩茶", "普洱茶", "单丛"];
+/** 堂饮分类=点单左侧档位 */
+const DRINK_CATEGORY_PRESETS = ["初见", "知味", "臻藏", "烹茶暖叙", "芳茗润茶"];
+/** 活动 Tab：与 pages/events 固定分类对齐 */
+const EVENT_CATEGORY_PRESETS = ["养心茶会", "学茶", "时令茶会"];
+const EVENT_STATUS_OPTIONS = ["报名中", "已满", "已结束", "已取消"];
+const ROOM_STATUS_OPTIONS = ["可预定", "已订满", "维护中", "暂停预约"];
+
+const CONTENT_TYPE_OPTIONS = [
+  { value: "home_carousel", label: "首页轮播" },
+  { value: "home_card", label: "首页卡片" },
+  { value: "notice", label: "公告" }
+];
+
+const CONTENT_LINK_TYPE_OPTIONS = [
+  { value: "page", label: "小程序页面" },
+  { value: "none", label: "无跳转" }
+];
+
+const CONTENT_PAGE_OPTIONS = [
+  { value: "/pages/index/index", label: "首页" },
+  { value: "/pages/shop/index", label: "茶品商城" },
+  { value: "/pages/order/index", label: "堂饮点单" },
+  { value: "/pages/reservation/index", label: "茶室预约" },
+  { value: "/pages/events/index", label: "茶事活动" },
+  { value: "/pages/member/index", label: "会员中心" },
+  { value: "/pages/profile/index", label: "我的" },
+  { value: "/pages/contact/index", label: "联系客服" },
+  { value: "/pages/cart/index", label: "购物车" },
+  { value: "/pages/orders/index", label: "我的订单" },
+  { value: SELECT_CUSTOM_VALUE, label: "自定义路径…" }
+];
+
+const WEEKDAY_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
 const emptyCoupon = () => ({
   id: "",
@@ -734,9 +857,12 @@ const visibleNavGroups = computed(() => navGroups
   }))
   .filter((group) => group.items.length));
 const visibleQuickActions = computed(() => quickActions.filter((action) => canAccessTab(action.tab)));
-const activeCollectionTab = computed(
-  () => collectionTabs.find((item) => item.key === state.collection) || collectionTabs[0]
-);
+const activeCollectionTab = computed(() => {
+  if (state.activeTab === "rooms" || state.collection === "rooms") {
+    return { key: "rooms", label: "茶室", listTitle: "茶室列表", entityLabel: "茶室" };
+  }
+  return collectionTabs.find((item) => item.key === state.collection) || collectionTabs[0];
+});
 const catalogListTitle = computed(() => activeCollectionTab.value?.listTitle || "资料列表");
 const catalogEntityLabel = computed(() => activeCollectionTab.value?.entityLabel || "资料");
 const accessBlocked = computed(() => !!state.adminProfileError || (!!state.adminProfile && (state.adminProfile.disabled === true || !visibleNavGroups.value.length)));
@@ -808,7 +934,12 @@ const activeFilterLabels = computed(() => {
     const text = String(value || "").trim();
     if (text) items.push({ label, value: text });
   };
-  if (state.activeTab === "catalog") add("资料", filters.catalog);
+  if (state.activeTab === "catalog") {
+    add("资料", filters.catalog);
+    add("状态", filters.catalogShelf === "on" ? "上架" : filters.catalogShelf === "off" ? "下架" : filters.catalogShelf === "draft" ? "草稿" : "");
+    add("分类", filters.catalogCategory);
+    add("标记", filters.catalogFlag === "low_stock" ? "低库存" : filters.catalogFlag === "no_image" ? "缺图片" : "");
+  }
   if (state.activeTab === "orders") {
     if (filters.orderQueue === "all") {
       add("视图", "全部");
@@ -842,7 +973,9 @@ const activeFilterLabels = computed(() => {
   return items;
 });
 const hasClearableFilters = computed(() => {
-  if (state.activeTab === "catalog") return !!filters.catalog.trim();
+  if (state.activeTab === "catalog") {
+    return !!(filters.catalog.trim() || filters.catalogShelf || filters.catalogCategory || filters.catalogFlag);
+  }
   if (state.activeTab === "orders") {
     return !!(
       filters.orderBizType
@@ -975,10 +1108,407 @@ const operationAssuranceItems = computed(() => [
 ]);
 const moduleWorkflowSteps = computed(() => buildWorkflowSteps(state.activeTab));
 
+function supportsCatalogSpecs(collection = state.collection) {
+  return isTeaProductsCollection(collection);
+}
+
+const emptyTeaGroup = () => ({ name: "本席可选", optionsText: "" });
+
+function normalizeTeaGroups(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((group) => {
+      if (!group || typeof group !== "object") return null;
+      const name = String(group.name || group.label || "本席可选").trim().slice(0, 40) || "本席可选";
+      let options = [];
+      if (Array.isArray(group.options)) {
+        options = group.options
+          .map((item) => String(item && item.name ? item.name : item || "").trim())
+          .filter(Boolean)
+          .slice(0, 20);
+      } else if (typeof group.optionsText === "string") {
+        options = group.optionsText
+          .split(/[,，、\n]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .slice(0, 20);
+      }
+      if (!options.length) return null;
+      return { name, options, optionsText: options.join("、") };
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function addTeaGroup() {
+  if (!Array.isArray(forms.catalog.teaGroups)) forms.catalog.teaGroups = [];
+  if (forms.catalog.teaGroups.length >= 8) {
+    showToast("最多 8 个茶款分组");
+    return;
+  }
+  forms.catalog.teaGroups.push(emptyTeaGroup());
+}
+
+function removeTeaGroup(index) {
+  if (!Array.isArray(forms.catalog.teaGroups)) return;
+  forms.catalog.teaGroups.splice(index, 1);
+}
+
+function deriveCatalogShelfStatus(item = {}) {
+  if (isCatalogRemoved(item)) return "removed";
+  if (item.visible === false || item.deleted === true) {
+    const status = String(item.status || "").trim();
+    if (status === "草稿" || /draft/i.test(status)) return "draft";
+    return "off";
+  }
+  return "on";
+}
+
+function applyCatalogShelfStatus(status) {
+  const next = String(status || "on");
+  forms.catalog.shelfStatus = next;
+  if (next === "on") {
+    forms.catalog.visible = true;
+    forms.catalog.deleted = false;
+    if (supportsProductShelf()) forms.catalog.status = "上架";
+  } else if (next === "draft") {
+    forms.catalog.visible = false;
+    if (supportsProductShelf()) forms.catalog.status = "草稿";
+  } else if (next === "off") {
+    forms.catalog.visible = false;
+    if (supportsProductShelf()) forms.catalog.status = "下架";
+  }
+}
+
+function normalizeCatalogSpecs(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const label = String(item.label || item.unit || "").trim();
+      if (!label) return null;
+      return {
+        label: label.slice(0, 40),
+        weight: String(item.weight || "").trim().slice(0, 20),
+        price: Math.max(0, Number(item.price) || 0),
+        stockUnits: Math.max(1, Number(item.stockUnits) || 1)
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function addCatalogSpec() {
+  if (!Array.isArray(forms.catalog.specs)) forms.catalog.specs = [];
+  if (forms.catalog.specs.length >= 12) {
+    showToast("最多 12 个规格");
+    return;
+  }
+  forms.catalog.specs.push(emptyCatalogSpec());
+}
+
+function removeCatalogSpec(index) {
+  if (!Array.isArray(forms.catalog.specs)) return;
+  if (forms.catalog.specs.length <= 1) {
+    showToast("至少保留 1 个规格");
+    return;
+  }
+  forms.catalog.specs.splice(index, 1);
+  syncCatalogPriceFromSpecs();
+}
+
+function syncCatalogPriceFromSpecs() {
+  const specs = normalizeCatalogSpecs(forms.catalog.specs);
+  if (!specs.length) return;
+  forms.catalog.price = specs[0].price;
+  if (specs[0].label) forms.catalog.unit = specs[0].label;
+}
+
+/** 当前商品渠道下的可配置类别（按 sort；已删除不展示） */
+const managedCategoriesForCollection = computed(() => {
+  const channel = state.collection;
+  if (channel !== "tea_products" && channel !== "drinks") return [];
+  return (state.productCategories || [])
+    .filter((item) => item && item.channel === channel && item.removed !== true)
+    // 堂饮：只认带价格的档位，排除旧「推荐/品鉴/壶茶」空壳
+    .filter((item) => {
+      if (channel !== "drinks") return true;
+      if (item.price === undefined || item.price === null || item.price === "") return false;
+      return true;
+    })
+    .slice()
+    .sort((a, b) => Number(a.sort || 9999) - Number(b.sort || 9999) || String(a.name || "").localeCompare(String(b.name || ""), "zh-CN"));
+});
+
+const managedCategoryNames = computed(() =>
+  managedCategoriesForCollection.value
+    .filter((item) => item.visible !== false)
+    .map((item) => String(item.name || "").trim())
+    .filter(Boolean)
+);
+
+/** 堂饮列表行：只要档位下的茶品，不要旧「档位当商品」脏数据 */
+function isDrinkTeaRow(item) {
+  if (!item) return false;
+  if (item.categoryId) return true;
+  // 旧档位文档：有 teaGroups、且名为初见/知味…
+  if (Array.isArray(item.teaGroups) && item.teaGroups.length) return false;
+  if (Number(item.price) > 0 && !item.categoryId) return false;
+  return !!String(item.category || "").trim();
+}
+
+const catalogCategoryOptions = computed(() => {
+  // 堂饮筛选项：只认档位表，避免混入推荐/品鉴/测试等历史脏类
+  if (isDrinksCollection()) {
+    return managedCategoryNames.value.slice();
+  }
+  const set = new Set(managedCategoryNames.value);
+  (state.catalogItems || []).forEach((item) => {
+    const cat = String(item?.category || "").trim();
+    if (cat) set.add(cat);
+  });
+  return Array.from(set);
+});
+
+function categoryPresetsForCollection(collection = state.collection) {
+  if (collection === "tea_products") return TEA_CATEGORY_PRESETS.slice();
+  if (collection === "drinks") return DRINK_CATEGORY_PRESETS.slice();
+  if (collection === "events") return EVENT_CATEGORY_PRESETS.slice();
+  return [];
+}
+
+/**
+ * 商品选类别：
+ * - 堂饮：只选档位（初见/知味…），不混历史脏类
+ * - 茶叶：可配置类别 + 历史 + 兜底
+ */
+const catalogCategorySelectOptions = computed(() => {
+  if (state.collection === "events") {
+    const presets = EVENT_CATEGORY_PRESETS.slice();
+    const set = new Set(presets);
+    const current = String(forms.catalog.category || "").trim();
+    if (current) set.add(current);
+    (state.catalogItems || []).forEach((item) => {
+      const cat = String(item?.category || "").trim();
+      if (cat) set.add(cat);
+    });
+    const ordered = [];
+    presets.forEach((cat) => {
+      if (set.has(cat)) {
+        ordered.push(cat);
+        set.delete(cat);
+      }
+    });
+    Array.from(set).sort((a, b) => a.localeCompare(b, "zh-CN")).forEach((cat) => ordered.push(cat));
+    return ordered;
+  }
+
+  // 堂饮：严格只用启用中的档位
+  if (isDrinksCollection()) {
+    const managed = managedCategoryNames.value;
+    if (managed.length) return managed;
+    return DRINK_CATEGORY_PRESETS.slice();
+  }
+
+  const managed = managedCategoryNames.value;
+  const presets = managed.length ? managed : categoryPresetsForCollection();
+  const set = new Set(presets);
+  catalogCategoryOptions.value.forEach((cat) => set.add(cat));
+  const current = String(forms.catalog.category || "").trim();
+  if (current) set.add(current);
+  const ordered = [];
+  presets.forEach((cat) => {
+    if (set.has(cat)) {
+      ordered.push(cat);
+      set.delete(cat);
+    }
+  });
+  Array.from(set).sort((a, b) => a.localeCompare(b, "zh-CN")).forEach((cat) => ordered.push(cat));
+  return ordered;
+});
+
+const catalogStatusSelectOptions = computed(() => {
+  const base = state.collection === "events"
+    ? EVENT_STATUS_OPTIONS.slice()
+    : state.collection === "rooms"
+      ? ROOM_STATUS_OPTIONS.slice()
+      : [];
+  const current = String(forms.catalog.status || "").trim();
+  if (current && !base.includes(current)) base.push(current);
+  return base;
+});
+
+function syncCatalogCategoryChoice() {
+  const cat = String(forms.catalog.category || "").trim();
+  const options = catalogCategorySelectOptions.value;
+  if (cat && options.includes(cat)) {
+    catalogCategoryChoice.value = cat;
+    return;
+  }
+  if (cat) {
+    catalogCategoryChoice.value = SELECT_CUSTOM_VALUE;
+    return;
+  }
+  const fallback = options[0] || "";
+  catalogCategoryChoice.value = fallback || SELECT_CUSTOM_VALUE;
+  if (fallback) forms.catalog.category = fallback;
+}
+
+function onCatalogCategoryChoiceChange() {
+  if (catalogCategoryChoice.value === SELECT_CUSTOM_VALUE) {
+    if (catalogCategorySelectOptions.value.includes(String(forms.catalog.category || "").trim())) {
+      forms.catalog.category = "";
+    }
+    if (isDrinksCollection()) forms.catalog.categoryId = "";
+    return;
+  }
+  forms.catalog.category = catalogCategoryChoice.value;
+  syncDrinkCategoryIdFromName();
+}
+
+function formatEventDateDisplay(iso) {
+  const text = String(iso || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+  const d = new Date(`${text}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${mm}.${dd} ${WEEKDAY_LABELS[d.getDay()]}`;
+}
+
+function parseEventDateToIso(display) {
+  const text = String(display || "").trim();
+  if (!text) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const match = text.match(/^(\d{1,2})\.(\d{1,2})/);
+  if (!match) return "";
+  const year = new Date().getFullYear();
+  const mm = String(Number(match[1])).padStart(2, "0");
+  const dd = String(Number(match[2])).padStart(2, "0");
+  const candidate = `${year}-${mm}-${dd}`;
+  const d = new Date(`${candidate}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  return candidate;
+}
+
+function normalizeEventTime(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const match = text.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return text;
+  return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
+}
+
+function syncCatalogDateFields() {
+  if (state.collection !== "events") {
+    catalogDateIso.value = "";
+    return;
+  }
+  catalogDateIso.value = parseEventDateToIso(forms.catalog.date);
+  forms.catalog.time = normalizeEventTime(forms.catalog.time);
+}
+
+function onCatalogDateIsoChange() {
+  const display = formatEventDateDisplay(catalogDateIso.value);
+  if (display) forms.catalog.date = display;
+}
+
+function contentPageOptionValues() {
+  return CONTENT_PAGE_OPTIONS.map((item) => item.value).filter((value) => value !== SELECT_CUSTOM_VALUE);
+}
+
+function syncContentLinkTargetChoice() {
+  if (forms.content.linkType !== "page") {
+    contentLinkTargetChoice.value = "";
+    return;
+  }
+  const target = String(forms.content.linkTarget || "").trim();
+  if (target && contentPageOptionValues().includes(target)) {
+    contentLinkTargetChoice.value = target;
+    return;
+  }
+  if (target) {
+    contentLinkTargetChoice.value = SELECT_CUSTOM_VALUE;
+    return;
+  }
+  contentLinkTargetChoice.value = CONTENT_PAGE_OPTIONS[0]?.value || SELECT_CUSTOM_VALUE;
+  if (contentLinkTargetChoice.value !== SELECT_CUSTOM_VALUE) {
+    forms.content.linkTarget = contentLinkTargetChoice.value;
+  }
+}
+
+function onContentLinkTypeChange() {
+  if (forms.content.linkType === "none") {
+    forms.content.linkTarget = "";
+    contentLinkTargetChoice.value = "";
+    return;
+  }
+  if (forms.content.linkType === "page") {
+    syncContentLinkTargetChoice();
+  }
+}
+
+function onContentLinkTargetChoiceChange() {
+  if (contentLinkTargetChoice.value === SELECT_CUSTOM_VALUE) {
+    if (contentPageOptionValues().includes(String(forms.content.linkTarget || "").trim())) {
+      forms.content.linkTarget = "";
+    }
+    return;
+  }
+  forms.content.linkTarget = contentLinkTargetChoice.value;
+}
+
 const filteredCatalog = computed(() => {
+  let rows = state.catalogItems || [];
+  // 堂饮：列表只展示「档位下的茶品」，不展示旧档位文档 / 测试 SKU
+  if (isDrinksCollection()) {
+    rows = rows.filter(isDrinkTeaRow);
+  }
   const keyword = filters.catalog.trim().toLowerCase();
-  if (!keyword) return state.catalogItems;
-  return state.catalogItems.filter((item) => textOf(item, ["id", "name", "title", "category", "status"]).includes(keyword));
+  if (keyword) {
+    rows = rows.filter((item) => textOf(item, ["id", "name", "title", "category", "groupName", "status"]).includes(keyword));
+  }
+  if (filters.catalogShelf === "on") {
+    rows = rows.filter((item) => !isCatalogOffShelf(item) && !isCatalogRemoved(item));
+  } else if (filters.catalogShelf === "off") {
+    rows = rows.filter((item) => isCatalogOffShelf(item) && deriveCatalogShelfStatus(item) !== "draft");
+  } else if (filters.catalogShelf === "draft") {
+    rows = rows.filter((item) => deriveCatalogShelfStatus(item) === "draft");
+  }
+  if (filters.catalogCategory) {
+    rows = rows.filter((item) => String(item.category || "").trim() === filters.catalogCategory);
+  }
+  if (filters.catalogFlag === "low_stock") {
+    rows = rows.filter((item) => {
+      if (item.stock === undefined || item.stock === null || item.stock === "") return false;
+      const stock = Number(item.stock || 0);
+      return stock > 0 && stock <= 5;
+    });
+  } else if (filters.catalogFlag === "no_image") {
+    rows = rows.filter((item) => !item.image && !item.thumb);
+  }
+  // 堂饮：按档位 sort + 茶品 sort 排，方便对照点单左侧
+  if (isDrinksCollection()) {
+    const tierSort = new Map(
+      managedCategoriesForCollection.value.map((tier) => [String(tier.name || "").trim(), Number(tier.sort) || 9999])
+    );
+    rows = rows.slice().sort((a, b) => {
+      const sa = tierSort.get(String(a.category || "").trim()) ?? 9999;
+      const sb = tierSort.get(String(b.category || "").trim()) ?? 9999;
+      if (sa !== sb) return sa - sb;
+      const ga = String(a.groupName || "").localeCompare(String(b.groupName || ""), "zh-CN");
+      if (ga) return ga;
+      return (Number(a.sort) || 9999) - (Number(b.sort) || 9999)
+        || String(a.name || "").localeCompare(String(b.name || ""), "zh-CN");
+    });
+  }
+  return rows;
+});
+
+const allFilteredCatalogSelected = computed(() => {
+  const rows = filteredCatalog.value;
+  if (!rows.length) return false;
+  return rows.every((item) => state.selectedCatalogIds.includes(item.id));
 });
 
 /** 表单 id 不在列表中 = 正在新建（含点「新建」后尚未保存） */
@@ -1623,7 +2153,70 @@ function catalogComparableValue(field, item = {}) {
 
 function hasSensitiveCatalogChange(existing, next) {
   if (!existing) return false;
-  return ["price", "stock", "quota", "signed", "status", "visible", "deleted"].some((field) => catalogComparableValue(field, existing) !== catalogComparableValue(field, next));
+  const fieldChanged = ["price", "stock", "quota", "signed", "status", "visible", "deleted"].some(
+    (field) => catalogComparableValue(field, existing) !== catalogComparableValue(field, next)
+  );
+  if (fieldChanged) return true;
+  const prevSpecs = JSON.stringify(normalizeCatalogSpecs(existing.specs));
+  const nextSpecs = JSON.stringify(normalizeCatalogSpecs(next.specs));
+  return prevSpecs !== nextSpecs;
+}
+
+function toggleCatalogRowSelect(id, checked) {
+  const key = String(id || "");
+  if (!key) return;
+  const set = new Set(state.selectedCatalogIds);
+  if (checked) set.add(key);
+  else set.delete(key);
+  state.selectedCatalogIds = Array.from(set);
+}
+
+function toggleSelectAllFilteredCatalog(checked) {
+  if (!checked) {
+    state.selectedCatalogIds = [];
+    return;
+  }
+  state.selectedCatalogIds = filteredCatalog.value.map((item) => item.id).filter(Boolean);
+}
+
+function clearCatalogSelection() {
+  state.selectedCatalogIds = [];
+}
+
+async function batchCatalogShelf(action) {
+  // action: off | on
+  if (!hasPermission("catalog.write")) {
+    showToast("当前角色无权修改商品");
+    return;
+  }
+  const ids = state.selectedCatalogIds.slice();
+  if (!ids.length) {
+    showToast("请先勾选商品");
+    return;
+  }
+  const restore = action === "on";
+  const label = restore ? "批量恢复上架" : "批量下架";
+  if (!restore && !(await requireTypedConfirm(`确认下架选中的 ${ids.length} 件资料？`, String(ids.length)))) return;
+  const reason = await promptActionReason(`${label} ${ids.length} 件`);
+  if (!reason) return;
+  await withLoading(label, async () => {
+    for (const id of ids) {
+      const item = state.catalogItems.find((row) => row.id === id);
+      if (!item || isCatalogRemoved(item)) continue;
+      const isOff = isCatalogOffShelf(item);
+      if (restore && !isOff) continue;
+      if (!restore && isOff) continue;
+      await callFunction("manageCatalog", {
+        action: restore ? "restore" : "delete",
+        collection: state.collection,
+        id,
+        reason
+      });
+    }
+    clearCatalogSelection();
+    showToast(restore ? "已批量恢复" : "已批量下架");
+    await loadCatalog();
+  });
 }
 
 function displayImage(src) {
@@ -2317,7 +2910,17 @@ async function refreshSummary() {
 async function loadActiveTab() {
   const map = {
     dashboard: loadDashboard,
-    catalog: loadCatalog,
+    catalog: async () => {
+      if (state.collection === "rooms") state.collection = "tea_products";
+      await loadCatalog();
+    },
+    rooms: async () => {
+      state.collection = "rooms";
+      if (!state.settings || !Object.keys(state.settings).length) {
+        try { await loadSettings(); } catch (_e) { /* ignore */ }
+      }
+      await loadCatalog();
+    },
     orders: loadOrders,
     afterSales: loadAfterSales,
     inventory: loadInventoryLogs,
@@ -2373,13 +2976,211 @@ async function loadDashboard() {
   });
 }
 
-async function loadCatalog() {
-  await withLoading("读取商品", async () => {
+async function loadProductCategories() {
+  try {
     const result = await callFunction("manageCatalog", {
       action: "list",
-      collection: state.collection,
+      collection: "product_categories",
       includeHidden: true
     });
+    state.productCategories = result.items || [];
+  } catch (error) {
+    // 类别加载失败不阻断商品列表；下拉回退到预设
+    state.productCategories = state.productCategories || [];
+  }
+}
+
+function openCategoryManager() {
+  if (state.collection !== "tea_products" && state.collection !== "drinks") return;
+  resetCategoryForm();
+  state.categoryManagerOpen = true;
+}
+
+function closeCategoryManager() {
+  state.categoryManagerOpen = false;
+}
+
+function editManagedCategory(item) {
+  if (!item) return;
+  categoryForm.id = item.id;
+  categoryForm.name = item.name || "";
+  categoryForm.sort = Number(item.sort) || 10;
+  categoryForm.channel = item.channel || state.collection;
+  categoryForm.visible = item.visible !== false;
+  categoryForm.price = Math.max(0, Number(item.price) || 0);
+  categoryForm.unit = item.unit || item.badge || (state.collection === "drinks" ? "道" : "");
+  categoryForm.badge = item.badge || categoryForm.unit;
+  categoryForm.serviceType = item.serviceType || (categoryForm.unit === "壶" ? "pot" : "tasting");
+  categoryForm.tagline = item.tagline || "";
+  categoryForm.brewStyle = item.brewStyle || "热泡茶";
+  categoryForm.color = item.color || "";
+  categoryForm.image = item.image || "";
+}
+
+function resetCategoryForm() {
+  const isDrink = state.collection === "drinks";
+  categoryForm.id = "";
+  categoryForm.name = "";
+  categoryForm.sort = 10 + managedCategoriesForCollection.value.length * 10;
+  categoryForm.channel = isDrink ? "drinks" : "tea_products";
+  categoryForm.visible = true;
+  categoryForm.price = isDrink ? 58 : 0;
+  categoryForm.unit = isDrink ? "道" : "";
+  categoryForm.badge = isDrink ? "道" : "";
+  categoryForm.serviceType = "tasting";
+  categoryForm.tagline = "";
+  categoryForm.brewStyle = "热泡茶";
+  categoryForm.color = "";
+  categoryForm.image = "";
+}
+
+async function saveManagedCategory() {
+  const name = String(categoryForm.name || "").trim();
+  if (!name) {
+    showToast(state.collection === "drinks" ? "请填写档位名称（如：初见）" : "请填写类别名称");
+    return;
+  }
+  const channel = state.collection === "drinks" ? "drinks" : "tea_products";
+  if (channel === "drinks" && Number(categoryForm.price) < 0) {
+    showToast("档位价格不能为负数");
+    return;
+  }
+  const id = String(categoryForm.id || "").trim()
+    || (channel === "drinks" ? `drink-${Date.now()}` : `cat-tea-${Date.now()}`);
+  const payload = {
+    id,
+    name,
+    channel,
+    sort: Math.max(0, Number(categoryForm.sort) || 0),
+    visible: categoryForm.visible !== false
+  };
+  if (channel === "drinks") {
+    const unit = String(categoryForm.unit || "道").trim() || "道";
+    payload.price = Math.max(0, Number(categoryForm.price) || 0);
+    payload.unit = unit;
+    payload.badge = String(categoryForm.badge || unit).trim() || unit;
+    payload.serviceType = categoryForm.serviceType || (unit === "壶" ? "pot" : "tasting");
+    payload.tagline = String(categoryForm.tagline || "").trim();
+    payload.brewStyle = String(categoryForm.brewStyle || "热泡茶").trim() || "热泡茶";
+    payload.color = String(categoryForm.color || "").trim();
+    if (categoryForm.image) payload.image = String(categoryForm.image).trim();
+  }
+  await withLoading(channel === "drinks" ? "保存档位" : "保存类别", async () => {
+    const existing = (state.productCategories || []).find((item) => item.id === id);
+    await callFunction("manageCatalog", {
+      action: existing ? "update" : "create",
+      collection: "product_categories",
+      id,
+      data: payload
+    });
+    await loadProductCategories();
+    resetCategoryForm();
+    showToast(channel === "drinks" ? "档位已保存" : "类别已保存");
+  });
+}
+
+async function toggleManagedCategory(item) {
+  if (!item || !item.id) return;
+  const nextVisible = item.visible === false;
+  await withLoading(nextVisible ? "启用类别" : "停用类别", async () => {
+    await callFunction("manageCatalog", {
+      action: "update",
+      collection: "product_categories",
+      id: item.id,
+      data: { visible: nextVisible }
+    });
+    await loadProductCategories();
+  });
+}
+
+async function removeManagedCategory(item) {
+  if (!item || !item.id) return;
+  const used = (state.catalogItems || []).some(
+    (row) => String(row.category || "").trim() === String(item.name || "").trim()
+  );
+  if (used) {
+    showToast(`「${item.name}」下仍有商品，请先改商品类别后再删除`);
+    return;
+  }
+  const reason = window.prompt("删除类别需填写原因（可恢复列表不再展示）", "清理未使用类别");
+  if (reason === null) return;
+  if (!String(reason || "").trim()) {
+    showToast("删除类别需填写操作原因");
+    return;
+  }
+  await withLoading("删除类别", async () => {
+    // 先下架再软删除，与商品删除流程一致
+    if (item.visible !== false) {
+      await callFunction("manageCatalog", {
+        action: "delete",
+        collection: "product_categories",
+        id: item.id,
+        reason: String(reason).trim()
+      });
+    }
+    await callFunction("manageCatalog", {
+      action: "remove",
+      collection: "product_categories",
+      id: item.id,
+      reason: String(reason).trim()
+    });
+    await loadProductCategories();
+  });
+}
+
+/** 商品保存时：若类别尚不在配置表，自动登记（茶叶）；堂饮须先建档位 */
+async function ensureProductCategory(name, channel) {
+  const catName = String(name || "").trim();
+  if (!catName || (channel !== "tea_products" && channel !== "drinks")) return;
+  const exists = (state.productCategories || []).some(
+    (item) => item.channel === channel
+      && item.removed !== true
+      && String(item.name || "").trim() === catName
+  );
+  if (exists) return;
+  // 堂饮分类=档位，含价格；禁止用茶名误建空档位
+  if (channel === "drinks") {
+    throw new Error("请先在「管理分类」中创建档位（初见/知味…），再添加茶品");
+  }
+  const id = `cat-tea-${Date.now()}`;
+  const maxSort = managedCategoriesForCollection.value.reduce(
+    (max, item) => Math.max(max, Number(item.sort) || 0),
+    0
+  );
+  await callFunction("manageCatalog", {
+    action: "create",
+    collection: "product_categories",
+    data: {
+      id,
+      name: catName,
+      channel,
+      sort: maxSort + 10,
+      visible: true
+    }
+  });
+  await loadProductCategories();
+}
+
+/** 堂饮：选中类别名时同步 categoryId（档位 id） */
+function syncDrinkCategoryIdFromName() {
+  if (!isDrinksCollection()) return;
+  const name = String(forms.catalog.category || "").trim();
+  const tier = managedCategoriesForCollection.value.find(
+    (item) => String(item.name || "").trim() === name
+  );
+  forms.catalog.categoryId = tier ? tier.id : "";
+}
+
+async function loadCatalog() {
+  await withLoading("读取商品", async () => {
+    const [result] = await Promise.all([
+      callFunction("manageCatalog", {
+        action: "list",
+        collection: state.collection,
+        includeHidden: true
+      }),
+      supportsProductShelf() ? loadProductCategories() : Promise.resolve()
+    ]);
     state.catalogItems = result.items || [];
     // 抽屉打开时：同步表单到最新数据；关闭时只维护列表高亮，不强行打开编辑
     const preferredId = state.selectedCatalogId || forms.catalog.id;
@@ -2387,8 +3188,7 @@ async function loadCatalog() {
       const found = state.catalogItems.find((item) => item.id === preferredId);
       if (found) {
         state.selectedCatalogId = preferredId;
-        Object.assign(forms.catalog, emptyCatalog(), found);
-        if (forms.catalog.image && !forms.catalog.thumb) forms.catalog.thumb = forms.catalog.image;
+        editCatalog(found);
         return;
       }
       if (isCreatingCatalog.value) return;
@@ -2402,15 +3202,29 @@ async function loadCatalog() {
 }
 
 function selectCollection(key) {
+  // 茶室已独立模块；商品管理里只切茶叶/堂饮/活动
+  if (key === "rooms") {
+    openRoomsCatalog();
+    return;
+  }
+  if (state.activeTab === "rooms") {
+    state.activeTab = "catalog";
+  }
   state.collection = key;
   state.selectedCatalogId = "";
   state.catalogDrawerOpen = false;
+  state.selectedCatalogIds = [];
+  filters.catalogShelf = "";
+  filters.catalogCategory = "";
+  filters.catalogFlag = "";
   loadCatalog();
 }
 
 function openRoomsCatalog() {
-  state.activeTab = "catalog";
-  selectCollection("rooms");
+  state.activeTab = "rooms";
+  state.collection = "rooms";
+  state.catalogDrawerOpen = false;
+  loadCatalog();
 }
 
 function closeCatalogDrawer() {
@@ -2418,15 +3232,41 @@ function closeCatalogDrawer() {
 }
 
 function resetCatalog() {
-  const nextId = `${state.collection}-${Date.now()}`;
+  const nextId = isDrinksCollection()
+    ? `drink-item-${Date.now()}`
+    : `${state.collection}-${Date.now()}`;
   state.selectedCatalogId = nextId;
   state.catalogDrawerOpen = true;
+  const baseStatus = state.collection === "events" ? "报名中" : state.collection === "rooms" ? "可预定" : "上架";
+  const defaultCategory = categoryPresetsForCollection()[0]
+    || managedCategoryNames.value[0]
+    || "";
+  const defaultImage = isDrinksCollection()
+    ? "/assets/images/product-tea-001-organic-black.jpg"
+    : state.collection === "rooms"
+      ? "/assets/images/reservation-hero.jpg"
+      : "/assets/images/product-tea-001-organic-black.jpg";
   Object.assign(forms.catalog, emptyCatalog(), {
     id: nextId,
-    status: state.collection === "events" ? "报名中" : state.collection === "rooms" ? "可预定" : "上架",
-    image: "/assets/images/product-tea-001-organic-black.jpg",
-    thumb: "/assets/images/product-tea-001-organic-black.jpg"
+    status: baseStatus,
+    category: defaultCategory,
+    categoryId: "",
+    groupName: isDrinksCollection() ? "本席可选" : "",
+    subtitle: "",
+    shelfStatus: "on",
+    image: defaultImage,
+    thumb: defaultImage,
+    price: 0,
+    stock: 0,
+    unit: "",
+    brewStyle: "",
+    serviceType: "",
+    specs: isTeaProductsCollection() ? [emptyCatalogSpec()] : [],
+    teaGroups: []
   });
+  syncCatalogCategoryChoice();
+  syncDrinkCategoryIdFromName();
+  syncCatalogDateFields();
 }
 
 function editCatalog(item) {
@@ -2436,18 +3276,77 @@ function editCatalog(item) {
   }
   state.selectedCatalogId = item.id;
   state.catalogDrawerOpen = true;
-  Object.assign(forms.catalog, emptyCatalog(), item);
+  const specs = normalizeCatalogSpecs(item.specs);
+  Object.assign(forms.catalog, emptyCatalog(), item, {
+    specs: isTeaProductsCollection()
+      ? (specs.length
+        ? specs
+        : [{
+          label: String(item.unit || "").trim() || "默认规格",
+          weight: "",
+          price: Math.max(0, Number(item.price) || 0),
+          stockUnits: 1
+        }])
+      : [],
+    teaGroups: [],
+    categoryId: item.categoryId || "",
+    groupName: item.groupName || "",
+    subtitle: item.subtitle || "",
+    shelfStatus: deriveCatalogShelfStatus(item)
+  });
   if (forms.catalog.image && !forms.catalog.thumb) {
     forms.catalog.thumb = forms.catalog.image;
   }
+  // 旧档位文档（teaGroups）不应在茶品列表里编辑；仍尽量展示
+  if (isDrinksCollection() && Array.isArray(item.teaGroups) && item.teaGroups.length && !item.categoryId) {
+    showToast("这是旧版档位数据，请用「管理分类」维护档位，茶品请新建");
+  }
+  syncCatalogCategoryChoice();
+  syncDrinkCategoryIdFromName();
+  syncCatalogDateFields();
 }
 
 async function saveCatalog() {
   try {
     assertText(forms.catalog.id, "请填写资料 ID");
     if (state.collection !== "events") assertText(forms.catalog.name || forms.catalog.title, "请填写名称");
-    assertNonNegative(forms.catalog.price, "价格不能为负数");
-    assertNonNegative(forms.catalog.stock, "库存不能为负数");
+    if (!isDrinksCollection()) {
+      assertNonNegative(forms.catalog.price, "价格不能为负数");
+      assertNonNegative(forms.catalog.stock, "库存不能为负数");
+    }
+    if (isTeaProductsCollection() || isDrinksCollection() || state.collection === "events") {
+      if (catalogCategoryChoice.value !== SELECT_CUSTOM_VALUE && catalogCategoryChoice.value) {
+        forms.catalog.category = catalogCategoryChoice.value;
+      }
+      assertText(forms.catalog.category, isDrinksCollection() ? "请选择所属档位（初见/知味…）" : "请选择或填写分类");
+    }
+    if (supportsProductShelf()) {
+      applyCatalogShelfStatus(forms.catalog.shelfStatus || "on");
+    }
+    if (isTeaProductsCollection()) {
+      const specs = normalizeCatalogSpecs(forms.catalog.specs);
+      if (!specs.length) throw new Error("请至少填写 1 个销售规格");
+      for (const spec of specs) {
+        if (spec.price < 0) throw new Error("规格价格不能为负数");
+        if (spec.stockUnits < 1) throw new Error("规格扣库存单位至少为 1");
+      }
+      forms.catalog.specs = specs;
+      syncCatalogPriceFromSpecs();
+    }
+    if (isDrinksCollection()) {
+      syncDrinkCategoryIdFromName();
+      if (!forms.catalog.categoryId) {
+        const tier = managedCategoriesForCollection.value.find(
+          (item) => String(item.name || "").trim() === String(forms.catalog.category || "").trim()
+        );
+        if (!tier) throw new Error("请先在「管理分类」创建档位，再添加该档位下的茶品");
+        forms.catalog.categoryId = tier.id;
+      }
+      forms.catalog.groupName = String(forms.catalog.groupName || "本席可选").trim() || "本席可选";
+      forms.catalog.price = 0;
+      forms.catalog.stock = 0;
+      delete forms.catalog.teaGroups;
+    }
     // 有主图时缩略图可自动沿用
     if (forms.catalog.image && !String(forms.catalog.thumb || "").trim()) {
       forms.catalog.thumb = forms.catalog.image;
@@ -2457,7 +3356,16 @@ async function saveCatalog() {
     }
     if (state.collection === "events") {
       assertText(forms.catalog.title || forms.catalog.name, "请填写活动标题");
+      if (catalogDateIso.value) {
+        forms.catalog.date = formatEventDateDisplay(catalogDateIso.value) || forms.catalog.date;
+      }
+      forms.catalog.time = normalizeEventTime(forms.catalog.time);
+      assertText(forms.catalog.status, "请选择活动状态");
       if (Number(forms.catalog.signed || 0) > Number(forms.catalog.quota || 0)) throw new Error("已报名不能大于名额");
+    }
+    if (state.collection === "rooms") {
+      assertText(forms.catalog.status, "请选择茶室状态");
+      assertText(forms.catalog.name, "请填写茶室名称");
     }
   } catch (error) {
     showToast(error.message);
@@ -2465,19 +3373,57 @@ async function saveCatalog() {
   }
   const existing = state.catalogItems.find((item) => item.id === forms.catalog.id);
   const action = existing ? "update" : "create";
-  const needsReason = action === "update" && hasSensitiveCatalogChange(existing, forms.catalog);
+  const payload = { ...forms.catalog };
+  delete payload.shelfStatus;
+  if (isTeaProductsCollection()) {
+    payload.specs = normalizeCatalogSpecs(payload.specs);
+    delete payload.teaGroups;
+    delete payload.tagline;
+    delete payload.brewStyle;
+    delete payload.serviceType;
+    delete payload.categoryId;
+    delete payload.groupName;
+    delete payload.subtitle;
+  } else if (isDrinksCollection()) {
+    payload.category = String(payload.category || "").trim();
+    payload.categoryId = String(payload.categoryId || "").trim();
+    payload.groupName = String(payload.groupName || "本席可选").trim() || "本席可选";
+    payload.subtitle = String(payload.subtitle || "").trim();
+    payload.price = 0;
+    delete payload.specs;
+    delete payload.teaGroups;
+    delete payload.origin;
+    delete payload.year;
+    delete payload.taste;
+    delete payload.roast;
+    delete payload.tagline;
+    delete payload.brewStyle;
+    delete payload.serviceType;
+    delete payload.unit;
+    delete payload.badge;
+  } else {
+    delete payload.specs;
+    delete payload.teaGroups;
+    delete payload.categoryId;
+    delete payload.groupName;
+    delete payload.subtitle;
+  }
+  const needsReason = action === "update" && hasSensitiveCatalogChange(existing, payload);
   const reason = needsReason
-    ? await promptActionReason(`保存 ${displayName(forms.catalog)} 的价格、库存、名额或状态`)
+    ? await promptActionReason(`保存 ${displayName(forms.catalog)} 的价格、库存、规格或状态`)
     : "";
   if (needsReason && !reason) return;
   const savingId = String(forms.catalog.id || "").trim();
   await withLoading(action === "create" ? "新建商品" : "保存资料", async () => {
+    if (isTeaProductsCollection() || isDrinksCollection()) {
+      await ensureProductCategory(payload.category, state.collection);
+    }
     await callFunction("manageCatalog", {
       action,
       collection: state.collection,
       id: savingId,
       reason,
-      data: { ...forms.catalog }
+      data: payload
     });
     state.selectedCatalogId = savingId;
     showToast(action === "create" ? "新商品已添加" : "资料已保存");
@@ -2497,7 +3443,9 @@ function isCatalogOffShelf(item) {
 
 function catalogStatusLabel(item) {
   if (isCatalogRemoved(item)) return "已删除";
-  if (isCatalogOffShelf(item)) return "已下架";
+  const shelf = deriveCatalogShelfStatus(item);
+  if (shelf === "draft") return "草稿";
+  if (shelf === "off" || isCatalogOffShelf(item)) return "已下架";
   return item.status || "上架";
 }
 
@@ -2685,9 +3633,41 @@ async function loadInventoryLogs() {
   });
 }
 
+async function loadInventoryProductOptions() {
+  try {
+    const result = await callFunction("manageCatalog", {
+      action: "list",
+      collection: inventoryForm.collection,
+      includeHidden: true
+    });
+    inventoryProductOptions.value = (result.items || [])
+      .filter((item) => item && item.id && !item.removed)
+      .map((item) => ({
+        id: item.id,
+        name: displayName(item),
+        stock: item.stock
+      }));
+  } catch (_error) {
+    inventoryProductOptions.value = [];
+  }
+}
+
+function openInventoryDrawer() {
+  inventoryForm.id = "";
+  inventoryForm.delta = 0;
+  inventoryForm.note = "";
+  openDrawer("inventory");
+  loadInventoryProductOptions();
+}
+
+function onInventoryCollectionChange() {
+  inventoryForm.id = "";
+  loadInventoryProductOptions();
+}
+
 async function adjustInventory() {
   if (!inventoryForm.id.trim()) {
-    showToast("请填写商品 ID");
+    showToast("请选择商品");
     return;
   }
   if (!Number.isFinite(Number(inventoryForm.delta)) || Number(inventoryForm.delta) === 0) {
@@ -2710,6 +3690,7 @@ async function adjustInventory() {
     inventoryForm.delta = 0;
     inventoryForm.note = "";
     await loadInventoryLogs();
+    await loadInventoryProductOptions();
   });
 }
 
@@ -3494,11 +4475,12 @@ function resetContent() {
     summary: "",
     image: "",
     linkType: "page",
-    linkTarget: "",
+    linkTarget: CONTENT_PAGE_OPTIONS[0]?.value || "/pages/index/index",
     sort: 10,
     visible: true
   });
   state.selectedContentKey = forms.content.key;
+  syncContentLinkTargetChoice();
   openDrawer("content");
 }
 
@@ -3509,6 +4491,13 @@ function editContent(item) {
   }
   state.selectedContentKey = item.key;
   Object.assign(forms.content, item);
+  if (!CONTENT_TYPE_OPTIONS.some((opt) => opt.value === forms.content.type)) {
+    forms.content.type = "home_carousel";
+  }
+  if (!CONTENT_LINK_TYPE_OPTIONS.some((opt) => opt.value === forms.content.linkType)) {
+    forms.content.linkType = forms.content.linkTarget ? "page" : "none";
+  }
+  syncContentLinkTargetChoice();
   openDrawer("content");
 }
 
@@ -3516,6 +4505,16 @@ async function saveContent() {
   try {
     assertText(forms.content.key, "请填写内容 Key");
     assertText(forms.content.title, "请填写内容标题");
+    assertText(forms.content.type, "请选择内容类型");
+    assertText(forms.content.linkType, "请选择链接类型");
+    if (forms.content.linkType === "page") {
+      if (contentLinkTargetChoice.value !== SELECT_CUSTOM_VALUE && contentLinkTargetChoice.value) {
+        forms.content.linkTarget = contentLinkTargetChoice.value;
+      }
+      assertText(forms.content.linkTarget, "请选择或填写链接目标");
+    } else if (forms.content.linkType === "none") {
+      forms.content.linkTarget = "";
+    }
     if (!isUrlish(forms.content.image)) throw new Error("图片地址必须是 cloud://、http(s) 或 /assets/");
   } catch (error) {
     showToast(error.message);
@@ -3689,6 +4688,27 @@ async function saveSettings() {
   ) {
     showToast("自动完成宽限分钟须在 0–1440 之间");
     return;
+  }
+  const bookingNums = [
+    ["bookingMinDurationMinutes", 30, 480, "最短时长"],
+    ["bookingSlotStepMinutes", 15, 60, "时段步长"],
+    ["bookingMaxPeople", 1, 30, "人数上限"],
+    ["bookingDayBasePrice", 0, undefined, "日间基础价"],
+    ["bookingEveningBasePrice", 0, undefined, "晚间基础价"],
+    ["bookingHalfHourPrice", 0, undefined, "加时单价"]
+  ];
+  for (const [field, min, max, label] of bookingNums) {
+    const raw = state.settings[field];
+    if (raw === "" || raw == null) continue;
+    if (!isNonNegativeNumber(raw)) {
+      showToast(`${label}须为数字`);
+      return;
+    }
+    const n = Number(raw);
+    if (n < min || (max != null && n > max)) {
+      showToast(`${label}超出范围`);
+      return;
+    }
   }
   if (!isNonNegativeNumber(state.settings.memberPointRate)) {
     showToast("积分倍率不能为负数");
@@ -3943,7 +4963,12 @@ function deleteSavedView(view) {
 }
 
 function clearActiveFilters() {
-  if (state.activeTab === "catalog") filters.catalog = "";
+  if (state.activeTab === "catalog") {
+    filters.catalog = "";
+    filters.catalogShelf = "";
+    filters.catalogCategory = "";
+    filters.catalogFlag = "";
+  }
   if (state.activeTab === "orders") {
     filters.orderBizType = "";
     filters.orderQueue = "todo";
@@ -4525,31 +5550,85 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-if="state.activeTab === 'catalog'" class="list-workspace">
+        <section v-if="state.activeTab === 'catalog' || state.activeTab === 'rooms'" class="list-workspace">
           <article class="panel-card data-panel">
-            <div class="panel-toolbar">
-              <div class="segmented">
+            <div class="panel-toolbar catalog-toolbar">
+              <div v-if="state.activeTab === 'catalog'" class="segmented">
                 <button v-for="item in collectionTabs" :key="item.key" :class="{ active: state.collection === item.key }" type="button" @click="selectCollection(item.key)">
                   {{ item.label }}
                 </button>
               </div>
-              <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="筛选名称、分类、状态">
+              <div v-else class="segmented">
+                <button type="button" class="active">茶室资源</button>
+              </div>
+              <div class="catalog-filters">
+                <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="名称 / ID / 分类">
+                <select v-model="filters.catalogShelf" class="line-input catalog-select" aria-label="上架状态">
+                  <option value="">全部状态</option>
+                  <option v-for="opt in CATALOG_SHELF_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+                <select v-model="filters.catalogCategory" class="line-input catalog-select" :aria-label="isDrinksCollection() ? '档位' : '分类'">
+                  <option value="">{{ isDrinksCollection() ? "全部档位" : "全部分类" }}</option>
+                  <option v-for="cat in catalogCategoryOptions" :key="cat" :value="cat">{{ cat }}</option>
+                </select>
+                <select v-model="filters.catalogFlag" class="line-input catalog-select" aria-label="标记">
+                  <option v-for="opt in CATALOG_FLAG_OPTIONS" :key="opt.value || 'all'" :value="opt.value">{{ opt.label }}</option>
+                </select>
+              </div>
             </div>
+            <p v-if="state.activeTab === 'rooms' || state.collection === 'rooms'" class="catalog-single-store-hint">
+              茶室是<strong>可预约资源</strong>（名称/图/容量/可约状态），不是商品 SKU。
+              日间/晚间基础价与加时价在<strong>设置管理 → 预约计价</strong>配置；此处改价不会影响扣款。
+            </p>
             <div class="list-header">
               <h2>{{ catalogListTitle }}</h2>
-              <button
-                v-if="hasPermission('catalog.write')"
-                class="primary-action small"
-                type="button"
-                @click="resetCatalog"
-              >
-                新建
-              </button>
+              <div class="list-header-actions">
+                <template v-if="hasPermission('catalog.write') && state.selectedCatalogIds.length">
+                  <span class="batch-count">已选 {{ state.selectedCatalogIds.length }}</span>
+                  <button class="ghost-button small" type="button" @click="batchCatalogShelf('off')">批量下架</button>
+                  <button class="ghost-button small" type="button" @click="batchCatalogShelf('on')">批量上架</button>
+                  <button class="ghost-button small" type="button" @click="clearCatalogSelection">取消选择</button>
+                </template>
+                <button
+                  v-if="hasPermission('catalog.write') && supportsProductShelf()"
+                  class="ghost-button small"
+                  type="button"
+                  @click="openCategoryManager"
+                >{{ isDrinksCollection() ? "管理档位" : "管理分类" }}</button>
+                <button
+                  v-if="hasPermission('catalog.write')"
+                  class="primary-action small"
+                  type="button"
+                  @click="resetCatalog"
+                >
+                  新建
+                </button>
+              </div>
             </div>
             <div class="table-wrap">
               <table>
                 <caption>{{ catalogListTitle }}</caption>
-                <thead><tr><th scope="col">资料</th><th scope="col">分类</th><th scope="col">价格</th><th scope="col">库存/名额</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th scope="col" class="col-check">
+                      <input
+                        type="checkbox"
+                        :checked="allFilteredCatalogSelected"
+                        :disabled="!filteredCatalog.length"
+                        aria-label="全选当前列表"
+                        @change="toggleSelectAllFilteredCatalog($event.target.checked)"
+                        @click.stop
+                      >
+                    </th>
+                    <th scope="col">{{ isDrinksCollection() ? "茶品" : "资料" }}</th>
+                    <th scope="col">{{ isDrinksCollection() ? "档位" : "分类" }}</th>
+                    <th scope="col">{{ isDrinksCollection() ? "分组" : "价格" }}</th>
+                    <th scope="col">{{ isDrinksCollection() ? "说明" : "规格" }}</th>
+                    <th scope="col">{{ isDrinksCollection() ? "—" : "库存/名额" }}</th>
+                    <th scope="col">状态</th>
+                    <th scope="col">操作</th>
+                  </tr>
+                </thead>
                 <tbody>
                   <tr
                     v-for="item in filteredCatalog"
@@ -4563,11 +5642,36 @@ onBeforeUnmount(() => {
                     @keydown.enter.prevent="editCatalog(item)"
                     @keydown.space.prevent="editCatalog(item)"
                   >
+                    <td class="col-check" @click.stop>
+                      <input
+                        type="checkbox"
+                        :checked="state.selectedCatalogIds.includes(item.id)"
+                        :aria-label="`选择 ${displayName(item)}`"
+                        @change="toggleCatalogRowSelect(item.id, $event.target.checked)"
+                      >
+                    </td>
                     <td><strong>{{ displayName(item) }}</strong><small>{{ item.id }}</small></td>
                     <td>{{ item.category || item.capacity || "-" }}</td>
-                    <td>{{ item.price !== undefined ? `¥${money(item.price)}` : "-" }}</td>
-                    <td>{{ displayInventory(item) }}</td>
-                    <td><span :class="['status-pill', isCatalogOffShelf(item) || isCatalogRemoved(item) ? 'neutral' : 'good']">{{ catalogStatusLabel(item) }}</span></td>
+                    <td>
+                      <template v-if="isDrinksCollection()">{{ item.groupName || "-" }}</template>
+                      <template v-else>{{ item.price !== undefined ? `¥${money(item.price)}` : "-" }}</template>
+                    </td>
+                    <td>
+                      <template v-if="isDrinksCollection()">{{ item.subtitle || "-" }}</template>
+                      <template v-else>{{ Array.isArray(item.specs) && item.specs.length ? `${item.specs.length} 个` : (item.unit || "-") }}</template>
+                    </td>
+                    <td>
+                      <template v-if="isDrinksCollection()">—</template>
+                      <template v-else>{{ displayInventory(item) }}</template>
+                    </td>
+                    <td>
+                      <span
+                        :class="[
+                          'status-pill',
+                          isCatalogRemoved(item) || isCatalogOffShelf(item) || deriveCatalogShelfStatus(item) === 'draft' ? 'neutral' : 'good'
+                        ]"
+                      >{{ catalogStatusLabel(item) }}</span>
+                    </td>
                     <td>
                       <div class="row-actions" @click.stop>
                         <button v-if="hasPermission('catalog.write')" class="ghost-button small" type="button" @click="editCatalog(item)">编辑</button>
@@ -4595,38 +5699,173 @@ onBeforeUnmount(() => {
                 <h2>{{ isCreatingCatalog ? `新建${catalogEntityLabel}` : `编辑${catalogEntityLabel}` }}</h2>
                 <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeCatalogDrawer">×</button>
               </div>
-              <p v-if="isCreatingCatalog" class="editor-hint">填写名称与价格后保存；图片可上传，也可先用默认图。</p>
+              <p class="editor-hint">
+                {{ isDrinksCollection()
+                  ? "堂饮：分类＝点单左侧档位（初见/知味…），本页维护档位下的茶品。档位价格请点「管理档位」。"
+                  : isTeaProductsCollection()
+                    ? "商城茶叶：先选类别（红茶/白茶…），再填规格与主图。类别可在「管理分类」配置。"
+                    : state.collection === "rooms"
+                      ? "资源字段：名称、容量、说明、主图、可约状态。计价请到「设置管理 → 预约计价」。"
+                      : "填写前台展示与履约所需信息后保存。" }}
+              </p>
               <form class="editor-grid" @submit.prevent="saveCatalog">
-                <label><span>ID</span><input v-model="forms.catalog.id" required :readonly="!isCreatingCatalog"></label>
-                <label><span>名称</span><input v-model="forms.catalog.name" :placeholder="state.collection === 'events' ? '可留空，使用标题' : '例如：明前龙井'"></label>
-                <label><span>标题</span><input v-model="forms.catalog.title"></label>
-                <label><span>分类</span><input v-model="forms.catalog.category"></label>
-                <label><span>价格</span><input v-model.number="forms.catalog.price" type="number" min="0"></label>
-                <label><span>单位/规格</span><input v-model="forms.catalog.unit" placeholder="道 / 壶 / 50g / 份"></label>
-                <label><span>库存</span><input v-model.number="forms.catalog.stock" type="number" min="0"></label>
-                <label v-if="state.collection === 'events'"><span>名额</span><input v-model.number="forms.catalog.quota" type="number" min="1"></label>
-                <label v-if="state.collection === 'events'"><span>已报名</span><input v-model.number="forms.catalog.signed" type="number" min="0"></label>
-                <label v-if="state.collection === 'events' || state.collection === 'rooms'"><span>日期</span><input v-model="forms.catalog.date"></label>
-                <label v-if="state.collection === 'events' || state.collection === 'rooms'"><span>时间</span><input v-model="forms.catalog.time"></label>
-                <label v-if="state.collection === 'events' || state.collection === 'rooms'"><span>地点</span><input v-model="forms.catalog.place"></label>
-                <label v-if="state.collection === 'rooms'"><span>容量</span><input v-model="forms.catalog.capacity"></label>
-                <label v-if="state.collection === 'rooms'"><span>楼层</span><input v-model="forms.catalog.floor"></label>
-                <label v-if="state.collection === 'tea_products'"><span>产地</span><input v-model="forms.catalog.origin"></label>
-                <label v-if="state.collection === 'tea_products'"><span>焙火</span><input v-model="forms.catalog.roast"></label>
-                <label><span>排序</span><input v-model.number="forms.catalog.sort" type="number" min="0"></label>
-                <label><span>状态</span><input v-model="forms.catalog.status"></label>
-                <label class="wide"><span>图片</span><input v-model="forms.catalog.image" placeholder="上传后自动填入，也可手填 URL"></label>
-                <label class="file-picker wide">
-                  <span>上传图片</span>
-                  <Upload :size="17" :stroke-width="1.8" />
-                  <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
-                  <em>{{ uploadState.catalog || "选择本地图片上传到云存储" }}</em>
-                </label>
-                <label class="wide"><span>简介</span><textarea v-model="forms.catalog.summary" rows="3"></textarea></label>
-                <label class="wide"><span>详情</span><textarea v-model="forms.catalog.detail" rows="4"></textarea></label>
-                <label v-if="state.collection === 'tea_products'" class="wide"><span>口感</span><textarea v-model="forms.catalog.taste" rows="3"></textarea></label>
-                <label class="wide"><span>说明</span><textarea v-model="forms.catalog.notes" rows="3"></textarea></label>
-                <label class="switch"><input v-model="forms.catalog.visible" type="checkbox"> 前台可见</label>
+                <label v-if="!isCreatingCatalog"><span>编号</span><input :value="forms.catalog.id" readonly></label>
+                <input v-if="isCreatingCatalog" type="hidden" v-model="forms.catalog.id">
+
+                <!-- ===== 商城茶叶 ===== -->
+                <template v-if="isTeaProductsCollection()">
+                  <label><span>名称</span><input v-model="forms.catalog.name" required placeholder="例如：有机红茶"></label>
+                  <label>
+                    <span>类别</span>
+                    <select v-model="catalogCategoryChoice" class="catalog-select-input" required @change="onCatalogCategoryChoiceChange">
+                      <option v-for="cat in catalogCategorySelectOptions" :key="cat" :value="cat">{{ cat }}</option>
+                      <option :value="SELECT_CUSTOM_VALUE">自定义…</option>
+                    </select>
+                  </label>
+                  <label v-if="catalogCategoryChoice === SELECT_CUSTOM_VALUE">
+                    <span>自定义类别</span>
+                    <input v-model="forms.catalog.category" required placeholder="输入新类别名，保存时自动登记">
+                  </label>
+                  <label>
+                    <span>上架状态</span>
+                    <select v-model="forms.catalog.shelfStatus" class="catalog-select-input" @change="applyCatalogShelfStatus(forms.catalog.shelfStatus)">
+                      <option v-for="opt in CATALOG_SHELF_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                    </select>
+                  </label>
+                  <label><span>库存</span><input v-model.number="forms.catalog.stock" type="number" min="0" required></label>
+                  <label><span>产地</span><input v-model="forms.catalog.origin" placeholder="前台详情展示"></label>
+                  <label><span>年份</span><input v-model="forms.catalog.year" placeholder="有则展示，可空"></label>
+
+                  <div class="wide specs-editor">
+                    <div class="specs-editor-head">
+                      <strong>销售规格</strong>
+                      <button type="button" class="ghost-button small" @click="addCatalogSpec">＋ 添加规格</button>
+                    </div>
+                    <p class="specs-editor-hint">商城选规格与计价。至少 1 条；首条为列表展示价。</p>
+                    <table class="specs-table">
+                      <thead>
+                        <tr><th>规格名</th><th>净含量</th><th>售价</th><th>扣库存</th><th></th></tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(spec, index) in forms.catalog.specs" :key="`spec-${index}`">
+                          <td><input v-model="spec.label" placeholder="一泡 / 50g" required @change="syncCatalogPriceFromSpecs"></td>
+                          <td><input v-model="spec.weight" placeholder="5g"></td>
+                          <td><input v-model.number="spec.price" type="number" min="0" step="0.01" required @change="syncCatalogPriceFromSpecs"></td>
+                          <td><input v-model.number="spec.stockUnits" type="number" min="1" step="1"></td>
+                          <td>
+                            <button v-if="forms.catalog.specs.length > 1" type="button" class="ghost-button small danger-text" @click="removeCatalogSpec(index)">删</button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <label class="file-picker wide">
+                    <span>主图</span>
+                    <Upload :size="17" :stroke-width="1.8" />
+                    <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
+                    <em>{{ uploadState.catalog || "列表与详情主图，建议 1:1" }}</em>
+                  </label>
+                  <div class="wide catalog-image-preview">
+                    <img v-if="displayImage(forms.catalog.image)" :src="displayImage(forms.catalog.image)" alt="商品主图预览">
+                    <div v-else-if="forms.catalog.image && String(forms.catalog.image).startsWith('cloud://')" class="catalog-image-placeholder">已绑定云存储图片</div>
+                    <div v-else class="catalog-image-placeholder">请上传主图</div>
+                  </div>
+                  <label class="wide"><span>口感</span><textarea v-model="forms.catalog.taste" rows="3" placeholder="商城列表与详情展示"></textarea></label>
+                </template>
+
+                <!-- ===== 堂饮：档位下的茶品 ===== -->
+                <template v-else-if="isDrinksCollection()">
+                  <label><span>茶品名称</span><input v-model="forms.catalog.name" required placeholder="古树红茶 / 花香大红袍…"></label>
+                  <label>
+                    <span>所属档位</span>
+                    <select v-model="catalogCategoryChoice" class="catalog-select-input" required @change="onCatalogCategoryChoiceChange">
+                      <option v-for="cat in catalogCategorySelectOptions" :key="cat" :value="cat">{{ cat }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>上架状态</span>
+                    <select v-model="forms.catalog.shelfStatus" class="catalog-select-input" @change="applyCatalogShelfStatus(forms.catalog.shelfStatus)">
+                      <option v-for="opt in CATALOG_SHELF_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>分组</span>
+                    <input v-model="forms.catalog.groupName" placeholder="本席可选 / 岩茶 / 红茶（可选）">
+                  </label>
+                  <label class="wide"><span>一句话</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
+                  <p class="wide specs-editor-hint">价格在「管理分类」里按档位设置；本页只维护该档位下可选茶品，与点单页右侧一致。</p>
+
+                  <label class="file-picker wide">
+                    <span>茶品图</span>
+                    <Upload :size="17" :stroke-width="1.8" />
+                    <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
+                    <em>{{ uploadState.catalog || "点单页茶品卡片图" }}</em>
+                  </label>
+                  <div class="wide catalog-image-preview">
+                    <img v-if="displayImage(forms.catalog.image)" :src="displayImage(forms.catalog.image)" alt="茶品图">
+                    <div v-else class="catalog-image-placeholder">请上传图片</div>
+                  </div>
+                </template>
+
+                <!-- ===== 茶室 / 活动：维持履约字段（非商品最小集） ===== -->
+                <template v-else>
+                  <label><span>名称</span><input v-model="forms.catalog.name" :placeholder="state.collection === 'events' ? '可留空，使用标题' : '茶室名称'"></label>
+                  <label v-if="state.collection === 'events'"><span>标题</span><input v-model="forms.catalog.title" required placeholder="活动标题"></label>
+                  <template v-if="state.collection === 'events'">
+                    <label>
+                      <span>分类</span>
+                      <select v-model="catalogCategoryChoice" class="catalog-select-input" required @change="onCatalogCategoryChoiceChange">
+                        <option v-for="cat in catalogCategorySelectOptions" :key="cat" :value="cat">{{ cat }}</option>
+                        <option :value="SELECT_CUSTOM_VALUE">自定义…</option>
+                      </select>
+                    </label>
+                    <label v-if="catalogCategoryChoice === SELECT_CUSTOM_VALUE">
+                      <span>自定义分类</span>
+                      <input v-model="forms.catalog.category" required placeholder="与小程序活动 Tab 对齐更佳">
+                    </label>
+                  </template>
+                  <label>
+                    <span>状态</span>
+                    <select v-model="forms.catalog.status" class="catalog-select-input" required>
+                      <option v-for="opt in catalogStatusSelectOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    </select>
+                  </label>
+                  <label v-if="state.collection === 'events'"><span>价格</span><input v-model.number="forms.catalog.price" type="number" min="0" step="0.01"></label>
+                  <label v-if="state.collection === 'rooms'" class="wide">
+                    <span>计价说明</span>
+                    <input :value="`不按商品价扣款 · 日间满时长 ¥${Number(state.settings.bookingDayBasePrice) || 188} · 晚间 ¥${Number(state.settings.bookingEveningBasePrice) || 208} · 加时 ¥${Number(state.settings.bookingHalfHourPrice) || 30}/步`" readonly>
+                  </label>
+                  <label v-if="state.collection === 'events'"><span>名额</span><input v-model.number="forms.catalog.quota" type="number" min="1"></label>
+                  <label v-if="state.collection === 'events'"><span>已报名</span><input v-model.number="forms.catalog.signed" type="number" min="0"></label>
+                  <label v-if="state.collection === 'events'">
+                    <span>日期</span>
+                    <input v-model="catalogDateIso" type="date" @change="onCatalogDateIsoChange">
+                  </label>
+                  <label v-if="state.collection === 'events' && forms.catalog.date" class="field-hint-label">
+                    <span>前台展示</span>
+                    <input :value="forms.catalog.date" readonly>
+                  </label>
+                  <label v-if="state.collection === 'events'">
+                    <span>时间</span>
+                    <input v-model="forms.catalog.time" type="time" step="60">
+                  </label>
+                  <label v-if="state.collection === 'events'"><span>地点</span><input v-model="forms.catalog.place" placeholder="活动地点"></label>
+                  <label v-if="state.collection === 'rooms'"><span>容量</span><input v-model="forms.catalog.capacity" placeholder="如 2-4人"></label>
+                  <label v-if="state.collection === 'rooms'"><span>楼层/氛围</span><input v-model="forms.catalog.floor" placeholder="如 安静雅致 ｜ 观山景"></label>
+                  <label class="file-picker wide">
+                    <span>图片</span>
+                    <Upload :size="17" :stroke-width="1.8" />
+                    <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
+                    <em>{{ uploadState.catalog || "上传图片" }}</em>
+                  </label>
+                  <div class="wide catalog-image-preview">
+                    <img v-if="displayImage(forms.catalog.image)" :src="displayImage(forms.catalog.image)" alt="预览">
+                    <div v-else class="catalog-image-placeholder">暂无图片</div>
+                  </div>
+                  <label v-if="state.collection === 'events'" class="wide"><span>简介</span><textarea v-model="forms.catalog.summary" rows="3"></textarea></label>
+                </template>
+
                 <div class="drawer-actions wide">
                   <button type="button" class="secondary-action" @click="closeCatalogDrawer">取消</button>
                   <button
@@ -4635,10 +5874,113 @@ onBeforeUnmount(() => {
                     type="button"
                     @click="removeCatalog(forms.catalog)"
                   >删除</button>
-                  <button v-if="hasPermission('catalog.write')" class="primary-action" type="submit">{{ isCreatingCatalog ? "上架" : "保存" }}</button>
+                  <button v-if="hasPermission('catalog.write')" class="primary-action" type="submit">{{ isCreatingCatalog ? "创建并上架" : "保存" }}</button>
                   <div v-else class="permission-note">当前角色仅可查看。</div>
                 </div>
               </form>
+            </aside>
+          </div>
+
+          <!-- 类别管理：茶叶=茶类；堂饮=点单档位（初见/知味…） -->
+          <div
+            v-if="state.categoryManagerOpen"
+            class="editor-drawer"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="`管理${isDrinksCollection() ? '堂饮档位' : '茶叶类别'}`"
+          >
+            <div class="editor-drawer-mask" @click="closeCategoryManager"></div>
+            <aside class="panel-card editor-panel drawer-panel">
+              <div class="panel-title">
+                <h2>管理{{ isDrinksCollection() ? "堂饮档位" : "茶叶类别" }}</h2>
+                <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeCategoryManager">×</button>
+              </div>
+              <p class="editor-hint">
+                {{ isDrinksCollection()
+                  ? "档位＝点单左侧分类（初见/知味…），含价格与主图；其下茶品在列表里「新建」添加。"
+                  : "每个商品必选一个类别；类别决定商城侧栏。排序数字越小越靠前。" }}
+              </p>
+              <form class="editor-grid category-manager-form" @submit.prevent="saveManagedCategory">
+                <label>
+                  <span>{{ isDrinksCollection() ? "档位名称" : "类别名称" }}</span>
+                  <input v-model="categoryForm.name" required maxlength="20" :placeholder="isDrinksCollection() ? '如：初见' : '如：红茶'">
+                </label>
+                <label>
+                  <span>排序</span>
+                  <input v-model.number="categoryForm.sort" type="number" min="0" step="1">
+                </label>
+                <template v-if="isDrinksCollection()">
+                  <label>
+                    <span>价格</span>
+                    <input v-model.number="categoryForm.price" type="number" min="0" step="0.01" required>
+                  </label>
+                  <label>
+                    <span>单位</span>
+                    <input v-model="categoryForm.unit" required placeholder="道 / 壶">
+                  </label>
+                  <label class="wide">
+                    <span>标语</span>
+                    <input v-model="categoryForm.tagline" placeholder="点单页大图下一句话">
+                  </label>
+                  <label>
+                    <span>冲泡</span>
+                    <input v-model="categoryForm.brewStyle" placeholder="热泡茶">
+                  </label>
+                  <label class="wide">
+                    <span>档位主图路径</span>
+                    <input v-model="categoryForm.image" placeholder="/assets/images/… 或 cloud://">
+                  </label>
+                </template>
+                <label class="wide category-manager-actions">
+                  <span></span>
+                  <div class="row-actions">
+                    <button v-if="categoryForm.id" type="button" class="ghost-button small" @click="resetCategoryForm">新建下一条</button>
+                    <button class="primary-action small" type="submit">{{ categoryForm.id ? "保存" : (isDrinksCollection() ? "添加档位" : "添加类别") }}</button>
+                  </div>
+                </label>
+              </form>
+              <div class="table-wrap category-manager-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">{{ isDrinksCollection() ? "档位" : "类别" }}</th>
+                      <th v-if="isDrinksCollection()" scope="col">价格</th>
+                      <th scope="col">排序</th>
+                      <th scope="col">状态</th>
+                      <th scope="col">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="item in managedCategoriesForCollection" :key="item.id">
+                      <td><strong>{{ item.name }}</strong><small>{{ item.id }}</small></td>
+                      <td v-if="isDrinksCollection()">¥{{ money(item.price) }} / {{ item.unit || item.badge || "道" }}</td>
+                      <td>{{ item.sort ?? "-" }}</td>
+                      <td>
+                        <span :class="['status-pill', item.visible === false ? 'neutral' : 'good']">
+                          {{ item.visible === false ? "已停用" : "启用" }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="row-actions">
+                          <button class="ghost-button small" type="button" @click="editManagedCategory(item)">编辑</button>
+                          <button class="ghost-button small" type="button" @click="toggleManagedCategory(item)">
+                            {{ item.visible === false ? "启用" : "停用" }}
+                          </button>
+                          <button class="ghost-button small danger-text" type="button" @click="removeManagedCategory(item)">删除</button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <EmptyState
+                  v-if="!managedCategoriesForCollection.length"
+                  :title="isDrinksCollection() ? '还没有档位' : '还没有类别'"
+                  :hint="isDrinksCollection() ? '先添加初见/知味等档位，再在列表新建茶品。' : '先添加类别，再建商品时下拉选择。'"
+                />
+              </div>
+              <div class="drawer-actions wide">
+                <button type="button" class="secondary-action" @click="closeCategoryManager">完成</button>
+              </div>
             </aside>
           </div>
         </section>
@@ -4838,7 +6180,7 @@ onBeforeUnmount(() => {
               <input v-model="filters.inventoryKeyword" class="line-input" aria-label="搜索库存流水" placeholder="商品、订单号、类型、备注" @keydown.enter="resetPageAndLoad('inventory', loadInventoryLogs)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('inventory', loadInventoryLogs)">筛选</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportInventoryLogs">{{ exportScopeLabel }}</button>
-              <button v-if="hasPermission('inventory.write')" class="primary-action small" type="button" @click="openDrawer('inventory')">调库</button>
+              <button v-if="hasPermission('inventory.write')" class="primary-action small" type="button" @click="openInventoryDrawer">调库</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -4868,8 +6210,25 @@ onBeforeUnmount(() => {
             <aside class="panel-card editor-panel drawer-panel">
             <div class="panel-title"><h2>人工调整库存</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('inventory')">×</button></div>
             <form class="editor-grid" @submit.prevent="adjustInventory">
-              <label><span>类型</span><select v-model="inventoryForm.collection"><option value="tea_products">茶叶</option><option value="drinks">堂饮茶单</option></select></label>
-              <label><span>商品 ID</span><input v-model="inventoryForm.id" required placeholder="如 tea-001"></label>
+              <label>
+                <span>类型</span>
+                <select v-model="inventoryForm.collection" class="catalog-select-input" @change="onInventoryCollectionChange">
+                  <option value="tea_products">茶叶</option>
+                  <option value="drinks">堂饮茶单</option>
+                </select>
+              </label>
+              <label>
+                <span>商品</span>
+                <select v-model="inventoryForm.id" class="catalog-select-input" required>
+                  <option disabled value="">请选择商品</option>
+                  <option
+                    v-for="item in inventoryProductOptions"
+                    :key="item.id"
+                    :value="item.id"
+                  >{{ item.name }}（库存 {{ item.stock ?? "-" }} · {{ item.id }}）</option>
+                </select>
+              </label>
+              <p v-if="inventoryProductOptions.length === 0" class="field-inline-hint wide">暂无该类型商品，请先在商品管理中创建。</p>
               <label><span>调整数量</span><input v-model.number="inventoryForm.delta" type="number" required placeholder="正数增加，负数减少"></label>
               <label class="wide"><span>原因</span><textarea v-model="inventoryForm.note" rows="4" placeholder="盘点、损耗、补货等"></textarea></label>
               <div class="drawer-actions wide">
@@ -5077,7 +6436,12 @@ onBeforeUnmount(() => {
             <div class="panel-title"><h2>内容编辑</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('content')">×</button></div>
             <form class="editor-grid" @submit.prevent="saveContent">
               <label><span>Key</span><input v-model="forms.content.key" required></label>
-              <label><span>类型</span><input v-model="forms.content.type"></label>
+              <label>
+                <span>类型</span>
+                <select v-model="forms.content.type" class="catalog-select-input" required>
+                  <option v-for="opt in CONTENT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+              </label>
               <label><span>标题</span><input v-model="forms.content.title"></label>
               <label><span>副标题</span><input v-model="forms.content.subtitle"></label>
               <label class="wide"><span>图片 URL</span><input v-model="forms.content.image"></label>
@@ -5088,8 +6452,22 @@ onBeforeUnmount(() => {
                 <em>{{ uploadState.content || "选择本地图片上传到云存储" }}</em>
               </label>
               <label class="wide"><span>摘要</span><textarea v-model="forms.content.summary" rows="4"></textarea></label>
-              <label><span>链接类型</span><input v-model="forms.content.linkType"></label>
-              <label><span>链接目标</span><input v-model="forms.content.linkTarget"></label>
+              <label>
+                <span>链接类型</span>
+                <select v-model="forms.content.linkType" class="catalog-select-input" required @change="onContentLinkTypeChange">
+                  <option v-for="opt in CONTENT_LINK_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+              </label>
+              <label v-if="forms.content.linkType === 'page'">
+                <span>链接目标</span>
+                <select v-model="contentLinkTargetChoice" class="catalog-select-input" required @change="onContentLinkTargetChoiceChange">
+                  <option v-for="opt in CONTENT_PAGE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+              </label>
+              <label v-if="forms.content.linkType === 'page' && contentLinkTargetChoice === SELECT_CUSTOM_VALUE" class="wide">
+                <span>自定义路径</span>
+                <input v-model="forms.content.linkTarget" required placeholder="/pages/shop/index">
+              </label>
               <label><span>排序</span><input v-model.number="forms.content.sort" type="number" min="0"></label>
               <label class="switch"><input v-model="forms.content.visible" type="checkbox"> 启用</label>
               <div class="drawer-actions wide">
@@ -5493,6 +6871,35 @@ onBeforeUnmount(() => {
                 <label><span>取消提前小时</span><input v-model.number="state.settings.reservationCancelAdvanceHours" type="number" min="1" max="168" step="1" title="已支付预约须至少提前这么多小时取消才可自助全额退"></label>
                 <label><span>待支付锁单分钟</span><input v-model.number="state.settings.reservationLockMinutes" type="number" min="1" max="120" step="1" title="提交预约后须在多少分钟内完成微信支付"></label>
                 <label><span>自动完成宽限分钟</span><input v-model.number="state.settings.reservationAutoCompleteGraceMinutes" type="number" min="0" max="1440" step="1" title="已确认预约在结束时间后再等这么多分钟，自动标为已完成"></label>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-head">
+                <span>01b</span>
+                <h2>预约计价</h2>
+              </div>
+              <div class="settings-fields">
+                <p class="settings-note" style="grid-column: 1 / -1; margin: 0 0 8px;">
+                  真正扣款规则：按开始时刻落入日间/晚间价带，满「最短时长」收基础价，超出部分按步长加价。与「茶室资源」字段无关。
+                </p>
+                <label><span>可约开始</span><input v-model="state.settings.bookingOpenTime" placeholder="10:00"></label>
+                <label><span>可约结束</span><input v-model="state.settings.bookingCloseTime" placeholder="21:30"></label>
+                <label><span>最短时长（分钟）</span><input v-model.number="state.settings.bookingMinDurationMinutes" type="number" min="30" max="480" step="15"></label>
+                <label><span>时段步长（分钟）</span><input v-model.number="state.settings.bookingSlotStepMinutes" type="number" min="15" max="60" step="15"></label>
+                <label><span>每场人数上限</span><input v-model.number="state.settings.bookingMaxPeople" type="number" min="1" max="30"></label>
+                <label><span>加时单价（每步长）</span><input v-model.number="state.settings.bookingHalfHourPrice" type="number" min="0" step="1"></label>
+                <label><span>日间名称</span><input v-model="state.settings.bookingDayLabel" placeholder="日间"></label>
+                <label><span>日间起点</span><input v-model="state.settings.bookingDayStart" placeholder="10:00"></label>
+                <label><span>日间终点</span><input v-model="state.settings.bookingDayEnd" placeholder="19:30"></label>
+                <label><span>日间满时长价</span><input v-model.number="state.settings.bookingDayBasePrice" type="number" min="0" step="1"></label>
+                <label><span>晚间名称</span><input v-model="state.settings.bookingEveningLabel" placeholder="晚间"></label>
+                <label><span>晚间起点</span><input v-model="state.settings.bookingEveningStart" placeholder="19:30"></label>
+                <label><span>晚间终点</span><input v-model="state.settings.bookingEveningEnd" placeholder="21:30"></label>
+                <label><span>晚间满时长价</span><input v-model.number="state.settings.bookingEveningBasePrice" type="number" min="0" step="1"></label>
+                <label><span>赠茶泡数</span><input v-model.number="state.settings.bookingGiftTeaCups" type="number" min="0" max="20"></label>
+                <label><span>赠茶价值（元）</span><input v-model.number="state.settings.bookingGiftTeaValueYuan" type="number" min="0" step="1"></label>
+                <label class="wide"><span>赠茶文案</span><input v-model="state.settings.bookingGiftTeaCopy" placeholder="含赠 2 泡茶（价值 ¥78）"></label>
               </div>
               <p class="settings-note">茶室预付：用户自助取消须提前「取消提前小时」才全额退；后台取消可选手动全额/部分/不退。锁单超时后待支付单自动释放时段。已确认预约过「结束时间 + 自动完成宽限」后由定时任务标为已完成（默认 60 分钟，未到店仍需人工标记）。</p>
             </div>

@@ -82,27 +82,142 @@ async function getStoreSettings() {
   }
 }
 
+async function getProductCategories() {
+  await ensureCollection("product_categories");
+  try {
+    const result = await db.collection("product_categories")
+      .where({ visible: true })
+      .limit(100)
+      .get();
+    const items = (result.data || []).filter((item) => item.removed !== true);
+    return sortCatalog(items);
+  } catch (error) {
+    return [];
+  }
+}
+
+function isLegacyDrinkTier(item) {
+  return !!(item && Array.isArray(item.teaGroups) && item.teaGroups.length && !item.categoryId);
+}
+
+function isDrinkTeaItem(item) {
+  if (!item || isLegacyDrinkTier(item)) return false;
+  return !!(item.categoryId || (item.category && !Array.isArray(item.teaGroups)));
+}
+
+/**
+ * 堂饮菜单：分类（档位）= 初见/知味…；drinks 集合存档位下茶品。
+ * 组装成点单页仍使用的「档位 + teaGroups」结构，id 保持 drink-001 便于下单。
+ */
+function assembleDrinkMenu(productCategories, drinkRows) {
+  const tiers = sortCatalog(
+    (productCategories || []).filter((item) => item && item.channel === "drinks")
+  );
+  const teaItems = sortCatalog((drinkRows || []).filter(isDrinkTeaItem));
+  const legacy = sortCatalog((drinkRows || []).filter(isLegacyDrinkTier));
+
+  if (tiers.length && teaItems.length) {
+    return tiers.map((tier) => {
+      const teas = teaItems.filter(
+        (item) => item.categoryId === tier.id || item.category === tier.name
+      );
+      const groupOrder = [];
+      const groupMap = {};
+      teas.forEach((tea) => {
+        const groupName = String(tea.groupName || tea.unit || "本席可选").trim() || "本席可选";
+        if (!groupMap[groupName]) {
+          groupMap[groupName] = [];
+          groupOrder.push(groupName);
+        }
+        groupMap[groupName].push(tea.name);
+      });
+      const teaGroups = groupOrder.map((name) => ({
+        name,
+        options: groupMap[name]
+      }));
+      const unit = tier.unit || tier.badge || "道";
+      return {
+        id: tier.id,
+        name: tier.name,
+        category: tier.name,
+        serviceType: tier.serviceType || (unit === "壶" ? "pot" : "tasting"),
+        price: Math.max(0, Number(tier.price) || 0),
+        unit,
+        badge: tier.badge || unit,
+        tagline: tier.tagline || "",
+        brewStyle: tier.brewStyle || "热泡茶",
+        color: tier.color || "",
+        image: tier.image || "",
+        thumb: tier.thumb || tier.image || "",
+        notes: teas.map((item) => item.name).filter(Boolean).join(" / "),
+        teaGroups,
+        teaItems: teas.map((item) => ({
+          id: item.id,
+          name: item.name,
+          groupName: item.groupName || "",
+          image: item.image || item.thumb || "",
+          subtitle: item.subtitle || ""
+        })),
+        visible: true,
+        sort: Number(tier.sort) || 0
+      };
+    });
+  }
+
+  if (legacy.length) {
+    return legacy;
+  }
+
+  if (tiers.length) {
+    return tiers.map((tier) => {
+      const unit = tier.unit || tier.badge || "道";
+      return {
+        id: tier.id,
+        name: tier.name,
+        category: tier.name,
+        serviceType: tier.serviceType || (unit === "壶" ? "pot" : "tasting"),
+        price: Math.max(0, Number(tier.price) || 0),
+        unit,
+        badge: tier.badge || unit,
+        tagline: tier.tagline || "",
+        brewStyle: tier.brewStyle || "热泡茶",
+        color: tier.color || "",
+        image: tier.image || "",
+        teaGroups: [],
+        notes: "",
+        visible: true,
+        sort: Number(tier.sort) || 0
+      };
+    });
+  }
+
+  return [];
+}
+
 exports.main = async (event = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "getCatalog" };
   }
 
-  const [cloudDrinks, cloudTeaProducts, cloudRooms, cloudEvents, contentBlocks, storeSettings] = await Promise.all([
+  const [cloudDrinks, cloudTeaProducts, cloudRooms, cloudEvents, contentBlocks, storeSettings, productCategories] = await Promise.all([
     getCollectionData("drinks"),
     getCollectionData("tea_products"),
     getCollectionData("rooms"),
     getCollectionData("events"),
     getContentBlocks(),
-    getStoreSettings()
+    getStoreSettings(),
+    getProductCategories()
   ]);
 
   return {
     ok: true,
     catalog: {
-      drinks: cloudDrinks,
+      drinks: assembleDrinkMenu(productCategories, cloudDrinks),
       teaProducts: cloudTeaProducts,
+      // 茶室列表以后台 rooms 集合为准（可见且未软删），前台不再硬编码条数
       rooms: cloudRooms,
       events: cloudEvents,
+      productCategories,
       content: {
         homeSlides: contentBlocks.filter((item) => item.type === "home_carousel"),
         blocks: contentBlocks

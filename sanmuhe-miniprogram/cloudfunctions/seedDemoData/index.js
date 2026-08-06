@@ -173,9 +173,21 @@ async function syncCollection(collection, docs, options = {}) {
       if (!item.id || incomingIds.has(item.id)) {
         continue;
       }
-      const data = collection === "events"
-        ? { visible: false, deleted: true, seedVersion: seed.version, updatedAt: db.serverDate() }
-        : { visible: false, seedVersion: seed.version, updatedAt: db.serverDate() };
+      // events：历史用 deleted；rooms：多店演示要软删除，避免后台 includeHidden 仍列出
+      let data;
+      if (collection === "events") {
+        data = { visible: false, deleted: true, seedVersion: seed.version, updatedAt: db.serverDate() };
+      } else if (collection === "rooms") {
+        data = {
+          visible: false,
+          removed: true,
+          status: "暂停预约",
+          seedVersion: seed.version,
+          updatedAt: db.serverDate()
+        };
+      } else {
+        data = { visible: false, seedVersion: seed.version, updatedAt: db.serverDate() };
+      }
       await db.collection(collection).doc(item._id).update({ data });
       summary.deactivated += 1;
     }
@@ -307,7 +319,9 @@ exports.main = async (event = {}) => {
 
   try {
     for (const [collection, docs] of Object.entries(seed.collections || {})) {
-      results.push(await syncCollection(collection, docs, { deactivateMissing: true }));
+      // rooms 以后台运营维护为准：种子只 upsert 基准条目，不因种子缺项而软删运营新建茶室
+      const deactivateMissing = collection !== "rooms";
+      results.push(await syncCollection(collection, docs, { deactivateMissing }));
     }
 
     results.push(await syncContentBlocks());

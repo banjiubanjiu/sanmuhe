@@ -21,10 +21,11 @@ const CANONICAL_STORE = {
   sessionMinutes: 120
 };
 
-/** 与小程序 data/store.js 预约规则对齐 */
-const BOOKING_POLICY = {
+/** 默认预约规则（仅作兜底；运行时优先读 store_settings） */
+const DEFAULT_BOOKING_POLICY = {
   slotStepMinutes: 30,
   minDurationMinutes: 120,
+  maxPeople: 6,
   openTime: "10:00",
   closeTime: "21:30",
   periods: [
@@ -32,6 +33,48 @@ const BOOKING_POLICY = {
     { id: "evening", label: "晚间", start: "19:30", end: "21:30", basePrice: 208, halfHourPrice: 30 }
   ]
 };
+
+function cleanTimeHHMM(value, fallback) {
+  const text = cleanText(value, 8);
+  if (/^\d{1,2}:\d{2}$/.test(text)) {
+    const [h, m] = text.split(":");
+    return `${String(Number(h)).padStart(2, "0")}:${m}`;
+  }
+  return fallback;
+}
+
+/** 从 store_settings 归一化计价/时段策略 */
+function bookingPolicyFromSettings(row = {}) {
+  const half = Math.max(0, Number(row.bookingHalfHourPrice));
+  const halfHourPrice = Number.isFinite(half) ? half : DEFAULT_BOOKING_POLICY.periods[0].halfHourPrice;
+  const dayBase = Math.max(0, Number(row.bookingDayBasePrice));
+  const eveningBase = Math.max(0, Number(row.bookingEveningBasePrice));
+  return {
+    slotStepMinutes: Math.max(15, Math.min(60, Number(row.bookingSlotStepMinutes) || DEFAULT_BOOKING_POLICY.slotStepMinutes)),
+    minDurationMinutes: Math.max(30, Math.min(480, Number(row.bookingMinDurationMinutes) || DEFAULT_BOOKING_POLICY.minDurationMinutes)),
+    maxPeople: Math.max(1, Math.min(30, Number(row.bookingMaxPeople) || DEFAULT_BOOKING_POLICY.maxPeople)),
+    openTime: cleanTimeHHMM(row.bookingOpenTime, DEFAULT_BOOKING_POLICY.openTime),
+    closeTime: cleanTimeHHMM(row.bookingCloseTime, DEFAULT_BOOKING_POLICY.closeTime),
+    periods: [
+      {
+        id: "day",
+        label: cleanText(row.bookingDayLabel, 20) || "日间",
+        start: cleanTimeHHMM(row.bookingDayStart, "10:00"),
+        end: cleanTimeHHMM(row.bookingDayEnd, "19:30"),
+        basePrice: Number.isFinite(dayBase) && dayBase >= 0 ? dayBase : 188,
+        halfHourPrice
+      },
+      {
+        id: "evening",
+        label: cleanText(row.bookingEveningLabel, 20) || "晚间",
+        start: cleanTimeHHMM(row.bookingEveningStart, "19:30"),
+        end: cleanTimeHHMM(row.bookingEveningEnd, "21:30"),
+        basePrice: Number.isFinite(eveningBase) && eveningBase >= 0 ? eveningBase : 208,
+        halfHourPrice
+      }
+    ]
+  };
+}
 
 const LOCK_MINUTES_FALLBACK = Math.max(1, Number(process.env.RESERVATION_LOCK_MINUTES || process.env.ORDER_LOCK_MINUTES || 15));
 /** 已支付预约：须至少提前这么多小时取消，方可退款（运行时优先读 store_settings） */
@@ -42,8 +85,7 @@ function createReservationNo() {
 }
 
 /**
- * 从 store_settings 读取茶室预约策略（取消提前小时、锁单分钟）
- * 失败时回退环境变量/默认值
+ * 从 store_settings 读取预约策略：取消/锁单 + 计价时段价带
  */
 async function loadBookingPolicySettings() {
   try {
@@ -57,11 +99,18 @@ async function loadBookingPolicySettings() {
       1,
       Math.min(120, Number(row && row.reservationLockMinutes) || LOCK_MINUTES_FALLBACK)
     );
-    return { cancelAdvanceHours, lockMinutes };
+    return {
+      cancelAdvanceHours,
+      lockMinutes,
+      policy: bookingPolicyFromSettings(row || {})
+    };
   } catch (error) {
     return {
       cancelAdvanceHours: CANCEL_ADVANCE_HOURS_FALLBACK,
-      lockMinutes: LOCK_MINUTES_FALLBACK
+      lockMinutes: LOCK_MINUTES_FALLBACK,
+      policy: Object.assign({}, DEFAULT_BOOKING_POLICY, {
+        periods: DEFAULT_BOOKING_POLICY.periods.map((p) => Object.assign({}, p))
+      })
     };
   }
 }
@@ -224,35 +273,40 @@ function fromMinutes(total) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function isHalfHourAligned(hhmm) {
+function isStepAligned(hhmm, stepMinutes) {
   const mins = toMinutes(hhmm);
+  const step = Math.max(1, Number(stepMinutes) || 30);
   if (!Number.isFinite(mins) || mins < 0) {
     return false;
   }
-  return mins % BOOKING_POLICY.slotStepMinutes === 0;
+  return mins % step === 0;
 }
 
-function getPeriodForStart(startTime) {
+function getPeriodForStart(startTime, policy) {
+  const periods = (policy && policy.periods) || DEFAULT_BOOKING_POLICY.periods;
   const startMins = toMinutes(startTime);
-  for (let i = BOOKING_POLICY.periods.length - 1; i >= 0; i -= 1) {
-    const period = BOOKING_POLICY.periods[i];
+  for (let i = periods.length - 1; i >= 0; i -= 1) {
+    const period = periods[i];
     if (startMins >= toMinutes(period.start)) {
       return period;
     }
   }
-  return BOOKING_POLICY.periods[0];
+  return periods[0];
 }
 
 /**
  * 服务端重算价格，不信任客户端 price
- * 满 2 小时基础价 + 每超出 30 分钟加价
+ * 规则来自 store_settings（无配置则默认价带）
  */
-function calculateReservationPrice(startTime, endTime) {
+function calculateReservationPrice(startTime, endTime, policyInput) {
+  const policy = policyInput || DEFAULT_BOOKING_POLICY;
+  const step = Math.max(1, Number(policy.slotStepMinutes) || 30);
+  const minDuration = Math.max(step, Number(policy.minDurationMinutes) || 120);
   if (!startTime || !endTime) {
     return { ok: false, message: "请选择开始与结束时间" };
   }
-  if (!isHalfHourAligned(startTime) || !isHalfHourAligned(endTime)) {
-    return { ok: false, message: "时间需按半小时选择" };
+  if (!isStepAligned(startTime, step) || !isStepAligned(endTime, step)) {
+    return { ok: false, message: `时间需按 ${step} 分钟选择` };
   }
   const startMins = toMinutes(startTime);
   const endMins = toMinutes(endTime);
@@ -260,22 +314,20 @@ function calculateReservationPrice(startTime, endTime) {
     return { ok: false, message: "结束时间需晚于开始时间" };
   }
   const durationMinutes = endMins - startMins;
-  if (durationMinutes < BOOKING_POLICY.minDurationMinutes) {
+  if (durationMinutes < minDuration) {
     return {
       ok: false,
-      message: `每场至少预订 ${BOOKING_POLICY.minDurationMinutes / 60} 小时（无论是否用满均归您）`
+      message: `每场至少预订 ${minDuration / 60} 小时（无论是否用满均归您）`
     };
   }
-  const open = toMinutes(BOOKING_POLICY.openTime);
-  const close = toMinutes(BOOKING_POLICY.closeTime);
+  const open = toMinutes(policy.openTime || DEFAULT_BOOKING_POLICY.openTime);
+  const close = toMinutes(policy.closeTime || DEFAULT_BOOKING_POLICY.closeTime);
   if (startMins < open || endMins > close) {
     return { ok: false, message: "所选时间不在可预约营业时段内" };
   }
-  const period = getPeriodForStart(startTime);
-  const extraHalfHours = Math.round(
-    (durationMinutes - BOOKING_POLICY.minDurationMinutes) / BOOKING_POLICY.slotStepMinutes
-  );
-  const price = Number(period.basePrice) + extraHalfHours * Number(period.halfHourPrice || 0);
+  const period = getPeriodForStart(startTime, policy);
+  const extraSteps = Math.round((durationMinutes - minDuration) / step);
+  const price = Number(period.basePrice) + extraSteps * Number(period.halfHourPrice || 0);
   return {
     ok: true,
     price,
@@ -283,7 +335,7 @@ function calculateReservationPrice(startTime, endTime) {
     period: period.id,
     periodLabel: period.label,
     basePrice: Number(period.basePrice),
-    extraHalfHours,
+    extraHalfHours: extraSteps,
     halfHourPrice: Number(period.halfHourPrice || 0)
   };
 }
@@ -697,10 +749,68 @@ async function resolveStore() {
   return Object.assign({}, CANONICAL_STORE);
 }
 
+/**
+ * 预约茶室以后台 rooms 集合为准（名称/可约状态/容量），不再用硬编码覆盖。
+ */
+async function resolveRoom(roomId, store) {
+  const preferredId = cleanText(roomId, 40);
+  try {
+    await ensureCollection("rooms");
+    let row = null;
+    if (preferredId) {
+      const byId = await db.collection("rooms").where({ id: preferredId }).limit(1).get();
+      row = byId.data && byId.data[0] ? byId.data[0] : null;
+    }
+    if (!row) {
+      // 未指定或找不到：取第一条上架可见茶室
+      const listed = await db.collection("rooms").where({ visible: true }).limit(20).get();
+      const items = (listed.data || []).filter((item) => item && item.removed !== true);
+      items.sort((a, b) => Number(a.sort || 9999) - Number(b.sort || 9999));
+      row = items[0] || null;
+    }
+    if (row) {
+      if (row.removed === true || row.visible === false) {
+        return { ok: false, message: "该茶室已下架，请重新选择" };
+      }
+      if (/暂停|下架|不可/.test(String(row.status || ""))) {
+        return { ok: false, message: "该茶室暂不可预约" };
+      }
+      const capacityText = cleanText(row.capacity, 40);
+      const peopleMatch = capacityText.match(/(\d+)\s*人/);
+      const maxPeople = peopleMatch
+        ? Math.max(1, Number(peopleMatch[1]) || store.maxPeople)
+        : store.maxPeople;
+      return {
+        ok: true,
+        roomId: cleanText(row.id, 40) || preferredId || store.roomId,
+        roomName: cleanText(row.name || row.title, 40) || store.storeName,
+        storeId: cleanText(row.storeId, 40) || store.storeId,
+        maxPeople,
+        image: cleanText(row.image || row.thumb, 300)
+      };
+    }
+  } catch (error) {
+    // fall through
+  }
+  if (!preferredId) {
+    return { ok: false, message: "暂无可预约茶室，请先在后台配置茶室" };
+  }
+  // 找不到文档时仍允许按客户端 roomId 落库（兼容过渡期），名称用门店名
+  return {
+    ok: true,
+    roomId: preferredId,
+    roomName: cleanText(store.storeName, 40) || CANONICAL_STORE.storeName,
+    storeId: store.storeId,
+    maxPeople: store.maxPeople,
+    image: ""
+  };
+}
+
 exports.main = async (event = {}) => {
   const bookingPolicy = await loadBookingPolicySettings();
   const lockMinutes = bookingPolicy.lockMinutes;
   const cancelAdvanceHours = bookingPolicy.cancelAdvanceHours;
+  const pricingPolicy = bookingPolicy.policy || DEFAULT_BOOKING_POLICY;
 
   if (event.action === "health") {
     return {
@@ -708,6 +818,10 @@ exports.main = async (event = {}) => {
       name: "createReservation",
       lockMinutes,
       cancelAdvanceHours,
+      bookingOpenTime: pricingPolicy.openTime,
+      bookingCloseTime: pricingPolicy.closeTime,
+      bookingDayBasePrice: pricingPolicy.periods && pricingPolicy.periods[0] ? pricingPolicy.periods[0].basePrice : 188,
+      bookingEveningBasePrice: pricingPolicy.periods && pricingPolicy.periods[1] ? pricingPolicy.periods[1].basePrice : 208,
       initialStatus: "待支付",
       requiresPayment: true,
       wecomReservationNotifyConfigured: Boolean(process.env.WECOM_RESERVATION_WEBHOOK || process.env.WECOM_ORDER_WEBHOOK)
@@ -728,20 +842,27 @@ exports.main = async (event = {}) => {
   }
 
   const store = await resolveStore();
-  const storeId = store.storeId;
-  const roomId = cleanText(event.roomId, 40) || store.roomId;
 
   if (event.action === "listReservedSlots") {
     const day = cleanText(event.day, 20);
     if (!day) {
       return { ok: false, message: "请选择日期" };
     }
+    const roomLookup = await resolveRoom(event.roomId, store);
+    if (!roomLookup.ok) {
+      return roomLookup;
+    }
     try {
-      const slots = await listReservedSlots(day, roomId, storeId, store.sessionMinutes);
+      const slots = await listReservedSlots(
+        day,
+        roomLookup.roomId,
+        roomLookup.storeId || store.storeId,
+        store.sessionMinutes
+      );
       return {
         ok: true,
         day,
-        roomId,
+        roomId: roomLookup.roomId,
         slots
       };
     } catch (error) {
@@ -773,10 +894,25 @@ exports.main = async (event = {}) => {
     };
   }
 
+  const roomLookup = await resolveRoom(event.roomId, store);
+  if (!roomLookup.ok) {
+    return roomLookup;
+  }
+  // 名称以后台 rooms 为准；客户端 roomName 仅作兜底
+  const roomId = roomLookup.roomId;
+  const storeId = roomLookup.storeId || store.storeId;
+  const roomName = roomLookup.roomName
+    || cleanText(event.roomName, 40)
+    || store.storeName;
+  const maxPeople = Math.max(
+    1,
+    Number(roomLookup.maxPeople) || Number(pricingPolicy.maxPeople) || store.maxPeople
+  );
+
   const day = cleanText(event.day, 20);
   const time = cleanText(event.time, 12);
   const endTime = cleanText(event.endTime, 12);
-  const people = Math.max(1, Math.min(store.maxPeople, Number(event.people) || 1));
+  const people = Math.max(1, Math.min(maxPeople, Number(event.people) || 1));
   const name = cleanText(event.name, 40);
   const phone = cleanText(event.phone, 30);
   const note = cleanText(event.note, 200);
@@ -787,11 +923,11 @@ exports.main = async (event = {}) => {
   if (!day || !time || !endTime || !name || !phone) {
     return { ok: false, message: "请补全预约信息" };
   }
-  if (people > store.maxPeople) {
-    return { ok: false, message: `每场限 ${store.maxPeople} 位以内` };
+  if (people > maxPeople) {
+    return { ok: false, message: `每场限 ${maxPeople} 位以内` };
   }
 
-  const quote = calculateReservationPrice(time, endTime);
+  const quote = calculateReservationPrice(time, endTime, pricingPolicy);
   if (!quote.ok) {
     return { ok: false, message: quote.message || "时段无效" };
   }
@@ -809,7 +945,7 @@ exports.main = async (event = {}) => {
     storeId,
     time,
     endTime,
-    BOOKING_POLICY.minDurationMinutes
+    pricingPolicy.minDurationMinutes
   );
 
   if (conflicting.length > 0) {
@@ -826,8 +962,9 @@ exports.main = async (event = {}) => {
       storeId,
       storeName,
       roomId,
-      // room 字段保留给列表兼容：单店阶段等于门店名
-      room: storeName,
+      roomName,
+      // room 字段供列表/兼容展示：用后台茶室名
+      room: roomName,
       address: store.address,
       reservationNo,
       day,

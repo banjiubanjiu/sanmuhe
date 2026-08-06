@@ -11,8 +11,12 @@ const allowedCollections = {
   drinks: "drinks",
   tea_products: "tea_products",
   rooms: "rooms",
-  events: "events"
+  events: "events",
+  /** 商品类别：茶叶/堂饮共用「类别 + 商品」模型 */
+  product_categories: "product_categories"
 };
+
+const PRODUCT_CATEGORY_CHANNELS = new Set(["tea_products", "drinks"]);
 
 const writeActions = new Set(["create", "update", "delete", "restore", "remove"]);
 const rolePermissionMap = {
@@ -350,6 +354,7 @@ function normalizePayload(collection, payload) {
     "name",
     "title",
     "category",
+    "channel",
     "serviceType",
     "notes",
     "badge",
@@ -368,7 +373,13 @@ function normalizePayload(collection, payload) {
     "status",
     "image",
     "detailImage",
-    "thumb"
+    "thumb",
+    "tagline",
+    "brewStyle",
+    "storeId",
+    "categoryId",
+    "groupName",
+    "subtitle"
   ];
 
   for (const field of stringFields) {
@@ -490,6 +501,18 @@ function validateCatalogPayload(collection, payload, source = {}, options = {}) 
       assertImageRef(payload[field], field === "detailImage" ? "详情图片" : "图片地址");
     }
   });
+
+  if (collection === "product_categories") {
+    const channel = cleanText(payload.channel || existing.channel, 40);
+    if ((isCreate || source.channel !== undefined) && !PRODUCT_CATEGORY_CHANNELS.has(channel)) {
+      invalidInput("类别渠道须为 tea_products（茶叶）或 drinks（堂饮）");
+    }
+    if (isCreate || hasNameField) {
+      if (!cleanText(payload.name, 40)) {
+        invalidInput("请填写类别名称");
+      }
+    }
+  }
 
   if (collection === "events") {
     const quota = payload.quota !== undefined ? payload.quota : Number(existing.quota || 1);

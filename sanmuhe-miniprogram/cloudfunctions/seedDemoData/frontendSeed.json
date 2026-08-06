@@ -1,147 +1,294 @@
 {
-  "version": "hexi-catalog-20260725-dinein-menu",
+  "version": "hexi-dinein-tier-teas-20260806",
   "collections": {
-    "drinks": [
+    "product_categories": [
+      {
+        "id": "cat-tea-hongcha",
+        "name": "红茶",
+        "channel": "tea_products",
+        "sort": 10,
+        "visible": true
+      },
+      {
+        "id": "cat-tea-baicha",
+        "name": "白茶",
+        "channel": "tea_products",
+        "sort": 20,
+        "visible": true
+      },
+      {
+        "id": "cat-tea-yancha",
+        "name": "岩茶",
+        "channel": "tea_products",
+        "sort": 30,
+        "visible": true
+      },
+      {
+        "id": "cat-tea-puer",
+        "name": "普洱茶",
+        "channel": "tea_products",
+        "sort": 40,
+        "visible": true
+      },
+      {
+        "id": "cat-tea-dancong",
+        "name": "单丛",
+        "channel": "tea_products",
+        "sort": 50,
+        "visible": true
+      },
       {
         "id": "drink-001",
         "name": "初见",
-        "category": "推荐",
-        "serviceType": "tasting",
+        "channel": "drinks",
         "price": 58,
-        "notes": "古树红茶 / 清香单丛 / 留白白茶 / 顺景普洱",
+        "unit": "道",
+        "badge": "道",
+        "serviceType": "tasting",
         "tagline": "初识好茶，邂逅本真之味",
         "brewStyle": "热泡茶",
-        "teaGroups": [
-          {
-            "name": "本席可选",
-            "options": [
-              "古树红茶",
-              "清香单丛",
-              "留白白茶",
-              "顺景普洱"
-            ]
-          }
-        ],
-        "badge": "道",
         "color": "#8d4a2f",
         "image": "/assets/images/product-drink-001-chujian.jpg",
-        "unit": "道",
-        "visible": true,
-        "sort": 10
+        "sort": 10,
+        "visible": true
       },
       {
         "id": "drink-002",
         "name": "知味",
-        "category": "品鉴",
-        "serviceType": "tasting",
+        "channel": "drinks",
         "price": 78,
-        "notes": "岩茶：花香大红袍 / 十五年陈茶；红茶：有机红茶 / 正山小种；单丛：荒野蜜兰 / 贡香 / 高山蜜兰",
+        "unit": "道",
+        "badge": "道",
+        "serviceType": "tasting",
         "tagline": "细品层次，感知茶中真味",
         "brewStyle": "热泡茶",
-        "teaGroups": [
-          {
-            "name": "岩茶",
-            "options": [
-              "花香大红袍",
-              "十五年陈茶"
-            ]
-          },
-          {
-            "name": "红茶",
-            "options": [
-              "有机红茶",
-              "正山小种"
-            ]
-          },
-          {
-            "name": "单丛",
-            "options": [
-              "荒野蜜兰",
-              "贡香",
-              "高山蜜兰"
-            ]
-          }
-        ],
-        "badge": "道",
         "color": "#7b4e34",
         "image": "/assets/images/product-drink-002-zhiwei.jpg",
-        "unit": "道",
-        "visible": true,
-        "sort": 20
+        "sort": 20,
+        "visible": true
       },
       {
         "id": "drink-003",
         "name": "臻藏",
-        "category": "品鉴",
-        "serviceType": "tasting",
+        "channel": "drinks",
         "price": 98,
-        "notes": "马头岩肉桂",
+        "unit": "道",
+        "badge": "道",
+        "serviceType": "tasting",
         "tagline": "臻选名岩，珍藏一味",
         "brewStyle": "热泡茶",
-        "teaGroups": [
-          {
-            "name": "本席茶品",
-            "options": [
-              "马头岩肉桂"
-            ]
-          }
-        ],
-        "badge": "道",
         "color": "#6b3f2f",
         "image": "/assets/images/product-drink-003-zhencang.jpg",
-        "unit": "道",
-        "visible": true,
-        "sort": 30
+        "sort": 30,
+        "visible": true
       },
       {
         "id": "drink-004",
         "name": "烹茶暖叙",
-        "category": "壶茶",
-        "serviceType": "pot",
+        "channel": "drinks",
         "price": 48,
-        "notes": "老白茶 / 熟普 / 养生茶",
+        "unit": "壶",
+        "badge": "壶",
+        "serviceType": "pot",
         "tagline": "一壶暖茶，从容叙旧",
         "brewStyle": "热泡茶",
-        "teaGroups": [
-          {
-            "name": "本壶可选",
-            "options": [
-              "老白茶",
-              "熟普",
-              "养生茶"
-            ]
-          }
-        ],
-        "badge": "壶",
         "color": "#9aa477",
         "image": "/assets/images/product-drink-004-pengcha.jpg",
-        "unit": "壶",
-        "visible": true,
-        "sort": 40
+        "sort": 40,
+        "visible": true
       },
       {
         "id": "drink-005",
         "name": "芳茗润茶",
-        "category": "壶茶",
-        "serviceType": "pot",
+        "channel": "drinks",
         "price": 28,
-        "notes": "玫瑰花茶",
+        "unit": "壶",
+        "badge": "壶",
+        "serviceType": "pot",
         "tagline": "芳华入盏，温润于心",
         "brewStyle": "热泡茶",
-        "teaGroups": [
-          {
-            "name": "本壶茶品",
-            "options": [
-              "玫瑰花茶"
-            ]
-          }
-        ],
-        "badge": "壶",
         "color": "#c17831",
         "image": "/assets/images/product-drink-005-fangming.jpg",
-        "unit": "壶",
+        "sort": 50,
+        "visible": true
+      }
+    ],
+    "drinks": [
+      {
+        "id": "drink-item-001-1",
+        "name": "古树红茶",
+        "category": "初见",
+        "categoryId": "drink-001",
+        "groupName": "",
+        "image": "/assets/images/product-tea-001-organic-black.jpg",
+        "subtitle": "花果蜜香 · 汤色红亮",
+        "visible": true,
+        "sort": 10
+      },
+      {
+        "id": "drink-item-001-2",
+        "name": "清香单丛",
+        "category": "初见",
+        "categoryId": "drink-001",
+        "groupName": "",
+        "image": "/assets/images/product-tea-010-gongxiang.jpg",
+        "subtitle": "清香高扬 · 鲜爽回甘",
+        "visible": true,
+        "sort": 20
+      },
+      {
+        "id": "drink-item-001-3",
+        "name": "留白白茶",
+        "category": "初见",
+        "categoryId": "drink-001",
+        "groupName": "",
+        "image": "/assets/images/product-tea-004-mtn-white.jpg",
+        "subtitle": "清甜干净 · 余韵绵长",
+        "visible": true,
+        "sort": 30
+      },
+      {
+        "id": "drink-item-001-4",
+        "name": "顺景普洱",
+        "category": "初见",
+        "categoryId": "drink-001",
+        "groupName": "",
+        "image": "/assets/images/product-tea-008-puer.jpg",
+        "subtitle": "陈韵沉稳 · 汤感醇厚",
+        "visible": true,
+        "sort": 40
+      },
+      {
+        "id": "drink-item-002-1",
+        "name": "花香大红袍",
+        "category": "知味",
+        "categoryId": "drink-002",
+        "groupName": "岩茶",
+        "image": "/assets/images/product-tea-007-floral-dhp.jpg",
+        "subtitle": "花果馥郁 · 岩韵分明",
+        "visible": true,
+        "sort": 10
+      },
+      {
+        "id": "drink-item-002-2",
+        "name": "十五年陈茶",
+        "category": "知味",
+        "categoryId": "drink-002",
+        "groupName": "岩茶",
+        "image": "/assets/images/product-tea-006-aged-rock.jpg",
+        "subtitle": "药香转参 · 汤水绵柔",
+        "visible": true,
+        "sort": 20
+      },
+      {
+        "id": "drink-item-002-3",
+        "name": "有机红茶",
+        "category": "知味",
+        "categoryId": "drink-002",
+        "groupName": "红茶",
+        "image": "/assets/images/product-tea-001-organic-black.jpg",
+        "subtitle": "花果蜜香 · 水路细腻",
+        "visible": true,
+        "sort": 30
+      },
+      {
+        "id": "drink-item-002-4",
+        "name": "正山小种",
+        "category": "知味",
+        "categoryId": "drink-002",
+        "groupName": "红茶",
+        "image": "/assets/images/product-tea-002-wild-black.jpg",
+        "subtitle": "松烟底韵 · 甜润顺口",
+        "visible": true,
+        "sort": 40
+      },
+      {
+        "id": "drink-item-002-5",
+        "name": "荒野蜜兰",
+        "category": "知味",
+        "categoryId": "drink-002",
+        "groupName": "单丛",
+        "image": "/assets/images/product-tea-011-mielan.jpg",
+        "subtitle": "蜜甜浓郁 · 兰香清雅",
         "visible": true,
         "sort": 50
+      },
+      {
+        "id": "drink-item-002-6",
+        "name": "贡香",
+        "category": "知味",
+        "categoryId": "drink-002",
+        "groupName": "单丛",
+        "image": "/assets/images/product-tea-010-gongxiang.jpg",
+        "subtitle": "清香纯粹 · 夏日鲜爽",
+        "visible": true,
+        "sort": 60
+      },
+      {
+        "id": "drink-item-002-7",
+        "name": "高山蜜兰",
+        "category": "知味",
+        "categoryId": "drink-002",
+        "groupName": "单丛",
+        "image": "/assets/images/product-tea-011-mielan.jpg",
+        "subtitle": "高山蜜韵 · 汤感稠糯",
+        "visible": true,
+        "sort": 70
+      },
+      {
+        "id": "drink-item-003-1",
+        "name": "马头岩肉桂",
+        "category": "臻藏",
+        "categoryId": "drink-003",
+        "groupName": "",
+        "image": "/assets/images/product-tea-005-rougui.jpg",
+        "subtitle": "辛锐桂皮香 · 喉韵清凉",
+        "visible": true,
+        "sort": 10
+      },
+      {
+        "id": "drink-item-004-1",
+        "name": "老白茶",
+        "category": "烹茶暖叙",
+        "categoryId": "drink-004",
+        "groupName": "",
+        "image": "/assets/images/product-tea-003-aged-white.jpg",
+        "subtitle": "醇润陈香 · 温和不伤胃",
+        "visible": true,
+        "sort": 10
+      },
+      {
+        "id": "drink-item-004-2",
+        "name": "熟普",
+        "category": "烹茶暖叙",
+        "categoryId": "drink-004",
+        "groupName": "",
+        "image": "/assets/images/product-tea-008-puer.jpg",
+        "subtitle": "温润醇和 · 一壶从容",
+        "visible": true,
+        "sort": 20
+      },
+      {
+        "id": "drink-item-004-3",
+        "name": "养生茶",
+        "category": "烹茶暖叙",
+        "categoryId": "drink-004",
+        "groupName": "",
+        "image": "/assets/images/product-drink-004-pengcha.jpg",
+        "subtitle": "温和调养 · 宜日常暖饮",
+        "visible": true,
+        "sort": 30
+      },
+      {
+        "id": "drink-item-005-1",
+        "name": "玫瑰花茶",
+        "category": "芳茗润茶",
+        "categoryId": "drink-005",
+        "groupName": "",
+        "image": "/assets/images/product-drink-005-fangming.jpg",
+        "subtitle": "玫瑰清芳 · 温润于心",
+        "visible": true,
+        "sort": 10
       }
     ],
     "tea_products": [
@@ -529,83 +676,21 @@
     "rooms": [
       {
         "id": "room-001",
-        "name": "禾煦・观山店",
-        "capacity": "2人",
-        "price": 168,
-        "floor": "安静雅致 ｜ 观山景",
+        "storeId": "store-hexi",
+        "name": "禾煦茶书房",
+        "capacity": "6人以内",
+        "price": 188,
+        "floor": "满 2 小时起 ｜ 半小时加时 ｜ 6 位以内",
         "image": "/assets/images/reservation-hero.jpg",
         "features": [
-          "安静雅致",
-          "观山景"
+          "满 2 小时起",
+          "半小时加时",
+          "6 位以内"
         ],
         "color": "#5a844c",
         "status": "可预定",
         "visible": true,
         "sort": 10
-      },
-      {
-        "id": "room-002",
-        "name": "禾煦・听雨店",
-        "capacity": "2-4人",
-        "price": 198,
-        "floor": "庭院茶室 ｜ 临窗听雨",
-        "image": "/assets/images/reservation-hero.jpg",
-        "features": [
-          "庭院茶室",
-          "临窗听雨"
-        ],
-        "color": "#6b8050",
-        "status": "可预定",
-        "visible": true,
-        "sort": 20
-      },
-      {
-        "id": "room-003",
-        "name": "禾煦・书香店",
-        "capacity": "2人",
-        "price": 128,
-        "floor": "书香氛围 ｜ 静谧",
-        "image": "/assets/images/reservation-hero.jpg",
-        "features": [
-          "书香氛围",
-          "静谧"
-        ],
-        "color": "#587249",
-        "status": "可预定",
-        "visible": true,
-        "sort": 30
-      },
-      {
-        "id": "room-004",
-        "name": "禾煦・松风店",
-        "capacity": "4-6人",
-        "price": 148,
-        "floor": "松林清幽 ｜ 静心小室",
-        "image": "/assets/images/reservation-hero.jpg",
-        "features": [
-          "松林清幽",
-          "静心小室"
-        ],
-        "color": "#6d6a42",
-        "status": "已订满",
-        "visible": true,
-        "sort": 40
-      },
-      {
-        "id": "room-005",
-        "name": "禾煦・竹韵店",
-        "capacity": "2-4人",
-        "price": 138,
-        "floor": "竹影摇曳 ｜ 清雅怡人",
-        "image": "/assets/images/reservation-hero.jpg",
-        "features": [
-          "竹影摇曳",
-          "清雅怡人"
-        ],
-        "color": "#617b4b",
-        "status": "可预定",
-        "visible": true,
-        "sort": 50
       }
     ],
     "events": [
@@ -744,12 +829,12 @@
       "name": "禾煦茶书房",
       "capacity": "6人以内",
       "price": 188,
-      "floor": "每场 2 小时 ｜ 6 位以内",
+      "floor": "满 2 小时起 ｜ 半小时加时 ｜ 6 位以内",
       "image": "/assets/images/reservation-hero.jpg",
       "features": [
-        "每场 2 小时",
-        "6 位以内",
-        "赠 2 泡茶"
+        "满 2 小时起",
+        "半小时加时",
+        "6 位以内"
       ],
       "color": "#5a844c",
       "status": "可预定",

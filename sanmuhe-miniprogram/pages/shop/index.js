@@ -3,7 +3,8 @@ const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
-const categoryOrder = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单丛"];
+/** 无云端类别时的兜底顺序（与 seed product_categories 对齐） */
+const DEFAULT_CATEGORY_ORDER = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单丛"];
 const TARGET_CATEGORY_KEY = "sanmuhe_shop_category";
 const RETAIL_MODE = "retail";
 
@@ -67,14 +68,37 @@ function buildProducts(catalog = {}) {
   return normalizeTeaProducts(nextTeaProducts);
 }
 
-function buildCategories(products) {
+/**
+ * 商城侧栏类别：优先用后台 product_categories（tea_products 渠道），
+ * 再并入商品实际 category；无配置时用本地默认顺序。
+ */
+function buildCategories(products, productCategories = []) {
   const unique = products.reduce((result, item) => {
     if (item.category && result.indexOf(item.category) < 0) {
       result.push(item.category);
     }
     return result;
   }, []);
-  const ordered = categoryOrder.filter((category) => category === "全部" || unique.indexOf(category) >= 0);
+
+  const managed = (productCategories || [])
+    .filter((item) => item && item.channel === "tea_products" && item.visible !== false && item.removed !== true)
+    .sort((a, b) => Number(a.sort || 9999) - Number(b.sort || 9999))
+    .map((item) => String(item.name || "").trim())
+    .filter(Boolean);
+
+  const preferred = managed.length
+    ? ["全部"].concat(managed)
+    : DEFAULT_CATEGORY_ORDER.slice();
+
+  const ordered = preferred.filter((category) => category === "全部" || unique.indexOf(category) >= 0);
+  // 有配置但暂时无商品的类别也展示，方便运营先建类再上架
+  if (managed.length) {
+    preferred.forEach((category) => {
+      if (category !== "全部" && ordered.indexOf(category) < 0) {
+        ordered.push(category);
+      }
+    });
+  }
   const extras = unique.filter((category) => ordered.indexOf(category) < 0);
   return ordered.concat(extras);
 }
@@ -114,10 +138,11 @@ Page({
   loadCatalog() {
     getCatalog().then((catalog) => {
       const products = buildProducts(catalog);
+      const categories = buildCategories(products, catalog.productCategories || []);
       this.setData({
         products,
-        categories: buildCategories(products),
-        activeCategory: this.data.activeCategory === "全部" || products.some((item) => item.category === this.data.activeCategory)
+        categories,
+        activeCategory: this.data.activeCategory === "全部" || categories.indexOf(this.data.activeCategory) >= 0
           ? this.data.activeCategory
           : "全部"
       }, () => this.applyFilters());

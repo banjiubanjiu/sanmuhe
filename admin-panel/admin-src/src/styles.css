@@ -3909,3 +3909,221 @@ tr.selected td:first-child {
     font-size: 16px;
   }
 }
+
+/* —— 商品上架增强：筛选 / 规格 / 预览 / 批量 —— */
+.catalog-toolbar {
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.catalog-filters .line-input {
+  flex: 1 1 140px;
+  min-width: 120px;
+}
+
+.catalog-select,
+.catalog-select-input {
+  min-width: 112px;
+  max-width: 160px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(49, 52, 48, 0.12);
+  border-radius: 10px;
+  background: #fffdf8;
+  color: #173b2a;
+  font-size: 13px;
+}
+
+.catalog-select-input {
+  width: 100%;
+  max-width: none;
+  height: 40px;
+}
+
+.field-inline-hint {
+  margin: -4px 0 4px;
+  color: #8a8278;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.catalog-single-store-hint {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(90, 132, 76, 0.08);
+  color: #3d5340;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.catalog-single-store-hint strong {
+  color: #173b2a;
+  font-weight: 600;
+}
+
+.field-hint-label input {
+  color: #6f685f;
+  background: #f7f4ee;
+}
+
+.list-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-count {
+  color: #6f685f;
+  font-size: 12px;
+}
+
+.col-check {
+  width: 40px;
+  text-align: center;
+}
+
+.col-check input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.specs-editor {
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px solid rgba(49, 52, 48, 0.1);
+  border-radius: 12px;
+  background: #faf7f0;
+}
+
+.specs-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.specs-editor-head strong {
+  color: #173b2a;
+  font-size: 14px;
+}
+
+.specs-editor-hint {
+  margin: 0 0 10px;
+  color: #6f685f;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.category-manager-form {
+  margin-bottom: 16px;
+}
+
+.category-manager-actions .row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.category-manager-table {
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+
+.specs-empty {
+  padding: 12px;
+  color: #8a8175;
+  font-size: 12px;
+  text-align: center;
+  border: 1px dashed rgba(49, 52, 48, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 253, 248, 0.8);
+}
+
+.specs-table {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+}
+
+.specs-table th,
+.specs-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(49, 52, 48, 0.08);
+  font-size: 12px;
+  text-align: left;
+}
+
+.specs-table th {
+  color: #6f685f;
+  font-weight: 600;
+}
+
+.specs-table input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid rgba(49, 52, 48, 0.12);
+  border-radius: 8px;
+  background: #fffdf8;
+  box-sizing: border-box;
+}
+
+.catalog-image-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  margin-top: -4px;
+  overflow: hidden;
+  border: 1px solid rgba(49, 52, 48, 0.1);
+  border-radius: 12px;
+  background: #f3f0e8;
+}
+
+.catalog-image-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+
+.catalog-image-placeholder {
+  padding: 20px;
+  color: #8a8175;
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.tea-group-row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.tea-group-name,
+.tea-group-options {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(49, 52, 48, 0.12);
+  border-radius: 8px;
+  background: #fffdf8;
+  box-sizing: border-box;
+}
