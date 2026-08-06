@@ -1,5 +1,5 @@
 {
-  "version": "hexi-event-status-wait-20260806",
+  "version": "hexi-clean-event-signed-20260806",
   "collections": {
     "product_categories": [
       {
@@ -768,7 +768,7 @@
         "time": "14:00",
         "place": "禾煦",
         "quota": 12,
-        "signed": 28,
+        "signed": 0,
         "price": 68,
         "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-yangxin-tea.jpg",
         "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-1.jpg",
@@ -786,7 +786,7 @@
         "time": "10:00",
         "place": "禾煦",
         "quota": 10,
-        "signed": 45,
+        "signed": 0,
         "price": 0,
         "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-tea-class.jpg",
         "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-2.jpg",
@@ -804,7 +804,7 @@
         "time": "14:00",
         "place": "禾煦",
         "quota": 8,
-        "signed": 16,
+        "signed": 0,
         "price": 128,
         "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-seasonal-tea.jpg",
         "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-3.jpg",

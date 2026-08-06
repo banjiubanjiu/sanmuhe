@@ -2467,15 +2467,95 @@ function displayName(item) {
   return item?.name || item?.title || item?.orderNo || item?.id || "未命名";
 }
 
+/** 列表列文案随资料类型变化（库存 ≠ 名额） */
+const catalogTableCols = computed(() => {
+  if (isDrinksCollection()) {
+    return {
+      name: "茶品",
+      category: "档位",
+      price: "分组",
+      meta: "说明",
+      stock: "—",
+      stockMode: "none"
+    };
+  }
+  if (state.collection === "events") {
+    return {
+      name: "活动",
+      category: "分类",
+      price: "价格",
+      meta: "时间",
+      stock: "报名/名额",
+      stockMode: "quota"
+    };
+  }
+  if (state.collection === "rooms") {
+    return {
+      name: "茶室",
+      category: "容量",
+      price: "参考价",
+      meta: "楼层",
+      stock: "—",
+      stockMode: "none"
+    };
+  }
+  // 默认茶叶
+  return {
+    name: "茶叶",
+    category: "分类",
+    price: "价格",
+    meta: "规格",
+    stock: "库存",
+    stockMode: "stock"
+  };
+});
+
 function displayInventory(item) {
   if (!item) return "-";
-  if (item.stock !== undefined) {
-    return `总 ${Number(item.stock || 0)} / 锁 ${Number(item.lockedStock || 0)} / 售 ${Number(item.soldStock || 0)}`;
+  const mode = catalogTableCols.value.stockMode;
+  if (mode === "none") return "—";
+  if (mode === "quota" || (item.quota !== undefined && state.collection === "events")) {
+    const signed = Math.max(0, Number(item.signed) || 0);
+    const quota = Math.max(0, Number(item.quota) || 0);
+    return `${signed} / ${quota}`;
   }
-  if (item.quota !== undefined) {
-    return `${Number(item.signed || 0)} / ${Number(item.quota || 0)}`;
+  if (mode === "stock" || item.stock !== undefined) {
+    const stock = Math.max(0, Number(item.stock) || 0);
+    const locked = Math.max(0, Number(item.lockedStock) || 0);
+    const sold = Math.max(0, Number(item.soldStock) || 0);
+    const available = Math.max(0, stock - locked - sold);
+    if (locked > 0 || sold > 0) {
+      return `可售 ${available}（总 ${stock}）`;
+    }
+    return String(available);
   }
   return "-";
+}
+
+function displayCatalogCategory(item) {
+  if (!item) return "-";
+  if (state.collection === "rooms") return item.capacity || "-";
+  return item.category || "-";
+}
+
+function displayCatalogPrice(item) {
+  if (!item) return "-";
+  if (isDrinksCollection()) return item.groupName || "-";
+  if (item.price !== undefined && item.price !== null && item.price !== "") {
+    return `¥${money(item.price)}`;
+  }
+  return "-";
+}
+
+function displayCatalogMeta(item) {
+  if (!item) return "-";
+  if (isDrinksCollection()) return item.subtitle || "-";
+  if (state.collection === "events") {
+    return [item.date, item.time].filter(Boolean).join(" ") || "-";
+  }
+  if (state.collection === "rooms") return item.floor || "-";
+  if (Array.isArray(item.specs) && item.specs.length) return `${item.specs.length} 个`;
+  return item.unit || "-";
 }
 
 function catalogComparableValue(field, item = {}) {
@@ -6068,11 +6148,11 @@ onBeforeUnmount(() => {
                         @click.stop
                       >
                     </th>
-                    <th scope="col">{{ isDrinksCollection() ? "茶品" : "资料" }}</th>
-                    <th scope="col">{{ isDrinksCollection() ? "档位" : "分类" }}</th>
-                    <th scope="col">{{ isDrinksCollection() ? "分组" : "价格" }}</th>
-                    <th scope="col">{{ isDrinksCollection() ? "说明" : "规格" }}</th>
-                    <th scope="col">{{ isDrinksCollection() ? "—" : "库存/名额" }}</th>
+                    <th scope="col">{{ catalogTableCols.name }}</th>
+                    <th scope="col">{{ catalogTableCols.category }}</th>
+                    <th scope="col">{{ catalogTableCols.price }}</th>
+                    <th scope="col">{{ catalogTableCols.meta }}</th>
+                    <th scope="col">{{ catalogTableCols.stock }}</th>
                     <th scope="col">状态</th>
                     <th scope="col">操作</th>
                   </tr>
@@ -6099,19 +6179,10 @@ onBeforeUnmount(() => {
                       >
                     </td>
                     <td><strong>{{ displayName(item) }}</strong><small>{{ item.id }}</small></td>
-                    <td>{{ item.category || item.capacity || "-" }}</td>
-                    <td>
-                      <template v-if="isDrinksCollection()">{{ item.groupName || "-" }}</template>
-                      <template v-else>{{ item.price !== undefined ? `¥${money(item.price)}` : "-" }}</template>
-                    </td>
-                    <td>
-                      <template v-if="isDrinksCollection()">{{ item.subtitle || "-" }}</template>
-                      <template v-else>{{ Array.isArray(item.specs) && item.specs.length ? `${item.specs.length} 个` : (item.unit || "-") }}</template>
-                    </td>
-                    <td>
-                      <template v-if="isDrinksCollection()">—</template>
-                      <template v-else>{{ displayInventory(item) }}</template>
-                    </td>
+                    <td>{{ displayCatalogCategory(item) }}</td>
+                    <td>{{ displayCatalogPrice(item) }}</td>
+                    <td>{{ displayCatalogMeta(item) }}</td>
+                    <td>{{ displayInventory(item) }}</td>
                     <td>
                       <span
                         :class="[
