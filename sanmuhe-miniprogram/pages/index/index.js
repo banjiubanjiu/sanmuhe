@@ -495,7 +495,8 @@ Page({
       }
     });
     this.refreshCart();
-    wx.showToast({ title: "已加入" });
+    // 首页不展示购物车浮层，用 toast 反馈；完整结算在点单/商城
+    wx.showToast({ title: "已加入购物车", icon: "success" });
   },
 
   goProduct(event) {

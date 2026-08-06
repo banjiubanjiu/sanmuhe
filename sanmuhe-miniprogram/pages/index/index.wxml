@@ -81,11 +81,16 @@
     </view>
   </view>
 
-  <view wx:if="{{cartCount > 0}}" class="floating-cart" bindtap="goCart">
-    <view>
-      <view class="cart-title">购物车 {{cartCount}} 件</view>
-      <view class="cart-meta">合计 ¥{{cartTotal}}</view>
-    </view>
-    <view class="cart-arrow">确认点单</view>
+  <!-- 首页小购物车：有货时显示，点击进零售购物车 -->
+  <view
+    wx:if="{{cartCount > 0}}"
+    class="cart-fab"
+    hover-class="cart-fab-hover"
+    bindtap="goCart"
+    aria-role="button"
+    aria-label="购物车{{cartCount}}件，合计{{cartTotal}}元"
+  >
+    <image class="cart-fab-icon" src="/assets/icons/cart-white.png" mode="aspectFit"></image>
+    <view class="cart-fab-badge">{{cartCount > 99 ? '99+' : cartCount}}</view>
   </view>
 </view>
