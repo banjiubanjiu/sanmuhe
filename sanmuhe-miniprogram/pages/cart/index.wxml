@@ -64,7 +64,7 @@
             class="method-chip {{deliveryMethod === 'shipping' ? 'active' : ''}}"
             data-method="shipping"
             bindtap="chooseDelivery"
-          >快递邮寄</view>
+          >快递到付</view>
         </view>
 
         <!-- 自提：等 contactReady 再渲染，避免未绑定→已绑定闪一下 -->
@@ -141,11 +141,11 @@
         </view>
         <view class="fee-row">
           <text class="fee-k">运费</text>
-          <text class="fee-v">{{deliveryMethod === 'shipping' ? (shippingFee > 0 ? '¥' + shippingFee : '包邮') : '自提免运费'}}</text>
+          <text class="fee-v">{{deliveryMethod === 'shipping' ? (freightCollect ? '快递到付' : (shippingFee > 0 ? '¥' + shippingFee : '包邮')) : '自提免运费'}}</text>
         </view>
-        <view wx:if="{{deliveryMethod === 'shipping' && shippingHint}}" class="fee-hint">{{shippingHint}}</view>
+        <view wx:if="{{shippingHint}}" class="fee-hint">{{shippingHint}}</view>
         <view class="fee-row fee-total">
-          <text class="fee-k">应付合计</text>
+          <text class="fee-k">{{deliveryMethod === 'shipping' && freightCollect ? '在线应付（货款）' : '应付合计'}}</text>
           <text class="fee-v">¥{{payableTotal}}</text>
         </view>
       </view>
@@ -177,7 +177,7 @@
 
     <view class="checkout-bar simple">
       <view class="checkout-total">
-        <view>合计 {{count}} 件{{!isDineIn && deliveryMethod === 'shipping' && shippingFee > 0 ? ' · 含运费' : ''}}</view>
+        <view>合计 {{count}} 件{{!isDineIn && deliveryMethod === 'shipping' && freightCollect ? ' · 运费到付' : (!isDineIn && deliveryMethod === 'shipping' && shippingFee > 0 ? ' · 含运费' : '')}}</view>
         <text>¥{{payableTotal || total}}</text>
       </view>
       <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">{{payMode === 'balance' ? '余额支付' : '去支付'}}</button>

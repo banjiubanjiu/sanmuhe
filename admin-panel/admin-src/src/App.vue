@@ -4233,7 +4233,8 @@ onBeforeUnmount(() => {
             <DetailRow label="订单号" :value="selectedOrder.orderNo || selectedOrder._id" />
             <DetailRow label="金额" :value="`¥${money(selectedOrder.total)}`" />
             <DetailRow label="支付" :value="selectedOrder.payMode === 'manual' ? (selectedOrder.payStatus === 'manual' ? '免支付·待确认' : (selectedOrder.payStatus || '免支付')) : (selectedOrder.payStatus || '-')" />
-            <DetailRow label="履约" :value="selectedOrder.deliveryMethod === 'shipping' ? '快递' : (selectedOrder.deliveryMethod === 'onsite' || selectedOrder.payMode === 'manual' ? '现场点单·扫码付款' : '到店自提')" />
+            <DetailRow label="履约" :value="selectedOrder.deliveryMethod === 'shipping' ? ((selectedOrder.freightCollect || selectedOrder.shippingPayMode === 'collect') ? '快递到付' : '快递预付') : (selectedOrder.deliveryMethod === 'onsite' || selectedOrder.payMode === 'manual' ? '现场点单·扫码付款' : '到店自提')" />
+            <DetailRow label="运费" :value="selectedOrder.deliveryMethod === 'shipping' ? ((selectedOrder.freightCollect || selectedOrder.shippingPayMode === 'collect') ? '快递到付（签收付快递员）' : (`在线 ¥${money(selectedOrder.shippingFee)}`)) : '—'" />
             <DetailRow label="客户" :value="selectedOrder.consignee || selectedOrder.name || selectedOrder.contactName || '-'" />
             <DetailRow label="电话" :value="selectedOrder.phone || selectedOrder.mobile || '-'" />
             <DetailRow label="地址/备注" :value="selectedOrder.address || selectedOrder.pickupNote || selectedOrder.remark || '-'" />

@@ -28,8 +28,11 @@ function moneyFromFen(fen) {
   return (num / 100).toFixed(2);
 }
 
-function deliveryText(value) {
+function deliveryText(value, order = {}) {
   if (value === "shipping") {
+    if (order.freightCollect || order.shippingPayMode === "collect") {
+      return "快递到付（运费客户付快递）";
+    }
     return "快递邮寄";
   }
   if (value === "onsite") {
@@ -212,9 +215,7 @@ function buildWeComOrderPayload(order = {}, mentionedMobiles = []) {
     `状态：${cleanText(order.status, 20) || (isPaid ? "已支付" : "待处理")}`,
     `配送：${deliveryText(order.deliveryMethod)}`
   ];
-  if (order.payMode) {
-    lines.push(`支付：${cleanText(order.payMode, 20)}`);
-  }
+  payChannelLines(order, isPaid).forEach((line) => lines.push(line));
   const tableNo = cleanText(order.tableNo, 20);
   const summary = itemSummary(order.items);
   const remark = cleanText(order.remark, 160);
@@ -263,18 +264,23 @@ function buildWeComRechargePayload(recharge = {}, mentionedMobiles = []) {
   const creditYuan = recharge.creditFen != null
     ? moneyFromFen(recharge.creditFen)
     : moneyYuan(recharge.creditAmount);
+  const orderNo = cleanText(recharge.orderNo, 40) || "待查看";
+  const txId = cleanText(recharge.transactionId, 48);
   const lines = [
     "【禾煦会员充值】",
-    `单号：${cleanText(recharge.orderNo, 40) || "待查看"}`,
+    `充值单号：${orderNo}`,
     `档位：${cleanText(recharge.planTitle || recharge.planId, 40) || "储值"}`,
     `实付：¥${payYuan}`,
     `到账：¥${creditYuan}`,
-    `状态：已支付入账`
+    `状态：已支付入账`,
+    "支付方式：微信支付（线上充值）",
+    "查账入口：微信支付商户平台 → 交易中心 → 交易单",
+    `商户单号：${orderNo}`
   ];
-  if (recharge.transactionId) {
-    lines.push(`微信单号：${cleanText(recharge.transactionId, 40)}`);
+  if (txId) {
+    lines.push(`微信交易号：${txId}`);
   }
-  lines.push("可在经营后台查看会员储值。");
+  lines.push("余额入账：经营后台会员钱包 / wallet_ledger");
 
   const text = { content: lines.join("\n").slice(0, 1900) };
   if (mentionedMobiles.length) {

@@ -28,8 +28,11 @@ function moneyFromFen(fen) {
   return (num / 100).toFixed(2);
 }
 
-function deliveryText(value) {
+function deliveryText(value, order = {}) {
   if (value === "shipping") {
+    if (order.freightCollect || order.shippingPayMode === "collect") {
+      return "快递到付（运费客户付快递）";
+    }
     return "快递邮寄";
   }
   if (value === "onsite") {
@@ -210,7 +213,7 @@ function buildWeComOrderPayload(order = {}, mentionedMobiles = []) {
     `订单：${cleanText(order.orderNo, 40) || "待查看"}`,
     `金额：¥${moneyYuan(order.total)}`,
     `状态：${cleanText(order.status, 20) || (isPaid ? "已支付" : "待处理")}`,
-    `配送：${deliveryText(order.deliveryMethod)}`
+    `配送：${deliveryText(order.deliveryMethod, order)}`
   ];
   payChannelLines(order, isPaid).forEach((line) => lines.push(line));
   const tableNo = cleanText(order.tableNo, 20);
@@ -230,6 +233,9 @@ function buildWeComOrderPayload(order = {}, mentionedMobiles = []) {
     if (address) {
       lines.push(`地址：${address}`);
     }
+    if (order.freightCollect || order.shippingPayMode === "collect") {
+      lines.push("运费：快递到付（请寄「到付」，勿垫付运费）");
+    }
   }
   if (order.deliveryMethod === "pickup" && (consignee || phone)) {
     lines.push(`自提人：${[consignee, phone].filter(Boolean).join(" ")}`);
@@ -241,7 +247,11 @@ function buildWeComOrderPayload(order = {}, mentionedMobiles = []) {
     lines.push(isPaid ? "请安排备茶/出杯。" : "请及时接待处理。");
   } else if (biz === "茶叶商城") {
     lines.push(isPaid
-      ? (order.deliveryMethod === "shipping" ? "请安排打包发货。" : "请安排备货自提。")
+      ? (order.deliveryMethod === "shipping"
+        ? (order.freightCollect || order.shippingPayMode === "collect"
+          ? "请打包发货，运费选择到付。"
+          : "请安排打包发货。")
+        : "请安排备货自提。")
       : "请及时处理订单。");
   } else {
     lines.push(isPaid ? "请安排制作/履约。" : "请及时处理。");

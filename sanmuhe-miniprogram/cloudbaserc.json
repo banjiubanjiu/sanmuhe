@@ -66,12 +66,13 @@
       "memorySize": 256,
       "installDependency": true,
       "envVariables": {
-        "FREE_SHIPPING_AMOUNT": "199",
+        "FREE_SHIPPING_AMOUNT": "0",
         "ORDER_LOCK_MINUTES": "15",
-        "SHIPPING_FEE": "10",
+        "SHIPPING_FEE": "0",
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "WECOM_ORDER_WEBHOOK": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c1c0da42-10e3-41ff-bc63-695e0016c624"
+        "WECOM_ORDER_WEBHOOK": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c1c0da42-10e3-41ff-bc63-695e0016c624",
+        "SHIPPING_PAY_MODE": "collect"
       }
     },
     {

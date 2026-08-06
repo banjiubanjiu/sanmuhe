@@ -11,6 +11,10 @@ const _ = db.command;
 const LOCK_MINUTES = Math.max(1, Number(process.env.ORDER_LOCK_MINUTES || 15));
 const FREE_SHIPPING_AMOUNT = Math.max(0, Number(process.env.FREE_SHIPPING_AMOUNT || 0));
 const SHIPPING_FEE = Math.max(0, Number(process.env.SHIPPING_FEE || 0));
+/** prepaid=下单收运费；collect=快递到付（在线只收货款） */
+const SHIPPING_PAY_MODE = String(process.env.SHIPPING_PAY_MODE || "collect").toLowerCase() === "prepaid"
+  ? "prepaid"
+  : "collect";
 const DEFAULT_MEMBER_LEVELS = [
   { tier: "雅客会员", minSpend: 0, discountRate: 0.98 },
   { tier: "臻享会员", minSpend: 1600, discountRate: 0.95 },
@@ -364,6 +368,10 @@ function normalizeDeliveryMethod(value) {
 
 function calculateShippingFee(deliveryMethod, subtotal) {
   if (deliveryMethod !== "shipping") {
+    return 0;
+  }
+  // 到付：在线订单不收运费，顾客收件时付给快递
+  if (SHIPPING_PAY_MODE === "collect") {
     return 0;
   }
   if (FREE_SHIPPING_AMOUNT > 0 && subtotal >= FREE_SHIPPING_AMOUNT) {
@@ -1080,6 +1088,9 @@ exports.main = async (event = {}) => {
         shippingFee,
         total,
         deliveryMethod: finalDeliveryMethod,
+        // prepaid=在线收运费；collect=快递到付（在线 shippingFee=0）
+        shippingPayMode: finalDeliveryMethod === "shipping" ? SHIPPING_PAY_MODE : "none",
+        freightCollect: finalDeliveryMethod === "shipping" && SHIPPING_PAY_MODE === "collect",
         consignee: consignee || "到店顾客",
         phone: phone || (onsiteOrder ? "现场" : ""),
         address: finalDeliveryMethod === "shipping" ? address : "",
@@ -1095,7 +1106,9 @@ exports.main = async (event = {}) => {
         status: orderStatus,
         payStatus,
         payMode: payModeValue,
-        payHint,
+        payHint: finalDeliveryMethod === "shipping" && SHIPPING_PAY_MODE === "collect"
+          ? "货款在线支付，运费快递到付"
+          : payHint,
         lockedUntil,
         lockReleased: false,
         adminNotified: !wechatPay,

@@ -83,9 +83,13 @@ function statusCopy(order = {}) {
     "已付款": "已支付成功，门店已收到订单",
     "制作中": "已支付成功，门店已收到订单",
     "待确认": "门店正在处理本次订单",
-    "待发货": "商品备货完成后将安排发出",
+    "待发货": order.freightCollect || order.shippingPayMode === "collect"
+      ? "门店备货后发出；运费快递到付，签收时付给快递员"
+      : "商品备货完成后将安排发出",
     "待自提": "请凭订单号到店取茶",
-    "已发货": "商品已发出，可查看物流轨迹；签收后请确认收货（超时将自动完成）",
+    "已发货": order.freightCollect || order.shippingPayMode === "collect"
+      ? "商品已发出（运费到付）；可查轨迹，签收后请确认收货"
+      : "商品已发出，可查看物流轨迹；签收后请确认收货（超时将自动完成）",
     "已完成": "本次订单已完成",
     "已取消": "本次订单已取消",
     "异常待处理": "订单状态需要门店协助确认",
@@ -100,6 +104,9 @@ function statusCopy(order = {}) {
 
 function deliveryText(order = {}) {
   if (order.deliveryMethod === "shipping") {
+    if (order.freightCollect || order.shippingPayMode === "collect") {
+      return "快递到付";
+    }
     return "快递配送";
   }
   if (order.deliveryMethod === "onsite") {
@@ -110,7 +117,16 @@ function deliveryText(order = {}) {
 
 function deliveryDetail(order = {}) {
   if (order.deliveryMethod === "shipping") {
-    return order.address || [order.province, order.city, order.district, order.detailAddress].filter(Boolean).join("") || "收货地址待确认";
+    const addr = order.address
+      || [order.province, order.city, order.district, order.detailAddress].filter(Boolean).join("")
+      || "收货地址待确认";
+    if (order.freightCollect || order.shippingPayMode === "collect") {
+      return `${addr}（运费快递到付，签收时付快递员）`;
+    }
+    return addr;
+  }
+  if (order.deliveryMethod === "onsite") {
+    return order.tableNo ? `桌号 ${order.tableNo}` : "门店现场";
   }
   if (order.tableNo) {
     return `桌号 ${order.tableNo}`;

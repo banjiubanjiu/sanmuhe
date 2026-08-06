@@ -10,27 +10,33 @@ const SHOP_CATEGORY_KEY = "sanmuhe_shop_category";
 const PICKUP_CONTACT_KEY = "sanmuhe_pickup_contact";
 
 /**
- * 快递运费策略（与 createOrder 云函数环境变量对齐）
- * 行业常见：固定首重运费 + 满额包邮抬客单价
- * 参考：轻小件茶叶 8–12 元档；茶品牌满 168–199 包邮较常见
+ * 快递运费策略（与 createOrder 对齐）
+ * shippingPayMode:
+ *   collect  = 快递到付（在线只收货款，运费收件时付快递）—— 当前采用
+ *   prepaid  = 下单预收运费（固定运费 + 满额包邮）
  */
-const SHIPPING_FEE = 10;
-const FREE_SHIPPING_AMOUNT = 199;
+const SHIPPING_PAY_MODE = "collect";
+const SHIPPING_FEE = 0;
+const FREE_SHIPPING_AMOUNT = 0;
 
-function estimateShippingFee(deliveryMethod, goodsTotal) {
+function estimateShippingFee(deliveryMethod) {
   if (deliveryMethod !== "shipping") {
     return 0;
   }
-  const goods = Math.max(0, Number(goodsTotal) || 0);
-  if (FREE_SHIPPING_AMOUNT > 0 && goods >= FREE_SHIPPING_AMOUNT) {
+  if (SHIPPING_PAY_MODE === "collect") {
     return 0;
   }
   return Math.max(0, SHIPPING_FEE);
 }
 
-function moneyText(value) {
-  const num = Math.max(0, Number(value) || 0);
-  return num.toFixed(2);
+function shippingHintText(deliveryMethod) {
+  if (deliveryMethod !== "shipping") {
+    return "到店自提免运费";
+  }
+  if (SHIPPING_PAY_MODE === "collect") {
+    return "货款在线支付；运费由快递公司到付，签收时付给快递员";
+  }
+  return `运费 ¥${SHIPPING_FEE}`;
 }
 const STORE = getStore();
 
@@ -191,6 +197,8 @@ Page(withPrivacy({
     goodsTotal: 0,
     shippingFee: 0,
     payableTotal: 0,
+    shippingPayMode: SHIPPING_PAY_MODE,
+    freightCollect: SHIPPING_PAY_MODE === "collect",
     freeShippingAmount: FREE_SHIPPING_AMOUNT,
     shippingFeeBase: SHIPPING_FEE,
     shippingHint: "",
@@ -282,21 +290,9 @@ Page(withPrivacy({
       : "";
     const goodsTotal = getTotal(cart);
     const deliveryMethod = this.data.isDineIn ? "onsite" : this.data.deliveryMethod;
-    const shippingFee = this.data.isDineIn ? 0 : estimateShippingFee(deliveryMethod, goodsTotal);
+    const shippingFee = this.data.isDineIn ? 0 : estimateShippingFee(deliveryMethod);
     const payableTotal = Math.max(0, Number(goodsTotal) + Number(shippingFee));
-    let shippingHint = "";
-    if (!this.data.isDineIn && deliveryMethod === "shipping") {
-      if (shippingFee <= 0 && FREE_SHIPPING_AMOUNT > 0 && goodsTotal >= FREE_SHIPPING_AMOUNT) {
-        shippingHint = `已满 ¥${FREE_SHIPPING_AMOUNT}，本单包邮`;
-      } else if (FREE_SHIPPING_AMOUNT > 0) {
-        const gap = Math.max(0, FREE_SHIPPING_AMOUNT - goodsTotal);
-        shippingHint = gap > 0
-          ? `运费 ¥${SHIPPING_FEE} · 再买 ¥${moneyText(gap)} 可包邮`
-          : `运费 ¥${SHIPPING_FEE}`;
-      } else {
-        shippingHint = `运费 ¥${SHIPPING_FEE}`;
-      }
-    }
+    const shippingHint = this.data.isDineIn ? "" : shippingHintText(deliveryMethod);
     const balanceAvailable = this.data.isMember && this.data.walletBalanceFen >= Math.round(payableTotal * 100);
     const balanceAfter = formatFen(this.data.walletBalanceFen - Math.round(payableTotal * 100));
     const payMode = resolveDefaultPayMode(balanceAvailable, this.data.payMode);
@@ -308,8 +304,10 @@ Page(withPrivacy({
       shippingFee,
       payableTotal,
       shippingHint,
+      shippingPayMode: SHIPPING_PAY_MODE,
       freeShippingAmount: FREE_SHIPPING_AMOUNT,
       shippingFeeBase: SHIPPING_FEE,
+      freightCollect: SHIPPING_PAY_MODE === "collect",
       count: cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
       tableNo,
       tableDisplay: tableNo ? formatTableDisplay(tableNo) : "",

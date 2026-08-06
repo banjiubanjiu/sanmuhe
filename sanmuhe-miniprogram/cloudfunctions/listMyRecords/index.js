@@ -59,6 +59,8 @@ const PUBLIC_ORDER_FIELDS = [
   "subtotal",
   "discount",
   "shippingFee",
+  "shippingPayMode",
+  "freightCollect",
   "total",
   "consignee",
   "name",
