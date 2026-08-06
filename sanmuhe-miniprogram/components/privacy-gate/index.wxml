@@ -4,7 +4,6 @@
     <view class="privacy-copy">{{purpose}}</view>
     <view class="privacy-link" bindtap="openContract">查看《{{contractName}}》</view>
     <view class="privacy-actions">
-      <button class="privacy-cancel" hover-class="none" bindtap="cancel">暂不</button>
       <button
         id="privacy-agree-btn"
         class="privacy-primary"
@@ -12,6 +11,7 @@
         open-type="agreePrivacyAuthorization"
         bindagreeprivacyauthorization="agree"
       >同意并继续</button>
+      <button class="privacy-cancel" hover-class="none" bindtap="cancel">暂不</button>
     </view>
   </view>
 </view>

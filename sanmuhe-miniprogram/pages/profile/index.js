@@ -294,7 +294,7 @@ Page(withPrivacy({
   },
 
   goMember() {
-    wx.navigateTo({ url: "/pages/member/index" });
+    wx.navigateTo({ url: "/pages/member/index?focus=benefits" });
   },
 
   onMemberCardAction() {
@@ -306,8 +306,8 @@ Page(withPrivacy({
   },
 
   showMemberBenefits() {
-    // 开通会员：进入会员中心（手机号快捷开通）
-    wx.navigateTo({ url: "/pages/member/index" });
+    // 开通/查看权益：进入会员中心并定位权益区
+    wx.navigateTo({ url: "/pages/member/index?focus=benefits" });
   },
 
   startRecharge() {

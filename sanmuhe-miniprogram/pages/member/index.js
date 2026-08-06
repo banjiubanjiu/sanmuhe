@@ -173,7 +173,8 @@ Page(withPrivacy({
   },
 
   onLoad(options = {}) {
-    this.focusRecharge = String(options.focus || "") === "recharge";
+    // focus=recharge | benefits，由首页/我的入口带入，数据就绪后滚动定位
+    this.focusTarget = String(options.focus || "").trim();
   },
 
   onShow() {
@@ -182,13 +183,13 @@ Page(withPrivacy({
     this.syncPrivacyState();
   },
 
-  /** 会员中心非 tab 页，内嵌 custom-tab-bar 应固定高亮「我的」 */
+  /** 会员中心非 tab 页，内嵌 custom-tab-bar 应固定高亮「我的」(下标 3) */
   syncMemberTabBar() {
     const tabBar = typeof this.selectComponent === "function"
       ? this.selectComponent("#member-tab-bar")
       : null;
     if (tabBar && typeof tabBar.setSelected === "function") {
-      tabBar.setSelected(4);
+      tabBar.setSelected(3);
     }
   },
 
@@ -267,15 +268,7 @@ Page(withPrivacy({
       });
       this.refreshActivationState();
       this.syncPrivacyState();
-      if (this.focusRecharge) {
-        this.focusRecharge = false;
-        setTimeout(() => {
-          wx.pageScrollTo({
-            selector: "#wallet-card",
-            duration: 280
-          });
-        }, 200);
-      }
+      this.applyFocusTarget();
     }).catch(() => {
       // 云函数失败时仍展示本地档位，避免“无入口”
       const plans = DEFAULT_PLANS;
@@ -287,9 +280,34 @@ Page(withPrivacy({
         selectedPlanLabel: getSelectedPlanLabel(plans, plans[0].id),
         rechargeButtonText: getRechargeButtonText(this.data.member, payment)
       });
+      // 权益区为本地静态内容，失败时仍可定位
+      this.applyFocusTarget();
     }).finally(() => {
       this.setData({ loadingMember: false });
     });
+  },
+
+  /** 按入口 focus 滚动到对应区块：recharge → 储值，benefits → 权益详情 */
+  applyFocusTarget() {
+    const focus = this.focusTarget;
+    if (!focus) {
+      return;
+    }
+    this.focusTarget = "";
+    const selectorMap = {
+      recharge: "#wallet-card",
+      benefits: "#benefit-card"
+    };
+    const selector = selectorMap[focus];
+    if (!selector) {
+      return;
+    }
+    setTimeout(() => {
+      wx.pageScrollTo({
+        selector,
+        duration: 280
+      });
+    }, 200);
   },
 
   onNameInput(event) {

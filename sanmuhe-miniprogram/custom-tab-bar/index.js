@@ -1,3 +1,7 @@
+function normalizeRoute(route) {
+  return String(route || "").replace(/^\//, "").split("?")[0];
+}
+
 Component({
   properties: {
     forceSelected: {
@@ -10,7 +14,8 @@ Component({
   },
 
   data: {
-    selected: -1,
+    // 默认选中首页，避免冷启动 attached 时 getCurrentPages 为空导致 selected=-1「无选中」
+    selected: 0,
     list: [
       { pagePath: "pages/index/index", text: "首页", icon: "/assets/icons/home-line.png", activeIcon: "/assets/icons/home-active.png" },
       { pagePath: "pages/order/index", text: "点单", icon: "/assets/icons/menu-line.png", activeIcon: "/assets/icons/menu-active.png" },
@@ -24,8 +29,10 @@ Component({
       this.syncSelected();
     },
     ready() {
-      // force-selected 可能在 attached 之后才落到组件上，ready 再同步一次
+      // force-selected / 页面路由可能在 attached 之后才就绪
       this.syncSelected();
+      // 再补一帧，规避自定义 tabBar 首屏路由尚未写入 getCurrentPages 的情况
+      setTimeout(() => this.syncSelected(), 0);
     }
   },
 
@@ -55,7 +62,12 @@ Component({
     },
 
     setSelectedByPath(path) {
-      const selected = this.data.list.findIndex((item) => item.pagePath === path);
+      const normalized = normalizeRoute(path);
+      const selected = this.data.list.findIndex((item) => item.pagePath === normalized);
+      // 匹配不到时不要清成未选中
+      if (selected < 0) {
+        return;
+      }
       this.setSelected(selected);
     },
 
@@ -67,13 +79,22 @@ Component({
       }
       const pages = getCurrentPages();
       const current = pages.length ? pages[pages.length - 1].route : "";
+      if (!current) {
+        // 栈未就绪：保持默认首页选中
+        if (this.data.selected < 0) {
+          this.setSelected(0);
+        }
+        return;
+      }
       this.setSelectedByPath(current);
     },
 
     switchTab(event) {
-      const path = event.currentTarget.dataset.path;
+      const path = normalizeRoute(event.currentTarget.dataset.path);
       const pages = getCurrentPages();
-      const current = pages.length ? pages[pages.length - 1].route : "";
+      const current = normalizeRoute(pages.length ? pages[pages.length - 1].route : "");
+      // 先点亮，再跳转，避免切换瞬间无高亮
+      this.setSelectedByPath(path);
       if (current === path) {
         return;
       }

@@ -149,7 +149,7 @@
     </view>
   </view>
 
-  <view class="benefit-card">
+  <view id="benefit-card" class="benefit-card">
     <view class="panel-head">
       <view class="panel-title">权益详情</view>
       <view class="panel-link" bindtap="showAllBenefits">查看全部权益 ›</view>
@@ -235,5 +235,5 @@
     bindcancel="onPrivacyCancel"
   />
 
-  <custom-tab-bar force-selected="{{4}}" id="member-tab-bar"></custom-tab-bar>
+  <custom-tab-bar force-selected="{{3}}" id="member-tab-bar"></custom-tab-bar>
 </view>

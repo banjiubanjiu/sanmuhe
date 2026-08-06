@@ -1,6 +1,7 @@
 .home {
   padding: 88rpx 30rpx calc(142rpx + env(safe-area-inset-bottom));
-  background: var(--hx-page-background);
+  /* 与 logo 锁图底色、--hx-page-background 一致 */
+  background: #fffdf8;
 }
 
 .home-nav {

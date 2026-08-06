@@ -226,18 +226,55 @@ function writeCachedHomeSlides(slides) {
   }
 }
 
-function getInitialHeroSlides() {
-  // 冷启动：优先上次已验证的轮播；始终 resolve 到包内路径，清理历史 cloud:// 缓存
-  const cached = readCachedHomeSlides();
-  if (cached && cached.length) {
-    const resolved = cached.map((item) => Object.assign({}, item, {
-      image: resolveSlideImage(item.image, item.id)
-    })).filter((item) => item.image && item.image.indexOf("/assets/") === 0);
-    if (resolved.length) {
-      return resolved;
-    }
+/** 包内兜底轮播：任何路径失败时保证首屏有图，避免白屏 */
+const PACKAGE_FALLBACK_HERO_SLIDES = [
+  {
+    id: "home-carousel-1",
+    image: "/assets/images/home-carousel-1.jpg",
+    titleTop: "",
+    titleBottom: "",
+    descTop: "",
+    descBottom: "",
+    seal: "茶"
+  },
+  {
+    id: "home-carousel-2",
+    image: "/assets/images/home-carousel-2.jpg",
+    titleTop: "",
+    titleBottom: "",
+    descTop: "",
+    descBottom: "",
+    seal: "茶"
+  },
+  {
+    id: "home-carousel-3",
+    image: "/assets/images/home-carousel-3.jpg",
+    titleTop: "",
+    titleBottom: "",
+    descTop: "",
+    descBottom: "",
+    seal: "茶"
   }
-  return buildHomeSlides(homeSlides, []);
+];
+
+function getInitialHeroSlides() {
+  try {
+    // 冷启动：优先上次已验证的轮播；始终 resolve 到包内路径，清理历史 cloud:// 缓存
+    const cached = readCachedHomeSlides();
+    if (cached && cached.length) {
+      const resolved = cached.map((item) => Object.assign({}, item, {
+        image: resolveSlideImage(item.image, item.id)
+      })).filter((item) => item.image && String(item.image).indexOf("/assets/") === 0);
+      if (resolved.length) {
+        return resolved;
+      }
+    }
+    const fromPackage = buildHomeSlides(homeSlides, PACKAGE_FALLBACK_HERO_SLIDES);
+    return fromPackage && fromPackage.length ? fromPackage : PACKAGE_FALLBACK_HERO_SLIDES;
+  } catch (error) {
+    console.warn("[home] getInitialHeroSlides failed", error);
+    return PACKAGE_FALLBACK_HERO_SLIDES;
+  }
 }
 
 Page({
@@ -264,7 +301,13 @@ Page({
   },
 
   onLoad() {
+    // 尽早点亮底部「首页」，避免自定义 tabBar 首屏 selected=-1
+    syncTabBar(this);
     this.loadHomeData();
+  },
+
+  onReady() {
+    syncTabBar(this);
   },
 
   onShow() {
@@ -283,9 +326,14 @@ Page({
   loadHomeData() {
     getCatalog().then((catalogResult) => {
       const homeCatalog = normalizeCatalog(catalogResult || {}, null);
-      const content = catalogResult && catalogResult.content || {};
+      const content = (catalogResult && catalogResult.content) || {};
       // 云端与包内同源时 resolve 为包内路径，src 不变则 swiper 不重载
-      const nextHeroSlides = buildHomeSlides(content.homeSlides, this.data.heroSlides);
+      let nextHeroSlides = buildHomeSlides(content.homeSlides, this.data.heroSlides);
+      if (!nextHeroSlides || !nextHeroSlides.length) {
+        nextHeroSlides = this.data.heroSlides && this.data.heroSlides.length
+          ? this.data.heroSlides
+          : PACKAGE_FALLBACK_HERO_SLIDES;
+      }
       const nextData = {
         homeCatalog,
         featuredDrink: homeCatalog.drinks[0] || drinks[0],
@@ -302,10 +350,15 @@ Page({
       // 缓存已解析后的稳定图源，供下次冷启动首屏直接使用
       writeCachedHomeSlides(nextHeroSlides);
       this.setData(nextData);
+    }).catch((error) => {
+      console.warn("[home] getCatalog failed", error);
     });
 
     listEvents().then((eventList) => {
       const eventsFromCloud = Array.isArray(eventList) ? eventList : [];
+      if (!eventsFromCloud.length) {
+        return;
+      }
       const homeCatalog = Object.assign({}, this.data.homeCatalog, {
         events: eventsFromCloud
       });
@@ -314,6 +367,8 @@ Page({
         nextEvent: eventsFromCloud[0] || events[0],
         searchResults: buildSearchResults(this.data.query, homeCatalog)
       });
+    }).catch((error) => {
+      console.warn("[home] listEvents failed", error);
     });
   },
 
@@ -409,7 +464,8 @@ Page({
   },
 
   goMember() {
-    wx.switchTab({ url: "/pages/profile/index" });
+    // 与文案「查看权益」一致：直达会员中心并定位权益区
+    wx.navigateTo({ url: "/pages/member/index?focus=benefits" });
   },
 
   goCart() {

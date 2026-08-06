@@ -19,9 +19,9 @@
   ],
   "window": {
     "navigationBarTitleText": "禾煦",
-    "navigationBarBackgroundColor": "#f7f1e6",
+    "navigationBarBackgroundColor": "#fffdf8",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f7f1e6",
+    "backgroundColor": "#fffdf8",
     "backgroundTextStyle": "dark"
   },
   "requiredPrivateInfos": [
@@ -31,7 +31,7 @@
     "custom": true,
     "color": "#716656",
     "selectedColor": "#233b31",
-    "backgroundColor": "#f9f4eb",
+    "backgroundColor": "#fffdf8",
     "borderStyle": "white",
     "list": [
       {

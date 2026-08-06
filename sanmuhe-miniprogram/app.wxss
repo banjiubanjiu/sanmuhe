@@ -1,5 +1,6 @@
 page {
-  --hx-page-background: #fff;
+  /* 与 home-brand-lockup 底色一致（取样约 #fefdf8 / #fffdf8），勿用纯白 #fff */
+  --hx-page-background: #fffdf8;
   --hx-paper: #f7f4ec;
   --hx-surface: #fffdf8;
   --hx-ink: #173b2a;

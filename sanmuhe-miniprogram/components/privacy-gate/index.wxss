@@ -8,16 +8,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48rpx 40rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 48rpx 32rpx calc(48rpx + env(safe-area-inset-bottom));
   background: rgba(18, 24, 20, 0.55);
   box-sizing: border-box;
 }
 
 .privacy-card {
   width: 100%;
-  max-width: 560rpx;
+  max-width: 620rpx;
+  max-height: 80vh;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-radius: 22rpx;
-  padding: 28rpx 26rpx 22rpx;
+  padding: 28rpx 24rpx 22rpx;
   background: #fffdf8;
   box-shadow: 0 18rpx 48rpx rgba(28, 35, 30, 0.18);
   box-sizing: border-box;
@@ -34,6 +37,7 @@
   color: #687466;
   font-size: 24rpx;
   line-height: 1.55;
+  word-break: break-word;
 }
 
 .privacy-link {
@@ -43,34 +47,46 @@
   font-weight: 600;
 }
 
+/* 纵向按钮：避开微信 button 默认 min-width 导致横排溢出 */
 .privacy-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 14rpx;
   margin-top: 22rpx;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .privacy-cancel,
 .privacy-primary {
-  width: 100%;
-  min-width: 0;
-  height: 64rpx;
-  border-radius: 32rpx;
-  font-size: 24rpx;
+  display: block;
+  width: 100% !important;
+  max-width: 100%;
+  min-width: 0 !important;
+  height: 80rpx;
+  border-radius: 40rpx;
+  font-size: 28rpx;
   font-weight: 600;
-  line-height: 64rpx;
-  padding: 0 12rpx;
-  margin: 0;
-}
-
-.privacy-cancel {
-  color: #526b45;
-  background: #f2eee3;
+  line-height: 80rpx;
+  padding: 0 20rpx !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .privacy-primary {
+  order: 1;
   color: #fffdf8;
   background: #526b45;
+}
+
+.privacy-cancel {
+  order: 2;
+  color: #526b45;
+  background: #f2eee3;
 }
 
 .privacy-cancel::after,
