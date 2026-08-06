@@ -394,6 +394,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 const filters = reactive({
   global: "",
   catalog: "",
+  orderBizType: "",
   orderStatus: "",
   orderKeyword: "",
   afterSaleStatus: "",
@@ -407,6 +408,13 @@ const filters = reactive({
   auditKeyword: "",
   notificationKeyword: ""
 });
+
+/** 订单业务线：与云函数 bizType 对齐（统一池 + 业务线视图） */
+const ORDER_BIZ_OPTIONS = [
+  { value: "", label: "全部业务" },
+  { value: "dinein", label: "堂饮点单" },
+  { value: "retail", label: "茶叶商城" }
+];
 
 const loginForm = reactive({ username: "", password: "" });
 const uploadState = reactive({ catalog: "", content: "" });
@@ -769,6 +777,9 @@ const activeFilterLabels = computed(() => {
   };
   if (state.activeTab === "catalog") add("资料", filters.catalog);
   if (state.activeTab === "orders") {
+    if (filters.orderBizType) {
+      add("业务线", ORDER_BIZ_OPTIONS.find((item) => item.value === filters.orderBizType)?.label || filters.orderBizType);
+    }
     add("状态", filters.orderStatus);
     add("关键词", filters.orderKeyword);
   }
@@ -794,7 +805,7 @@ const activeFilterLabels = computed(() => {
 });
 const hasClearableFilters = computed(() => {
   if (state.activeTab === "catalog") return !!filters.catalog.trim();
-  if (state.activeTab === "orders") return !!(filters.orderStatus || filters.orderKeyword.trim());
+  if (state.activeTab === "orders") return !!(filters.orderBizType || filters.orderStatus || filters.orderKeyword.trim());
   if (state.activeTab === "afterSales") return !!(filters.afterSaleStatus || filters.afterSaleKeyword.trim());
   if (state.activeTab === "inventory") return !!filters.inventoryKeyword.trim();
   if (state.activeTab === "reservations") return !!(filters.reservationStatus || filters.reservationKeyword.trim());
@@ -1134,6 +1145,41 @@ function orderContactLabel(order = {}) {
     return `${name} · ${phone}`;
   }
   return name || phone || "未留联系人";
+}
+
+/** 业务线：优先服务端 enrich 的 bizType / bizLabel，再回退本地推断 */
+function orderBizTypeOf(order = {}) {
+  const raw = String(order.bizType || order.orderBizType || "").trim().toLowerCase();
+  if (raw === "dinein" || raw === "dine-in" || raw === "onsite") return "dinein";
+  if (raw === "retail" || raw === "mall" || raw === "shop") return "retail";
+  const source = String(order.source || "").trim().toLowerCase();
+  if (source === "dinein-tea-menu" || source === "onsite-cart" || source === "cart-confirm") return "dinein";
+  if (source === "retail-tea-catalog") return "retail";
+  const method = String(order.deliveryMethod || "").trim().toLowerCase();
+  if (method === "onsite") return "dinein";
+  if (method === "pickup" || method === "shipping") return "retail";
+  const items = Array.isArray(order.items) ? order.items : [];
+  const hasDrink = items.some((item) => item && item.type === "drink");
+  const hasTea = items.some((item) => item && item.type === "tea");
+  if (hasDrink && !hasTea) return "dinein";
+  if (hasTea && !hasDrink) return "retail";
+  return "retail";
+}
+
+function orderBizLabel(order = {}) {
+  if (order.bizLabel) return String(order.bizLabel);
+  return orderBizTypeOf(order) === "dinein" ? "堂饮点单" : "茶叶商城";
+}
+
+function orderFulfillmentLabel(order = {}) {
+  if (order.fulfillmentLabel) return String(order.fulfillmentLabel);
+  const method = String(order.deliveryMethod || "").trim().toLowerCase();
+  if (method === "shipping") {
+    return order.freightCollect || order.shippingPayMode === "collect" ? "快递到付" : "快递预付";
+  }
+  if (method === "onsite" || order.payMode === "manual") return "现场点单";
+  if (method === "pickup") return "到店自提";
+  return "—";
 }
 
 function isPhone(value) {
@@ -2447,6 +2493,7 @@ async function loadOrders() {
   await withLoading("读取订单", async () => {
     const result = await callFunction("manageOperations", {
       action: "listOrders",
+      bizType: filters.orderBizType,
       status: filters.orderStatus,
       keyword: filters.orderKeyword,
       ...pagePayload("orders")
@@ -3127,6 +3174,7 @@ async function exportOrders() {
       rowsKey: "orders",
       label: "订单",
       payload: {
+        bizType: filters.orderBizType,
         status: filters.orderStatus,
         keyword: filters.orderKeyword
       }
@@ -3134,6 +3182,9 @@ async function exportOrders() {
     if (!rows) return;
     downloadCsv(csvFilename("orders"), [
       { label: "订单号", value: (item) => item.orderNo || item._id },
+      { label: "业务线", value: (item) => orderBizLabel(item) },
+      { label: "履约方式", value: (item) => orderFulfillmentLabel(item) },
+      { label: "桌号", value: (item) => item.tableNo || "" },
       { label: "状态", value: (item) => item.status || "" },
       { label: "支付", value: (item) => item.payStatus || "" },
       { label: "金额", value: (item) => money(item.total) },
@@ -3697,7 +3748,7 @@ function persistSavedViews() {
 
 function snapshotActiveFilters(tab = state.activeTab) {
   if (tab === "catalog") return { collection: state.collection, keyword: filters.catalog.trim() };
-  if (tab === "orders") return { status: filters.orderStatus, keyword: filters.orderKeyword.trim() };
+  if (tab === "orders") return { bizType: filters.orderBizType, status: filters.orderStatus, keyword: filters.orderKeyword.trim() };
   if (tab === "afterSales") return { status: filters.afterSaleStatus, keyword: filters.afterSaleKeyword.trim() };
   if (tab === "inventory") return { keyword: filters.inventoryKeyword.trim() };
   if (tab === "reservations") return { date: state.reservationCalendarDate, status: filters.reservationStatus, keyword: filters.reservationKeyword.trim() };
@@ -3749,6 +3800,7 @@ async function applySavedView(view) {
     filters.catalog = snapshot.keyword || "";
   }
   if (view.tab === "orders") {
+    filters.orderBizType = snapshot.bizType || "";
     filters.orderStatus = snapshot.status || "";
     filters.orderKeyword = snapshot.keyword || "";
   }
@@ -3787,6 +3839,7 @@ function deleteSavedView(view) {
 function clearActiveFilters() {
   if (state.activeTab === "catalog") filters.catalog = "";
   if (state.activeTab === "orders") {
+    filters.orderBizType = "";
     filters.orderStatus = "";
     filters.orderKeyword = "";
   }
@@ -4472,21 +4525,38 @@ onBeforeUnmount(() => {
 
         <section v-if="state.activeTab === 'orders'" class="list-workspace">
           <article class="panel-card data-panel">
-            <div class="panel-toolbar">
+            <div class="panel-toolbar order-biz-toolbar">
+              <div class="order-biz-tabs" role="tablist" aria-label="订单业务线">
+                <button
+                  v-for="opt in ORDER_BIZ_OPTIONS"
+                  :key="opt.value || 'all'"
+                  type="button"
+                  role="tab"
+                  :aria-selected="filters.orderBizType === opt.value"
+                  :class="['order-biz-tab', { active: filters.orderBizType === opt.value }]"
+                  @click="filters.orderBizType = opt.value; resetPageAndLoad('orders', loadOrders)"
+                >{{ opt.label }}</button>
+              </div>
               <select v-model="filters.orderStatus" class="line-input" aria-label="筛选订单状态" @change="resetPageAndLoad('orders', loadOrders)">
                 <option value="">全部状态</option>
                 <option>待支付</option><option>已付款</option><option>制作中</option><option>待确认</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
-              <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号 / 姓名 / 手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
+              <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号 / 姓名 / 手机 / 桌号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
               <button class="secondary-action small" type="button" @click="resetPageAndLoad('orders', loadOrders)">搜索</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
             </div>
 
             <div class="record-list">
               <button v-for="order in state.orders" :key="order._id" :class="['record-row', { selected: state.drawers.order && state.selectedOrderId === order._id }]" type="button" @click="selectOrder(order)">
-                <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
+                <strong>
+                  <span class="order-row-title">
+                    <i :class="['biz-badge', orderBizTypeOf(order) === 'dinein' ? 'biz-dinein' : 'biz-retail']">{{ orderBizLabel(order) }}</i>
+                    <span>{{ order.orderNo || order._id }}</span>
+                  </span>
+                  <em>¥{{ money(order.total) }}</em>
+                </strong>
                 <span class="record-meta">
-                  <span>{{ orderContactLabel(order) }} · {{ formatDate(order.createdAt) }}</span>
+                  <span>{{ orderFulfillmentLabel(order) }}{{ order.tableNo ? ` · 桌${order.tableNo}` : '' }} · {{ orderContactLabel(order) }} · {{ formatDate(order.createdAt) }}</span>
                   <i :class="['record-status', statusTone(order.status)]">{{ order.status }}</i>
                 </span>
               </button>
@@ -4503,9 +4573,11 @@ onBeforeUnmount(() => {
             <aside class="panel-card detail-panel drawer-panel">
             <div class="panel-title"><h2>订单详情</h2><span :class="['status-pill', statusTone(selectedOrder.status)]">{{ selectedOrder.status }}</span><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('order')">×</button></div>
             <DetailRow label="订单号" :value="selectedOrder.orderNo || selectedOrder._id" />
+            <DetailRow label="业务线" :value="orderBizLabel(selectedOrder)" />
             <DetailRow label="金额" :value="`¥${money(selectedOrder.total)}`" />
             <DetailRow label="支付" :value="selectedOrder.payMode === 'manual' ? (selectedOrder.payStatus === 'manual' ? '免支付·待确认' : (selectedOrder.payStatus || '免支付')) : (selectedOrder.payStatus || '-')" />
-            <DetailRow label="履约" :value="selectedOrder.deliveryMethod === 'shipping' ? ((selectedOrder.freightCollect || selectedOrder.shippingPayMode === 'collect') ? '快递到付' : '快递预付') : (selectedOrder.deliveryMethod === 'onsite' || selectedOrder.payMode === 'manual' ? '现场点单·扫码付款' : '到店自提')" />
+            <DetailRow label="履约" :value="orderFulfillmentLabel(selectedOrder)" />
+            <DetailRow label="桌号" :value="selectedOrder.tableNo || '—'" />
             <DetailRow label="运费" :value="selectedOrder.deliveryMethod === 'shipping' ? ((selectedOrder.freightCollect || selectedOrder.shippingPayMode === 'collect') ? '快递到付（签收付快递员）' : (`在线 ¥${money(selectedOrder.shippingFee)}`)) : '—'" />
             <DetailRow label="客户" :value="selectedOrder.consignee || selectedOrder.name || selectedOrder.contactName || '-'" />
             <DetailRow label="电话" :value="selectedOrder.phone || selectedOrder.mobile || '-'" />

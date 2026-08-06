@@ -19,27 +19,45 @@
       <view class="hero-top">
         <view class="tier-name">
           <image class="tier-icon" src="/assets/icons/crown-gold.png" mode="aspectFit"></image>
-          <text>{{member.isMember ? member.tier : '禾煦茶友'}}</text>
+          <text wx:if="{{!memberStatusReady}}">读取中</text>
+          <text wx:else>{{member.isMember ? member.tier : '禾煦茶友'}}</text>
         </view>
-        <view class="rights-pill">尊享权益</view>
+        <view class="rights-pill">{{memberStatusReady && member.isMember ? '尊享权益' : '待开通'}}</view>
       </view>
       <view class="member-name-row">
-        <view class="member-name">{{member.isMember ? member.name : '茶友'}}</view>
+        <view class="member-name">{{!memberStatusReady ? '…' : (member.isMember ? member.name : '茶友')}}</view>
         <image class="leaf-mark" src="/assets/icons/leaf-gold.png" mode="aspectFit"></image>
       </view>
       <view class="card-line"></view>
-      <view class="card-no">{{member.isMember ? member.cardNo : 'NO. 静候相逢'}}</view>
-      <view class="points-block">
-        <text>{{member.isMember ? '会员积分' : '会员礼遇'}}</text>
-        <view class="points-value">{{member.isMember ? member.points : '充值有礼'}}</view>
+      <view class="card-no">{{!memberStatusReady ? 'NO. …' : (member.isMember ? member.cardNo : 'NO. 静候相逢')}}</view>
+
+      <!-- 已开通：余额/积分 + 充值（无第二张钱包卡） -->
+      <view wx:if="{{memberStatusReady && member.isMember}}" class="asset-bar">
+        <view class="asset-cols">
+          <view class="asset-item asset-main">
+            <text class="asset-k">余额</text>
+            <view class="asset-v"><text class="asset-yen">¥</text>{{wallet.balance}}</view>
+          </view>
+          <view class="asset-item">
+            <text class="asset-k">积分</text>
+            <view class="asset-v">{{member.points || 0}}</view>
+          </view>
+        </view>
+        <view class="hero-recharge-btn" catchtap="openRechargeSheet">充值</view>
+      </view>
+
+      <!-- 未开通 / 读取中：轻提示 -->
+      <view wx:else class="guest-tip-block">
+        <text wx:if="{{!memberStatusReady}}">会员状态读取中…</text>
+        <text wx:else>充 500 送 100 · 充 1000 送 250</text>
       </view>
     </view>
   </view>
 
-  <view wx:if="{{!member.isMember}}" class="activation-card">
+  <!-- 仅在状态就绪且确认非会员时展示开通表单 -->
+  <view wx:if="{{memberStatusReady && !member.isMember}}" class="activation-card">
     <view class="activation-kicker">MEMBERSHIP</view>
     <view class="activation-title">开通禾煦会员</view>
-    <view class="activation-copy">加入会员，享储值礼遇：充 500 送 100、充 1000 送 250。</view>
     <input
       class="activation-input"
       value="{{nameInput}}"
@@ -63,59 +81,10 @@
       bindtap="onActivationTap"
       bindgetphonenumber="handlePhoneActivation"
     >手机号快捷开通</button>
-    <view class="activation-note">点击开通后，请按提示同意隐私指引并允许使用手机号。手机号仅用于会员账户识别。</view>
+    <view class="activation-note">手机号仅用于会员账户识别</view>
   </view>
 
-  <!-- 储值与充值：会员可见；非会员也可预览档位，点击会引导先开通 -->
-  <view id="wallet-card" class="wallet-card">
-    <view class="wallet-head">
-      <view>
-        <view class="wallet-label">{{member.isMember ? '会员储值余额' : '开通后可储值'}}</view>
-        <view class="wallet-balance"><text>¥</text>{{member.isMember ? wallet.balance : '0.00'}}</view>
-      </view>
-      <view class="wallet-phone">{{member.isMember ? (member.phoneMasked || '') : '未开通'}}</view>
-    </view>
-    <view wx:if="{{member.isMember}}" class="wallet-breakdown">
-      <view><text>本金余额</text><view class="wallet-part-value">¥{{wallet.principalBalance}}</view></view>
-      <view><text>赠送余额</text><view class="wallet-part-value">¥{{wallet.bonusBalance}}</view></view>
-    </view>
-
-    <view class="recharge-title">选择充值档位</view>
-    <view class="plan-list">
-      <view
-        wx:for="{{plans}}"
-        wx:key="id"
-        class="plan-item {{selectedPlanId === item.id ? 'active' : ''}}"
-        data-id="{{item.id}}"
-        bindtap="selectPlan"
-      >
-        <view class="plan-principal">充 ¥{{item.principal}}</view>
-        <view class="plan-total">到账 ¥{{item.total}}</view>
-        <view class="plan-bonus">含赠送 ¥{{item.bonus}}</view>
-        <view wx:if="{{selectedPlanId === item.id}}" class="plan-check">已选</view>
-      </view>
-    </view>
-
-    <button
-      class="recharge-action"
-      loading="{{rechargeSubmitting}}"
-      disabled="{{rechargeSubmitting || plans.length === 0}}"
-      hover-class="recharge-action-hover"
-      bindtap="rechargeMember"
-    >
-      <view class="recharge-action-inner">
-        <text class="recharge-action-label">{{rechargeButtonText}}</text>
-        <text class="recharge-action-hint" wx:if="{{selectedPlanLabel}}">{{selectedPlanLabel}}</text>
-      </view>
-    </button>
-
-    <view wx:if="{{!member.isMember}}" class="test-banner">请先完成上方「手机号快捷开通」，开通后即可充值。</view>
-    <view wx:elif="{{payment.realPaymentReady}}" class="test-banner">将调起微信支付，支付成功后余额自动到账。</view>
-    <view wx:elif="{{payment.testRechargeEnabled}}" class="test-banner">当前账号可体验模拟到账（不产生真实扣款）。</view>
-    <view wx:else class="test-banner">在线充值暂未开放，请稍后再试或到店咨询。</view>
-  </view>
-
-  <view wx:if="{{member.isMember}}" class="highlight-card">
+  <view wx:if="{{memberStatusReady && member.isMember}}" class="highlight-card">
     <view
       wx:for="{{highlights}}"
       wx:key="title"
@@ -129,7 +98,7 @@
     </view>
   </view>
 
-  <view wx:if="{{member.isMember}}" class="level-card">
+  <view wx:if="{{memberStatusReady && member.isMember}}" class="level-card">
     <view class="panel-head">
       <view class="panel-title">会员等级</view>
       <view class="panel-link" bindtap="showAllLevels">查看全部等级 ›</view>
@@ -170,7 +139,7 @@
     </view>
   </view>
 
-  <view wx:if="{{member.isMember}}" class="coupon-card">
+  <view wx:if="{{memberStatusReady && member.isMember}}" class="coupon-card">
     <view class="panel-head">
       <view class="panel-title">可领取优惠券</view>
       <view class="panel-link">{{userCoupons.length}} 张已领取</view>
@@ -193,7 +162,7 @@
     <view wx:if="{{availableCoupons.length === 0}}" class="empty-line">暂无可领取优惠券</view>
   </view>
 
-  <view wx:if="{{member.isMember}}" class="notice-card">
+  <view wx:if="{{memberStatusReady && member.isMember}}" class="notice-card">
     <view>
       <view class="notice-title">服务通知</view>
       <view class="notice-copy">订阅后可接收支付、发货、预约和活动状态更新。</view>
@@ -226,6 +195,43 @@
       </view>
     </view>
   </view>
+
+  <!-- 充值底部弹层：仅用户点击「充值」后挂载，默认不渲染 -->
+  <block wx:if="{{rechargeSheetOpen}}">
+    <view
+      class="recharge-mask"
+      catchtouchmove="preventMove"
+      bindtap="closeRechargeSheet"
+    ></view>
+    <view
+      class="recharge-sheet"
+      catchtouchmove="preventMove"
+      catchtap="noop"
+    >
+      <view class="sheet-handle"></view>
+      <view class="sheet-title">充值</view>
+      <view class="sheet-plan-list">
+        <view
+          wx:for="{{plans}}"
+          wx:key="id"
+          class="sheet-plan {{selectedPlanId === item.id ? 'active' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="selectPlan"
+        >
+          <view class="sheet-plan-principal">¥{{item.principalDisplay}}</view>
+          <view class="sheet-plan-bonus">送 {{item.bonusDisplay}}</view>
+        </view>
+      </view>
+      <button
+        class="sheet-pay-btn"
+        loading="{{rechargeSubmitting}}"
+        disabled="{{rechargeSubmitting || plans.length === 0 || !sheetPayText}}"
+        hover-class="sheet-pay-hover"
+        bindtap="rechargeMember"
+      >{{sheetPayText}}</button>
+      <view class="sheet-cancel" bindtap="closeRechargeSheet">取消</view>
+    </view>
+  </block>
 
   <privacy-gate
     show="{{privacyGateOpen}}"

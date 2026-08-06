@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>禾煦 · 会员中心 v3</title>
+  <style>
+    :root {
+      --bg: #f7f4ec;
+      --surface: #fffdf8;
+      --ink: #173b2a;
+      --muted: #6f685f;
+      --gold: #c6a66a;
+      --gold-text: #f0d4a0;
+      --divider: #e8e1d5;
+      --green: #315f2f;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif;
+      background: #e6e0d4;
+      color: var(--ink);
+      padding: 36px 28px 80px;
+    }
+    h1 {
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .sub {
+      max-width: 880px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+    .tag {
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 99px;
+      background: #fffdf8;
+      border: 1px solid var(--divider);
+      color: var(--muted);
+    }
+    .tag em { font-style: normal; color: var(--ink); font-weight: 600; }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      align-items: flex-start;
+    }
+    .col { width: 310px; }
+    .cap {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .cap b {
+      display: block;
+      font-size: 15px;
+      color: var(--ink);
+      margin-bottom: 2px;
+    }
+
+    /* Phone */
+    .phone {
+      width: 310px;
+      height: 680px;
+      border-radius: 36px;
+      border: 10px solid #141414;
+      background: var(--bg);
+      box-shadow: 0 22px 50px rgba(40, 32, 22, 0.2);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .status {
+      height: 28px;
+      padding: 0 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav {
+      height: 44px;
+      display: grid;
+      grid-template-columns: 40px 1fr 56px;
+      align-items: center;
+      padding: 0 10px;
+      flex-shrink: 0;
+    }
+    .nav .back { font-size: 22px; text-align: center; line-height: 1; color: #111; }
+    .nav .title {
+      text-align: center;
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .nav .capsule {
+      height: 28px;
+      border: 1px solid #e9e5dd;
+      border-radius: 99px;
+      background: rgba(255,255,255,.86);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 9px;
+      color: #111;
+    }
+    .scroll {
+      flex: 1;
+      padding: 6px 14px 60px;
+      overflow: hidden;
+    }
+
+    /* —— 沿用现有英雄卡质感 —— */
+    .hero {
+      position: relative;
+      min-height: 188px;
+      margin-top: 6px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #1c3324;
+      box-shadow: 0 12px 28px rgba(40, 32, 22, 0.16);
+    }
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background:
+        url("../我的-会员卡背景.png") right center / cover no-repeat;
+      opacity: 0.95;
+    }
+    .hero-shade {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 78% 48%, rgba(255, 236, 190, 0.1) 0%, rgba(255, 236, 190, 0) 30%),
+        linear-gradient(105deg, rgba(18, 36, 24, 0.95) 0%, rgba(18, 36, 24, 0.82) 40%, rgba(18, 36, 24, 0.28) 70%, rgba(18, 36, 24, 0.06) 100%);
+    }
+    .hero-body {
+      position: relative;
+      z-index: 1;
+      min-height: 188px;
+      padding: 16px 16px 14px;
+      color: #f5dfae;
+      display: flex;
+      flex-direction: column;
+    }
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .tier {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: #f0d4a0;
+    }
+    .tier .crown { font-size: 13px; opacity: .9; }
+    .rights {
+      font-size: 10px;
+      padding: 4px 10px;
+      border-radius: 99px;
+      border: 1px solid rgba(240, 212, 160, 0.48);
+      background: rgba(28, 48, 34, 0.38);
+      color: rgba(240, 212, 160, 0.95);
+    }
+    .mname {
+      margin-top: 14px;
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: #fff6e0;
+      letter-spacing: 0.02em;
+    }
+    .mline {
+      width: 18px;
+      height: 1px;
+      margin-top: 8px;
+      background: rgba(240, 212, 160, 0.85);
+    }
+    .mno {
+      margin-top: 7px;
+      font-size: 11px;
+      color: rgba(255, 246, 224, 0.62);
+      letter-spacing: 0.06em;
+    }
+
+    /* 资产条：嵌在卡底，不是第二张卡 */
+    .asset-bar {
+      margin-top: auto;
+      padding-top: 12px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .assets {
+      display: flex;
+      gap: 18px;
+    }
+    .asset .k {
+      font-size: 10px;
+      color: rgba(255, 246, 224, 0.62);
+    }
+    .asset .v {
+      margin-top: 2px;
+      font-family: Georgia, "DIN Alternate", serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: #f0d4a0;
+      line-height: 1.05;
+    }
+    .asset.main .v {
+      font-size: 24px;
+      color: #fff6e0;
+    }
+    .asset .v small { font-size: 12px; margin-right: 1px; }
+    .btn-recharge {
+      flex-shrink: 0;
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #d4b57a, #c6a66a);
+      color: #1c2e22;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,.18);
+    }
+
+    /* 下方模块：沿用现有白卡质感，但更轻 */
+    .icon-row {
+      margin-top: 14px;
+      padding: 14px 6px;
+      background: var(--surface);
+      border: 1px solid rgba(49, 95, 47, 0.1);
+      border-radius: 14px;
+      box-shadow: 0 8px 20px rgba(51, 42, 30, 0.05);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      text-align: center;
+    }
+    .icon-row .cell .ico {
+      width: 36px;
+      height: 36px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: #f3f0e8;
+      color: var(--green);
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-row .cell .t {
+      margin-top: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .icon-row .cell .d {
+      margin-top: 2px;
+      font-size: 9px;
+      color: var(--muted);
+    }
+
+    .panel {
+      margin-top: 12px;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid rgba(49, 95, 47, 0.1);
+      border-radius: 14px;
+      box-shadow: 0 8px 20px rgba(51, 42, 30, 0.05);
+    }
+    .panel-h {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .panel-h .t {
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .panel-h .l { font-size: 11px; color: var(--muted); }
+    .level {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .level-badge {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #f0d4a0, #c6a66a);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .level-mid { flex: 1; min-width: 0; }
+    .level-mid .name { font-size: 13px; font-weight: 600; }
+    .track {
+      margin-top: 6px;
+      height: 4px;
+      background: #ebe4d6;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      width: 42%;
+      background: linear-gradient(90deg, #c6a66a, #315f2f);
+      border-radius: 99px;
+    }
+    .level-mid .hint {
+      margin-top: 4px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .level-mid .hint span { color: #b27a32; }
+    .level-pts {
+      font-size: 11px;
+      color: #6f5635;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* —— 充值弹层 —— */
+    .mask {
+      position: absolute;
+      inset: 0;
+      background: rgba(20, 24, 20, 0.42);
+      z-index: 5;
+    }
+    .sheet {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      z-index: 6;
+      background: #fffdf8;
+      border-radius: 18px 18px 0 0;
+      padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -8px 32px rgba(40, 32, 22, 0.16);
+    }
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      margin: 0 auto 12px;
+      border-radius: 99px;
+      background: #e0d8ca;
+    }
+    .sheet-title {
+      text-align: center;
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .plans {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .plan {
+      border: 1px solid var(--divider);
+      border-radius: 12px;
+      padding: 14px 10px;
+      text-align: center;
+      background: #faf7f0;
+      position: relative;
+    }
+    .plan.on {
+      border-color: var(--green);
+      background: linear-gradient(180deg, #f4f8f2, #fffdf8);
+      box-shadow: 0 0 0 1px rgba(49, 95, 47, 0.12);
+    }
+    .plan .tag {
+      position: absolute;
+      top: -1px; right: -1px;
+      background: var(--green);
+      color: #fff;
+      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 0 12px 0 8px;
+    }
+    .plan .p {
+      font-size: 16px;
+      font-weight: 600;
+      font-family: Georgia, serif;
+      color: var(--ink);
+    }
+    .plan .g {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #b27a32;
+    }
+    .plan .to {
+      margin-top: 2px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .sheet-pay {
+      margin-top: 14px;
+      height: 46px;
+      border-radius: 12px;
+      background: var(--ink);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+    }
+    .sheet-pay .main { font-size: 15px; font-weight: 500; }
+    .sheet-pay .sub { font-size: 10px; opacity: .7; }
+    .sheet-cancel {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 6px;
+    }
+
+    /* —— 未开通：保留现有 activation 质感，单卡 —— */
+    .guest-hero {
+      position: relative;
+      min-height: 168px;
+      margin-top: 6px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #1c3324;
+      box-shadow: 0 12px 28px rgba(40, 32, 22, 0.16);
+    }
+    .guest-body {
+      position: relative;
+      z-index: 1;
+      min-height: 168px;
+      padding: 16px;
+      color: #f5dfae;
+      display: flex;
+      flex-direction: column;
+    }
+    .guest-body .tier { opacity: .9; }
+    .guest-body .mname { margin-top: 12px; }
+    .guest-body .mno { margin-top: 6px; }
+    .guest-body .tip {
+      margin-top: auto;
+      font-size: 11px;
+      color: rgba(255,246,224,.62);
+      line-height: 1.45;
+    }
+
+    .activate {
+      margin-top: 14px;
+      padding: 18px 16px;
+      background: var(--surface);
+      border: 1px solid rgba(49, 95, 47, 0.12);
+      border-radius: 14px;
+      box-shadow: 0 10px 24px rgba(51, 42, 30, 0.06);
+    }
+    .activate .kicker {
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      color: #b27a32;
+      font-weight: 600;
+      font-family: Georgia, serif;
+    }
+    .activate .title {
+      margin-top: 6px;
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: #203927;
+    }
+    .activate input {
+      margin-top: 14px;
+      width: 100%;
+      height: 42px;
+      border: 1px solid #e8dfd0;
+      border-radius: 10px;
+      background: #f8f4eb;
+      padding: 0 12px;
+      font-size: 13px;
+      color: #253b2e;
+      outline: none;
+    }
+    .activate .agree {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      line-height: 1.45;
+    }
+    .activate .agree .box {
+      width: 14px; height: 14px;
+      border: 1px solid #cfc5b4;
+      border-radius: 3px;
+      margin-top: 1px;
+      flex-shrink: 0;
+      background: #fff;
+    }
+    .activate .agree a { color: var(--green); text-decoration: none; }
+    .activate .cta {
+      margin-top: 14px;
+      height: 44px;
+      border-radius: 11px;
+      background: var(--green);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .tabbar {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 54px;
+      background: rgba(249, 244, 235, 0.97);
+      border-top: 1px solid rgba(232, 225, 213, 0.95);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      z-index: 3;
+    }
+    .tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      font-size: 10px;
+      color: #716656;
+    }
+    .tab .ico { font-size: 15px; opacity: .7; }
+    .tab.on { color: #233b31; font-weight: 600; }
+    .tab.on .ico { opacity: 1; }
+
+    .note {
+      margin-top: 36px;
+      max-width: 1000px;
+      background: #fffdf8;
+      border: 1px solid var(--divider);
+      border-radius: 14px;
+      padding: 18px 20px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .note h2 {
+      font-family: "Songti SC", serif;
+      font-size: 16px;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .note ul { padding-left: 18px; }
+    .note li { margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <h1>禾煦 · 会员中心 v3</h1>
+  <p class="sub">
+    保留现有代码的精致卡面（墨绿底 + 茶器图 + 宋体标题 + 砂金点缀），只解决「双卡重复」：
+    页面只留一张会员卡；<strong>充值改为点击后底部弹层选金额</strong>（行业常见做法，也更干净）。
+  </p>
+  <div class="tags">
+    <span class="tag"><em>保留</em> 现有 hero 卡视觉</span>
+    <span class="tag"><em>去掉</em> 常驻储值大白卡</span>
+    <span class="tag"><em>充值</em> 点击 → 弹层选档</span>
+    <span class="tag"><em>未开通</em> 卡面 + 开通表单，无第二钱包卡</span>
+  </div>
+
+  <div class="row">
+    <!-- 1 已开通默认 -->
+    <div class="col">
+      <div class="cap"><b>已开通 · 默认</b>一张精致会员卡</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>····</span></div>
+        <div class="nav">
+          <div class="back">‹</div>
+          <div class="title">会员中心</div>
+          <div class="capsule">··· ◎</div>
+        </div>
+        <div class="scroll">
+          <div class="hero">
+            <div class="hero-bg"></div>
+            <div class="hero-shade"></div>
+            <div class="hero-body">
+              <div class="hero-top">
+                <div class="tier"><span class="crown">♔</span> 雅客会员</div>
+                <div class="rights">尊享权益</div>
+              </div>
+              <div class="mname">林茶友</div>
+              <div class="mline"></div>
+              <div class="mno">NO. HX8821</div>
+              <div class="asset-bar">
+                <div class="assets">
+                  <div class="asset main">
+                    <div class="k">余额</div>
+                    <div class="v"><small>¥</small>680</div>
+                  </div>
+                  <div class="asset">
+                    <div class="k">积分</div>
+                    <div class="v">320</div>
+                  </div>
+                </div>
+                <div class="btn-recharge">充值</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="icon-row">
+            <div class="cell"><div class="ico">¥</div><div class="t">储值礼遇</div><div class="d">充送有礼</div></div>
+            <div class="cell"><div class="ico">付</div><div class="t">余额支付</div><div class="d">到账可用</div></div>
+            <div class="cell"><div class="ico">★</div><div class="t">积分累计</div><div class="d">消费得积分</div></div>
+            <div class="cell"><div class="ico">券</div><div class="t">会员券</div><div class="d">专属优惠</div></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h">
+              <div class="t">会员等级</div>
+              <div class="l">规则 ›</div>
+            </div>
+            <div class="level">
+              <div class="level-badge">雅</div>
+              <div class="level-mid">
+                <div class="name">雅客会员</div>
+                <div class="track"><div class="fill"></div></div>
+                <div class="hint">再消费 <span>¥1280</span> 升级臻享</div>
+              </div>
+              <div class="level-pts">320/1600</div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ico">⌂</span>首页</div>
+          <div class="tab"><span class="ico">◇</span>点单</div>
+          <div class="tab"><span class="ico">▣</span>商城</div>
+          <div class="tab on"><span class="ico">◎</span>我的</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 点击充值弹层 -->
+    <div class="col">
+      <div class="cap"><b>已开通 · 点「充值」</b>底部弹层选金额</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>····</span></div>
+        <div class="nav">
+          <div class="back">‹</div>
+          <div class="title">会员中心</div>
+          <div class="capsule">··· ◎</div>
+        </div>
+        <div class="scroll">
+          <div class="hero">
+            <div class="hero-bg"></div>
+            <div class="hero-shade"></div>
+            <div class="hero-body">
+              <div class="hero-top">
+                <div class="tier"><span class="crown">♔</span> 雅客会员</div>
+                <div class="rights">尊享权益</div>
+              </div>
+              <div class="mname">林茶友</div>
+              <div class="mline"></div>
+              <div class="mno">NO. HX8821</div>
+              <div class="asset-bar">
+                <div class="assets">
+                  <div class="asset main">
+                    <div class="k">余额</div>
+                    <div class="v"><small>¥</small>680</div>
+                  </div>
+                  <div class="asset">
+                    <div class="k">积分</div>
+                    <div class="v">320</div>
+                  </div>
+                </div>
+                <div class="btn-recharge">充值</div>
+              </div>
+            </div>
+          </div>
+          <div class="icon-row" style="opacity:.55">
+            <div class="cell"><div class="ico">¥</div><div class="t">储值礼遇</div><div class="d">充送有礼</div></div>
+            <div class="cell"><div class="ico">付</div><div class="t">余额支付</div><div class="d">到账可用</div></div>
+            <div class="cell"><div class="ico">★</div><div class="t">积分累计</div><div class="d">消费得积分</div></div>
+            <div class="cell"><div class="ico">券</div><div class="t">会员券</div><div class="d">专属优惠</div></div>
+          </div>
+        </div>
+        <div class="mask"></div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">选择充值金额</div>
+          <div class="plans">
+            <div class="plan on">
+              <span class="tag">推荐</span>
+              <div class="p">¥500</div>
+              <div class="g">送 ¥100</div>
+              <div class="to">到账 ¥600</div>
+            </div>
+            <div class="plan">
+              <div class="p">¥1000</div>
+              <div class="g">送 ¥250</div>
+              <div class="to">到账 ¥1250</div>
+            </div>
+          </div>
+          <div class="sheet-pay">
+            <div class="main">微信支付 ¥500</div>
+            <div class="sub">到账 600（含赠送 100）</div>
+          </div>
+          <div class="sheet-cancel">取消</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 未开通 -->
+    <div class="col">
+      <div class="cap"><b>未开通</b>卡面预览 + 开通区（无钱包卡）</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>····</span></div>
+        <div class="nav">
+          <div class="back">‹</div>
+          <div class="title">会员中心</div>
+          <div class="capsule">··· ◎</div>
+        </div>
+        <div class="scroll">
+          <div class="guest-hero">
+            <div class="hero-bg"></div>
+            <div class="hero-shade"></div>
+            <div class="guest-body">
+              <div class="hero-top">
+                <div class="tier"><span class="crown">♔</span> 禾煦茶友</div>
+                <div class="rights">待开通</div>
+              </div>
+              <div class="mname">茶友</div>
+              <div class="mline"></div>
+              <div class="mno">NO. 静候相逢</div>
+              <div class="tip">充 500 送 100 · 充 1000 送 250</div>
+            </div>
+          </div>
+
+          <div class="activate">
+            <div class="kicker">MEMBERSHIP</div>
+            <div class="title">开通禾煦会员</div>
+            <input type="text" placeholder="填写姓名或称呼" value="" readonly />
+            <div class="agree">
+              <div class="box"></div>
+              <div>已阅读并同意《会员及储值规则》和《隐私保护指引》</div>
+            </div>
+            <div class="cta">手机号快捷开通</div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ico">⌂</span>首页</div>
+          <div class="tab"><span class="ico">◇</span>点单</div>
+          <div class="tab"><span class="ico">▣</span>商城</div>
+          <div class="tab on"><span class="ico">◎</span>我的</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h2>设计确认（相对现状 / v1 / v2）</h2>
+    <ul>
+      <li><strong>你说得对</strong>：充值档位常驻页面既占空间又像第二张卡；点「充值」再弹层选金额，是钱包/会员类产品的常见做法，也更干净。</li>
+      <li><strong>视觉</strong>：回退到现有代码的精致路线（hero 底图 + 渐变遮罩 + 宋体/砂金），不另起一套「糙」风格。</li>
+      <li><strong>结构变化只有一处核心</strong>：删除常驻 <code>wallet-card</code>；余额/积分收到会员卡底部；充值流程进底部 sheet。</li>
+      <li><strong>未开通</strong>：保留现有「开通表单」质感，但不再挂一整块储值钱包预览卡。</li>
+      <li><strong>协议/说明</strong>：仍放在开通勾选与弹层副文案，不铺满首屏。</li>
+    </ul>
+    <p style="margin-top:10px">文件：<code>docs/member-center-redesign/</code> · 本页为 v3，截图见 <code>design-v3.png</code>。</p>
+  </div>
+</body>
+</html>

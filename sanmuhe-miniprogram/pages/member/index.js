@@ -9,6 +9,7 @@ const {
   simulateMemberRecharge
 } = require("../../utils/cloudApi");
 const { withPrivacy } = require("../../utils/privacy");
+const { buildMemberPageBootstrap, writeMemberSnapshot } = require("../../utils/memberSnapshot");
 
 const MEMBER_PRIVACY_PURPOSE = "开通会员需要使用你的微信绑定手机号，用于识别会员账户、储值入账与会员服务联系。";
 const MEMBER_AGREEMENT_VERSION = "member-wallet-privacy-v2";
@@ -117,57 +118,83 @@ const DEFAULT_PLANS = [
   }
 ];
 
-function getSelectedPlanLabel(plans, planId) {
-  const plan = (plans || []).find((item) => item.id === planId);
-  if (!plan) {
+/** 金额展示去掉无意义的 .00 */
+function formatMoneyDisplay(value) {
+  const raw = String(value == null ? "" : value).trim();
+  if (!raw) {
     return "";
   }
-  if (plan.principal != null && plan.total != null) {
-    return `充 ¥${plan.principal} · 到账 ¥${plan.total}`;
+  const num = Number(raw);
+  if (!Number.isFinite(num)) {
+    return raw.replace(/\.00$/, "");
   }
-  return plan.title || plan.description || "";
+  return Number.isInteger(num) ? String(num) : String(num);
 }
 
-function getRechargeButtonText(memberInfo, payment) {
+function decoratePlans(plans) {
+  return (plans || []).map((plan) => Object.assign({}, plan, {
+    principalDisplay: formatMoneyDisplay(plan.principal),
+    bonusDisplay: formatMoneyDisplay(plan.bonus),
+    totalDisplay: formatMoneyDisplay(plan.total)
+  }));
+}
+
+function getSelectedPlan(plans, planId) {
+  return (plans || []).find((item) => item.id === planId) || null;
+}
+
+/** 弹层主按钮：一句说清，不重复档位卡片上的「送/到账」 */
+function getSheetPayText(memberInfo, payment, memberStatusReady, plan) {
+  if (memberStatusReady === false) {
+    return "读取中";
+  }
   if (!(memberInfo && memberInfo.isMember)) {
     return "请先开通会员";
   }
-  // 真实支付就绪时优先走微信支付，避免白名单测试模式挡住真机联调
+  const amount = plan ? formatMoneyDisplay(plan.principal) : "";
   if (payment && payment.realPaymentReady) {
-    return "微信支付充值";
+    return amount ? `微信支付 ¥${amount}` : "微信支付";
   }
   if (payment && payment.testRechargeEnabled) {
-    return "确认模拟充值";
+    return amount ? `模拟充值 ¥${amount}` : "模拟充值";
   }
   return "暂不可充值";
 }
 
+const memberBootstrap = buildMemberPageBootstrap(member, emptyWallet);
+
 Page(withPrivacy({
   data: {
-    member,
-    wallet: emptyWallet,
-    plans: DEFAULT_PLANS,
+    member: memberBootstrap.member,
+    wallet: memberBootstrap.wallet,
+    memberStatusReady: memberBootstrap.memberStatusReady,
+    plans: decoratePlans(DEFAULT_PLANS),
     payment: {
       realPaymentReady: false,
       testRechargeEnabled: false
     },
     selectedPlanId: "recharge-500",
-    selectedPlanLabel: getSelectedPlanLabel(DEFAULT_PLANS, "recharge-500"),
-    rechargeButtonText: getRechargeButtonText(member, { testRechargeEnabled: false }),
+    sheetPayText: getSheetPayText(
+      memberBootstrap.member,
+      { testRechargeEnabled: false },
+      memberBootstrap.memberStatusReady,
+      DEFAULT_PLANS[0]
+    ),
     nameInput: "",
     agreementAccepted: false,
     activationReady: false,
     canActivatePhone: false,
     activationSubmitting: false,
     rechargeSubmitting: false,
+    rechargeSheetOpen: false,
     highlights,
-    level,
+    level: buildLevel(memberBootstrap.member),
     benefitDetails,
     recommendations: pickRecommendations(),
     availableCoupons: [],
     userCoupons: [],
     subscriptionTemplates: [],
-    loadingMember: false,
+    loadingMember: !memberBootstrap.memberStatusReady,
     privacyPurpose: MEMBER_PRIVACY_PURPOSE,
     privacyReady: false
   },
@@ -232,11 +259,22 @@ Page(withPrivacy({
   },
 
   loadMemberCenter() {
-    this.setData({ loadingMember: true });
+    // 有快照时保留会员态展示，仅后台刷新；无快照时显示读取中
+    this.setData({
+      loadingMember: true,
+      memberStatusReady: this.data.memberStatusReady,
+      sheetPayText: getSheetPayText(
+        this.data.member,
+        this.data.payment,
+        this.data.memberStatusReady,
+        getSelectedPlan(this.data.plans, this.data.selectedPlanId)
+      )
+    });
     getMemberCenter().then((result) => {
       const memberInfo = Object.assign({}, member, result.member || {});
+      const walletInfo = Object.assign({}, emptyWallet, result.wallet || {});
       const remotePlans = result.plans || [];
-      const plans = remotePlans.length ? remotePlans : DEFAULT_PLANS;
+      const plans = decoratePlans(remotePlans.length ? remotePlans : DEFAULT_PLANS);
       const payment = Object.assign(
         { realPaymentReady: false, testRechargeEnabled: false },
         result.payment || {}
@@ -245,21 +283,41 @@ Page(withPrivacy({
       const selectedPlanId = (plans.some((p) => p.id === preferredId) ? preferredId : null)
         || (plans[0] && plans[0].id)
         || "";
+      const selectedPlan = getSelectedPlan(plans, selectedPlanId);
+      writeMemberSnapshot({
+        user: {
+          name: memberInfo.isMember ? (memberInfo.name || "禾煦会员") : "禾煦茶友",
+          title: memberInfo.isMember
+            ? `${memberInfo.tier || "雅客会员"} · 欢迎回来`
+            : "愿你在此，得一盏清欢"
+        },
+        member: {
+          isMember: !!memberInfo.isMember,
+          name: memberInfo.name,
+          tier: memberInfo.tier,
+          cardNo: memberInfo.cardNo,
+          points: memberInfo.points,
+          balance: walletInfo.balance,
+          phoneMasked: memberInfo.phoneMasked,
+          discountRate: memberInfo.discountRate
+        },
+        wallet: walletInfo
+      });
       this.setData({
         member: memberInfo,
-        wallet: Object.assign({}, emptyWallet, result.wallet || {}),
+        wallet: walletInfo,
+        memberStatusReady: true,
         plans,
         payment,
         selectedPlanId,
-        selectedPlanLabel: getSelectedPlanLabel(plans, selectedPlanId),
-        rechargeButtonText: getRechargeButtonText(memberInfo, payment),
+        sheetPayText: getSheetPayText(memberInfo, payment, true, selectedPlan),
         nameInput: this.data.nameInput || (memberInfo.isMember ? memberInfo.name : ""),
         level: buildLevel(memberInfo),
         benefitDetails,
         highlights: [
           { title: "储值礼遇", desc: "充 500 送 100", icon: "/assets/icons/profile-wallet.png" },
           { title: "进阶礼遇", desc: "充 1000 送 250", icon: "/assets/icons/profile-star.png" },
-          { title: "当前余额", desc: `¥${(result.wallet && result.wallet.balance) || "0.00"}`, icon: "/assets/icons/profile-coupon.png" },
+          { title: "当前余额", desc: `¥${walletInfo.balance || "0.00"}`, icon: "/assets/icons/profile-coupon.png" },
           { title: "可用券", desc: `${countUsableCoupons(result.userCoupons)} 张`, icon: "/assets/icons/profile-ticket.png" }
         ],
         availableCoupons: result.availableCoupons || [],
@@ -270,15 +328,16 @@ Page(withPrivacy({
       this.syncPrivacyState();
       this.applyFocusTarget();
     }).catch(() => {
-      // 云函数失败时仍展示本地档位，避免“无入口”
-      const plans = DEFAULT_PLANS;
+      // 云函数失败：有快照继续用快照；无快照再按非会员展示
+      const plans = decoratePlans(DEFAULT_PLANS);
       const payment = { realPaymentReady: false, testRechargeEnabled: false };
+      const ready = true;
       this.setData({
         plans,
         payment,
+        memberStatusReady: ready,
         selectedPlanId: plans[0].id,
-        selectedPlanLabel: getSelectedPlanLabel(plans, plans[0].id),
-        rechargeButtonText: getRechargeButtonText(this.data.member, payment)
+        sheetPayText: getSheetPayText(this.data.member, payment, ready, plans[0])
       });
       // 权益区为本地静态内容，失败时仍可定位
       this.applyFocusTarget();
@@ -287,28 +346,55 @@ Page(withPrivacy({
     });
   },
 
-  /** 按入口 focus 滚动到对应区块：recharge → 储值，benefits → 权益详情 */
+  /** 按入口 focus：仅 benefits 滚动定位；充值弹层必须由用户点击「充值」打开 */
   applyFocusTarget() {
     const focus = this.focusTarget;
     if (!focus) {
       return;
     }
     this.focusTarget = "";
-    const selectorMap = {
-      recharge: "#wallet-card",
-      benefits: "#benefit-card"
-    };
-    const selector = selectorMap[focus];
-    if (!selector) {
+    // focus=recharge 不再自动弹层，避免未点击就出现「选择充值金额」
+    if (focus === "benefits") {
+      setTimeout(() => {
+        wx.pageScrollTo({
+          selector: "#benefit-card",
+          duration: 280
+        });
+      }, 200);
+    }
+  },
+
+  openRechargeSheet() {
+    if (!this.data.memberStatusReady) {
+      wx.showToast({ title: "会员状态读取中", icon: "none" });
       return;
     }
-    setTimeout(() => {
-      wx.pageScrollTo({
-        selector,
-        duration: 280
-      });
-    }, 200);
+    if (!this.data.member || !this.data.member.isMember) {
+      wx.showToast({ title: "请先开通会员", icon: "none" });
+      wx.pageScrollTo({ scrollTop: 0, duration: 240 });
+      return;
+    }
+    this.setData({
+      rechargeSheetOpen: true,
+      sheetPayText: getSheetPayText(
+        this.data.member,
+        this.data.payment,
+        this.data.memberStatusReady,
+        getSelectedPlan(this.data.plans, this.data.selectedPlanId)
+      )
+    });
   },
+
+  closeRechargeSheet() {
+    if (this.data.rechargeSubmitting) {
+      return;
+    }
+    this.setData({ rechargeSheetOpen: false });
+  },
+
+  preventMove() {},
+
+  noop() {},
 
   onNameInput(event) {
     const nameInput = String(event.detail.value || "").slice(0, 20);
@@ -392,55 +478,46 @@ Page(withPrivacy({
 
   selectPlan(event) {
     const selectedPlanId = event.currentTarget.dataset.id || "";
+    const plan = getSelectedPlan(this.data.plans, selectedPlanId);
     this.setData({
       selectedPlanId,
-      selectedPlanLabel: getSelectedPlanLabel(this.data.plans, selectedPlanId)
+      sheetPayText: getSheetPayText(
+        this.data.member,
+        this.data.payment,
+        this.data.memberStatusReady,
+        plan
+      )
     });
   },
 
-  startRealRecharge(planId, plan) {
-    wx.showModal({
-      title: "确认微信支付充值",
-      content: `${plan ? plan.description : "当前充值档位"}\n将调起微信支付，成功后余额自动到账。`,
-      success: (modalResult) => {
-        if (!modalResult.confirm) {
-          return;
-        }
-        this.setData({ rechargeSubmitting: true });
-        rechargeMember(planId).then(() => {
-          wx.showToast({ title: "支付结果确认中", icon: "none" });
-          setTimeout(() => this.loadMemberCenter(), 1500);
-        }).catch((error) => {
-          wx.showToast({ title: error.message || "充值未完成", icon: "none" });
-        }).finally(() => {
-          this.setData({ rechargeSubmitting: false });
-        });
-      }
+  startRealRecharge(planId) {
+    // 弹层已完成选档，不再二次弹窗复述档位文案
+    this.setData({ rechargeSubmitting: true });
+    rechargeMember(planId).then(() => {
+      wx.showToast({ title: "支付结果确认中", icon: "none" });
+      this.setData({ rechargeSheetOpen: false });
+      setTimeout(() => this.loadMemberCenter(), 1500);
+    }).catch((error) => {
+      wx.showToast({ title: error.message || "充值未完成", icon: "none" });
+    }).finally(() => {
+      this.setData({ rechargeSubmitting: false });
     });
   },
 
-  startSimulateRecharge(planId, plan) {
-    wx.showModal({
-      title: "确认模拟充值",
-      content: `${plan ? plan.description : "当前充值档位"}\n体验余额仅用于测试，不会真实扣款。`,
-      success: (modalResult) => {
-        if (!modalResult.confirm) {
-          return;
-        }
-        const requestId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-        this.setData({ rechargeSubmitting: true });
-        simulateMemberRecharge({ planId, requestId }).then((result) => {
-          if (!result || result.ok === false) {
-            throw new Error((result && result.message) || "模拟充值失败");
-          }
-          wx.showToast({ title: "模拟余额已到账" });
-          return this.loadMemberCenter();
-        }).catch((error) => {
-          wx.showToast({ title: error.message || "模拟充值失败", icon: "none" });
-        }).finally(() => {
-          this.setData({ rechargeSubmitting: false });
-        });
+  startSimulateRecharge(planId) {
+    const requestId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    this.setData({ rechargeSubmitting: true });
+    simulateMemberRecharge({ planId, requestId }).then((result) => {
+      if (!result || result.ok === false) {
+        throw new Error((result && result.message) || "模拟充值失败");
       }
+      wx.showToast({ title: "已到账" });
+      this.setData({ rechargeSheetOpen: false });
+      return this.loadMemberCenter();
+    }).catch((error) => {
+      wx.showToast({ title: error.message || "模拟充值失败", icon: "none" });
+    }).finally(() => {
+      this.setData({ rechargeSubmitting: false });
     });
   },
 
@@ -448,7 +525,12 @@ Page(withPrivacy({
     if (this.data.rechargeSubmitting) {
       return;
     }
+    if (!this.data.memberStatusReady) {
+      wx.showToast({ title: "会员状态读取中", icon: "none" });
+      return;
+    }
     if (!this.data.member || !this.data.member.isMember) {
+      this.setData({ rechargeSheetOpen: false });
       wx.showToast({ title: "请先开通会员", icon: "none" });
       wx.pageScrollTo({ scrollTop: 0, duration: 240 });
       return;
@@ -473,11 +555,11 @@ Page(withPrivacy({
 
     // 真实支付优先：白名单模拟仅作为未配密钥时的兜底，不再挡住真机微信支付
     if (canReal) {
-      this.startRealRecharge(planId, plan);
+      this.startRealRecharge(planId);
       return;
     }
 
-    this.startSimulateRecharge(planId, plan);
+    this.startSimulateRecharge(planId);
   },
 
   goBack() {

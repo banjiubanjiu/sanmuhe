@@ -602,6 +602,43 @@ function isOnsiteOrder(event = {}, deliveryMethod = "") {
   return source === "onsite-cart" || source === "dinein-tea-menu";
 }
 
+/**
+ * 业务线一等公民：dinein（堂饮点单）| retail（茶叶商城）
+ * 与 deliveryMethod（onsite/pickup/shipping）正交——行业通用：channel/bizType + fulfillment 双维。
+ */
+function resolveBizType(event = {}, deliveryMethod = "", onsiteOrder = false) {
+  const explicit = cleanText(event.bizType || event.orderBizType || event.line, 20).toLowerCase();
+  if (explicit === "dinein" || explicit === "dine-in" || explicit === "onsite" || explicit === "tea-menu") {
+    return "dinein";
+  }
+  if (explicit === "retail" || explicit === "mall" || explicit === "shop" || explicit === "ecommerce") {
+    return "retail";
+  }
+  if (onsiteOrder || deliveryMethod === "onsite") {
+    return "dinein";
+  }
+  const source = cleanText(event.source, 40).toLowerCase();
+  if (source === "dinein-tea-menu" || source === "onsite-cart" || source === "cart-confirm") {
+    return "dinein";
+  }
+  if (source === "retail-tea-catalog") {
+    return "retail";
+  }
+  // 商城默认：自提/快递均属 retail
+  return "retail";
+}
+
+function resolveOrderSource(event = {}, onsiteOrder = false, bizType = "") {
+  const source = cleanText(event.source, 40).toLowerCase();
+  if (source) {
+    return source;
+  }
+  if (onsiteOrder || bizType === "dinein") {
+    return "dinein-tea-menu";
+  }
+  return "retail-tea-catalog";
+}
+
 function toFen(value) {
   return Math.max(0, Math.round(number(value) * 100));
 }
@@ -1067,6 +1104,8 @@ exports.main = async (event = {}) => {
       ? "balance_processing"
       : (wechatPay ? "pending" : "manual");
     const finalDeliveryMethod = onsiteOrder ? "onsite" : deliveryMethod;
+    const bizType = resolveBizType(event, finalDeliveryMethod, onsiteOrder);
+    const orderSource = resolveOrderSource(event, onsiteOrder, bizType);
     const payModeValue = balancePay ? "balance" : (wechatPay ? "wechat" : "manual");
     const payHint = balancePay
       ? "会员余额支付"
@@ -1102,7 +1141,9 @@ exports.main = async (event = {}) => {
         pickupNote: finalDeliveryMethod === "pickup" || finalDeliveryMethod === "onsite" ? pickupNote : "",
         tableNo,
         remark: orderRemark,
-        source: cleanText(event.source, 40) || (onsiteOrder ? "onsite-cart" : ""),
+        // 业务线一等公民 + 渠道 source（兼容企微/历史逻辑）
+        bizType,
+        source: orderSource,
         status: orderStatus,
         payStatus,
         payMode: payModeValue,
@@ -1166,7 +1207,8 @@ exports.main = async (event = {}) => {
         payMode: payModeValue,
         event: balancePay ? "order_paid" : "order_created",
         deliveryMethod: finalDeliveryMethod,
-        source: cleanText(event.source, 40) || (onsiteOrder ? "dinein-tea-menu" : "retail-tea-catalog"),
+        bizType,
+        source: orderSource,
         tableNo,
         remark: orderRemark,
         items: cleanItems,

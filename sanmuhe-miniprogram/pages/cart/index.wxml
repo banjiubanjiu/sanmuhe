@@ -141,11 +141,12 @@
         </view>
         <view class="fee-row">
           <text class="fee-k">运费</text>
-          <text class="fee-v">{{deliveryMethod === 'shipping' ? (freightCollect ? '快递到付' : (shippingFee > 0 ? '¥' + shippingFee : '包邮')) : '自提免运费'}}</text>
+          <text class="fee-v">{{deliveryMethod === 'shipping' ? (freightCollect ? '到付' : (shippingFee > 0 ? '¥' + shippingFee : '包邮')) : '自提免运费'}}</text>
         </view>
         <view wx:if="{{shippingHint}}" class="fee-hint">{{shippingHint}}</view>
-        <view class="fee-row fee-total">
-          <text class="fee-k">{{deliveryMethod === 'shipping' && freightCollect ? '在线应付（货款）' : '应付合计'}}</text>
+        <!-- 到付时应付=商品金额，不再重复一行合计；仅预收运费时展示 -->
+        <view wx:if="{{payableTotal != goodsTotal}}" class="fee-row fee-total">
+          <text class="fee-k">应付合计</text>
           <text class="fee-v">¥{{payableTotal}}</text>
         </view>
       </view>
@@ -161,7 +162,6 @@
           <view class="pay-row-title">会员余额</view>
           <view class="pay-row-sub">余额 ¥{{walletBalance}}{{balanceAvailable ? '' : ' · 不足'}}</view>
         </view>
-        <view class="pay-row-amt">¥{{payableTotal || total}}</view>
       </view>
       <view
         class="pay-row {{payMode === 'wechat' ? 'active' : ''}}"
@@ -171,7 +171,6 @@
         <view class="pay-row-main">
           <view class="pay-row-title">微信支付</view>
         </view>
-        <view class="pay-row-amt">¥{{payableTotal || total}}</view>
       </view>
     </view>
 

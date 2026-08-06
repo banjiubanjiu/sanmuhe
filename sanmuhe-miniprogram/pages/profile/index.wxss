@@ -103,6 +103,15 @@
   overflow: hidden;
 }
 
+/* 会员状态未返回前弱化 CTA，避免误显「立即开通」 */
+.member-card.is-loading {
+  opacity: 0.92;
+}
+
+.member-card.is-loading .recharge-cta {
+  opacity: 0.75;
+}
+
 .member-card-deco {
   position: absolute;
   right: 20rpx;

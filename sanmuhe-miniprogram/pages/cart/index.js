@@ -34,7 +34,7 @@ function shippingHintText(deliveryMethod) {
     return "到店自提免运费";
   }
   if (SHIPPING_PAY_MODE === "collect") {
-    return "货款在线支付；运费由快递公司到付，签收时付给快递员";
+    return "运费签收时付给快递员";
   }
   return `运费 ¥${SHIPPING_FEE}`;
 }
@@ -766,6 +766,7 @@ Page(withPrivacy({
       // 小程序不提供柜台付款，始终走在线支付
       skipPayment: false,
       source: isDineIn ? "dinein-tea-menu" : "retail-tea-catalog",
+      bizType: isDineIn ? "dinein" : "retail",
       consignee: isDineIn ? "到店顾客" : (deliveryMethod === "pickup" ? pickupName : name),
       phone: orderPhone,
       address: !isDineIn && deliveryMethod === "shipping" ? fullAddress : "",

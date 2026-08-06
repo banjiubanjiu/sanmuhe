@@ -2263,6 +2263,71 @@ svg.spinning {
   line-height: 1;
 }
 
+/* 订单业务线：统一池 + 视图分流 */
+.order-biz-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.order-biz-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(235, 230, 220, 0.55);
+}
+
+.order-biz-tab {
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: var(--admin-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.order-biz-tab.active {
+  color: var(--admin-green-dark);
+  background: rgba(255, 253, 247, 0.96);
+  box-shadow: 0 1px 2px rgba(77, 101, 66, 0.12);
+}
+
+.order-row-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.biz-badge {
+  flex: 0 0 auto;
+  min-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.biz-badge.biz-dinein {
+  color: #6b4f1d;
+  background: rgba(235, 221, 188, 0.92);
+}
+
+.biz-badge.biz-retail {
+  color: var(--admin-green-dark);
+  background: rgba(222, 235, 217, 0.92);
+}
+
 .record-status.warn {
   color: #8a682b;
   background: rgba(235, 221, 188, 0.86);

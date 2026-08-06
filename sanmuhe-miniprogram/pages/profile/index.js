@@ -2,6 +2,7 @@ const { getMemberCenter, listMyRecords, saveSubscription } = require("../../util
 const { normalizeOrder } = require("../../utils/orderCenter");
 const { syncTabBar } = require("../../utils/tabbar");
 const { withPrivacy } = require("../../utils/privacy");
+const { readMemberSnapshot, writeMemberSnapshot } = require("../../utils/memberSnapshot");
 
 const defaultUser = {
   name: "禾煦茶友",
@@ -17,6 +18,24 @@ const defaultMember = {
   orders: 0,
   balance: "0.00"
 };
+
+function buildInitialProfileState() {
+  const snap = readMemberSnapshot();
+  if (snap && snap.member) {
+    return {
+      user: Object.assign({}, defaultUser, snap.user || {}),
+      member: Object.assign({}, defaultMember, snap.member),
+      // 有缓存时视为已就绪，避免首帧闪「立即开通」
+      memberStatusReady: true
+    };
+  }
+  return {
+    user: defaultUser,
+    member: defaultMember,
+    // 无缓存：先不判定为非会员，等接口返回
+    memberStatusReady: false
+  };
+}
 
 const orderShortcutBase = [
   { key: "all", label: "全部订单", icon: "/assets/icons/profile-order.png" },
@@ -125,9 +144,7 @@ function getUsableCouponCount(coupons) {
 }
 
 Page(withPrivacy({
-  data: {
-    user: defaultUser,
-    member: defaultMember,
+  data: Object.assign({
     orderShortcuts: buildOrderShortcuts([]),
     services: buildServices(),
     orders: [],
@@ -140,7 +157,7 @@ Page(withPrivacy({
     recordsError: "",
     staffNotice: null,
     staffSubscribeSubmitting: false
-  },
+  }, buildInitialProfileState()),
 
   onShow() {
     syncTabBar(this);
@@ -198,29 +215,42 @@ Page(withPrivacy({
   },
 
   loadRecords() {
-    this.setData({ recordsLoading: true, recordsError: "" });
+    // 有缓存时保留 memberStatusReady=true，仅在无缓存时显示加载态文案
+    const nextLoading = { recordsLoading: true, recordsError: "" };
+    if (!this.data.memberStatusReady) {
+      nextLoading.memberStatusReady = false;
+    }
+    this.setData(nextLoading);
     listMyRecords().then((records) => {
       const orders = normalizeRecords(records.orders, "order");
       const reservations = normalizeRecords(records.reservations, "reservation");
       const signups = normalizeRecords(records.signups, "signup");
       const isMember = !!(records.member && records.member.status === "active");
+      const user = isMember ? {
+        name: records.member.name || "禾煦会员",
+        title: `${records.member.tier || "雅客会员"} · 欢迎回来`,
+        avatar: defaultUser.avatar
+      } : defaultUser;
+      const member = Object.assign({}, defaultMember, {
+        isMember,
+        tier: isMember ? records.member.tier : defaultMember.tier,
+        points: records.member && records.member.points !== undefined ? records.member.points : defaultMember.points,
+        orders: orders.length,
+        coupons: isMember && Array.isArray(records.coupons) ? getUsableCouponCount(records.coupons) : defaultMember.coupons,
+        balance: isMember && records.wallet ? records.wallet.balance : defaultMember.balance
+      });
+      writeMemberSnapshot({
+        user,
+        member,
+        wallet: isMember && records.wallet ? records.wallet : null
+      });
       this.setData({
-        user: isMember ? {
-          name: records.member.name || "禾煦会员",
-          title: `${records.member.tier || "雅客会员"} · 欢迎回来`,
-          avatar: defaultUser.avatar
-        } : defaultUser,
+        user,
         orders,
         reservations,
         signups,
-        member: Object.assign({}, defaultMember, {
-          isMember,
-          tier: isMember ? records.member.tier : defaultMember.tier,
-          points: records.member && records.member.points !== undefined ? records.member.points : defaultMember.points,
-          orders: orders.length,
-          coupons: isMember && Array.isArray(records.coupons) ? getUsableCouponCount(records.coupons) : defaultMember.coupons,
-          balance: isMember && records.wallet ? records.wallet.balance : defaultMember.balance
-        }),
+        member,
+        memberStatusReady: true,
         orderShortcuts: buildOrderShortcuts(orders, records.orderSummary),
         recentOrders: getRecentOrders(orders),
         recentReservation: getRecentReservation(reservations),
@@ -229,9 +259,14 @@ Page(withPrivacy({
         recordsError: ""
       });
     }).catch((error) => {
+      // 失败时：有缓存继续展示缓存会员态；无缓存再按非会员展示，避免一直「加载中」
+      const hasCache = !!this.data.memberStatusReady;
       this.setData({
         recordsLoading: false,
-        recordsError: error && error.message ? error.message : "记录暂时加载失败"
+        memberStatusReady: true,
+        recordsError: error && error.message ? error.message : "记录暂时加载失败",
+        member: hasCache ? this.data.member : defaultMember,
+        user: hasCache ? this.data.user : defaultUser
       });
     });
   },
@@ -298,6 +333,11 @@ Page(withPrivacy({
   },
 
   onMemberCardAction() {
+    // 状态未就绪时不跳转，避免误导到开通页
+    if (!this.data.memberStatusReady) {
+      wx.showToast({ title: "会员状态读取中", icon: "none" });
+      return;
+    }
     if (this.data.member && this.data.member.isMember) {
       this.startRecharge();
       return;

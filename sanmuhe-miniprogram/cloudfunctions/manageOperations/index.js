@@ -921,6 +921,148 @@ async function listCollection(collection, status, keyword, event, keywordFields 
   return result;
 }
 
+/**
+ * 订单业务线：dinein（堂饮点单）| retail（茶叶商城）
+ * 优先 bizType 一等字段；历史单回退 source / deliveryMethod / 商品 type。
+ */
+function normalizeOrderBizType(value) {
+  const text = cleanText(value, 20).toLowerCase();
+  if (!text || text === "all" || text === "全部") {
+    return "";
+  }
+  if (["dinein", "dine-in", "onsite", "tea-menu", "堂饮", "点单", "堂饮点单", "茶单"].includes(text)) {
+    return "dinein";
+  }
+  if (["retail", "mall", "shop", "ecommerce", "商城", "茶叶", "茶叶商城", "零售"].includes(text)) {
+    return "retail";
+  }
+  return "";
+}
+
+function resolveOrderBizType(order = {}) {
+  const explicit = normalizeOrderBizType(order.bizType || order.orderBizType || order.line);
+  if (explicit) {
+    return explicit;
+  }
+  const source = cleanText(order.source, 40).toLowerCase();
+  if (source === "dinein-tea-menu" || source === "onsite-cart" || source === "cart-confirm") {
+    return "dinein";
+  }
+  if (source === "retail-tea-catalog") {
+    return "retail";
+  }
+  const method = cleanText(order.deliveryMethod, 20).toLowerCase();
+  if (method === "onsite") {
+    return "dinein";
+  }
+  if (method === "pickup" || method === "shipping") {
+    return "retail";
+  }
+  const items = Array.isArray(order.items) ? order.items : [];
+  const hasDrink = items.some((item) => item && item.type === "drink");
+  const hasTea = items.some((item) => item && item.type === "tea");
+  if (hasDrink && !hasTea) {
+    return "dinein";
+  }
+  if (hasTea && !hasDrink) {
+    return "retail";
+  }
+  return "retail";
+}
+
+function orderBizLabel(bizType) {
+  return bizType === "dinein" ? "堂饮点单" : bizType === "retail" ? "茶叶商城" : "普通订单";
+}
+
+function orderFulfillmentLabel(order = {}) {
+  const method = cleanText(order.deliveryMethod, 20).toLowerCase();
+  if (method === "shipping") {
+    if (order.freightCollect || order.shippingPayMode === "collect") {
+      return "快递到付";
+    }
+    return "快递预付";
+  }
+  if (method === "onsite") {
+    return "现场点单";
+  }
+  if (method === "pickup") {
+    return "到店自提";
+  }
+  return cleanText(order.deliveryMethod, 20) || "—";
+}
+
+/** 列表/筛选：兼容无 bizType 的历史单 */
+function buildOrderBizWhere(bizType) {
+  const normalized = normalizeOrderBizType(bizType);
+  if (normalized === "dinein") {
+    return _.or([
+      { bizType: "dinein" },
+      { source: _.in(["dinein-tea-menu", "onsite-cart", "cart-confirm"]) },
+      { deliveryMethod: "onsite" }
+    ]);
+  }
+  if (normalized === "retail") {
+    return _.or([
+      { bizType: "retail" },
+      { source: "retail-tea-catalog" },
+      { deliveryMethod: _.in(["pickup", "shipping"]) }
+    ]);
+  }
+  return null;
+}
+
+function enrichOrderForAdmin(order = {}) {
+  if (!order || typeof order !== "object") {
+    return order;
+  }
+  const bizType = resolveOrderBizType(order);
+  return Object.assign({}, order, {
+    bizType,
+    bizLabel: orderBizLabel(bizType),
+    fulfillmentLabel: orderFulfillmentLabel(order)
+  });
+}
+
+async function listOrdersForAdmin(event = {}) {
+  await ensureCollection("orders");
+  const status = cleanText(event.status, 40);
+  const keyword = cleanText(event.keyword, 80);
+  const bizType = normalizeOrderBizType(event.bizType || event.orderBizType || event.line);
+  const clauses = [];
+  if (status && status !== "all") {
+    clauses.push({ status });
+  }
+  const bizWhere = buildOrderBizWhere(bizType);
+  if (bizWhere) {
+    clauses.push(bizWhere);
+  }
+  const where = clauses.length === 0 ? {} : (clauses.length === 1 ? clauses[0] : _.and(clauses));
+  const result = await readCollectionPage("orders", {
+    where,
+    keyword,
+    keywordFields: [
+      "orderNo",
+      "name",
+      "contactName",
+      "consignee",
+      "phone",
+      "mobile",
+      "pickupNote",
+      "remark",
+      "status",
+      "tableNo",
+      "source",
+      "bizType"
+    ],
+    orderBy: "createdAt",
+    event
+  });
+  return {
+    items: (result.items || []).map(enrichOrderForAdmin),
+    page: result.page
+  };
+}
+
 async function listPaidOrderAlerts() {
   // 兼容旧后台：只返回已付款商品单
   const full = await listStoreVoiceAlerts();
@@ -3883,18 +4025,8 @@ exports.main = async (event = {}, context = {}) => {
       return await globalSearch(event, role);
     }
     if (action === "listOrders") {
-      // 支持：订单号、姓名(consignee/name)、手机号、备注/自提说明、状态
-      const result = await listCollection("orders", status, keyword, event, [
-        "orderNo",
-        "name",
-        "contactName",
-        "consignee",
-        "phone",
-        "mobile",
-        "pickupNote",
-        "remark",
-        "status"
-      ]);
+      // 支持：业务线 bizType（dinein/retail）、状态、订单号/姓名/手机/桌号/备注
+      const result = await listOrdersForAdmin(event);
       await writeExportAuditLog(caller, event, action, "订单", result.page);
       return { ok: true, orders: result.items, page: result.page };
     }
