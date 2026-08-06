@@ -13,6 +13,15 @@ const AUTO_CONFIRM_SHIPPED_DAYS = Math.max(
   Math.min(60, Number(process.env.AUTO_CONFIRM_SHIPPED_DAYS || 15))
 );
 
+/**
+ * 茶室预约：结束时间后宽限 N 分钟仍为「已确认」→ 自动标「已完成」
+ * 默认 60 分钟；可用环境变量或 store_settings.reservationAutoCompleteGraceMinutes 覆盖
+ */
+const RESERVATION_AUTO_COMPLETE_GRACE_MINUTES_FALLBACK = Math.max(
+  0,
+  Math.min(24 * 60, Number(process.env.RESERVATION_AUTO_COMPLETE_GRACE_MINUTES || 60))
+);
+
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
@@ -165,6 +174,130 @@ async function releaseExpiredReservations() {
   };
 }
 
+function cleanText(value, maxLength) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function toMinutes(hhmm) {
+  const parts = String(hhmm || "").split(":");
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return NaN;
+  }
+  return hour * 60 + minute;
+}
+
+function fromMinutes(total) {
+  const safe = Math.max(0, Number(total) || 0);
+  const hour = Math.floor(safe / 60);
+  const minute = safe % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/**
+ * 预约结束时刻（Asia/Shanghai）
+ * 优先 endTime；否则 time + durationMinutes（默认 120）
+ */
+function getReservationEndMs(reservation = {}) {
+  const day = cleanText(reservation.day, 20);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    return NaN;
+  }
+  let end = cleanText(reservation.endTime, 12);
+  if (!end) {
+    const start = cleanText(reservation.time, 12);
+    const duration = Math.max(30, Number(reservation.durationMinutes) || 120);
+    if (!/^\d{1,2}:\d{2}$/.test(start)) {
+      return NaN;
+    }
+    end = fromMinutes(toMinutes(start) + duration);
+  }
+  if (!/^\d{1,2}:\d{2}$/.test(end)) {
+    return NaN;
+  }
+  const endMs = new Date(`${day}T${end.padStart(5, "0")}:00+08:00`).getTime();
+  return Number.isFinite(endMs) ? endMs : NaN;
+}
+
+async function loadReservationAutoCompleteGraceMinutes() {
+  try {
+    const result = await db.collection("store_settings").where({ key: "store" }).limit(1).get();
+    const row = result.data && result.data[0] ? result.data[0] : null;
+    const fromSettings = Number(row && row.reservationAutoCompleteGraceMinutes);
+    if (Number.isFinite(fromSettings) && fromSettings >= 0) {
+      return Math.max(0, Math.min(24 * 60, fromSettings));
+    }
+  } catch (error) {
+    // fall through
+  }
+  return RESERVATION_AUTO_COMPLETE_GRACE_MINUTES_FALLBACK;
+}
+
+/**
+ * P1：已确认预约过「结束时间 + 宽限」后自动标已完成
+ * - 不碰支付状态（预付已闭环）
+ * - 未到店仍由店员人工标记
+ * - 宽限默认 60 分钟，避免拖堂/迟到被误切
+ */
+async function autoCompletePastReservations() {
+  await ensureCollection("reservations");
+  const graceMinutes = await loadReservationAutoCompleteGraceMinutes();
+  const nowMs = Date.now();
+  const cutoffMs = nowMs - graceMinutes * 60 * 1000;
+
+  // 单店体量小：扫「已确认」在内存按结束时间过滤
+  const result = await db.collection("reservations").where({
+    status: "已确认"
+  }).limit(100).get();
+
+  const rows = result.data || [];
+  let completed = 0;
+  let skipped = 0;
+
+  for (const reservation of rows) {
+    const endMs = getReservationEndMs(reservation);
+    if (!Number.isFinite(endMs)) {
+      skipped += 1;
+      continue;
+    }
+    // 结束时间 + 宽限 仍未到 → 跳过
+    if (endMs > cutoffMs) {
+      skipped += 1;
+      continue;
+    }
+
+    const claim = await db.collection("reservations").where({
+      _id: reservation._id,
+      status: "已确认"
+    }).update({
+      data: {
+        status: "已完成",
+        completedAt: db.serverDate(),
+        completedBy: "system_auto",
+        autoCompleted: true,
+        autoCompleteGraceMinutes: graceMinutes,
+        adminNote: cleanTextAppend(
+          reservation.adminNote,
+          `系统在预约结束后 ${graceMinutes} 分钟自动标记服务完成`
+        ),
+        updatedAt: db.serverDate()
+      }
+    });
+
+    if (dbUpdatedCount(claim) > 0) {
+      completed += 1;
+    }
+  }
+
+  return {
+    scanned: rows.length,
+    completed,
+    skipped,
+    graceMinutes
+  };
+}
+
 /**
  * 快递「已发货」超过 N 天仍未确认收货 → 自动完成
  * 以 shippedAt 为准；无 shippedAt 时用 updatedAt 兜底
@@ -254,7 +387,8 @@ exports.main = async (event = {}) => {
     return {
       ok: true,
       name: "releaseOrderLocks",
-      autoConfirmShippedDays: AUTO_CONFIRM_SHIPPED_DAYS
+      autoConfirmShippedDays: AUTO_CONFIRM_SHIPPED_DAYS,
+      reservationAutoCompleteGraceMinutes: RESERVATION_AUTO_COMPLETE_GRACE_MINUTES_FALLBACK
     };
   }
 
@@ -296,6 +430,7 @@ exports.main = async (event = {}) => {
   }
 
   const reservationRelease = await releaseExpiredReservations();
+  const reservationAutoComplete = await autoCompletePastReservations();
   const autoConfirm = await autoConfirmShippedOrders();
 
   return {
@@ -304,6 +439,9 @@ exports.main = async (event = {}) => {
     released,
     reservationsScanned: reservationRelease.scanned,
     reservationsReleased: reservationRelease.released,
+    reservationsAutoCompleted: reservationAutoComplete.completed,
+    reservationsAutoCompleteScanned: reservationAutoComplete.scanned,
+    reservationAutoCompleteGraceMinutes: reservationAutoComplete.graceMinutes,
     autoConfirmShipped: autoConfirm
   };
 };

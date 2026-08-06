@@ -28,17 +28,42 @@ const BOOKING_POLICY = {
   openTime: "10:00",
   closeTime: "21:30",
   periods: [
-    { id: "day", label: "日间", start: "10:00", end: "19:30", basePrice: 188, halfHourPrice: 50 },
-    { id: "evening", label: "晚间", start: "19:30", end: "21:30", basePrice: 208, halfHourPrice: 50 }
+    { id: "day", label: "日间", start: "10:00", end: "19:30", basePrice: 188, halfHourPrice: 30 },
+    { id: "evening", label: "晚间", start: "19:30", end: "21:30", basePrice: 208, halfHourPrice: 30 }
   ]
 };
 
-const LOCK_MINUTES = Math.max(1, Number(process.env.RESERVATION_LOCK_MINUTES || process.env.ORDER_LOCK_MINUTES || 15));
-/** 已支付预约：须至少提前这么多小时取消，方可退款 */
-const CANCEL_ADVANCE_HOURS = Math.max(1, Number(process.env.RESERVATION_CANCEL_ADVANCE_HOURS || 12));
+const LOCK_MINUTES_FALLBACK = Math.max(1, Number(process.env.RESERVATION_LOCK_MINUTES || process.env.ORDER_LOCK_MINUTES || 15));
+/** 已支付预约：须至少提前这么多小时取消，方可退款（运行时优先读 store_settings） */
+const CANCEL_ADVANCE_HOURS_FALLBACK = Math.max(1, Number(process.env.RESERVATION_CANCEL_ADVANCE_HOURS || 12));
 
 function createReservationNo() {
   return `SMH-R${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
+}
+
+/**
+ * 从 store_settings 读取茶室预约策略（取消提前小时、锁单分钟）
+ * 失败时回退环境变量/默认值
+ */
+async function loadBookingPolicySettings() {
+  try {
+    const result = await db.collection("store_settings").where({ key: "store" }).limit(1).get();
+    const row = result.data && result.data[0] ? result.data[0] : null;
+    const cancelAdvanceHours = Math.max(
+      1,
+      Math.min(168, Number(row && row.reservationCancelAdvanceHours) || CANCEL_ADVANCE_HOURS_FALLBACK)
+    );
+    const lockMinutes = Math.max(
+      1,
+      Math.min(120, Number(row && row.reservationLockMinutes) || LOCK_MINUTES_FALLBACK)
+    );
+    return { cancelAdvanceHours, lockMinutes };
+  } catch (error) {
+    return {
+      cancelAdvanceHours: CANCEL_ADVANCE_HOURS_FALLBACK,
+      lockMinutes: LOCK_MINUTES_FALLBACK
+    };
+  }
 }
 
 /** 兼容 wx-server-sdk：update 结果可能是 stats.updated 或 updated */
@@ -81,9 +106,11 @@ function isCancellableStatus(reservation = {}) {
 /**
  * 计算是否允许取消。
  * - 待支付：随时可取消（不退款）
- * - 已确认/已支付：须距开始时间 ≥ CANCEL_ADVANCE_HOURS 小时
+ * - 已确认/已支付：须距开始时间 ≥ advanceHours 小时
+ * @param {number} [advanceHours] 取消提前小时，默认环境变量兜底
  */
-function evaluateCancelPolicy(reservation = {}, nowMs = Date.now()) {
+function evaluateCancelPolicy(reservation = {}, nowMs = Date.now(), advanceHours = CANCEL_ADVANCE_HOURS_FALLBACK) {
+  const hours = Math.max(1, Number(advanceHours) || CANCEL_ADVANCE_HOURS_FALLBACK);
   if (!isCancellableStatus(reservation)) {
     return {
       ok: false,
@@ -98,7 +125,7 @@ function evaluateCancelPolicy(reservation = {}, nowMs = Date.now()) {
       ok: true,
       paid: false,
       needRefund: false,
-      advanceHours: CANCEL_ADVANCE_HOURS
+      advanceHours: hours
     };
   }
 
@@ -111,7 +138,7 @@ function evaluateCancelPolicy(reservation = {}, nowMs = Date.now()) {
     };
   }
 
-  const advanceMs = CANCEL_ADVANCE_HOURS * 60 * 60 * 1000;
+  const advanceMs = hours * 60 * 60 * 1000;
   const remainMs = startMs - nowMs;
   if (remainMs < advanceMs) {
     const remainHours = Math.max(0, remainMs / (60 * 60 * 1000));
@@ -120,8 +147,8 @@ function evaluateCancelPolicy(reservation = {}, nowMs = Date.now()) {
       code: "WITHIN_CANCEL_WINDOW",
       message: remainMs <= 0
         ? "预约已开始或已过期，无法在线取消，请联系门店"
-        : `已支付预约须提前 ${CANCEL_ADVANCE_HOURS} 小时取消。距开场约 ${remainHours.toFixed(1)} 小时，请联系门店处理`,
-      advanceHours: CANCEL_ADVANCE_HOURS,
+        : `已支付预约须提前 ${hours} 小时取消。距开场约 ${remainHours.toFixed(1)} 小时，请联系门店处理`,
+      advanceHours: hours,
       remainHours: Number(remainHours.toFixed(2)),
       startMs
     };
@@ -131,7 +158,7 @@ function evaluateCancelPolicy(reservation = {}, nowMs = Date.now()) {
     ok: true,
     paid: true,
     needRefund: true,
-    advanceHours: CANCEL_ADVANCE_HOURS,
+    advanceHours: hours,
     remainHours: Number((remainMs / (60 * 60 * 1000)).toFixed(2)),
     startMs
   };
@@ -139,7 +166,13 @@ function evaluateCancelPolicy(reservation = {}, nowMs = Date.now()) {
 
 function isActiveHold(record = {}, nowMs = Date.now()) {
   const status = cleanText(record.status, 12);
-  if (status === "已取消" || status === "cancelled") {
+  // 终态 / 已履约：不占时段（异常待处理仍占档，待人工处理）
+  if (
+    status === "已取消" ||
+    status === "cancelled" ||
+    status === "未到店" ||
+    status === "已完成"
+  ) {
     return false;
   }
   // 支付超时未改状态的待支付单：不占位
@@ -285,7 +318,7 @@ function rangesOverlap(aStartMins, aEndMins, bStartMins, bEndMins) {
 async function findConflictingReservations(day, roomId, storeId, startTime, endTime, fallbackSessionMinutes) {
   const baseQuery = {
     day,
-    status: _.nin(["已取消", "cancelled"])
+    status: _.nin(["已取消", "cancelled", "未到店", "已完成"])
   };
   if (storeId) {
     baseQuery.storeId = storeId;
@@ -316,7 +349,7 @@ async function findConflictingReservations(day, roomId, storeId, startTime, endT
 async function listReservedSlots(day, roomId, storeId, fallbackSessionMinutes) {
   const baseQuery = {
     day,
-    status: _.nin(["已取消", "cancelled"])
+    status: _.nin(["已取消", "cancelled", "未到店", "已完成"])
   };
   if (storeId) {
     baseQuery.storeId = storeId;
@@ -470,7 +503,8 @@ async function cancelReservation(event, openid) {
     };
   }
 
-  const policy = evaluateCancelPolicy(reservation);
+  const bookingPolicy = await loadBookingPolicySettings();
+  const policy = evaluateCancelPolicy(reservation, Date.now(), bookingPolicy.cancelAdvanceHours);
   if (!policy.ok) {
     return {
       ok: false,
@@ -498,7 +532,7 @@ async function cancelReservation(event, openid) {
       cancellationReason: reason,
       cancelledBy: "customer",
       cancelledAt: db.serverDate(),
-      cancelAdvanceHours: CANCEL_ADVANCE_HOURS,
+      cancelAdvanceHours: bookingPolicy.cancelAdvanceHours,
       updatedAt: db.serverDate()
     }
   });
@@ -574,7 +608,7 @@ async function cancelReservation(event, openid) {
       ? (refundResult && (refundResult.payStatus || refundResult.refundStatus === "SUCCESS") ? "refunded" : "refunding")
       : nextPayStatus,
     refund: refundResult,
-    advanceHours: CANCEL_ADVANCE_HOURS,
+    advanceHours: bookingPolicy.cancelAdvanceHours,
     message: policy.needRefund
       ? "预约已取消，退款将原路返回（通常 1–3 个工作日）"
       : "预约已取消，时段已释放"
@@ -616,7 +650,7 @@ async function notifyAdmins(reservation = {}) {
         target: "admin",
         message: reservation.payStatus === "paid" || reservation.status === "已确认"
           ? `茶室预约 ${notice.day} ${notice.time} 已支付确认，${notice.name} ${notice.phone}，${notice.people} 位。`
-          : `茶室预约 ${notice.day} ${notice.time} 待支付，${notice.name} ${notice.phone}，${notice.people} 位，顾客需在 ${LOCK_MINUTES} 分钟内完成支付。`
+          : `茶室预约 ${notice.day} ${notice.time} 待支付，${notice.name} ${notice.phone}，${notice.people} 位，顾客需在限定时间内完成支付。`
       })
     });
   } catch (error) {
@@ -664,12 +698,16 @@ async function resolveStore() {
 }
 
 exports.main = async (event = {}) => {
+  const bookingPolicy = await loadBookingPolicySettings();
+  const lockMinutes = bookingPolicy.lockMinutes;
+  const cancelAdvanceHours = bookingPolicy.cancelAdvanceHours;
+
   if (event.action === "health") {
     return {
       ok: true,
       name: "createReservation",
-      lockMinutes: LOCK_MINUTES,
-      cancelAdvanceHours: CANCEL_ADVANCE_HOURS,
+      lockMinutes,
+      cancelAdvanceHours,
       initialStatus: "待支付",
       requiresPayment: true,
       wecomReservationNotifyConfigured: Boolean(process.env.WECOM_RESERVATION_WEBHOOK || process.env.WECOM_ORDER_WEBHOOK)
@@ -723,13 +761,13 @@ exports.main = async (event = {}) => {
   if (event.action === "cancelPolicy") {
     return {
       ok: true,
-      advanceHours: CANCEL_ADVANCE_HOURS,
+      advanceHours: cancelAdvanceHours,
       requiresPayment: true,
-      lockMinutes: LOCK_MINUTES,
+      lockMinutes,
       rules: [
         "茶室预约需在线支付后生效",
-        `待支付预约 ${LOCK_MINUTES} 分钟内未付款将自动取消并释放时段`,
-        `已支付预约须至少提前 ${CANCEL_ADVANCE_HOURS} 小时取消，取消后费用原路退回`,
+        `待支付预约 ${lockMinutes} 分钟内未付款将自动取消并释放时段`,
+        `已支付预约须至少提前 ${cancelAdvanceHours} 小时取消，取消后费用原路退回`,
         "距开场不足规定时间请联系门店处理"
       ]
     };
@@ -779,7 +817,7 @@ exports.main = async (event = {}) => {
   }
 
   const reservationNo = createReservationNo();
-  const lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
+  const lockedUntil = new Date(Date.now() + lockMinutes * 60 * 1000);
   const total = price;
 
   const addResult = await db.collection("reservations").add({
@@ -852,8 +890,8 @@ exports.main = async (event = {}) => {
     payStatus: "pending",
     needPayment: true,
     requiresPayment: true,
-    lockMinutes: LOCK_MINUTES,
-    cancelAdvanceHours: CANCEL_ADVANCE_HOURS,
+    lockMinutes,
+    cancelAdvanceHours,
     lockedUntil,
     storeName,
     roomId,

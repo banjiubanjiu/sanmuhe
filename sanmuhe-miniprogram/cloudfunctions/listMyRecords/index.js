@@ -48,6 +48,21 @@ const KUAIDI100_COM_MAP = {
 
 const ACTIVE_ORDER_STATUSES = ["已付款", "制作中", "待确认", "待发货", "待自提", "已发货", "异常待处理", "支付异常待处理"];
 const AFTER_SALE_STATUSES = ["申请售后", "审核中", "处理中", "已退款", "已拒绝", "已关闭"];
+
+async function loadReservationBookingPolicy() {
+  const fallbackHours = Math.max(1, Number(process.env.RESERVATION_CANCEL_ADVANCE_HOURS || 12));
+  const fallbackLock = Math.max(1, Number(process.env.RESERVATION_LOCK_MINUTES || process.env.ORDER_LOCK_MINUTES || 15));
+  try {
+    const result = await db.collection("store_settings").where({ key: "store" }).limit(1).get();
+    const row = result.data && result.data[0] ? result.data[0] : null;
+    return {
+      cancelAdvanceHours: Math.max(1, Math.min(168, Number(row && row.reservationCancelAdvanceHours) || fallbackHours)),
+      lockMinutes: Math.max(1, Math.min(120, Number(row && row.reservationLockMinutes) || fallbackLock))
+    };
+  } catch (error) {
+    return { cancelAdvanceHours: fallbackHours, lockMinutes: fallbackLock };
+  }
+}
 const PUBLIC_ORDER_FIELDS = [
   "_id",
   "orderNo",
@@ -722,14 +737,15 @@ exports.main = async (event = {}) => {
       return await queryLogistics(event, OPENID);
     }
 
-    const [orders, orderSummary, reservations, signups, coupons, member, wallet] = await Promise.all([
+    const [orders, orderSummary, reservations, signups, coupons, member, wallet, bookingPolicy] = await Promise.all([
       getMine("orders", OPENID, { required: true }),
       getOrderSummary(OPENID),
       getMine("reservations", OPENID),
       getMine("event_signups", OPENID),
       getMyCoupons(OPENID),
       getMember(OPENID),
-      getWallet(OPENID)
+      getWallet(OPENID),
+      loadReservationBookingPolicy()
     ]);
 
     return {
@@ -740,7 +756,9 @@ exports.main = async (event = {}) => {
       signups: signups.map((item) => Object.assign({ id: item._id }, item)),
       coupons,
       member,
-      wallet: member ? wallet : null
+      wallet: member ? wallet : null,
+      cancelAdvanceHours: bookingPolicy.cancelAdvanceHours,
+      lockMinutes: bookingPolicy.lockMinutes
     };
   } catch (error) {
     console.error("listMyRecords failed", {

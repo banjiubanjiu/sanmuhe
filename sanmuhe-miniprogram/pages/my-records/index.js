@@ -1,7 +1,7 @@
 const { listMyRecords, payReservation, cancelReservation } = require("../../utils/cloudApi");
 const { displayReservationPlace } = require("../../data/store");
 
-const CANCEL_ADVANCE_HOURS = 12;
+const CANCEL_ADVANCE_HOURS_DEFAULT = 12;
 
 function parseMaybeDate(value) {
   if (!value) {
@@ -41,12 +41,13 @@ function getReservationStartMs(item) {
   return start.getTime();
 }
 
-function isReservationCancelable(item) {
+function isReservationCancelable(item, advanceHours) {
   if (!item) {
     return false;
   }
+  const hours = Math.max(1, Number(advanceHours) || CANCEL_ADVANCE_HOURS_DEFAULT);
   const status = item.status || "";
-  if (status === "已取消") {
+  if (status === "已取消" || status === "未到店" || status === "已完成") {
     return false;
   }
   if (status === "待支付") {
@@ -57,12 +58,13 @@ function isReservationCancelable(item) {
     if (!Number.isFinite(startMs)) {
       return false;
     }
-    return startMs - Date.now() >= CANCEL_ADVANCE_HOURS * 60 * 60 * 1000;
+    return startMs - Date.now() >= hours * 60 * 60 * 1000;
   }
   return false;
 }
 
-function reservationCancelHint(item) {
+function reservationCancelHint(item, advanceHours) {
+  const hours = Math.max(1, Number(advanceHours) || CANCEL_ADVANCE_HOURS_DEFAULT);
   if (!item || item.status === "已取消") {
     return "";
   }
@@ -70,10 +72,10 @@ function reservationCancelHint(item) {
     return "未支付可随时取消";
   }
   if (item.status === "已确认" || item.payStatus === "paid") {
-    if (isReservationCancelable(item)) {
-      return `可取消（须提前 ${CANCEL_ADVANCE_HOURS} 小时）`;
+    if (isReservationCancelable(item, hours)) {
+      return `可取消（须提前 ${hours} 小时）`;
     }
-    return `距开场不足 ${CANCEL_ADVANCE_HOURS} 小时，请联系门店`;
+    return `距开场不足 ${hours} 小时，请联系门店`;
   }
   return "";
 }
@@ -87,16 +89,25 @@ function validTab(value) {
   return tabs.some((item) => item.key === value) ? value : "reservation";
 }
 
-function normalizeReservations(records) {
+function normalizeReservations(records, advanceHours) {
+  const hours = Math.max(1, Number(advanceHours) || CANCEL_ADVANCE_HOURS_DEFAULT);
   return (records || []).map((item) => {
     const timeRange = item.endTime ? `${item.time || ""}–${item.endTime}` : (item.time || "");
     const status = item.status || "待确认";
     const payStatus = item.payStatus || "";
     let statusLabel = status;
-    if (status === "已取消" && (payStatus === "refunding" || payStatus === "refunded")) {
-      statusLabel = payStatus === "refunded" ? "已取消·已退款" : "已取消·退款中";
+    if (status === "已取消" && (payStatus === "refunding" || payStatus === "refunded" || payStatus === "partial_refunded")) {
+      statusLabel = payStatus === "refunded"
+        ? "已取消·已退款"
+        : payStatus === "partial_refunded"
+          ? "已取消·部分退款"
+          : "已取消·退款中";
     } else if (status === "待支付") {
       statusLabel = "待支付";
+    } else if (status === "已完成" && payStatus === "partial_refunded") {
+      statusLabel = "已完成·部分退款";
+    } else if (status === "已完成" && payStatus === "refunded") {
+      statusLabel = "已完成·已退款";
     }
     const price = Number(item.total != null ? item.total : item.price) || 0;
     return Object.assign({}, item, {
@@ -109,8 +120,8 @@ function normalizeReservations(records) {
       rawStatus: status,
       payStatus,
       payable: isReservationPayable(item),
-      cancelable: isReservationCancelable(item),
-      cancelHint: reservationCancelHint(item)
+      cancelable: isReservationCancelable(item, hours),
+      cancelHint: reservationCancelHint(item, hours)
     });
   });
 }
@@ -135,7 +146,7 @@ Page({
     loading: false,
     loaded: false,
     error: "",
-    cancelAdvanceHours: CANCEL_ADVANCE_HOURS
+    cancelAdvanceHours: CANCEL_ADVANCE_HOURS_DEFAULT
   },
 
   onLoad(options = {}) {
@@ -207,10 +218,11 @@ Page({
       wx.showToast({ title: "预约不存在", icon: "none" });
       return;
     }
+    const advanceHours = this.data.cancelAdvanceHours || CANCEL_ADVANCE_HOURS_DEFAULT;
     if (!reservation.cancelable) {
       wx.showModal({
         title: "暂不可取消",
-        content: reservation.cancelHint || `已支付预约须提前 ${CANCEL_ADVANCE_HOURS} 小时取消，或联系门店处理。`,
+        content: reservation.cancelHint || `已支付预约须提前 ${advanceHours} 小时取消，或联系门店处理。`,
         showCancel: false
       });
       return;
@@ -218,7 +230,7 @@ Page({
 
     const isPaid = reservation.rawStatus === "已确认" || reservation.payStatus === "paid";
     const content = isPaid
-      ? `确认取消该预约？费用将原路退回（通常 1–3 个工作日）。须至少提前 ${CANCEL_ADVANCE_HOURS} 小时。`
+      ? `确认取消该预约？费用将原路退回（通常 1–3 个工作日）。须至少提前 ${advanceHours} 小时。`
       : "确认取消该待支付预约？取消后时段将释放。";
 
     wx.showModal({
@@ -272,8 +284,13 @@ Page({
 
     listMyRecords()
       .then((records) => {
+        const advanceHours = Math.max(
+          1,
+          Number(records && records.cancelAdvanceHours) || this.data.cancelAdvanceHours || CANCEL_ADVANCE_HOURS_DEFAULT
+        );
         this.setData({
-          reservations: normalizeReservations(records.reservations),
+          cancelAdvanceHours: advanceHours,
+          reservations: normalizeReservations(records.reservations, advanceHours),
           signups: normalizeSignups(records.signups),
           loading: false,
           loaded: true,

@@ -343,6 +343,7 @@ const actionPermissions = {
   markPreparingDone: "order.write",
   listReservations: "reservation.read",
   updateReservation: "reservation.write",
+  afterSaleRefundReservation: "reservation.write",
   listSignups: "signup.read",
   updateSignup: "signup.write",
   checkInSignup: "signup.write",
@@ -1418,38 +1419,459 @@ async function markPreparingDone(event, caller) {
   return { ok: true };
 }
 
+/** 环境变量兜底；运行时优先读 store_settings.reservationCancelAdvanceHours */
+const RESERVATION_CANCEL_ADVANCE_HOURS_FALLBACK = Math.max(
+  1,
+  Number(process.env.RESERVATION_CANCEL_ADVANCE_HOURS || 12)
+);
+
+function reservationIsPaid(row = {}) {
+  return (
+    row.payStatus === "paid" ||
+    row.payStatus === "partial_refunded" ||
+    row.payStatus === "paid_retained" ||
+    Boolean(row.transactionId)
+  );
+}
+
+function reservationIsFullyRefunded(row = {}) {
+  return row.payStatus === "refunded";
+}
+
+function getReservationStartMs(reservation = {}) {
+  const day = cleanText(reservation.day, 20);
+  const time = cleanText(reservation.time, 12);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{1,2}:\d{2}$/.test(time)) {
+    return NaN;
+  }
+  const start = new Date(`${day}T${time.padStart(5, "0")}:00+08:00`);
+  return start.getTime();
+}
+
+/** 是否仍在「提前 N 小时」免费取消窗口内 */
+function reservationInAutoRefundWindow(reservation = {}, advanceHours = RESERVATION_CANCEL_ADVANCE_HOURS_FALLBACK, nowMs = Date.now()) {
+  const startMs = getReservationStartMs(reservation);
+  if (!Number.isFinite(startMs)) {
+    return false;
+  }
+  const hours = Math.max(1, Number(advanceHours) || RESERVATION_CANCEL_ADVANCE_HOURS_FALLBACK);
+  return startMs - nowMs >= hours * 60 * 60 * 1000;
+}
+
+function reservationPaidTotalYuan(row = {}) {
+  return Math.max(0, Number(row.total != null ? row.total : row.price) || 0);
+}
+
+function reservationAlreadyRefundedYuan(row = {}) {
+  return Math.max(0, Number(row.refundAmount) || 0);
+}
+
+function reservationRemainingRefundYuan(row = {}) {
+  return Math.max(0, Math.round((reservationPaidTotalYuan(row) - reservationAlreadyRefundedYuan(row)) * 100) / 100);
+}
+
+/**
+ * 后台预约状态机（业务状态与支付分离）
+ * 待支付 → 已取消
+ * 已确认(已付) → 已完成 | 未到店 | 已取消(须指定退款)
+ * 异常待处理(已付) → 已确认 | 已取消
+ * 已完成 → 默认可读；售后全额退款不改业务状态（afterSaleRefund）
+ * 已取消 / 未到店 → 终态
+ */
+function evaluateAdminReservationTransition(existing = {}, nextStatus, options = {}) {
+  const from = cleanText(existing.status, 20) || "待支付";
+  const paid = reservationIsPaid(existing);
+  const refundMode = cleanText(options.refundMode, 20).toLowerCase(); // full | none | auto | merchant | partial
+  const advanceHours = Math.max(1, Number(options.advanceHours) || RESERVATION_CANCEL_ADVANCE_HOURS_FALLBACK);
+  const remainingYuan = reservationRemainingRefundYuan(existing);
+  const requestedRefundYuan =
+    options.refundAmount != null && options.refundAmount !== ""
+      ? Math.round(Number(options.refundAmount) * 100) / 100
+      : null;
+
+  if (from === "已取消" || from === "未到店") {
+    return { ok: false, message: `终态「${from}」不可再变更` };
+  }
+  if (nextStatus === "待支付") {
+    return { ok: false, message: "不能手动将预约设为待支付" };
+  }
+
+  if (nextStatus === "已确认") {
+    if (from === "异常待处理" && paid) {
+      return { ok: true, needRefund: false, advanceHours };
+    }
+    return {
+      ok: false,
+      message: "「已确认」仅由支付成功写入；未支付不可手动确认。已付异常单可从「异常待处理」恢复"
+    };
+  }
+
+  if (nextStatus === "已完成") {
+    if (from !== "已确认" && from !== "待确认") {
+      return { ok: false, message: "仅「已确认」预约可标记服务完成" };
+    }
+    if (!paid) {
+      return { ok: false, message: "未支付预约不能标记服务完成" };
+    }
+    return { ok: true, needRefund: false, advanceHours };
+  }
+
+  if (nextStatus === "未到店") {
+    if (from !== "已确认" && from !== "待确认") {
+      return { ok: false, message: "仅「已确认」预约可标记未到店" };
+    }
+    if (!paid) {
+      return { ok: false, message: "未支付预约请直接取消，不要标未到店" };
+    }
+    return { ok: true, needRefund: false, advanceHours };
+  }
+
+  if (nextStatus === "已取消") {
+    if (from === "已完成") {
+      return {
+        ok: false,
+        message: "已完成预约不可改回取消；如需退款请使用「售后退款」"
+      };
+    }
+    if (!["待支付", "已确认", "待确认", "异常待处理"].includes(from)) {
+      return { ok: false, message: `当前状态「${from}」不可取消` };
+    }
+    if (!paid) {
+      return { ok: true, needRefund: false, refundMode: "none", advanceHours };
+    }
+    if (reservationIsFullyRefunded(existing) || remainingYuan <= 0) {
+      return { ok: true, needRefund: false, refundMode: refundMode || "none", advanceHours };
+    }
+    if (!refundMode || !["full", "none", "auto", "merchant", "partial"].includes(refundMode)) {
+      return {
+        ok: false,
+        code: "REFUND_MODE_REQUIRED",
+        message: "已支付预约取消须指定退款方式：full / none / auto / merchant / partial",
+        advanceHours,
+        remainingRefundYuan: remainingYuan,
+        inAutoRefundWindow: reservationInAutoRefundWindow(existing, advanceHours)
+      };
+    }
+
+    let needRefund = false;
+    let refundAmountYuan = null;
+    if (refundMode === "full" || refundMode === "merchant") {
+      needRefund = true;
+      refundAmountYuan = remainingYuan;
+    } else if (refundMode === "none") {
+      needRefund = false;
+    } else if (refundMode === "auto") {
+      needRefund = reservationInAutoRefundWindow(existing, advanceHours);
+      if (needRefund) {
+        refundAmountYuan = remainingYuan;
+      }
+    } else if (refundMode === "partial") {
+      if (requestedRefundYuan == null || !Number.isFinite(requestedRefundYuan) || requestedRefundYuan <= 0) {
+        return {
+          ok: false,
+          code: "REFUND_AMOUNT_REQUIRED",
+          message: "部分退款须填写退款金额（元）",
+          remainingRefundYuan: remainingYuan
+        };
+      }
+      if (requestedRefundYuan > remainingYuan + 0.001) {
+        return {
+          ok: false,
+          message: `退款金额不能超过可退余额 ¥${remainingYuan}`,
+          remainingRefundYuan: remainingYuan
+        };
+      }
+      needRefund = true;
+      refundAmountYuan = Math.min(remainingYuan, requestedRefundYuan);
+    }
+
+    return {
+      ok: true,
+      needRefund,
+      refundMode,
+      refundAmountYuan,
+      advanceHours,
+      remainingRefundYuan: remainingYuan,
+      inAutoRefundWindow: reservationInAutoRefundWindow(existing, advanceHours)
+    };
+  }
+
+  return { ok: false, message: `不支持的目标状态：${nextStatus}` };
+}
+
+async function requestAdminReservationRefund(reservation, reason, caller, options = {}) {
+  try {
+    const payload = {
+      action: "refundReservation",
+      adminRefund: true,
+      source: "manageOperations",
+      reservationId: reservation._id,
+      reservationNo: reservation.reservationNo,
+      reason: reason || "管理后台取消退款",
+      operator: callerLabel(caller)
+    };
+    if (options.refundAmountYuan != null && Number.isFinite(Number(options.refundAmountYuan))) {
+      payload.refundAmount = Number(options.refundAmountYuan);
+    }
+    const result = await cloud.callFunction({
+      name: "createPayment",
+      data: payload
+    });
+    const body = result && result.result ? result.result : result;
+    if (!body || body.ok === false) {
+      return {
+        ok: false,
+        message: (body && body.message) || "退款发起失败"
+      };
+    }
+    return Object.assign({ ok: true }, body);
+  } catch (error) {
+    return {
+      ok: false,
+      message: (error && error.message) || "退款调用失败"
+    };
+  }
+}
+
+/**
+ * 已完成预约：售后退款（全额或部分，不改业务状态）
+ */
+async function afterSaleRefundReservation(event, caller) {
+  const id = normalizeRecordId(event.reservationId || event.id);
+  const adminNote = cleanText(event.adminNote || event.reason, 300);
+  const refundMode = cleanText(event.refundMode, 20).toLowerCase() || "full";
+  const requestedYuan =
+    event.refundAmount != null && event.refundAmount !== ""
+      ? Math.round(Number(event.refundAmount) * 100) / 100
+      : null;
+
+  if (!id) {
+    return { ok: false, message: "缺少预约 ID" };
+  }
+  if (!adminNote) {
+    return { ok: false, message: "售后退款需填写原因" };
+  }
+  if (!["full", "partial"].includes(refundMode)) {
+    return { ok: false, message: "售后退款方式仅支持 full 或 partial" };
+  }
+
+  const existing = await getByDocId("reservations", id);
+  if (!existing) {
+    return { ok: false, message: "预约记录不存在" };
+  }
+  if (existing.status !== "已完成") {
+    return { ok: false, message: "仅「已完成」预约可走售后退款；未完成请用取消并选退款方式" };
+  }
+  if (!reservationIsPaid(existing) && existing.payStatus !== "partial_refunded") {
+    return { ok: false, message: "该预约未支付，无需退款" };
+  }
+  if (reservationIsFullyRefunded(existing)) {
+    return { ok: true, alreadyRefunded: true, message: "已全额退款" };
+  }
+
+  const remainingYuan = reservationRemainingRefundYuan(existing);
+  if (remainingYuan <= 0) {
+    return { ok: true, alreadyRefunded: true, message: "无可退余额" };
+  }
+
+  let refundAmountYuan = remainingYuan;
+  if (refundMode === "partial") {
+    if (requestedYuan == null || !Number.isFinite(requestedYuan) || requestedYuan <= 0) {
+      return { ok: false, message: "部分退款须填写退款金额（元）", remainingRefundYuan: remainingYuan };
+    }
+    if (requestedYuan > remainingYuan + 0.001) {
+      return { ok: false, message: `退款金额不能超过可退余额 ¥${remainingYuan}`, remainingRefundYuan: remainingYuan };
+    }
+    refundAmountYuan = requestedYuan;
+  }
+
+  await db.collection("reservations").doc(id).update({
+    data: {
+      payStatus: "refunding",
+      adminNote,
+      cancellationReason: adminNote,
+      cancelledBy: "admin_aftersale",
+      afterSaleRefund: true,
+      afterSaleRefundMode: refundMode,
+      updatedBy: callerLabel(caller),
+      updatedAt: db.serverDate()
+    }
+  });
+
+  const refundResult = await requestAdminReservationRefund(existing, adminNote, caller, {
+    refundAmountYuan
+  });
+  if (!refundResult.ok) {
+    await db.collection("reservations").doc(id).update({
+      data: {
+        refundError: cleanText(refundResult.message, 300),
+        refundLastAttemptAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+    await writeAdminAuditLog(caller, "afterSaleRefundReservation", {
+      reservationId: id,
+      ok: false,
+      message: refundResult.message,
+      reason: adminNote,
+      refundMode,
+      refundAmountYuan
+    });
+    return {
+      ok: true,
+      reservationId: id,
+      status: existing.status,
+      payStatus: "refunding",
+      refund: refundResult,
+      message: "已发起售后，退款处理中；若未到账请人工跟进",
+      warning: refundResult.message
+    };
+  }
+
+  await writeAdminAuditLog(caller, "afterSaleRefundReservation", {
+    reservationId: id,
+    ok: true,
+    reason: adminNote,
+    refundMode,
+    refundAmountYuan,
+    refund: refundResult
+  });
+  await sendServiceNotice("reservationStatus", existing._openid, {
+    room: existing.room || existing.storeName,
+    day: existing.day,
+    time: existing.time,
+    status: "已完成",
+    note: `售后退款¥${refundAmountYuan}：${adminNote}`
+  });
+
+  const isPartial = refundMode === "partial" && refundAmountYuan < remainingYuan - 0.001;
+  return {
+    ok: true,
+    reservationId: id,
+    status: existing.status,
+    payStatus: refundResult.payStatus || (isPartial ? "partial_refunded" : "refunded"),
+    refund: refundResult,
+    refundAmount: refundAmountYuan,
+    message: isPartial
+      ? `售后部分退款 ¥${refundAmountYuan} 已发起`
+      : "售后全额退款已发起，款项原路返回"
+  };
+}
+
 async function updateReservation(event, caller) {
+  if (event.afterSaleRefund === true || event.action === "afterSaleRefundReservation") {
+    return afterSaleRefundReservation(event, caller);
+  }
+
   const id = normalizeRecordId(event.reservationId || event.id);
   const status = cleanText(event.status, 20);
   if (!id || !status) {
     return { ok: false, message: "缺少预约 ID 或状态" };
   }
-  const allowedStatuses = ["待支付", "已确认", "已完成", "已取消"];
+  const allowedStatuses = ["已确认", "已完成", "已取消", "未到店"];
   if (!allowedStatuses.includes(status)) {
-    return { ok: false, message: "预约状态不支持" };
+    return { ok: false, message: "预约状态不支持（允许：已确认、已完成、已取消、未到店）" };
   }
-  if (status === "待支付") {
-    return { ok: false, message: "不能手动将预约设为待支付" };
+
+  const adminNote = cleanText(event.adminNote || event.reason, 300);
+  if ((status === "已取消" || status === "未到店") && !adminNote) {
+    return { ok: false, message: status === "已取消" ? "取消预约需填写原因" : "标记未到店需填写备注" };
   }
-  const adminNote = cleanText(event.adminNote, 300);
-  if (status === "已取消" && !adminNote) {
-    return { ok: false, message: "取消预约需填写原因" };
-  }
+
   const existing = await getByDocId("reservations", id);
   if (!existing) {
     return { ok: false, message: "预约记录不存在" };
   }
-  await db.collection("reservations").doc(id).update({
-    data: {
-      status,
-      adminNote,
-      updatedBy: callerLabel(caller),
-      updatedAt: db.serverDate()
-    }
+
+  const policySettings = await loadReservationPolicySettings();
+  const refundMode = cleanText(event.refundMode, 20).toLowerCase();
+  const policy = evaluateAdminReservationTransition(existing, status, {
+    refundMode,
+    refundAmount: event.refundAmount,
+    advanceHours: policySettings.cancelAdvanceHours
   });
-  const updated = Object.assign({}, existing || {}, { status, adminNote });
+  if (!policy.ok) {
+    return {
+      ok: false,
+      code: policy.code,
+      message: policy.message,
+      advanceHours: policy.advanceHours,
+      remainingRefundYuan: policy.remainingRefundYuan,
+      inAutoRefundWindow: policy.inAutoRefundWindow
+    };
+  }
+
+  const paid = reservationIsPaid(existing);
+  const nextPayStatus = (() => {
+    if (status === "已取消") {
+      if (!paid) {
+        return existing.payStatus === "pending" || !existing.payStatus ? "cancelled" : existing.payStatus;
+      }
+      if (policy.needRefund) {
+        return "refunding";
+      }
+      return existing.payStatus === "paid" || existing.payStatus === "partial_refunded"
+        ? "paid_retained"
+        : existing.payStatus || "paid";
+    }
+    if (status === "未到店") {
+      return existing.payStatus || "paid";
+    }
+    return existing.payStatus || "";
+  })();
+
+  const patch = {
+    status,
+    adminNote,
+    updatedBy: callerLabel(caller),
+    updatedAt: db.serverDate()
+  };
+  if (status === "已取消") {
+    patch.cancellationReason = adminNote;
+    patch.cancelledBy = "admin";
+    patch.cancelledAt = db.serverDate();
+    patch.cancelRefundMode = policy.refundMode || refundMode || "none";
+    if (policy.refundAmountYuan != null) {
+      patch.cancelRefundAmount = policy.refundAmountYuan;
+    }
+    patch.payStatus = nextPayStatus;
+  }
+  if (status === "未到店") {
+    patch.noShowAt = db.serverDate();
+    patch.noShowBy = callerLabel(caller);
+    patch.noShowNote = adminNote;
+  }
+  if (status === "已完成") {
+    patch.completedAt = db.serverDate();
+    patch.completedBy = callerLabel(caller);
+  }
+  if (status === "已确认" && existing.status === "异常待处理") {
+    patch.payStatus = "paid";
+    patch.exceptionResolvedAt = db.serverDate();
+    patch.exceptionResolvedBy = callerLabel(caller);
+  }
+
+  await db.collection("reservations").doc(id).update({ data: patch });
+
+  let refundResult = null;
+  if (policy.needRefund) {
+    refundResult = await requestAdminReservationRefund(existing, adminNote, caller, {
+      refundAmountYuan: policy.refundAmountYuan
+    });
+    if (!refundResult.ok) {
+      await db.collection("reservations").doc(id).update({
+        data: {
+          refundError: cleanText(refundResult.message, 300),
+          refundLastAttemptAt: db.serverDate(),
+          updatedAt: db.serverDate()
+        }
+      });
+    }
+  }
+
+  const updated = Object.assign({}, existing || {}, patch);
   await sendServiceNotice("reservationStatus", updated._openid, {
-    room: updated.room,
+    room: updated.room || updated.storeName,
     day: updated.day,
     time: updated.time,
     status,
@@ -1459,12 +1881,54 @@ async function updateReservation(event, caller) {
     reservationId: id,
     status,
     previousStatus: existing.status,
+    refundMode: policy.refundMode || refundMode || "",
+    refundAmountYuan: policy.refundAmountYuan != null ? policy.refundAmountYuan : null,
+    needRefund: Boolean(policy.needRefund),
+    refundOk: refundResult ? refundResult.ok : null,
     changes: auditDiff(existing, {
       status,
-      adminNote
-    }, ["status", "adminNote"])
+      adminNote,
+      payStatus: patch.payStatus
+    }, ["status", "adminNote", "payStatus"])
   });
-  return { ok: true };
+
+  let message = "状态已更新";
+  if (status === "已取消") {
+    if (policy.needRefund) {
+      const amt = policy.refundAmountYuan;
+      const partial = policy.refundMode === "partial";
+      if (refundResult && refundResult.ok) {
+        message = partial && amt != null
+          ? `预约已取消，部分退款 ¥${amt} 将原路返回`
+          : "预约已取消，退款将原路返回";
+      } else {
+        message = "预约已取消，退款处理中（若未到账请人工跟进）";
+      }
+    } else if (paid) {
+      message = "预约已取消，按所选策略不退款（时段已释放）";
+    } else {
+      message = "预约已取消，时段已释放";
+    }
+  } else if (status === "未到店") {
+    message = "已标记未到店，预付款不退（可按门店政策人工处理）";
+  } else if (status === "已完成") {
+    message = "已标记服务完成";
+  } else if (status === "已确认") {
+    message = "异常预约已恢复为已确认";
+  }
+
+  return {
+    ok: true,
+    reservationId: id,
+    status,
+    payStatus: patch.payStatus || existing.payStatus || "",
+    needRefund: Boolean(policy.needRefund),
+    refund: refundResult,
+    refundAmount: policy.refundAmountYuan,
+    advanceHours: policySettings.cancelAdvanceHours,
+    message,
+    warning: refundResult && !refundResult.ok ? refundResult.message : ""
+  };
 }
 
 async function updateSignup(event, caller) {
@@ -1555,7 +2019,7 @@ async function getSummary() {
     db.collection("orders").where({ status: "待确认" }).count(),
     db.collection("orders").where({ status: "待发货" }).count(),
     db.collection("orders").where({ status: "待自提" }).count(),
-    db.collection("reservations").where({ status: "待确认" }).count(),
+    db.collection("reservations").where({ status: "待支付" }).count(),
     db.collection("event_signups").where({ status: "待确认" }).count()
   ]);
 
@@ -1754,7 +2218,7 @@ async function getDashboard() {
         todayReservations: reservations.filter((item) => item.day === today && item.status !== "已取消").length,
         todaySignups: signups.filter((item) => dateKey(item.createdAt) === today && item.status !== "已取消").length,
         newCustomers: customers.filter((item) => dateKey(item.lastSeenAt) === today).length,
-        pendingReservations: reservations.filter((item) => item.status === "待确认").length,
+        pendingReservations: reservations.filter((item) => item.status === "待支付" || item.status === "待确认").length,
         pendingSignups: signups.filter((item) => item.status === "待确认").length
       }),
       roomBoard: buildRoomBoard(rooms, reservations),
@@ -3222,6 +3686,27 @@ function normalizeSettings(data = {}) {
     phone: cleanText(data.phone, 40),
     businessHours: cleanText(data.businessHours, 160),
     reservationRule: cleanText(data.reservationRule, 300),
+    /** 已支付预约：用户自助全额退须至少提前 N 小时（1–168） */
+    reservationCancelAdvanceHours: Math.max(
+      1,
+      Math.min(168, Number(data.reservationCancelAdvanceHours) || Number(process.env.RESERVATION_CANCEL_ADVANCE_HOURS) || 12)
+    ),
+    /** 待支付预约锁单分钟数（1–120） */
+    reservationLockMinutes: Math.max(
+      1,
+      Math.min(120, Number(data.reservationLockMinutes) || Number(process.env.RESERVATION_LOCK_MINUTES) || 15)
+    ),
+    /**
+     * 已确认预约：结束后宽限 N 分钟自动标「已完成」（0–1440）
+     * 0 = 一到结束时间即收尾
+     */
+    reservationAutoCompleteGraceMinutes: (() => {
+      const raw = data.reservationAutoCompleteGraceMinutes;
+      const parsed = Number(raw);
+      const fallback = Number(process.env.RESERVATION_AUTO_COMPLETE_GRACE_MINUTES || 60);
+      const value = raw !== "" && raw != null && Number.isFinite(parsed) ? parsed : fallback;
+      return Math.max(0, Math.min(24 * 60, Number.isFinite(value) ? value : 60));
+    })(),
     memberPointRate: Math.max(0, Number(data.memberPointRate) || 1),
     levelOneName: cleanText(data.levelOneName, 20) || "雅客会员",
     levelOneMinSpend: Math.max(0, Number(data.levelOneMinSpend) || 0),
@@ -3256,15 +3741,35 @@ function normalizeSettings(data = {}) {
 
 async function getSettings() {
   const existing = await findRecord("store_settings", "key", "store");
+  // 始终经 normalize 补齐新字段默认值
   return {
     ok: true,
-    settings: existing || normalizeSettings({})
+    settings: normalizeSettings(existing || {})
   };
+}
+
+async function loadReservationPolicySettings() {
+  try {
+    const result = await getSettings();
+    const s = (result && result.settings) || {};
+    return {
+      cancelAdvanceHours: Math.max(1, Math.min(168, Number(s.reservationCancelAdvanceHours) || 12)),
+      lockMinutes: Math.max(1, Math.min(120, Number(s.reservationLockMinutes) || 15))
+    };
+  } catch (error) {
+    return {
+      cancelAdvanceHours: Math.max(1, Number(process.env.RESERVATION_CANCEL_ADVANCE_HOURS || 12)),
+      lockMinutes: Math.max(1, Number(process.env.RESERVATION_LOCK_MINUTES || 15))
+    };
+  }
 }
 
 function validateSettingsInput(data = {}, payload = {}) {
   [
     ["memberPointRate", "积分倍率", 0, undefined],
+    ["reservationCancelAdvanceHours", "预约取消提前小时", 1, 168],
+    ["reservationLockMinutes", "预约支付锁单分钟", 1, 120],
+    ["reservationAutoCompleteGraceMinutes", "预约自动完成宽限分钟", 0, 1440],
     ["levelOneMinSpend", "一档会员门槛", 0, undefined],
     ["levelTwoMinSpend", "二档会员门槛", 0, undefined],
     ["levelThreeMinSpend", "三档会员门槛", 0, undefined],
@@ -3316,6 +3821,9 @@ async function updateSettings(event, caller) {
       "phone",
       "businessHours",
       "reservationRule",
+      "reservationCancelAdvanceHours",
+      "reservationLockMinutes",
+      "reservationAutoCompleteGraceMinutes",
       "memberPointRate",
       "paymentEnabled",
       "orderNoticeEnabled",
@@ -3422,7 +3930,7 @@ exports.main = async (event = {}, context = {}) => {
       await writeExportAuditLog(caller, event, action, "预约", result.page);
       return { ok: true, reservations: result.items, page: result.page };
     }
-    if (action === "updateReservation") {
+    if (action === "updateReservation" || action === "afterSaleRefundReservation") {
       return await updateReservation(event, caller);
     }
     if (action === "listSignups") {

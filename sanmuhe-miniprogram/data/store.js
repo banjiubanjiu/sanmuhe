@@ -59,8 +59,8 @@ const booking = {
    * halfHourPrice = 超出后每 30 分钟
    */
   periods: [
-    { id: "day", label: "日间", start: "10:00", end: "19:30", basePrice: 188, halfHourPrice: 50 },
-    { id: "evening", label: "晚间", start: "19:30", end: "21:30", basePrice: 208, halfHourPrice: 50 }
+    { id: "day", label: "日间", start: "10:00", end: "19:30", basePrice: 188, halfHourPrice: 30 },
+    { id: "evening", label: "晚间", start: "19:30", end: "21:30", basePrice: 208, halfHourPrice: 30 }
   ]
 };
 

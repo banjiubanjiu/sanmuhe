@@ -465,6 +465,12 @@ const actionDialog = reactive({
   expected: "",
   input: "",
   reason: "",
+  choice: "",
+  choices: [],
+  amount: "",
+  amountLabel: "退款金额（元）",
+  showAmountWhen: "",
+  maxAmount: 0,
   inputLabel: "",
   confirmText: "确认",
   cancelText: "取消",
@@ -976,8 +982,9 @@ function buildWorkflowSteps(tab) {
     const occupied = reservationCalendarRows.value.reduce((sum, row) => sum + row.slots.filter((slot) => slot.record).length, 0);
     return [
       workflowStep("日历占用", occupied, state.reservationCalendarDate, "focus"),
-      workflowStep("待确认", countWhere(state.reservations, (item) => hasStatus(item, [/待确认/])), "需联系客户", "warn"),
+      workflowStep("待支付", countWhere(state.reservations, (item) => hasStatus(item, [/待支付/])), "限时待付", "warn"),
       workflowStep("已确认", countWhere(state.reservations, (item) => hasStatus(item, [/已确认/])), "等待到店", "good"),
+      workflowStep("未到店", countWhere(state.reservations, (item) => hasStatus(item, [/未到店/])), "爽约", "warn"),
       workflowStep("已完成", countWhere(state.reservations, (item) => hasStatus(item, [/已完成/])), "已履约", "good"),
       workflowStep("已取消", countWhere(state.reservations, (item) => hasStatus(item, [/已取消/])), "需保留原因", "neutral")
     ];
@@ -1166,6 +1173,7 @@ function openActionDialog(options) {
   if (actionDialogResolve) {
     actionDialogResolve(false);
   }
+  const choices = Array.isArray(options.choices) ? options.choices : [];
   Object.assign(actionDialog, {
     open: true,
     mode: options.mode || "confirm",
@@ -1174,6 +1182,12 @@ function openActionDialog(options) {
     expected: String(options.expected || "").trim(),
     input: String(options.defaultInput || ""),
     reason: "",
+    choice: choices[0]?.value || options.defaultChoice || "",
+    choices,
+    amount: options.defaultAmount != null ? String(options.defaultAmount) : "",
+    amountLabel: options.amountLabel || "退款金额（元）",
+    showAmountWhen: options.showAmountWhen || "partial",
+    maxAmount: Number(options.maxAmount) || 0,
     inputLabel: options.inputLabel || "",
     confirmText: options.confirmText || "确认",
     cancelText: options.cancelText || "取消",
@@ -1183,7 +1197,7 @@ function openActionDialog(options) {
   return new Promise((resolve) => {
     actionDialogResolve = resolve;
     window.setTimeout(() => {
-      document.querySelector(".action-dialog input, .action-dialog textarea")?.focus();
+      document.querySelector(".action-dialog input, .action-dialog textarea, .action-dialog select")?.focus();
     }, 30);
   });
 }
@@ -1219,11 +1233,45 @@ function submitActionDialog() {
     closeActionDialog(reason);
     return;
   }
+  if (actionDialog.mode === "choice_reason") {
+    if (!actionDialog.choice) {
+      actionDialog.error = "请选择处理方式";
+      return;
+    }
+    const reason = actionDialog.reason.trim();
+    if (!reason) {
+      actionDialog.error = "请填写操作原因";
+      return;
+    }
+    let amount = null;
+    const needAmount = actionDialog.showAmountWhen && actionDialog.choice === actionDialog.showAmountWhen;
+    if (needAmount) {
+      amount = Number(actionDialog.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        actionDialog.error = "请填写有效的退款金额";
+        return;
+      }
+      if (actionDialog.maxAmount > 0 && amount > actionDialog.maxAmount + 0.001) {
+        actionDialog.error = `退款金额不能超过 ¥${actionDialog.maxAmount}`;
+        return;
+      }
+    }
+    closeActionDialog({ choice: actionDialog.choice, reason, amount });
+    return;
+  }
   closeActionDialog(true);
 }
 
 function cancelActionDialog() {
-  closeActionDialog(actionDialog.mode === "reason" ? "" : false);
+  if (actionDialog.mode === "reason") {
+    closeActionDialog("");
+    return;
+  }
+  if (actionDialog.mode === "choice_reason") {
+    closeActionDialog(null);
+    return;
+  }
+  closeActionDialog(false);
 }
 
 function promptTextValue(title, message, defaultInput = "") {
@@ -1258,6 +1306,80 @@ function promptActionReason(label) {
     confirmText: "记录并继续",
     danger: true
   });
+}
+
+/** 选择项 + 原因（茶室取消退款策略等）；可选 amount 字段 */
+function promptChoiceWithReason({ title, message, choices, confirmText, danger = true, showAmountWhen, maxAmount, defaultAmount, amountLabel }) {
+  return openActionDialog({
+    mode: "choice_reason",
+    title: title || "选择处理方式",
+    message: message || "",
+    choices: choices || [],
+    confirmText: confirmText || "确认",
+    danger,
+    showAmountWhen: showAmountWhen || "",
+    maxAmount: maxAmount || 0,
+    defaultAmount,
+    amountLabel
+  });
+}
+
+function getReservationCancelAdvanceHours() {
+  return Math.max(1, Math.min(168, Number(state.settings?.reservationCancelAdvanceHours) || 12));
+}
+
+function reservationPaid(row) {
+  if (!row) return false;
+  return (
+    row.payStatus === "paid" ||
+    row.payStatus === "partial_refunded" ||
+    row.payStatus === "paid_retained" ||
+    Boolean(row.transactionId)
+  );
+}
+
+function reservationRemainingRefundYuan(row) {
+  const total = Number(row?.total != null ? row.total : row?.price) || 0;
+  const refunded = Number(row?.refundAmount) || 0;
+  return Math.max(0, Math.round((total - refunded) * 100) / 100);
+}
+
+function reservationStartMs(row) {
+  const day = String(row?.day || "").trim();
+  const time = String(row?.time || row?.slot || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{1,2}:\d{2}$/.test(time)) {
+    return NaN;
+  }
+  return new Date(`${day}T${time.padStart(5, "0")}:00+08:00`).getTime();
+}
+
+function reservationInAutoRefundWindow(row) {
+  const startMs = reservationStartMs(row);
+  if (!Number.isFinite(startMs)) return false;
+  return startMs - Date.now() >= getReservationCancelAdvanceHours() * 60 * 60 * 1000;
+}
+
+/** 按状态机返回可用后台操作 */
+function reservationAdminActions(row) {
+  if (!row) return [];
+  const status = row.status || "";
+  const paid = reservationPaid(row);
+  const remaining = reservationRemainingRefundYuan(row);
+  const actions = [];
+  if (status === "异常待处理" && paid) {
+    actions.push({ key: "restore", label: "恢复已确认", status: "已确认", kind: "secondary" });
+  }
+  if ((status === "已确认" || status === "待确认") && paid) {
+    actions.push({ key: "complete", label: "服务完成", status: "已完成", kind: "secondary" });
+    actions.push({ key: "noshow", label: "未到店", status: "未到店", kind: "secondary" });
+  }
+  if (["待支付", "已确认", "待确认", "异常待处理"].includes(status)) {
+    actions.push({ key: "cancel", label: "取消预约", status: "已取消", kind: "danger" });
+  }
+  if (status === "已完成" && paid && remaining > 0 && row.payStatus !== "refunding") {
+    actions.push({ key: "aftersale", label: "售后退款", status: "", kind: "danger" });
+  }
+  return actions;
 }
 
 function hasPermission(permission) {
@@ -2072,7 +2194,7 @@ async function refreshSummary() {
       { label: "待支付", value: s.pendingPay || 0, meta: "订单", tone: "sand", icon: CircleDollarSign, delta: "当前待处理" },
       { label: "待发货", value: s.toShip || 0, meta: "履约", tone: "green", icon: Package, delta: "待进入履约" },
       { label: "待自提", value: s.toPickup || 0, meta: "门店", tone: "moss", icon: CalendarDays, delta: "待门店核销" },
-      { label: "待确认预约", value: s.pendingReservations || 0, meta: "茶室", tone: "ink", icon: CalendarCheck, delta: "需要确认" },
+      { label: "待支付预约", value: s.pendingReservations || 0, meta: "茶室", tone: "ink", icon: CalendarCheck, delta: "限时待付" },
       { label: "待处理报名", value: s.pendingSignups || 0, meta: "活动", tone: "gold", icon: UserPlus, delta: "需要跟进" }
     ];
   } catch (error) {
@@ -2709,22 +2831,155 @@ async function exportCustomerData(customer) {
 }
 
 async function updateRecord(type, id, status) {
+  if (type === "reservation") {
+    await updateReservationRecord(id, status);
+    return;
+  }
   let adminNote = "";
   if (status === "已取消") {
-    if (!(await requireTypedConfirm(`确认取消这条${type === "reservation" ? "预约" : "报名"}？`, id))) return;
-    adminNote = await promptActionReason(`取消${type === "reservation" ? "预约" : "报名"}`);
+    if (!(await requireTypedConfirm(`确认取消这条报名？`, id))) return;
+    adminNote = await promptActionReason("取消报名");
     if (!adminNote) return;
   }
   await withLoading("更新状态", async () => {
     await callFunction("manageOperations", {
-      action: type === "reservation" ? "updateReservation" : "updateSignup",
+      action: "updateSignup",
       id,
       status,
       adminNote
     });
     showToast("状态已更新");
-    await (type === "reservation" ? loadReservations() : loadSignups());
+    await loadSignups();
   });
+}
+
+/**
+ * 茶室预约后台状态机：
+ * - 待支付：仅可取消（不退款）
+ * - 已确认(已付)：服务完成 / 未到店 / 取消（须选退款策略，含部分退）
+ * - 异常待处理(已付)：可恢复已确认 / 取消
+ * - 已完成：售后退款（全额/部分）
+ * - 已取消、未到店：终态
+ */
+async function updateReservationRecord(id, status, actionKey = "") {
+  const row = state.reservations.find((item) => item._id === id) || selectedReservation.value;
+  if (!row) {
+    showToast("预约不存在");
+    return;
+  }
+
+  const advanceHours = getReservationCancelAdvanceHours();
+  const remainingYuan = reservationRemainingRefundYuan(row);
+
+  // 售后退款（业务状态保持已完成）
+  if (actionKey === "aftersale" || status === "__aftersale__") {
+    if (remainingYuan <= 0) {
+      showToast("无可退余额");
+      return;
+    }
+    const picked = await promptChoiceWithReason({
+      title: "售后退款",
+      message: `已完成预约可退余额 ¥${remainingYuan}。选择全额或部分退款（原路返回）。`,
+      choices: [
+        { value: "full", label: `全额退款（¥${remainingYuan}）` },
+        { value: "partial", label: "部分退款（填写金额）" }
+      ],
+      confirmText: "发起退款",
+      danger: true,
+      showAmountWhen: "partial",
+      maxAmount: remainingYuan,
+      defaultAmount: remainingYuan,
+      amountLabel: `退款金额（元，可退 ¥${remainingYuan}）`
+    });
+    if (!picked || !picked.choice) return;
+    await withLoading("发起售后退款", async () => {
+      const result = await callFunction("manageOperations", {
+        action: "afterSaleRefundReservation",
+        afterSaleRefund: true,
+        id,
+        adminNote: picked.reason,
+        refundMode: picked.choice,
+        refundAmount: picked.choice === "partial" ? picked.amount : remainingYuan
+      });
+      showToast(result.message || "售后退款已发起");
+      if (result.warning) showToast(result.warning);
+      await loadReservations();
+    });
+    return;
+  }
+
+  let adminNote = "";
+  let refundMode = "";
+  let refundAmount = null;
+
+  if (status === "已取消") {
+    if (!(await requireTypedConfirm("确认取消这条茶室预约？取消后时段释放。", id))) return;
+    const paid = reservationPaid(row);
+    if (paid) {
+      const inWindow = reservationInAutoRefundWindow(row);
+      const picked = await promptChoiceWithReason({
+        title: "取消已支付预约",
+        message: `请选择退款策略。用户自助规则：提前 ${advanceHours} 小时可全额退。当前${inWindow ? "仍在" : "已超出"}自动全额退窗口。可退余额 ¥${remainingYuan}。`,
+        choices: [
+          { value: "merchant", label: "店家原因 · 全额退款（推荐店家取消）" },
+          { value: "full", label: `全额退款（¥${remainingYuan}）` },
+          { value: "partial", label: "部分退款（填写金额）" },
+          { value: "auto", label: `按规则（提前≥${advanceHours}h 才退）` },
+          { value: "none", label: "不退款（政策外/违约）" }
+        ],
+        confirmText: "确认取消",
+        danger: true,
+        showAmountWhen: "partial",
+        maxAmount: remainingYuan,
+        defaultAmount: remainingYuan > 0 ? Math.min(remainingYuan, Math.round(remainingYuan / 2 * 100) / 100) : 0,
+        amountLabel: `退款金额（元，可退 ¥${remainingYuan}）`
+      });
+      if (!picked || !picked.choice) return;
+      refundMode = picked.choice;
+      adminNote = picked.reason;
+      if (picked.choice === "partial") {
+        refundAmount = picked.amount;
+      }
+    } else {
+      adminNote = await promptActionReason("取消未支付预约");
+      if (!adminNote) return;
+      refundMode = "none";
+    }
+  } else if (status === "未到店") {
+    adminNote = await promptActionReason("标记未到店（预付款默认不退）");
+    if (!adminNote) return;
+  } else if (status === "已完成") {
+    // 轻量确认即可
+  } else if (status === "已确认") {
+    adminNote = await promptActionReason("从异常待处理恢复为已确认");
+    if (!adminNote) return;
+  }
+
+  await withLoading("更新预约状态", async () => {
+    const payload = {
+      action: "updateReservation",
+      id,
+      status,
+      adminNote,
+      refundMode
+    };
+    if (refundAmount != null) {
+      payload.refundAmount = refundAmount;
+    }
+    const result = await callFunction("manageOperations", payload);
+    showToast(result.message || "状态已更新");
+    if (result.warning) showToast(result.warning);
+    await loadReservations();
+  });
+}
+
+function runReservationAction(action) {
+  if (!selectedReservation.value || !action) return;
+  if (action.key === "aftersale") {
+    updateReservationRecord(selectedReservation.value._id, "__aftersale__", "aftersale");
+    return;
+  }
+  updateReservationRecord(selectedReservation.value._id, action.status, action.key);
 }
 
 async function checkInSignup(signup, status) {
@@ -3268,6 +3523,23 @@ async function loadSettings() {
 async function saveSettings() {
   if (!isPhone(state.settings.phone)) {
     showToast("电话格式不正确");
+    return;
+  }
+  if (!isNonNegativeNumber(state.settings.reservationCancelAdvanceHours) || Number(state.settings.reservationCancelAdvanceHours) < 1 || Number(state.settings.reservationCancelAdvanceHours) > 168) {
+    showToast("取消提前小时须在 1–168 之间");
+    return;
+  }
+  if (!isNonNegativeNumber(state.settings.reservationLockMinutes) || Number(state.settings.reservationLockMinutes) < 1 || Number(state.settings.reservationLockMinutes) > 120) {
+    showToast("待支付锁单分钟须在 1–120 之间");
+    return;
+  }
+  if (
+    state.settings.reservationAutoCompleteGraceMinutes !== "" &&
+    state.settings.reservationAutoCompleteGraceMinutes != null &&
+    (!isNonNegativeNumber(state.settings.reservationAutoCompleteGraceMinutes) ||
+      Number(state.settings.reservationAutoCompleteGraceMinutes) > 1440)
+  ) {
+    showToast("自动完成宽限分钟须在 0–1440 之间");
     return;
   }
   if (!isNonNegativeNumber(state.settings.memberPointRate)) {
@@ -4404,7 +4676,7 @@ onBeforeUnmount(() => {
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
               <select v-if="state.activeTab === 'reservations'" v-model="filters.reservationStatus" class="line-input" aria-label="筛选预约状态" @change="resetPageAndLoad('reservations', loadReservations)">
-                <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已完成</option><option>已取消</option>
+                <option value="">全部状态</option><option>待支付</option><option>已确认</option><option>已完成</option><option>未到店</option><option>已取消</option><option>异常待处理</option>
               </select>
               <select v-else v-model="filters.signupStatus" class="line-input" aria-label="筛选报名状态" @change="resetPageAndLoad('signups', loadSignups)">
                 <option value="">全部状态</option><option>待确认</option><option>已确认</option><option>已到场</option><option>未到场</option><option>已完成</option><option>已取消</option>
@@ -4461,11 +4733,14 @@ onBeforeUnmount(() => {
             <aside class="panel-card detail-panel drawer-panel">
             <div class="panel-title"><h2>{{ state.activeTab === 'reservations' ? "预约详情" : "报名详情" }}</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="state.activeTab === 'reservations' ? closeDrawer('reservation') : closeDrawer('signup')">×</button></div>
             <template v-if="state.activeTab === 'reservations'">
-              <DetailRow label="茶室" :value="selectedReservation.roomName || selectedReservation.room || '-'" />
+              <DetailRow label="茶室" :value="selectedReservation.roomName || selectedReservation.room || selectedReservation.storeName || '-'" />
               <DetailRow label="客户" :value="maskName(selectedReservation.name || selectedReservation.customerName) || '-'" />
               <DetailRow label="日期" :value="selectedReservation.day || selectedReservation.date || '-'" />
-              <DetailRow label="时段" :value="selectedReservation.time || selectedReservation.slot || '-'" />
+              <DetailRow label="时段" :value="selectedReservation.endTime ? `${selectedReservation.time || ''}–${selectedReservation.endTime}` : (selectedReservation.time || selectedReservation.slot || '-')" />
               <DetailRow label="人数" :value="selectedReservation.people || selectedReservation.count || '-'" />
+              <DetailRow label="业务状态" :value="selectedReservation.status || '-'" />
+              <DetailRow label="支付状态" :value="selectedReservation.payStatus || '-'" />
+              <DetailRow label="金额" :value="selectedReservation.total != null || selectedReservation.price != null ? `¥${money(selectedReservation.total != null ? selectedReservation.total : selectedReservation.price)}` : '-'" />
               <div class="record-timeline" v-if="recordTimeline(selectedReservation).length">
                 <h3>预约时间线</h3>
                 <div v-for="step in recordTimeline(selectedReservation)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
@@ -4476,9 +4751,14 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div v-if="hasPermission('reservation.write')" class="action-row">
-                <button class="secondary-action" type="button" @click="updateRecord('reservation', selectedReservation._id, '已确认')">确认</button>
-                <button class="secondary-action" type="button" @click="updateRecord('reservation', selectedReservation._id, '已完成')">完成</button>
-                <button class="danger-action" type="button" @click="updateRecord('reservation', selectedReservation._id, '已取消')">取消</button>
+                <button
+                  v-for="action in reservationAdminActions(selectedReservation)"
+                  :key="action.key"
+                  :class="action.kind === 'danger' ? 'danger-action' : 'secondary-action'"
+                  type="button"
+                  @click="runReservationAction(action)"
+                >{{ action.label }}</button>
+                <p v-if="!reservationAdminActions(selectedReservation).length" class="permission-note">当前为终态或无可操作项（已取消 / 未到店 / 已完成已退款等）。</p>
               </div>
               <div v-else class="permission-note">当前角色仅可查看预约。</div>
             </template>
@@ -4999,8 +5279,12 @@ onBeforeUnmount(() => {
                 <label><span>电话</span><input v-model="state.settings.phone"></label>
                 <label><span>营业时间</span><input v-model="state.settings.businessHours"></label>
                 <label class="wide"><span>地址</span><input v-model="state.settings.address"></label>
-                <label class="wide"><span>预约规则</span><textarea v-model="state.settings.reservationRule" rows="4"></textarea></label>
+                <label class="wide"><span>预约规则文案</span><textarea v-model="state.settings.reservationRule" rows="4" placeholder="展示给顾客的说明（非系统强制逻辑）"></textarea></label>
+                <label><span>取消提前小时</span><input v-model.number="state.settings.reservationCancelAdvanceHours" type="number" min="1" max="168" step="1" title="已支付预约须至少提前这么多小时取消才可自助全额退"></label>
+                <label><span>待支付锁单分钟</span><input v-model.number="state.settings.reservationLockMinutes" type="number" min="1" max="120" step="1" title="提交预约后须在多少分钟内完成微信支付"></label>
+                <label><span>自动完成宽限分钟</span><input v-model.number="state.settings.reservationAutoCompleteGraceMinutes" type="number" min="0" max="1440" step="1" title="已确认预约在结束时间后再等这么多分钟，自动标为已完成"></label>
               </div>
+              <p class="settings-note">茶室预付：用户自助取消须提前「取消提前小时」才全额退；后台取消可选手动全额/部分/不退。锁单超时后待支付单自动释放时段。已确认预约过「结束时间 + 自动完成宽限」后由定时任务标为已完成（默认 60 分钟，未到店仍需人工标记）。</p>
             </div>
             <div class="settings-section">
               <div class="settings-section-head">
@@ -5067,7 +5351,7 @@ onBeforeUnmount(() => {
 
       <div v-if="actionDialog.open" class="action-dialog-backdrop" @click.self="cancelActionDialog">
         <form class="action-dialog" role="dialog" aria-modal="true" :aria-label="actionDialog.title" @submit.prevent="submitActionDialog" @keydown.esc.prevent="cancelActionDialog">
-          <span class="dialog-kicker">{{ actionDialog.mode === "reason" ? "Audit Required" : "Risk Control" }}</span>
+          <span class="dialog-kicker">{{ actionDialog.mode === "reason" || actionDialog.mode === "choice_reason" ? "Audit Required" : "Risk Control" }}</span>
           <h2>{{ actionDialog.title }}</h2>
           <p>{{ actionDialog.message }}</p>
           <div v-if="actionDialog.expected" class="confirm-target">
@@ -5078,7 +5362,17 @@ onBeforeUnmount(() => {
             <span>{{ actionDialog.inputLabel || "输入确认值" }}</span>
             <input v-model="actionDialog.input" autocomplete="off" :placeholder="actionDialog.expected">
           </label>
-          <label v-if="actionDialog.mode === 'reason'" class="wide">
+          <label v-if="actionDialog.mode === 'choice_reason'" class="wide">
+            <span>处理方式</span>
+            <select v-model="actionDialog.choice">
+              <option v-for="item in actionDialog.choices" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+          <label v-if="actionDialog.mode === 'choice_reason' && actionDialog.showAmountWhen && actionDialog.choice === actionDialog.showAmountWhen" class="wide">
+            <span>{{ actionDialog.amountLabel || "退款金额（元）" }}</span>
+            <input v-model="actionDialog.amount" type="number" min="0.01" step="0.01" :max="actionDialog.maxAmount || undefined" placeholder="请输入退款金额">
+          </label>
+          <label v-if="actionDialog.mode === 'reason' || actionDialog.mode === 'choice_reason'" class="wide">
             <span>操作原因</span>
             <textarea v-model="actionDialog.reason" rows="4" placeholder="写清楚业务原因，后续会进入审计日志"></textarea>
           </label>

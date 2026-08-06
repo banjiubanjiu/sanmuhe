@@ -313,8 +313,9 @@ async function loadReservationForRefund(reservationId, reservationNo) {
 }
 
 /**
- * 茶室预约退款（由 createReservation 取消流程调用，或运维重试）
- * 要求预约已处于 已取消 + payStatus=refunding，且原单已支付。
+ * 茶室预约退款（用户取消 / 管理后台代退 / 售后部分或全额）
+ * 要求 payStatus=refunding，业务状态为 已取消 / 已完成 / 异常待处理。
+ * 支持 event.refundAmount（元）做部分退款；累计退款记在 refundAmount。
  */
 async function refundReservation(event, openid, config) {
   const reservationId = cleanText(event.reservationId || event.id, 80);
@@ -324,8 +325,9 @@ async function refundReservation(event, openid, config) {
     return { ok: false, message: "预约不存在" };
   }
 
-  // 仅允许本人；云函数互调时 OPENID 可能为空，依赖上游已鉴权
-  if (openid && row._openid && row._openid !== openid) {
+  // 本人取消 / 云函数互调（OPENID 可能为空）/ 管理后台代退（adminRefund）
+  const adminRefund = event.adminRefund === true || event.source === "manageOperations";
+  if (openid && row._openid && row._openid !== openid && !adminRefund) {
     return { ok: false, message: "无权操作该预约" };
   }
 
@@ -336,11 +338,15 @@ async function refundReservation(event, openid, config) {
       reservationId: row._id,
       reservationNo: row.reservationNo,
       refundId: row.refundId || "",
-      status: row.status
+      status: row.status,
+      refundAmount: numberField(row.refundAmount)
     };
   }
 
-  if (row.status !== "已取消" || row.payStatus !== "refunding") {
+  // 已取消：用户/店员取消后退款；已完成：售后退款（状态可保持已完成）
+  const refundableBiz =
+    row.status === "已取消" || row.status === "已完成" || row.status === "异常待处理";
+  if (!refundableBiz || row.payStatus !== "refunding") {
     return {
       ok: false,
       message: `当前状态不可退款（${row.status || "未知"}/${row.payStatus || "未知"}）`
@@ -348,35 +354,66 @@ async function refundReservation(event, openid, config) {
   }
 
   const totalFee = Math.round(numberField(row.total != null ? row.total : row.price) * 100);
-  if (totalFee <= 0) {
+  const alreadyRefundedFen = Math.round(numberField(row.refundAmount) * 100);
+  const maxRefundFen = Math.max(0, totalFee - alreadyRefundedFen);
+
+  if (totalFee <= 0 || maxRefundFen <= 0) {
     await db.collection("reservations").doc(row._id).update({
       data: {
         payStatus: "refunded",
-        refundAmount: 0,
+        refundAmount: totalFee / 100,
         refundedAt: db.serverDate(),
         updatedAt: db.serverDate()
       }
     });
-    return { ok: true, reservationId: row._id, refundAmount: 0, zeroAmount: true };
+    return {
+      ok: true,
+      alreadyRefunded: true,
+      reservationId: row._id,
+      refundAmount: totalFee / 100,
+      zeroAmount: totalFee <= 0
+    };
   }
 
-  const outRefundNo = cleanText(row.outRefundNo, 64) || createRefundOutNo(row.reservationNo || row._id);
-  if (!row.outRefundNo) {
-    await db.collection("reservations").doc(row._id).update({
-      data: {
-        outRefundNo,
-        updatedAt: db.serverDate()
-      }
-    });
+  // 未指定金额 = 退剩余全部；指定金额 = 部分退（单位：元）
+  let refundFee = maxRefundFen;
+  if (event.refundAmount != null && event.refundAmount !== "") {
+    const requestedFen = Math.round(Number(event.refundAmount) * 100);
+    if (!Number.isFinite(requestedFen) || requestedFen <= 0) {
+      return { ok: false, message: "退款金额无效" };
+    }
+    if (requestedFen > maxRefundFen) {
+      return {
+        ok: false,
+        message: `退款金额不能超过可退余额 ¥${(maxRefundFen / 100).toFixed(2)}`
+      };
+    }
+    refundFee = requestedFen;
+  } else if (event.refundAmountFen != null && event.refundAmountFen !== "") {
+    const requestedFen = Math.round(Number(event.refundAmountFen));
+    if (!Number.isFinite(requestedFen) || requestedFen <= 0) {
+      return { ok: false, message: "退款金额无效" };
+    }
+    if (requestedFen > maxRefundFen) {
+      return {
+        ok: false,
+        message: `退款金额不能超过可退余额 ¥${(maxRefundFen / 100).toFixed(2)}`
+      };
+    }
+    refundFee = requestedFen;
   }
+
+  // 每次退款使用新的 out_refund_no（支持多次部分退）
+  const outRefundNo = createRefundOutNo(row.reservationNo || row._id);
 
   const reason = cleanText(event.reason || row.cancellationReason || "用户取消预约", 80) || "用户取消预约";
   // transaction_id 与 out_trade_no 二选一即可；优先微信交易号
+  // amount.total = 原支付总金额；amount.refund = 本次退款金额
   const refundPayload = {
     out_refund_no: outRefundNo,
     reason,
     amount: {
-      refund: totalFee,
+      refund: refundFee,
       total: totalFee,
       currency: "CNY"
     }
@@ -399,11 +436,15 @@ async function refundReservation(event, openid, config) {
     const msg = (error && error.message) || "微信退款失败";
     // 幂等：重复退款单号时视为可接受
     if (/已退款|RESOURCE_ALREADY_EXISTS|已存在|FREQUENCY/i.test(msg)) {
+      const cumulative = (alreadyRefundedFen + refundFee) / 100;
+      const nextPay =
+        alreadyRefundedFen + refundFee >= totalFee ? "refunded" : "partial_refunded";
       await db.collection("reservations").doc(row._id).update({
         data: {
-          payStatus: "refunded",
+          payStatus: nextPay,
           refundStatus: "EXISTING",
           refundError: msg.slice(0, 200),
+          refundAmount: cumulative,
           refundedAt: db.serverDate(),
           updatedAt: db.serverDate()
         }
@@ -412,6 +453,8 @@ async function refundReservation(event, openid, config) {
         ok: true,
         alreadyRefunded: true,
         reservationId: row._id,
+        payStatus: nextPay,
+        refundAmount: cumulative,
         message: msg
       };
     }
@@ -427,15 +470,27 @@ async function refundReservation(event, openid, config) {
 
   const refundState = String(response.status || response.refund_status || "").toUpperCase();
   const isDone = !refundState || refundState === "SUCCESS" || refundState === "PROCESSING";
+  const cumulativeFen = alreadyRefundedFen + refundFee;
+  const fullyRefunded = cumulativeFen >= totalFee;
+  // SUCCESS/空：落最终态；PROCESSING：仍记累计金额，payStatus 先按最终预期
+  const nextPayStatus =
+    refundState && refundState !== "SUCCESS" && refundState !== "PROCESSING" && refundState
+      ? "refunding"
+      : fullyRefunded
+        ? "refunded"
+        : "partial_refunded";
+
   await db.collection("reservations").doc(row._id).update({
     data: {
-      payStatus: refundState === "SUCCESS" || !refundState ? "refunded" : "refunding",
+      payStatus: nextPayStatus,
       refundStatus: refundState || "PROCESSING",
       refundId: response.refund_id || row.refundId || "",
       outRefundNo,
-      refundAmount: totalFee / 100,
+      lastOutRefundNo: outRefundNo,
+      refundAmount: cumulativeFen / 100,
+      lastRefundAmount: refundFee / 100,
       refundRaw: response,
-      refundedAt: refundState === "SUCCESS" || !refundState ? db.serverDate() : null,
+      refundedAt: fullyRefunded && (refundState === "SUCCESS" || !refundState) ? db.serverDate() : row.refundedAt || null,
       refundLastAttemptAt: db.serverDate(),
       refundError: _.remove(),
       updatedAt: db.serverDate()
@@ -449,7 +504,10 @@ async function refundReservation(event, openid, config) {
     outRefundNo,
     refundId: response.refund_id || "",
     refundStatus: refundState || "PROCESSING",
-    refundAmount: totalFee / 100,
+    payStatus: nextPayStatus,
+    refundAmount: cumulativeFen / 100,
+    lastRefundAmount: refundFee / 100,
+    partial: !fullyRefunded,
     accepted: isDone
   };
 }
