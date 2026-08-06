@@ -134,6 +134,22 @@
         bindinput="onInput"
       />
 
+      <view wx:if="{{!isDineIn}}" class="fee-card">
+        <view class="fee-row">
+          <text class="fee-k">商品金额</text>
+          <text class="fee-v">¥{{goodsTotal}}</text>
+        </view>
+        <view class="fee-row">
+          <text class="fee-k">运费</text>
+          <text class="fee-v">{{deliveryMethod === 'shipping' ? (shippingFee > 0 ? '¥' + shippingFee : '包邮') : '自提免运费'}}</text>
+        </view>
+        <view wx:if="{{deliveryMethod === 'shipping' && shippingHint}}" class="fee-hint">{{shippingHint}}</view>
+        <view class="fee-row fee-total">
+          <text class="fee-k">应付合计</text>
+          <text class="fee-v">¥{{payableTotal}}</text>
+        </view>
+      </view>
+
       <view class="section-label">支付</view>
       <view
         wx:if="{{isMember}}"
@@ -145,7 +161,7 @@
           <view class="pay-row-title">会员余额</view>
           <view class="pay-row-sub">余额 ¥{{walletBalance}}{{balanceAvailable ? '' : ' · 不足'}}</view>
         </view>
-        <view class="pay-row-amt">¥{{total}}</view>
+        <view class="pay-row-amt">¥{{payableTotal || total}}</view>
       </view>
       <view
         class="pay-row {{payMode === 'wechat' ? 'active' : ''}}"
@@ -155,14 +171,14 @@
         <view class="pay-row-main">
           <view class="pay-row-title">微信支付</view>
         </view>
-        <view class="pay-row-amt">¥{{total}}</view>
+        <view class="pay-row-amt">¥{{payableTotal || total}}</view>
       </view>
     </view>
 
     <view class="checkout-bar simple">
       <view class="checkout-total">
-        <view>合计 {{count}} 件</view>
-        <text>¥{{total}}</text>
+        <view>合计 {{count}} 件{{!isDineIn && deliveryMethod === 'shipping' && shippingFee > 0 ? ' · 含运费' : ''}}</view>
+        <text>¥{{payableTotal || total}}</text>
       </view>
       <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">{{payMode === 'balance' ? '余额支付' : '去支付'}}</button>
     </view>

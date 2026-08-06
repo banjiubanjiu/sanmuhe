@@ -1,5 +1,6 @@
 const { getCart, getTotal, setCart, updateQuantity } = require("../../utils/cart");
 const { createOrder, getMemberCenter, payOrder, resolvePhoneNumber, saveContactPhone } = require("../../utils/cloudApi");
+const { requestOrderSubscriptions } = require("../../utils/subscribe");
 const tableUtil = require("../../utils/table");
 const addressUtil = require("../../utils/address");
 const { getStore } = require("../../data/store");
@@ -7,6 +8,30 @@ const { withPrivacy } = require("../../utils/privacy");
 
 const SHOP_CATEGORY_KEY = "sanmuhe_shop_category";
 const PICKUP_CONTACT_KEY = "sanmuhe_pickup_contact";
+
+/**
+ * 快递运费策略（与 createOrder 云函数环境变量对齐）
+ * 行业常见：固定首重运费 + 满额包邮抬客单价
+ * 参考：轻小件茶叶 8–12 元档；茶品牌满 168–199 包邮较常见
+ */
+const SHIPPING_FEE = 10;
+const FREE_SHIPPING_AMOUNT = 199;
+
+function estimateShippingFee(deliveryMethod, goodsTotal) {
+  if (deliveryMethod !== "shipping") {
+    return 0;
+  }
+  const goods = Math.max(0, Number(goodsTotal) || 0);
+  if (FREE_SHIPPING_AMOUNT > 0 && goods >= FREE_SHIPPING_AMOUNT) {
+    return 0;
+  }
+  return Math.max(0, SHIPPING_FEE);
+}
+
+function moneyText(value) {
+  const num = Math.max(0, Number(value) || 0);
+  return num.toFixed(2);
+}
 const STORE = getStore();
 
 function maskPhone(phone) {
@@ -163,6 +188,12 @@ Page(withPrivacy({
     emptyCopy: "从茶叶商城选择喜欢的茶品，再来确认本次订单。",
     submitting: false,
     deliveryMethod: "pickup",
+    goodsTotal: 0,
+    shippingFee: 0,
+    payableTotal: 0,
+    freeShippingAmount: FREE_SHIPPING_AMOUNT,
+    shippingFeeBase: SHIPPING_FEE,
+    shippingHint: "",
     storeAddress: STORE.address || "",
     storeName: STORE.name || "禾煦茶书房",
     consignee: "",
@@ -249,21 +280,43 @@ Page(withPrivacy({
     const tableNo = this.data.isDineIn
       ? (resolveTableNo(cart) || DEV_DEFAULT_TABLE)
       : "";
-    const total = getTotal(cart);
-    const balanceAvailable = this.data.isMember && this.data.walletBalanceFen >= Math.round(total * 100);
-    const balanceAfter = formatFen(this.data.walletBalanceFen - Math.round(total * 100));
+    const goodsTotal = getTotal(cart);
+    const deliveryMethod = this.data.isDineIn ? "onsite" : this.data.deliveryMethod;
+    const shippingFee = this.data.isDineIn ? 0 : estimateShippingFee(deliveryMethod, goodsTotal);
+    const payableTotal = Math.max(0, Number(goodsTotal) + Number(shippingFee));
+    let shippingHint = "";
+    if (!this.data.isDineIn && deliveryMethod === "shipping") {
+      if (shippingFee <= 0 && FREE_SHIPPING_AMOUNT > 0 && goodsTotal >= FREE_SHIPPING_AMOUNT) {
+        shippingHint = `已满 ¥${FREE_SHIPPING_AMOUNT}，本单包邮`;
+      } else if (FREE_SHIPPING_AMOUNT > 0) {
+        const gap = Math.max(0, FREE_SHIPPING_AMOUNT - goodsTotal);
+        shippingHint = gap > 0
+          ? `运费 ¥${SHIPPING_FEE} · 再买 ¥${moneyText(gap)} 可包邮`
+          : `运费 ¥${SHIPPING_FEE}`;
+      } else {
+        shippingHint = `运费 ¥${SHIPPING_FEE}`;
+      }
+    }
+    const balanceAvailable = this.data.isMember && this.data.walletBalanceFen >= Math.round(payableTotal * 100);
+    const balanceAfter = formatFen(this.data.walletBalanceFen - Math.round(payableTotal * 100));
     const payMode = resolveDefaultPayMode(balanceAvailable, this.data.payMode);
     this.setData({
       cart,
       items,
-      total,
+      total: goodsTotal,
+      goodsTotal,
+      shippingFee,
+      payableTotal,
+      shippingHint,
+      freeShippingAmount: FREE_SHIPPING_AMOUNT,
+      shippingFeeBase: SHIPPING_FEE,
       count: cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
       tableNo,
       tableDisplay: tableNo ? formatTableDisplay(tableNo) : "",
       balanceAvailable,
       balanceAfter,
       payMode,
-      payHintText: payHintText(payMode, balanceAfter, this.data.isDineIn, this.data.deliveryMethod)
+      payHintText: payHintText(payMode, balanceAfter, this.data.isDineIn, deliveryMethod)
     });
   },
 
@@ -271,8 +324,9 @@ Page(withPrivacy({
     getMemberCenter().then((result) => {
       const isMember = !!(result.member && result.member.isMember);
       const walletBalanceFen = Math.max(0, Number(result.wallet && result.wallet.balanceFen) || 0);
-      const balanceAvailable = isMember && walletBalanceFen >= Math.round(Number(this.data.total || 0) * 100);
-      const balanceAfter = formatFen(walletBalanceFen - Math.round(Number(this.data.total || 0) * 100));
+      const payable = Math.max(0, Number(this.data.payableTotal != null ? this.data.payableTotal : this.data.total) || 0);
+      const balanceAvailable = isMember && walletBalanceFen >= Math.round(payable * 100);
+      const balanceAfter = formatFen(walletBalanceFen - Math.round(payable * 100));
       const payMode = resolveDefaultPayMode(balanceAvailable, this.data.payMode);
       // 已绑定手机号：自提无需再填（云端 openid 绑定）
       const contact = result.contact || {};
@@ -332,7 +386,6 @@ Page(withPrivacy({
     const method = event.currentTarget.dataset.method === "shipping" ? "shipping" : "pickup";
     const patch = {
       deliveryMethod: method,
-      payHintText: payHintText(this.data.payMode, this.data.balanceAfter, false, method),
       showManualPhone: false
     };
     if (method === "shipping") {
@@ -344,7 +397,9 @@ Page(withPrivacy({
       patch.addressSheetOpen = false;
       patch.addressFormOpen = false;
     }
-    this.setData(patch);
+    this.setData(patch, () => {
+      this.refresh();
+    });
   },
 
   noop() {},
@@ -826,16 +881,35 @@ Page(withPrivacy({
         remark: "",
         submitting: false
       });
+      const orderNo = result.orderNo || "";
       const title = "支付成功";
       const content = paid === "balance"
-        ? `订单 ${result.orderNo || ""}（${delivery}）已付款 ¥${Number(result.total || 0).toFixed(2)}（余额），门店已收到。`
-        : `订单 ${result.orderNo || ""}（${delivery}）已付款，门店已收到。`;
-      wx.showModal({
-        title,
-        content,
-        showCancel: false,
-        success: () => wx.switchTab({ url: "/pages/profile/index" })
-      });
+        ? `订单号 ${orderNo}\n（${delivery}）已付款 ¥${Number(result.total || 0).toFixed(2)}（余额）。\n请凭订单号到店或查看「我的订单」。`
+        : `订单号 ${orderNo}\n（${delivery}）已付款，门店已收到。\n请凭订单号到店或在「我的订单」查看。`;
+
+      // 支付成功后引导订阅：支付结果 + 发货（快递尤其需要）
+      const subKeys = isDineIn
+        ? ["orderPaidTemplateId"]
+        : ["orderPaidTemplateId", "orderShippedTemplateId"];
+      const showPaidModal = () => {
+        wx.showModal({
+          title,
+          content,
+          confirmText: "查看订单",
+          cancelText: "知道了",
+          showCancel: true,
+          success: (modal) => {
+            if (modal.confirm && orderId) {
+              wx.navigateTo({
+                url: `/pages/order-detail/index?id=${encodeURIComponent(orderId)}`
+              });
+              return;
+            }
+            wx.switchTab({ url: "/pages/profile/index" });
+          }
+        });
+      };
+      requestOrderSubscriptions({ keys: subKeys }).finally(showPaidModal);
     }).catch((error) => {
       wx.showModal({
         title: "订单未提交",

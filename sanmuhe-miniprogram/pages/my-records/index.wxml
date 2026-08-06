@@ -59,8 +59,21 @@
         <view class="record-meta">{{item.meta}}</view>
         <view class="record-sub-row">
           <text class="record-sub">{{item.subMeta}}</text>
+        </view>
+        <view
+          wx:if="{{activeTab === 'reservation' && (item.payable || item.cancelable || item.cancelHint)}}"
+          class="record-actions"
+        >
+          <text wx:if="{{item.cancelHint && !item.cancelable && !item.payable}}" class="record-hint">{{item.cancelHint}}</text>
           <button
-            wx:if="{{activeTab === 'reservation' && item.payable}}"
+            wx:if="{{item.cancelable}}"
+            class="record-cancel-btn"
+            size="mini"
+            data-id="{{item.id}}"
+            bindtap="cancelReservation"
+          >取消预约</button>
+          <button
+            wx:if="{{item.payable}}"
             class="record-pay-btn"
             size="mini"
             data-id="{{item.id}}"

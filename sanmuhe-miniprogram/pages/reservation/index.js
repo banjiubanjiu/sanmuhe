@@ -210,7 +210,9 @@ Page(withPrivacy({
     phone: "",
     note: "",
     bookingOpen: false,
-    pickMode: "start" // start | end — 提示下一步要点什么
+    pickMode: "start", // start | end — 提示下一步要点什么
+    lockMinutes: 15,
+    cancelAdvanceHours: 12
   },
 
   onLoad() {
@@ -527,17 +529,24 @@ Page(withPrivacy({
           }
           return;
         }
-        if (result && result.status === "待支付" && result.needPayment !== false) {
+        if (result && result.lockMinutes) {
+          this.setData({ lockMinutes: Number(result.lockMinutes) || 15 });
+        }
+        if (result && result.cancelAdvanceHours) {
+          this.setData({ cancelAdvanceHours: Number(result.cancelAdvanceHours) || 12 });
+        }
+        // 茶室预约必须在线支付后生效
+        if (result && (result.status === "待支付" || result.needPayment || result.requiresPayment)) {
           this.handleReservationPayment(result);
           return;
         }
         wx.showModal({
           title: "预约已提交",
-          content: "门店确认后可通过服务通知或电话联系顾客。",
+          content: "请尽快完成支付以确认预约。",
           showCancel: false,
           success: () => {
             this.setData({ bookingOpen: false });
-            wx.switchTab({ url: "/pages/profile/index" });
+            wx.navigateTo({ url: "/pages/my-records/index?tab=reservation" });
           }
         });
       }).catch(() => {
@@ -551,10 +560,12 @@ Page(withPrivacy({
   },
 
   handleReservationPayment(reservation) {
+    const lockMinutes = this.data.lockMinutes || 15;
+    const cancelHours = this.data.cancelAdvanceHours || 12;
     payReservation(reservation).then(() => {
       wx.showModal({
         title: "预约已确认",
-        content: "支付成功，茶室预约已确认。",
+        content: `支付成功，茶室预约已确认。如需取消请至少提前 ${cancelHours} 小时操作，费用将原路退回。`,
         showCancel: false,
         success: () => {
           this.setData({ bookingOpen: false });
@@ -562,11 +573,11 @@ Page(withPrivacy({
         }
       });
     }).catch((error) => {
-      const isUserCancel = error && error.raw && (error.raw.errCode === -2 || /cancel|fail/.test(error.raw.errMsg || ""));
+      const isUserCancel = error && error.raw && (error.raw.errCode === -2 || /cancel|取消/i.test(error.raw.errMsg || error.message || ""));
       wx.showModal({
         title: isUserCancel ? "支付未完成" : "支付失败",
         content: isUserCancel
-          ? "您取消了支付，请在 15 分钟内完成支付，逾期将自动取消预约。"
+          ? `您取消了支付。请在 ${lockMinutes} 分钟内于「我的记录」完成支付，逾期将自动取消并释放时段。`
           : (error && error.message ? error.message : "支付失败，请稍后重试"),
         showCancel: false,
         success: () => {

@@ -25,9 +25,12 @@ function moneyYuan(value) {
 function buildWeComReservationPayload(reservation = {}, mentionedMobiles = []) {
   const status = cleanText(reservation.status, 12) || "待确认";
   const payStatus = cleanText(reservation.payStatus, 12) || "";
-  const isPaid = status === "已确认" || payStatus === "paid";
-  const isPendingPay = status === "待支付" || payStatus === "pending";
-  const headline = isPaid ? "【禾煦茶室预约已确认】" : (isPendingPay ? "【禾煦茶室预约待支付】" : "【禾煦茶室预约】");
+  const isCancelled = status === "已取消" || status === "cancelled";
+  const isPaid = !isCancelled && (status === "已确认" || payStatus === "paid");
+  const isPendingPay = !isCancelled && (status === "待支付" || payStatus === "pending");
+  const headline = isCancelled
+    ? "【禾煦茶室预约已取消】"
+    : (isPaid ? "【禾煦茶室预约已确认】" : (isPendingPay ? "【禾煦茶室预约待支付】" : "【禾煦茶室预约】"));
   const lines = [
     headline,
     `门店：${cleanText(reservation.storeName, 40) || "禾煦茶书房"}`,
@@ -49,8 +52,14 @@ function buildWeComReservationPayload(reservation = {}, mentionedMobiles = []) {
   if (note) {
     lines.push(`备注：${note}`);
   }
-  lines.push(`状态：${status}`);
-  if (isPaid) {
+  lines.push(`状态：${status}${payStatus ? `/${payStatus}` : ""}`);
+  if (isCancelled) {
+    if (payStatus === "refunding" || payStatus === "refunded") {
+      lines.push(payStatus === "refunded" ? "用户已取消，退款已完成或处理中。" : "用户已取消，退款处理中，请关注。");
+    } else {
+      lines.push("用户已取消（未支付或无需退款），时段已释放。");
+    }
+  } else if (isPaid) {
     lines.push("预约已支付确认，请安排茶席。");
   } else if (isPendingPay) {
     lines.push("顾客需在 15 分钟内完成支付，超时将自动释放时段。");

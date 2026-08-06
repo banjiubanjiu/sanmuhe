@@ -1,22 +1,81 @@
-const { listMyRecords, payReservation } = require("../../utils/cloudApi");
+const { listMyRecords, payReservation, cancelReservation } = require("../../utils/cloudApi");
 const { displayReservationPlace } = require("../../data/store");
+
+const CANCEL_ADVANCE_HOURS = 12;
+
+function parseMaybeDate(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof value === "object" && value.seconds) {
+    return new Date(value.seconds * 1000);
+  }
+  if (typeof value === "object" && value.$date) {
+    return new Date(value.$date);
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 function isReservationPayable(item) {
   if (!item || item.status !== "待支付" || item.payStatus === "paid") {
     return false;
   }
-  const lockedUntil = item.lockedUntil;
+  const lockedUntil = parseMaybeDate(item.lockedUntil);
   if (!lockedUntil) {
     return true;
   }
-  let time = lockedUntil;
-  if (typeof lockedUntil === "object" && lockedUntil.seconds) {
-    time = new Date(lockedUntil.seconds * 1000);
-  } else if (typeof lockedUntil === "object" && lockedUntil.$date) {
-    time = new Date(lockedUntil.$date);
+  return lockedUntil.getTime() > Date.now();
+}
+
+function getReservationStartMs(item) {
+  const day = String((item && item.day) || "").trim();
+  const time = String((item && item.time) || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{1,2}:\d{2}$/.test(time)) {
+    return NaN;
   }
-  const date = time instanceof Date ? time : new Date(time);
-  return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
+  const start = new Date(`${day}T${time.padStart(5, "0")}:00+08:00`);
+  return start.getTime();
+}
+
+function isReservationCancelable(item) {
+  if (!item) {
+    return false;
+  }
+  const status = item.status || "";
+  if (status === "已取消") {
+    return false;
+  }
+  if (status === "待支付") {
+    return true;
+  }
+  if (status === "已确认" || item.payStatus === "paid") {
+    const startMs = getReservationStartMs(item);
+    if (!Number.isFinite(startMs)) {
+      return false;
+    }
+    return startMs - Date.now() >= CANCEL_ADVANCE_HOURS * 60 * 60 * 1000;
+  }
+  return false;
+}
+
+function reservationCancelHint(item) {
+  if (!item || item.status === "已取消") {
+    return "";
+  }
+  if (item.status === "待支付") {
+    return "未支付可随时取消";
+  }
+  if (item.status === "已确认" || item.payStatus === "paid") {
+    if (isReservationCancelable(item)) {
+      return `可取消（须提前 ${CANCEL_ADVANCE_HOURS} 小时）`;
+    }
+    return `距开场不足 ${CANCEL_ADVANCE_HOURS} 小时，请联系门店`;
+  }
+  return "";
 }
 
 const tabs = [
@@ -32,16 +91,26 @@ function normalizeReservations(records) {
   return (records || []).map((item) => {
     const timeRange = item.endTime ? `${item.time || ""}–${item.endTime}` : (item.time || "");
     const status = item.status || "待确认";
-    const statusLabel = status === "待支付" ? "待支付" : status;
+    const payStatus = item.payStatus || "";
+    let statusLabel = status;
+    if (status === "已取消" && (payStatus === "refunding" || payStatus === "refunded")) {
+      statusLabel = payStatus === "refunded" ? "已取消·已退款" : "已取消·退款中";
+    } else if (status === "待支付") {
+      statusLabel = "待支付";
+    }
+    const price = Number(item.total != null ? item.total : item.price) || 0;
     return Object.assign({}, item, {
       id: item.id || item._id,
       title: displayReservationPlace(item),
       meta: item.day && timeRange ? `${item.day} ${timeRange}` : (item.day || ""),
-      subMeta: `${item.people || 1} 位 · ${item.phone || ""}`,
+      subMeta: `${item.people || 1} 位 · ${item.phone || ""}${price > 0 ? ` · ¥${price}` : ""}`,
       image: item.image || "/assets/images/reservation-hero.jpg",
       status: statusLabel,
-      payStatus: item.payStatus || "",
-      payable: isReservationPayable(item)
+      rawStatus: status,
+      payStatus,
+      payable: isReservationPayable(item),
+      cancelable: isReservationCancelable(item),
+      cancelHint: reservationCancelHint(item)
     });
   });
 }
@@ -65,7 +134,8 @@ Page({
     signups: [],
     loading: false,
     loaded: false,
-    error: ""
+    error: "",
+    cancelAdvanceHours: CANCEL_ADVANCE_HOURS
   },
 
   onLoad(options = {}) {
@@ -118,7 +188,7 @@ Page({
       this.needsRefresh = true;
       this.loadRecords(true);
     }).catch((error) => {
-      const isUserCancel = error && error.raw && (error.raw.errCode === -2 || /cancel|fail/.test(error.raw.errMsg || ""));
+      const isUserCancel = error && error.raw && (error.raw.errCode === -2 || /cancel|取消/i.test(error.raw.errMsg || error.message || ""));
       wx.showModal({
         title: isUserCancel ? "支付未完成" : "支付失败",
         content: isUserCancel
@@ -127,6 +197,69 @@ Page({
         showCancel: false
       });
       this.loadRecords(true);
+    });
+  },
+
+  cancelReservation(event) {
+    const id = event.currentTarget.dataset.id;
+    const reservation = this.data.reservations.find((item) => item.id === id);
+    if (!reservation) {
+      wx.showToast({ title: "预约不存在", icon: "none" });
+      return;
+    }
+    if (!reservation.cancelable) {
+      wx.showModal({
+        title: "暂不可取消",
+        content: reservation.cancelHint || `已支付预约须提前 ${CANCEL_ADVANCE_HOURS} 小时取消，或联系门店处理。`,
+        showCancel: false
+      });
+      return;
+    }
+
+    const isPaid = reservation.rawStatus === "已确认" || reservation.payStatus === "paid";
+    const content = isPaid
+      ? `确认取消该预约？费用将原路退回（通常 1–3 个工作日）。须至少提前 ${CANCEL_ADVANCE_HOURS} 小时。`
+      : "确认取消该待支付预约？取消后时段将释放。";
+
+    wx.showModal({
+      title: "取消预约",
+      content,
+      confirmText: "确认取消",
+      confirmColor: "#8b4a3a",
+      success: (res) => {
+        if (!res.confirm) {
+          return;
+        }
+        wx.showLoading({ title: "取消中", mask: true });
+        cancelReservation({
+          reservationId: reservation.id || reservation._id,
+          reservationNo: reservation.reservationNo
+        }).then((result) => {
+          wx.hideLoading();
+          if (!result || result.ok === false) {
+            wx.showModal({
+              title: "无法取消",
+              content: (result && result.message) || "取消失败，请稍后重试或联系门店",
+              showCancel: false
+            });
+            this.loadRecords(true);
+            return;
+          }
+          wx.showModal({
+            title: "已取消",
+            content: result.message || (isPaid ? "预约已取消，退款处理中" : "预约已取消"),
+            showCancel: false
+          });
+          this.loadRecords(true);
+        }).catch((error) => {
+          wx.hideLoading();
+          wx.showModal({
+            title: "取消失败",
+            content: (error && error.message) || "请稍后重试",
+            showCancel: false
+          });
+        });
+      }
     });
   },
 

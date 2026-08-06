@@ -1,4 +1,7 @@
 const cloud = require("wx-server-sdk");
+const crypto = require("crypto");
+const https = require("https");
+const querystring = require("querystring");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -6,6 +9,42 @@ cloud.init({
 
 const db = cloud.database();
 const _ = db.command;
+
+/** 微信运力编码 / 中文 → 快递100 com */
+const KUAIDI100_COM_MAP = {
+  SF: "shunfeng",
+  顺丰: "shunfeng",
+  顺丰速运: "shunfeng",
+  STO: "shentong",
+  申通: "shentong",
+  申通快递: "shentong",
+  YTO: "yuantong",
+  圆通: "yuantong",
+  圆通速递: "yuantong",
+  ZTO: "zhongtong",
+  中通: "zhongtong",
+  中通快递: "zhongtong",
+  YD: "yunda",
+  韵达: "yunda",
+  韵达快递: "yunda",
+  韵达速递: "yunda",
+  EMS: "ems",
+  邮政: "ems",
+  中国邮政: "ems",
+  JD: "jd",
+  京东: "jd",
+  京东物流: "jd",
+  JTSD: "jtexpress",
+  极兔: "jtexpress",
+  极兔速递: "jtexpress",
+  DBL: "debangwuliu",
+  德邦: "debangwuliu",
+  HTKY: "huitongkuaidi",
+  百世: "huitongkuaidi",
+  UC: "youshuwuliu",
+  ANE: "annengwuliu",
+  CNSD: "cainiao"
+};
 
 const ACTIVE_ORDER_STATUSES = ["已付款", "制作中", "待确认", "待发货", "待自提", "已发货", "异常待处理", "支付异常待处理"];
 const AFTER_SALE_STATUSES = ["申请售后", "审核中", "处理中", "已退款", "已拒绝", "已关闭"];
@@ -33,7 +72,11 @@ const PUBLIC_ORDER_FIELDS = [
   "pickupNote",
   "remark",
   "trackingCompany",
+  "trackingCompanyCode",
   "trackingNo",
+  "logisticsState",
+  "logisticsTraces",
+  "logisticsUpdatedAt",
   "fulfillmentStatus",
   "afterSaleStatus",
   "afterSaleReason",
@@ -391,6 +434,210 @@ async function confirmReceipt(event, openid) {
   return { ok: true, message: "已确认收货" };
 }
 
+function resolveKuaidi100Com(order = {}) {
+  const candidates = [
+    order.trackingCompanyCode,
+    order.expressCompany,
+    order.trackingCompany
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const raw = cleanText(candidates[i], 40);
+    if (!raw) {
+      continue;
+    }
+    if (KUAIDI100_COM_MAP[raw]) {
+      return KUAIDI100_COM_MAP[raw];
+    }
+    const upper = raw.toUpperCase();
+    if (KUAIDI100_COM_MAP[upper]) {
+      return KUAIDI100_COM_MAP[upper];
+    }
+    // 已是快递100编码
+    if (/^[a-z][a-z0-9]+$/.test(raw)) {
+      return raw;
+    }
+  }
+  return "";
+}
+
+function postForm(hostname, path, form) {
+  const body = querystring.stringify(form);
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname,
+      path,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(body)
+      }
+    }, (res) => {
+      let raw = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        raw += chunk;
+      });
+      res.on("end", () => {
+        try {
+          resolve(raw ? JSON.parse(raw) : {});
+        } catch (error) {
+          reject(new Error("物流接口返回无法解析"));
+        }
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(8000, () => {
+      req.destroy(new Error("物流查询超时"));
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
+/**
+ * 快递100 实时查询
+ * 环境变量：KUAIDI100_CUSTOMER、KUAIDI100_KEY
+ * 文档：sign = MD5(param + key + customer).toUpperCase()
+ */
+async function queryKuaidi100(com, num, phone) {
+  const customer = String(process.env.KUAIDI100_CUSTOMER || "").trim();
+  const key = String(process.env.KUAIDI100_KEY || "").trim();
+  if (!customer || !key) {
+    return {
+      ok: false,
+      configured: false,
+      message: "物流查询未配置（请在 listMyRecords 环境变量填写 KUAIDI100_CUSTOMER / KUAIDI100_KEY）"
+    };
+  }
+  if (!com || !num) {
+    return { ok: false, configured: true, message: "缺少快递公司或运单号" };
+  }
+
+  const paramObj = { com, num, resultv2: "1" };
+  // 顺丰等常要求收/寄件人手机后四位
+  const phoneDigits = String(phone || "").replace(/\D/g, "");
+  if (phoneDigits.length >= 4) {
+    paramObj.phone = phoneDigits.slice(-4);
+  }
+  const param = JSON.stringify(paramObj);
+  const sign = crypto.createHash("md5").update(param + key + customer).digest("hex").toUpperCase();
+
+  let data;
+  try {
+    data = await postForm("poll.kuaidi100.com", "/poll/query.do", {
+      customer,
+      sign,
+      param
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      configured: true,
+      message: (error && error.message) || "物流查询失败"
+    };
+  }
+
+  if (String(data.status) !== "200" && !Array.isArray(data.data)) {
+    return {
+      ok: false,
+      configured: true,
+      message: data.message || data.returnCode || "暂无轨迹",
+      raw: data
+    };
+  }
+
+  const traces = (data.data || []).map((item) => ({
+    time: item.time || item.ftime || "",
+    context: item.context || item.status || "",
+    status: item.statusCode || item.status || ""
+  }));
+
+  return {
+    ok: true,
+    configured: true,
+    com: data.com || com,
+    nu: data.nu || num,
+    state: data.state || data.condition || "",
+    ischeck: data.ischeck,
+    traces
+  };
+}
+
+async function queryLogistics(event, openid) {
+  const order = await findOwnOrder(event, openid);
+  if (!order) {
+    return { ok: false, message: "订单不存在" };
+  }
+  if (order.deliveryMethod !== "shipping") {
+    return { ok: false, message: "非快递订单无物流轨迹" };
+  }
+  if (!order.trackingNo) {
+    return {
+      ok: true,
+      pending: true,
+      message: "商家尚未填写运单号",
+      trackingCompany: order.trackingCompany || "",
+      trackingNo: "",
+      traces: []
+    };
+  }
+
+  // 短缓存：2 分钟内复用，减少接口调用
+  const cachedAt = order.logisticsUpdatedAt ? new Date(order.logisticsUpdatedAt).getTime() : 0;
+  if (
+    Array.isArray(order.logisticsTraces)
+    && order.logisticsTraces.length
+    && cachedAt
+    && Date.now() - cachedAt < 2 * 60 * 1000
+    && !event.force
+  ) {
+    return {
+      ok: true,
+      cached: true,
+      trackingCompany: order.trackingCompany || "",
+      trackingNo: order.trackingNo,
+      state: order.logisticsState || "",
+      traces: order.logisticsTraces
+    };
+  }
+
+  const com = resolveKuaidi100Com(order);
+  const result = await queryKuaidi100(com, order.trackingNo, order.phone);
+  if (!result.ok) {
+    return {
+      ok: false,
+      configured: result.configured !== false,
+      message: result.message || "查询失败",
+      trackingCompany: order.trackingCompany || "",
+      trackingNo: order.trackingNo,
+      traces: order.logisticsTraces || []
+    };
+  }
+
+  try {
+    await db.collection("orders").doc(order._id).update({
+      data: {
+        logisticsState: result.state || "",
+        logisticsTraces: result.traces,
+        logisticsCom: result.com || com,
+        logisticsUpdatedAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    // 缓存失败不影响返回
+  }
+
+  return {
+    ok: true,
+    cached: false,
+    trackingCompany: order.trackingCompany || "",
+    trackingNo: order.trackingNo,
+    state: result.state || "",
+    traces: result.traces
+  };
+}
+
 async function getMyCoupons(openid) {
   await ensureCollection("user_coupons");
   try {
@@ -468,6 +715,9 @@ exports.main = async (event = {}) => {
     }
     if (event.action === "confirmReceipt") {
       return await confirmReceipt(event, OPENID);
+    }
+    if (event.action === "queryLogistics") {
+      return await queryLogistics(event, OPENID);
     }
 
     const [orders, orderSummary, reservations, signups, coupons, member, wallet] = await Promise.all([

@@ -211,6 +211,10 @@ function createReservation(payload) {
   return callCloud("createReservation", payload);
 }
 
+function cancelReservation(payload) {
+  return callCloud("createReservation", Object.assign({ action: "cancelReservation" }, payload || {}));
+}
+
 function createReservationPayment(payload) {
   return callCloud("createPayment", Object.assign({ action: "createReservationPayment" }, payload || {}));
 }
@@ -292,6 +296,18 @@ function updateMyOrder(action, orderId, payload) {
     action,
     orderId
   }, payload || {})).then((result) => requireOk(result, "订单操作失败"));
+}
+
+function queryLogistics(orderId, options = {}) {
+  return callCloud("listMyRecords", Object.assign({
+    action: "queryLogistics",
+    orderId
+  }, options || {})).then((result) => {
+    if (!result) {
+      throw new Error("物流查询失败");
+    }
+    return result;
+  });
 }
 
 function getMemberCenter() {
@@ -390,6 +406,7 @@ module.exports = {
   createEvent,
   createOrder,
   createPayment,
+  cancelReservation,
   createReservation,
   createReservationPayment,
   getCatalog,
@@ -404,6 +421,7 @@ module.exports = {
   listReservedSlots,
   payOrder,
   payReservation,
+  queryLogistics,
   rechargeMember,
   resolvePhoneNumber,
   saveContactPhone,

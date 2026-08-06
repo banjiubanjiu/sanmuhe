@@ -818,6 +818,55 @@
   margin-top: 14rpx;
 }
 
+.fee-card {
+  margin-top: 20rpx;
+  padding: 18rpx 18rpx 14rpx;
+  border-radius: 14rpx;
+  border: 1rpx solid var(--hx-line);
+  background: var(--hx-surface);
+  box-sizing: border-box;
+}
+
+.fee-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 8rpx 0;
+}
+
+.fee-k {
+  color: var(--hx-muted);
+  font-size: 26rpx;
+}
+
+.fee-v {
+  color: var(--hx-text);
+  font-size: 26rpx;
+  font-weight: 500;
+}
+
+.fee-row.fee-total {
+  margin-top: 6rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx dashed var(--hx-line);
+}
+
+.fee-row.fee-total .fee-k,
+.fee-row.fee-total .fee-v {
+  color: #a94a32;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.fee-hint {
+  margin-top: 4rpx;
+  margin-bottom: 4rpx;
+  color: var(--hx-muted);
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+
 .pay-row {
   display: flex;
   align-items: center;

@@ -168,9 +168,9 @@
         <textarea class="textarea-field" placeholder="备注（选填）" data-field="note" value="{{note}}" bindinput="onInput"></textarea>
       </view>
 
-      <view class="booking-note">无论是否用满，所选时段均归您；最短 {{minHours}} 小时。含赠 2 泡茶（价值 ¥78）。提交后由门店确认；如时段冲突请重选。</view>
+      <view class="booking-note">无论是否用满，所选时段均归您；最短 {{minHours}} 小时。含赠 2 泡茶（价值 ¥78）。提交后需在 {{lockMinutes}} 分钟内完成微信支付，支付成功即确认预约。已支付预约须提前 {{cancelAdvanceHours}} 小时取消，费用原路退回。</view>
 
-      <button class="submit-reserve" hover-class="none" bindtap="submitReservation">提交预约 · ¥{{selectedPrice}}</button>
+      <button class="submit-reserve" hover-class="none" bindtap="submitReservation">支付并预约 · ¥{{selectedPrice}}</button>
     </view>
   </view>
 

@@ -127,17 +127,44 @@
   justify-content: space-between;
 }
 
-.record-pay-btn {
+.record-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.record-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 22rpx;
+  color: #9e968a;
+  line-height: 1.4;
+}
+
+.record-pay-btn,
+.record-cancel-btn {
   margin: 0;
   padding: 8rpx 24rpx;
   font-size: 24rpx;
   line-height: 1.5;
-  color: #fff;
-  background: #5a844c;
   border-radius: 28rpx;
 }
 
-.record-pay-btn::after {
+.record-pay-btn {
+  color: #fff;
+  background: #5a844c;
+}
+
+.record-cancel-btn {
+  color: #8b4a3a;
+  background: #f5ebe4;
+}
+
+.record-pay-btn::after,
+.record-cancel-btn::after {
   border: none;
 }
 

@@ -1103,11 +1103,9 @@ function money(value) {
   return Number.isInteger(number) ? String(number) : number.toFixed(2);
 }
 
+/** 门店后台需完整联系方式（自提核销/回访）；不再脱敏手机号 */
 function maskPhone(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^1\d{10}$/.test(text)) return `${text.slice(0, 3)}****${text.slice(7)}`;
-  return text.length > 4 ? `${text.slice(0, 2)}***${text.slice(-2)}` : "***";
+  return String(value || "").trim();
 }
 
 function maskOpenid(value) {
@@ -1117,10 +1115,18 @@ function maskOpenid(value) {
 }
 
 function maskName(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (text === "已匿名") return text;
-  return text.length <= 1 ? "*" : `${text.slice(0, 1)}*`;
+  // 门店履约：姓名完整展示，便于按姓名对单
+  return String(value || "").trim();
+}
+
+/** 订单列表联系人摘要：姓名 + 手机（字段兼容 consignee / name） */
+function orderContactLabel(order = {}) {
+  const name = String(order.consignee || order.name || order.contactName || "").trim();
+  const phone = String(order.phone || order.mobile || "").trim();
+  if (name && phone) {
+    return `${name} · ${phone}`;
+  }
+  return name || phone || "未留联系人";
 }
 
 function isPhone(value) {
@@ -4199,7 +4205,8 @@ onBeforeUnmount(() => {
                 <option value="">全部状态</option>
                 <option>待支付</option><option>已付款</option><option>制作中</option><option>待确认</option><option>待发货</option><option>待自提</option><option>已发货</option><option>已完成</option><option>已取消</option>
               </select>
-              <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号、姓名、手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
+              <input v-model="filters.orderKeyword" class="line-input" aria-label="搜索订单" placeholder="订单号 / 姓名 / 手机号" @keydown.enter="resetPageAndLoad('orders', loadOrders)">
+              <button class="secondary-action small" type="button" @click="resetPageAndLoad('orders', loadOrders)">搜索</button>
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportOrders">{{ exportScopeLabel }}</button>
             </div>
 
@@ -4207,7 +4214,7 @@ onBeforeUnmount(() => {
               <button v-for="order in state.orders" :key="order._id" :class="['record-row', { selected: state.drawers.order && state.selectedOrderId === order._id }]" type="button" @click="selectOrder(order)">
                 <strong><span>{{ order.orderNo || order._id }}</span><em>¥{{ money(order.total) }}</em></strong>
                 <span class="record-meta">
-                  <span>{{ maskName(order.name || order.contactName) || "访客" }} · {{ formatDate(order.createdAt) }}</span>
+                  <span>{{ orderContactLabel(order) }} · {{ formatDate(order.createdAt) }}</span>
                   <i :class="['record-status', statusTone(order.status)]">{{ order.status }}</i>
                 </span>
               </button>
@@ -4227,8 +4234,8 @@ onBeforeUnmount(() => {
             <DetailRow label="金额" :value="`¥${money(selectedOrder.total)}`" />
             <DetailRow label="支付" :value="selectedOrder.payMode === 'manual' ? (selectedOrder.payStatus === 'manual' ? '免支付·待确认' : (selectedOrder.payStatus || '免支付')) : (selectedOrder.payStatus || '-')" />
             <DetailRow label="履约" :value="selectedOrder.deliveryMethod === 'shipping' ? '快递' : (selectedOrder.deliveryMethod === 'onsite' || selectedOrder.payMode === 'manual' ? '现场点单·扫码付款' : '到店自提')" />
-            <DetailRow label="客户" :value="maskName(selectedOrder.consignee || selectedOrder.name || selectedOrder.contactName) || '-'" />
-            <DetailRow label="电话" :value="maskPhone(selectedOrder.phone || selectedOrder.mobile) || '-'" />
+            <DetailRow label="客户" :value="selectedOrder.consignee || selectedOrder.name || selectedOrder.contactName || '-'" />
+            <DetailRow label="电话" :value="selectedOrder.phone || selectedOrder.mobile || '-'" />
             <DetailRow label="地址/备注" :value="selectedOrder.address || selectedOrder.pickupNote || selectedOrder.remark || '-'" />
             <DetailRow label="创建时间" :value="formatDate(selectedOrder.createdAt)" />
             <div class="line-items" v-if="selectedOrder.items?.length">

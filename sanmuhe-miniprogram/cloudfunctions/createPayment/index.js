@@ -216,10 +216,9 @@ function verifyWechatPaySignature(headers, rawBody, config) {
   }
 }
 
-function requestWechatPay(config, payload) {
+function requestWechatPayPost(config, path, payload, options = {}) {
   const method = "POST";
-  const path = "/v3/pay/transactions/jsapi";
-  const body = JSON.stringify(payload);
+  const body = JSON.stringify(payload || {});
   const timestamp = String(Math.floor(Date.now() / 1000));
   const nonce = nonceString();
   const authorization = buildAuthorization(config, method, path, body, timestamp, nonce);
@@ -234,6 +233,8 @@ function requestWechatPay(config, payload) {
   if (config.publicKeyId) {
     headers["Wechatpay-Serial"] = config.publicKeyId;
   }
+
+  const failLabel = options.failLabel || "微信支付请求失败";
 
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -265,7 +266,7 @@ function requestWechatPay(config, payload) {
         }
 
         if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(data.message || data.code || "微信支付下单失败"));
+          reject(new Error(data.message || data.code || failLabel));
           return;
         }
 
@@ -277,6 +278,180 @@ function requestWechatPay(config, payload) {
     req.write(body);
     req.end();
   });
+}
+
+function requestWechatPay(config, payload) {
+  return requestWechatPayPost(config, "/v3/pay/transactions/jsapi", payload, {
+    failLabel: "微信支付下单失败"
+  });
+}
+
+function createRefundOutNo(prefix) {
+  const base = cleanText(prefix, 20).replace(/[^A-Za-z0-9]/g, "") || "R";
+  return `${base}RF${Date.now()}${Math.floor(Math.random() * 900 + 100)}`.slice(0, 64);
+}
+
+async function loadReservationForRefund(reservationId, reservationNo) {
+  if (reservationId) {
+    try {
+      const doc = await db.collection("reservations").doc(reservationId).get();
+      if (doc.data) {
+        return Object.assign({ _id: reservationId }, doc.data);
+      }
+    } catch (error) {
+      // fall through
+    }
+  }
+  if (reservationNo) {
+    const result = await db.collection("reservations").where({ reservationNo }).limit(1).get();
+    const row = result.data && result.data[0];
+    if (row) {
+      return Object.assign({ _id: row._id }, row);
+    }
+  }
+  return null;
+}
+
+/**
+ * 茶室预约退款（由 createReservation 取消流程调用，或运维重试）
+ * 要求预约已处于 已取消 + payStatus=refunding，且原单已支付。
+ */
+async function refundReservation(event, openid, config) {
+  const reservationId = cleanText(event.reservationId || event.id, 80);
+  const reservationNo = cleanText(event.reservationNo, 40);
+  const row = await loadReservationForRefund(reservationId, reservationNo);
+  if (!row) {
+    return { ok: false, message: "预约不存在" };
+  }
+
+  // 仅允许本人；云函数互调时 OPENID 可能为空，依赖上游已鉴权
+  if (openid && row._openid && row._openid !== openid) {
+    return { ok: false, message: "无权操作该预约" };
+  }
+
+  if (row.payStatus === "refunded") {
+    return {
+      ok: true,
+      alreadyRefunded: true,
+      reservationId: row._id,
+      reservationNo: row.reservationNo,
+      refundId: row.refundId || "",
+      status: row.status
+    };
+  }
+
+  if (row.status !== "已取消" || row.payStatus !== "refunding") {
+    return {
+      ok: false,
+      message: `当前状态不可退款（${row.status || "未知"}/${row.payStatus || "未知"}）`
+    };
+  }
+
+  const totalFee = Math.round(numberField(row.total != null ? row.total : row.price) * 100);
+  if (totalFee <= 0) {
+    await db.collection("reservations").doc(row._id).update({
+      data: {
+        payStatus: "refunded",
+        refundAmount: 0,
+        refundedAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+    return { ok: true, reservationId: row._id, refundAmount: 0, zeroAmount: true };
+  }
+
+  const outRefundNo = cleanText(row.outRefundNo, 64) || createRefundOutNo(row.reservationNo || row._id);
+  if (!row.outRefundNo) {
+    await db.collection("reservations").doc(row._id).update({
+      data: {
+        outRefundNo,
+        updatedAt: db.serverDate()
+      }
+    });
+  }
+
+  const reason = cleanText(event.reason || row.cancellationReason || "用户取消预约", 80) || "用户取消预约";
+  // transaction_id 与 out_trade_no 二选一即可；优先微信交易号
+  const refundPayload = {
+    out_refund_no: outRefundNo,
+    reason,
+    amount: {
+      refund: totalFee,
+      total: totalFee,
+      currency: "CNY"
+    }
+  };
+  if (row.transactionId) {
+    refundPayload.transaction_id = cleanText(row.transactionId, 64);
+  } else {
+    refundPayload.out_trade_no = cleanText(row.reservationNo, 32);
+  }
+
+  let response;
+  try {
+    response = await requestWechatPayPost(
+      config,
+      "/v3/refund/domestic/refunds",
+      refundPayload,
+      { failLabel: "微信退款失败" }
+    );
+  } catch (error) {
+    const msg = (error && error.message) || "微信退款失败";
+    // 幂等：重复退款单号时视为可接受
+    if (/已退款|RESOURCE_ALREADY_EXISTS|已存在|FREQUENCY/i.test(msg)) {
+      await db.collection("reservations").doc(row._id).update({
+        data: {
+          payStatus: "refunded",
+          refundStatus: "EXISTING",
+          refundError: msg.slice(0, 200),
+          refundedAt: db.serverDate(),
+          updatedAt: db.serverDate()
+        }
+      });
+      return {
+        ok: true,
+        alreadyRefunded: true,
+        reservationId: row._id,
+        message: msg
+      };
+    }
+    await db.collection("reservations").doc(row._id).update({
+      data: {
+        refundError: msg.slice(0, 300),
+        refundLastAttemptAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+    return { ok: false, code: "REFUND_FAILED", message: msg };
+  }
+
+  const refundState = String(response.status || response.refund_status || "").toUpperCase();
+  const isDone = !refundState || refundState === "SUCCESS" || refundState === "PROCESSING";
+  await db.collection("reservations").doc(row._id).update({
+    data: {
+      payStatus: refundState === "SUCCESS" || !refundState ? "refunded" : "refunding",
+      refundStatus: refundState || "PROCESSING",
+      refundId: response.refund_id || row.refundId || "",
+      outRefundNo,
+      refundAmount: totalFee / 100,
+      refundRaw: response,
+      refundedAt: refundState === "SUCCESS" || !refundState ? db.serverDate() : null,
+      refundLastAttemptAt: db.serverDate(),
+      refundError: _.remove(),
+      updatedAt: db.serverDate()
+    }
+  });
+
+  return {
+    ok: true,
+    reservationId: row._id,
+    reservationNo: row.reservationNo,
+    outRefundNo,
+    refundId: response.refund_id || "",
+    refundStatus: refundState || "PROCESSING",
+    refundAmount: totalFee / 100,
+    accepted: isDone
+  };
 }
 
 /** 运维诊断：不落库，仅探测密钥形态与应答验签 */
@@ -1174,12 +1349,16 @@ exports.main = async (event = {}) => {
   try {
     const rechargeRequest = event.kind === "memberRecharge" || event.action === "createRechargePayment";
     const reservationRequest = event.kind === "reservation" || event.action === "createReservationPayment";
+    const reservationRefundRequest = event.action === "refundReservation" || event.kind === "reservationRefund";
     if (rechargeRequest && !isRealPaymentEnabled()) {
       return { ok: false, code: "REAL_RECHARGE_DISABLED", message: "会员真实充值尚未开放" };
     }
     const config = getPayConfig();
     if (rechargeRequest) {
       return await createRechargePayment(event, OPENID, config);
+    }
+    if (reservationRefundRequest) {
+      return await refundReservation(event, OPENID, config);
     }
     if (reservationRequest) {
       return await createReservationPayment(event, OPENID, config);

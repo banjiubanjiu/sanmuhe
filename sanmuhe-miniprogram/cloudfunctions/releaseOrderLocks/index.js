@@ -7,6 +7,12 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+/** 已发货后自动确认收货天数（默认 15，行业常见 7～15） */
+const AUTO_CONFIRM_SHIPPED_DAYS = Math.max(
+  1,
+  Math.min(60, Number(process.env.AUTO_CONFIRM_SHIPPED_DAYS || 15))
+);
+
 async function ensureCollection(name) {
   try {
     await db.createCollection(name);
@@ -159,9 +165,97 @@ async function releaseExpiredReservations() {
   };
 }
 
+/**
+ * 快递「已发货」超过 N 天仍未确认收货 → 自动完成
+ * 以 shippedAt 为准；无 shippedAt 时用 updatedAt 兜底
+ */
+async function autoConfirmShippedOrders() {
+  await ensureCollection("orders");
+  const deadline = new Date(Date.now() - AUTO_CONFIRM_SHIPPED_DAYS * 24 * 60 * 60 * 1000);
+
+  // 先按 shippedAt 捞
+  let rows = [];
+  try {
+    const byShipped = await db.collection("orders").where({
+      status: "已发货",
+      deliveryMethod: "shipping",
+      shippedAt: _.lte(deadline)
+    }).limit(50).get();
+    rows = byShipped.data || [];
+  } catch (error) {
+    rows = [];
+  }
+
+  // 兼容历史单无 shippedAt：用 updatedAt
+  if (rows.length < 50) {
+    try {
+      const byUpdated = await db.collection("orders").where({
+        status: "已发货",
+        deliveryMethod: "shipping",
+        shippedAt: _.exists(false),
+        updatedAt: _.lte(deadline)
+      }).limit(50 - rows.length).get();
+      rows = rows.concat(byUpdated.data || []);
+    } catch (error) {
+      // ignore
+    }
+  }
+
+  let confirmed = 0;
+  for (const order of rows) {
+    const claim = await db.collection("orders").where({
+      _id: order._id,
+      status: "已发货"
+    }).update({
+      data: {
+        status: "已完成",
+        fulfillmentStatus: "delivered",
+        completedBy: "system_auto",
+        completedAt: db.serverDate(),
+        autoConfirmed: true,
+        autoConfirmDays: AUTO_CONFIRM_SHIPPED_DAYS,
+        cancelReason: "",
+        adminNote: cleanTextAppend(
+          order.adminNote,
+          `系统在发货 ${AUTO_CONFIRM_SHIPPED_DAYS} 天后自动确认收货`
+        ),
+        updatedAt: db.serverDate()
+      }
+    });
+    if (dbUpdatedCount(claim) > 0) {
+      confirmed += 1;
+    }
+  }
+
+  return {
+    scanned: rows.length,
+    confirmed,
+    days: AUTO_CONFIRM_SHIPPED_DAYS
+  };
+}
+
+function cleanTextAppend(existing, note) {
+  const base = String(existing || "").trim();
+  const add = String(note || "").trim();
+  if (!add) {
+    return base;
+  }
+  if (!base) {
+    return add.slice(0, 300);
+  }
+  if (base.indexOf(add) >= 0) {
+    return base.slice(0, 300);
+  }
+  return `${base}；${add}`.slice(0, 300);
+}
+
 exports.main = async (event = {}) => {
   if (event.action === "health") {
-    return { ok: true, name: "releaseOrderLocks" };
+    return {
+      ok: true,
+      name: "releaseOrderLocks",
+      autoConfirmShippedDays: AUTO_CONFIRM_SHIPPED_DAYS
+    };
   }
 
   await ensureCollection("orders");
@@ -192,7 +286,7 @@ exports.main = async (event = {}) => {
       }
     });
 
-    if (claim.updated === 0) {
+    if (dbUpdatedCount(claim) === 0) {
       continue;
     }
 
@@ -202,12 +296,14 @@ exports.main = async (event = {}) => {
   }
 
   const reservationRelease = await releaseExpiredReservations();
+  const autoConfirm = await autoConfirmShippedOrders();
 
   return {
     ok: true,
     scanned: expiredOrders.length,
     released,
     reservationsScanned: reservationRelease.scanned,
-    reservationsReleased: reservationRelease.released
+    reservationsReleased: reservationRelease.released,
+    autoConfirmShipped: autoConfirm
   };
 };

@@ -88,14 +88,42 @@
         <text>备注</text>
         <view>{{order.remark}}</view>
       </view>
-      <view wx:if="{{order.canViewLogistics}}" class="logistics-block">
-        <view class="logistics-label">物流信息</view>
+      <view wx:if="{{order.canViewLogistics || (order.deliveryMethod === 'shipping' && order.trackingNo)}}" class="logistics-block">
+        <view class="logistics-label-row">
+          <view class="logistics-label">物流信息</view>
+          <view
+            wx:if="{{logisticsStateLabel}}"
+            class="logistics-state"
+          >{{logisticsStateLabel}}</view>
+        </view>
         <view class="logistics-main">
           <view>
             <view class="logistics-company">{{order.trackingCompany || '快递配送'}}</view>
             <view class="tracking-no">{{order.trackingNo}}</view>
           </view>
           <button bindtap="copyTrackingNo">复制单号</button>
+        </view>
+        <view class="logistics-actions">
+          <button
+            class="logistics-refresh"
+            loading="{{logisticsLoading}}"
+            disabled="{{logisticsLoading}}"
+            bindtap="refreshLogistics"
+          >{{logisticsLoading ? '查询中' : '刷新轨迹'}}</button>
+        </view>
+        <view wx:if="{{logisticsError}}" class="logistics-error">{{logisticsError}}</view>
+        <view wx:if="{{logisticsTraces.length}}" class="logistics-trace-list">
+          <view
+            wx:for="{{logisticsTraces}}"
+            wx:key="time"
+            class="logistics-trace-item {{index === 0 ? 'is-latest' : ''}}"
+          >
+            <view class="logistics-trace-time">{{item.time}}</view>
+            <view class="logistics-trace-text">{{item.context}}</view>
+          </view>
+        </view>
+        <view wx:elif="{{!logisticsLoading && !logisticsError}}" class="logistics-empty">
+          暂无轨迹，可点「刷新轨迹」或用单号在快递官网查询
         </view>
       </view>
     </view>

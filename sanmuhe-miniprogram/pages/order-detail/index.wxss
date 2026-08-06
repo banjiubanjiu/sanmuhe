@@ -344,6 +344,92 @@
   opacity: 0.85;
 }
 
+.logistics-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.logistics-state {
+  color: var(--hx-action);
+  font-size: 22rpx;
+  font-weight: 500;
+}
+
+.logistics-actions {
+  margin-top: 16rpx;
+}
+
+.logistics-refresh {
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 24rpx;
+  color: var(--hx-muted);
+  background: transparent;
+  border: 1rpx solid var(--hx-line);
+  border-radius: 999rpx;
+  font-size: 22rpx;
+}
+
+.logistics-refresh::after {
+  border: none;
+}
+
+.logistics-error,
+.logistics-empty {
+  margin-top: 14rpx;
+  color: var(--hx-muted);
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
+.logistics-error {
+  color: #a94a32;
+}
+
+.logistics-trace-list {
+  margin-top: 20rpx;
+  padding-left: 8rpx;
+  border-left: 2rpx solid var(--hx-line);
+}
+
+.logistics-trace-item {
+  position: relative;
+  padding: 0 0 20rpx 20rpx;
+}
+
+.logistics-trace-item::before {
+  content: "";
+  position: absolute;
+  left: -7rpx;
+  top: 10rpx;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background: var(--hx-line);
+}
+
+.logistics-trace-item.is-latest::before {
+  background: var(--hx-action);
+}
+
+.logistics-trace-time {
+  color: var(--hx-muted);
+  font-size: 20rpx;
+}
+
+.logistics-trace-text {
+  margin-top: 4rpx;
+  color: var(--hx-text);
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.logistics-trace-item.is-latest .logistics-trace-text {
+  font-weight: 600;
+}
+
 .after-sale-status {
   display: flex;
   justify-content: space-between;

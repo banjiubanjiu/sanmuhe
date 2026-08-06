@@ -1,4 +1,4 @@
-const { getMyOrder, payOrder, updateMyOrder } = require("../../utils/cloudApi");
+const { getMyOrder, payOrder, updateMyOrder, queryLogistics } = require("../../utils/cloudApi");
 const { addToCart } = require("../../utils/cart");
 const { normalizeOrder } = require("../../utils/orderCenter");
 
@@ -13,6 +13,27 @@ function buildContactMeta(orderId, order) {
   };
 }
 
+function logisticsStateText(state) {
+  const map = {
+    "0": "在途",
+    "1": "揽收",
+    "2": "疑难",
+    "3": "已签收",
+    "4": "退签",
+    "5": "派件",
+    "6": "退回",
+    "7": "转投",
+    "8": "清关",
+    "10": "待清关",
+    "11": "清关中",
+    "12": "已清关",
+    "13": "清关异常",
+    "14": "拒签"
+  };
+  const key = String(state == null ? "" : state);
+  return map[key] || (key ? `状态 ${key}` : "");
+}
+
 Page({
   data: {
     orderId: "",
@@ -22,6 +43,10 @@ Page({
     submitting: false,
     afterSaleOpen: false,
     afterSaleReason: "",
+    logisticsLoading: false,
+    logisticsError: "",
+    logisticsTraces: [],
+    logisticsStateLabel: "",
     contactSessionFrom: "order-detail",
     contactMessageTitle: "订单咨询",
     contactMessagePath: "pages/orders/index",
@@ -60,17 +85,63 @@ Page({
     }
     return getMyOrder(this.data.orderId).then((result) => {
       const order = normalizeOrder(result.order);
+      const cachedTraces = Array.isArray(order.logisticsTraces) ? order.logisticsTraces : [];
       this.setData(Object.assign({
         order,
         loading: false,
-        error: ""
+        error: "",
+        logisticsTraces: cachedTraces,
+        logisticsStateLabel: logisticsStateText(order.logisticsState),
+        logisticsError: ""
       }, buildContactMeta(this.data.orderId, order)));
+      if (order.canViewLogistics || (order.deliveryMethod === "shipping" && order.trackingNo)) {
+        this.loadLogistics({ silent: true });
+      }
     }).catch((error) => {
       this.setData({
         loading: false,
         error: error && error.message ? error.message : "订单详情暂时加载失败"
       });
     });
+  },
+
+  loadLogistics(options = {}) {
+    if (!this.data.orderId) {
+      return;
+    }
+    if (!options.silent) {
+      this.setData({ logisticsLoading: true, logisticsError: "" });
+    } else {
+      this.setData({ logisticsLoading: true });
+    }
+    queryLogistics(this.data.orderId, { force: !!options.force }).then((result) => {
+      if (!result) {
+        return;
+      }
+      if (result.ok === false) {
+        this.setData({
+          logisticsLoading: false,
+          logisticsError: result.message || "暂时查不到轨迹",
+          logisticsTraces: Array.isArray(result.traces) ? result.traces : this.data.logisticsTraces
+        });
+        return;
+      }
+      this.setData({
+        logisticsLoading: false,
+        logisticsError: result.pending ? (result.message || "") : "",
+        logisticsTraces: Array.isArray(result.traces) ? result.traces : [],
+        logisticsStateLabel: logisticsStateText(result.state)
+      });
+    }).catch((error) => {
+      this.setData({
+        logisticsLoading: false,
+        logisticsError: (error && error.message) || "物流查询失败"
+      });
+    });
+  },
+
+  refreshLogistics() {
+    this.loadLogistics({ force: true });
   },
 
   continuePayment() {

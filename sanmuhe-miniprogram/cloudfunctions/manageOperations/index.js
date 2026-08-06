@@ -180,15 +180,9 @@ function number(value) {
   return Math.max(0, Number(value) || 0);
 }
 
+/** 门店后台履约需要完整手机号（自提核销等），不再脱敏 */
 function maskPhone(value) {
-  const text = cleanText(value, 40);
-  if (!text) {
-    return "";
-  }
-  if (/^1\d{10}$/.test(text)) {
-    return `${text.slice(0, 3)}****${text.slice(7)}`;
-  }
-  return text.length > 4 ? `${text.slice(0, 2)}***${text.slice(-2)}` : "***";
+  return cleanText(value, 40);
 }
 
 function maskOpenid(value) {
@@ -1889,14 +1883,28 @@ async function globalSearch(event, role) {
       run: async () => {
         const result = await readCollectionPage("orders", {
           keyword,
-          keywordFields: ["orderNo", "name", "contactName", "consignee", "phone", "mobile", "status"],
+          keywordFields: [
+            "orderNo",
+            "name",
+            "contactName",
+            "consignee",
+            "phone",
+            "mobile",
+            "pickupNote",
+            "remark",
+            "status"
+          ],
           orderBy: "createdAt",
           event: searchEvent
         });
         return searchGroup("orders", "orders", "订单", result, result.items.map((order) => searchItem(
           order._id,
           `订单 ${order.orderNo || order._id}`,
-          compactSearchText([maskName(order.name || order.contactName || order.consignee), maskPhone(order.phone || order.mobile), `¥${number(order.total)}`]),
+          compactSearchText([
+            order.consignee || order.name || order.contactName,
+            order.phone || order.mobile,
+            `¥${number(order.total)}`
+          ]),
           order.status || order.payStatus,
           dateKey(order.createdAt),
           keyword
@@ -3367,7 +3375,18 @@ exports.main = async (event = {}, context = {}) => {
       return await globalSearch(event, role);
     }
     if (action === "listOrders") {
-      const result = await listCollection("orders", status, keyword, event, ["orderNo", "name", "contactName", "consignee", "phone", "mobile", "status"]);
+      // 支持：订单号、姓名(consignee/name)、手机号、备注/自提说明、状态
+      const result = await listCollection("orders", status, keyword, event, [
+        "orderNo",
+        "name",
+        "contactName",
+        "consignee",
+        "phone",
+        "mobile",
+        "pickupNote",
+        "remark",
+        "status"
+      ]);
       await writeExportAuditLog(caller, event, action, "订单", result.page);
       return { ok: true, orders: result.items, page: result.page };
     }
