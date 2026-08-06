@@ -141,16 +141,27 @@ page {
   margin-top: 28rpx;
 }
 
-/* button 重置为卡片样式，整卡可点 open-type=contact */
-.contact-card-btn {
-  width: 100%;
+/* button 重置：与其它 contact-card 视觉一致，仅保留 open-type=contact 能力 */
+button.contact-card-btn {
+  width: auto;
+  margin: 28rpx 0 0;
+  padding: 24rpx 28rpx 24rpx 24rpx;
+  border: 1rpx solid rgba(220, 214, 202, 0.86);
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10rpx 28rpx rgba(44, 36, 28, 0.08);
+  color: #1f1b17;
+  font-size: inherit;
+  font-weight: normal;
+  line-height: normal;
   text-align: left;
-  line-height: inherit;
-  font-weight: inherit;
+  text-indent: 0;
+  overflow: hidden;
 }
 
-.contact-card-btn::after {
+button.contact-card-btn::after {
   border: none;
+  display: none;
 }
 
 .contact-card-hover {
@@ -158,13 +169,16 @@ page {
 }
 
 .online-action {
-  position: relative;
-  z-index: 1;
   flex-shrink: 0;
   color: #315f34;
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
   font-size: 26rpx;
   font-weight: 600;
+}
+
+/* online-card 的 margin 已在 button 上写死，避免双重间距 */
+button.contact-card-btn.online-card {
+  margin-top: 28rpx;
 }
 
 .icon-wrap {
