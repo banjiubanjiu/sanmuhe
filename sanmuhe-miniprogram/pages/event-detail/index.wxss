@@ -101,6 +101,31 @@
   background: #faf6ee;
 }
 
+.wait-pill.open {
+  border-color: rgba(31, 91, 60, 0.35);
+  background: #1f5b3c;
+}
+
+.wait-pill.open text {
+  color: #fffaf0;
+}
+
+.wait-pill.full {
+  border-color: rgba(138, 98, 48, 0.28);
+  background: rgba(138, 98, 48, 0.12);
+}
+
+.wait-pill.ended,
+.wait-pill.cancelled {
+  border-color: rgba(49, 52, 48, 0.12);
+  background: rgba(49, 52, 48, 0.06);
+}
+
+.wait-pill.ended text,
+.wait-pill.cancelled text {
+  color: #8a8175;
+}
+
 .wait-pill-icon {
   width: 32rpx;
   height: 32rpx;

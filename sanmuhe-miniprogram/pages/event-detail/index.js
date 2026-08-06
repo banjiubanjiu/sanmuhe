@@ -1,5 +1,7 @@
 const { events: localEvents } = require("../../data/catalog");
 const { listEvents } = require("../../utils/cloudApi");
+const { decorateEventStatus } = require("../../utils/eventStatus");
+const { localImage } = require("../../config/assets");
 
 const detailImages = {
   "event-001": "/assets/images/event-detail-content-1.jpg",
@@ -7,23 +9,57 @@ const detailImages = {
   "event-003": "/assets/images/event-detail-content-3.jpg"
 };
 
-function normalizeEvent(raw, index) {
-  const fallback = localEvents.find((item) => item.id === raw.id) || localEvents[index] || localEvents[0] || {};
-  const item = Object.assign({}, fallback, raw);
-  return Object.assign({}, item, {
-    canJoin: false,
-    joinText: "敬请期待",
-    detailImage: item.detailImage || detailImages[item.id] || item.image
+function safeLocalImage(path, fallback) {
+  try {
+    const next = localImage(path || fallback || "");
+    return next || fallback || "";
+  } catch (error) {
+    return fallback || path || "";
+  }
+}
+
+function toViewEvent(raw, index) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const fallback = localEvents.find((item) => item.id === source.id)
+    || localEvents[index]
+    || localEvents[0]
+    || {};
+  const merged = Object.assign({}, fallback, source, {
+    status: source.status || fallback.status || "敬请期待",
+    image: safeLocalImage(source.image || fallback.image, "/assets/images/event-yangxin-tea.jpg"),
+    detailImage: safeLocalImage(
+      source.detailImage || fallback.detailImage || detailImages[source.id] || source.image || fallback.image,
+      "/assets/images/event-detail-content-1.jpg"
+    )
   });
+  const decorated = decorateEventStatus(merged);
+  return {
+    id: decorated.id || "",
+    title: decorated.title || decorated.name || "茶事活动",
+    category: decorated.category || "",
+    date: decorated.date || "",
+    time: decorated.time || "",
+    place: decorated.place || "",
+    summary: decorated.summary || "",
+    quota: Math.max(0, Number(decorated.quota) || 0),
+    signed: Math.max(0, Number(decorated.signed) || 0),
+    status: decorated.status || "敬请期待",
+    displayStatus: decorated.displayStatus || "敬请期待",
+    canJoin: !!decorated.canJoin,
+    joinText: decorated.joinText || "敬请期待",
+    joinClass: decorated.joinClass || "wait",
+    image: decorated.image,
+    detailImage: decorated.detailImage
+  };
 }
 
 function findEvent(id, source) {
   const list = Array.isArray(source) && source.length ? source : localEvents;
-  const target = id ? list.find((item) => item.id === id) : list[0];
+  const target = id ? list.find((item) => item && item.id === id) : list[0];
   if (!target && source !== localEvents) {
     return findEvent(id, localEvents);
   }
-  return target ? normalizeEvent(target, list.indexOf(target)) : null;
+  return target ? toViewEvent(target, list.indexOf(target)) : null;
 }
 
 function buildContactMeta(event) {
@@ -50,15 +86,31 @@ Page({
   onLoad(options) {
     const eventId = options && options.id;
     this.eventId = eventId;
-    const fallback = findEvent(eventId, localEvents);
-    this.setData(Object.assign({ event: fallback }, buildContactMeta(fallback)));
+    try {
+      const fallback = findEvent(eventId, localEvents);
+      this.setData(Object.assign({ event: fallback }, buildContactMeta(fallback)));
+    } catch (error) {
+      console.warn("[event-detail] local normalize failed", error);
+      this.setData({ event: null });
+    }
 
-    listEvents().then((remoteEvents) => {
-      const event = findEvent(eventId, remoteEvents && remoteEvents.length ? remoteEvents : localEvents);
-      if (event) {
-        this.setData(Object.assign({ event }, buildContactMeta(event)));
-      }
-    });
+    listEvents()
+      .then((remoteEvents) => {
+        try {
+          const event = findEvent(
+            eventId,
+            remoteEvents && remoteEvents.length ? remoteEvents : localEvents
+          );
+          if (event) {
+            this.setData(Object.assign({ event }, buildContactMeta(event)));
+          }
+        } catch (error) {
+          console.warn("[event-detail] remote normalize failed", error);
+        }
+      })
+      .catch((error) => {
+        console.warn("[event-detail] listEvents failed", error);
+      });
   },
 
   onShareAppMessage() {

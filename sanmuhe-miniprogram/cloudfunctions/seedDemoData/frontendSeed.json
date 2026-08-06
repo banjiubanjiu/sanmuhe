@@ -1,5 +1,5 @@
 {
-  "version": "hexi-cloud-assets-20260806",
+  "version": "hexi-event-status-wait-20260806",
   "collections": {
     "product_categories": [
       {
@@ -773,7 +773,7 @@
         "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-yangxin-tea.jpg",
         "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-1.jpg",
         "summary": "在茶香与静心中，慢慢安住自己",
-        "status": "报名中",
+        "status": "敬请期待",
         "visible": true,
         "sort": 10,
         "deleted": false
@@ -791,7 +791,7 @@
         "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-tea-class.jpg",
         "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-2.jpg",
         "summary": "从识香、泡茶到品饮，轻松了解基础茶知识",
-        "status": "报名中",
+        "status": "敬请期待",
         "visible": true,
         "sort": 20,
         "deleted": false
@@ -809,7 +809,7 @@
         "image": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-seasonal-tea.jpg",
         "detailImage": "cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/event-detail-content-3.jpg",
         "summary": "顺时品茶，感受节气与日常之美",
-        "status": "报名中",
+        "status": "敬请期待",
         "visible": true,
         "sort": 30,
         "deleted": false

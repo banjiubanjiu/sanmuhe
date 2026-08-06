@@ -23,9 +23,9 @@
       <image class="bar-action-icon" src="/assets/icons/share-line.png" mode="aspectFit"></image>
       <text>分享</text>
     </button>
-    <view class="wait-pill">
+    <view class="wait-pill {{event.joinClass}}">
       <image class="wait-pill-icon" src="/assets/icons/calendar-wait.png" mode="aspectFit"></image>
-      <text>敬请期待</text>
+      <text>{{event.joinText}}</text>
     </view>
   </view>
 </view>

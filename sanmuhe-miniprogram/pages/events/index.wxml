@@ -51,7 +51,7 @@
         </view>
       </view>
       <view class="event-action-col">
-        <view class="join-pill wait">敬请期待</view>
+        <view class="join-pill {{item.joinClass}}">{{item.joinText}}</view>
         <view class="event-arrow">›</view>
       </view>
     </view>

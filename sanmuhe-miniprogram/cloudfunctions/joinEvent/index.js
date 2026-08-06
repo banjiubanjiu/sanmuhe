@@ -48,12 +48,28 @@ exports.main = async (event = {}) => {
 
   const eventResult = await db.collection("events").where({ id: eventId }).limit(1).get();
   const eventDoc = eventResult.data && eventResult.data[0];
-  if (eventDoc) {
-    const quota = Number(eventDoc.quota || 0);
-    const signed = Number(eventDoc.signed || 0);
-    if (quota > 0 && signed >= quota) {
-      return { ok: false, message: "活动名额已满" };
-    }
+  if (!eventDoc || eventDoc.deleted === true || eventDoc.removed === true || eventDoc.visible === false) {
+    return { ok: false, message: "活动不存在或已下架" };
+  }
+
+  const statusRaw = String(eventDoc.status || "敬请期待").trim() || "敬请期待";
+  if (statusRaw === "已取消") {
+    return { ok: false, message: "活动已取消" };
+  }
+  if (statusRaw === "已结束") {
+    return { ok: false, message: "活动已结束" };
+  }
+  if (statusRaw === "敬请期待") {
+    return { ok: false, message: "活动尚未开放报名" };
+  }
+  if (statusRaw !== "报名中" && statusRaw !== "已满") {
+    return { ok: false, message: "当前不可报名" };
+  }
+
+  const quota = Number(eventDoc.quota || 0);
+  const signed = Number(eventDoc.signed || 0);
+  if (statusRaw === "已满" || (quota > 0 && signed >= quota)) {
+    return { ok: false, message: "活动名额已满" };
   }
 
   const existing = await db.collection("event_signups").where({
@@ -84,14 +100,16 @@ exports.main = async (event = {}) => {
     }
   });
 
-  if (eventDoc) {
-    await db.collection("events").doc(eventDoc._id).update({
-      data: {
-        signed: _.inc(1),
-        updatedAt: db.serverDate()
-      }
-    });
+  const nextSigned = signed + 1;
+  const patch = {
+    signed: _.inc(1),
+    updatedAt: db.serverDate()
+  };
+  // 报满后回写状态，与前台展示一致
+  if (quota > 0 && nextSigned >= quota) {
+    patch.status = "已满";
   }
+  await db.collection("events").doc(eventDoc._id).update({ data: patch });
 
   return {
     ok: true,

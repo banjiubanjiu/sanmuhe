@@ -674,7 +674,8 @@ const TEA_CATEGORY_PRESETS = ["红茶", "白茶", "岩茶", "普洱茶", "单丛
 const DRINK_CATEGORY_PRESETS = ["初见", "知味", "臻藏", "烹茶暖叙", "芳茗润茶"];
 /** 活动 Tab：与 pages/events 固定分类对齐 */
 const EVENT_CATEGORY_PRESETS = ["养心茶会", "学茶", "时令茶会"];
-const EVENT_STATUS_OPTIONS = ["报名中", "已满", "已结束", "已取消"];
+/** 活动状态：与前台 utils/eventStatus 一致；默认敬请期待 */
+const EVENT_STATUS_OPTIONS = ["敬请期待", "报名中", "已满", "已结束", "已取消"];
 const ROOM_STATUS_OPTIONS = ["可预定", "已订满", "维护中", "暂停预约"];
 
 const CONTENT_TYPE_OPTIONS = [
@@ -3587,7 +3588,7 @@ function resetCatalog() {
     : `${state.collection}-${Date.now()}`;
   state.selectedCatalogId = nextId;
   state.catalogDrawerOpen = true;
-  const baseStatus = state.collection === "events" ? "报名中" : state.collection === "rooms" ? "可预定" : "上架";
+  const baseStatus = state.collection === "events" ? "敬请期待" : state.collection === "rooms" ? "可预定" : "上架";
   const defaultCategory = categoryPresetsForCollection()[0]
     || managedCategoryNames.value[0]
     || "";
@@ -6321,11 +6322,14 @@ onBeforeUnmount(() => {
                     </label>
                   </template>
                   <label>
-                    <span>状态</span>
+                    <span>状态 <em v-if="state.collection === 'events'" class="req">*</em></span>
                     <select v-model="forms.catalog.status" class="catalog-select-input" required>
                       <option v-for="opt in catalogStatusSelectOptions" :key="opt" :value="opt">{{ opt }}</option>
                     </select>
                   </label>
+                  <p v-if="state.collection === 'events'" class="wide specs-editor-hint">
+                    前台状态由此控制：敬请期待（默认不可报）→ 报名中（可报）→ 已满/已结束/已取消。人数满时前台自动显示已满。
+                  </p>
                   <label v-if="state.collection === 'events'"><span>价格</span><input v-model.number="forms.catalog.price" type="number" min="0" step="0.01"></label>
                   <label v-if="state.collection === 'rooms'" class="wide">
                     <span>计价说明</span>

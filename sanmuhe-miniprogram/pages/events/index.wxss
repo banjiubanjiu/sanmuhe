@@ -237,6 +237,22 @@
   white-space: nowrap;
 }
 
+.join-pill.open {
+  color: #fffaf0;
+  background: #1f5b3c;
+}
+
+.join-pill.full {
+  color: #8a6230;
+  background: rgba(138, 98, 48, 0.12);
+}
+
+.join-pill.ended,
+.join-pill.cancelled {
+  color: #8a8175;
+  background: rgba(49, 52, 48, 0.08);
+}
+
 .join-pill.wait {
   color: #96743b;
   border: 1rpx solid rgba(184, 147, 88, 0.55);
