@@ -99,9 +99,7 @@
             catchtap="addTea"
             aria-role="button"
             aria-label="将{{tea.name}}加入茶单"
-          >
-            <image src="/assets/icons/circle-plus-green.png" mode="aspectFit" aria-hidden="{{true}}"></image>
-          </view>
+          >+</view>
         </view>
 
         <view wx:if="{{!activeDrink.teaOptions.length}}" class="empty-list">
