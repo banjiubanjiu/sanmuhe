@@ -400,6 +400,13 @@ const state = reactive({
   selectedCouponId: "",
   selectedCampaignId: "",
   reservationCalendarDate: new Date().toISOString().slice(0, 10),
+  reservationWeekStart: (() => {
+    const now = new Date();
+    const dow = (now.getDay() + 6) % 7; // 周一起始
+    const start = new Date(now);
+    start.setDate(now.getDate() - dow);
+    return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+  })(),
   reservationView: "board",
   reservationDrawerOpen: false
 });
@@ -1032,6 +1039,56 @@ const reservationCalendarRows = computed(() => {
 const reservationsForCalendarDay = computed(() => {
   const day = state.reservationCalendarDate;
   return (state.reservations || []).filter((item) => (item.day || item.date || "").slice(0, 10) === day);
+});
+
+/** 当前周：周一~周日日期数组 */
+const reservationWeekDays = computed(() => {
+  const start = weekStartOf(state.reservationWeekStart);
+  return Array.from({ length: 7 }, (_, i) => addDaysToDateStr(start, i));
+});
+
+/** 周范围显示文案：2026-08-11 ~ 08-17 */
+const reservationWeekStartOf = computed(() => {
+  const days = reservationWeekDays.value;
+  if (!days.length) return state.reservationWeekStart;
+  const end = days[days.length - 1];
+  return `${days[0]} ~ ${end.slice(5)}`;
+});
+
+/** 当前周全部预约（未取消优先，取消的仍保留供查看） */
+const reservationsForWeek = computed(() => {
+  const start = weekStartOf(state.reservationWeekStart);
+  const end = weekEndOf(state.reservationWeekStart);
+  return (state.reservations || []).filter((item) => {
+    const d = (item.day || item.date || "").slice(0, 10);
+    return d >= start && d <= end;
+  });
+});
+
+/** 周视图：时段行 × 日期列，格子标记占用 */
+const reservationWeekTable = computed(() => {
+  const slotTimes = reservationBoardSlotTimes.value;
+  const slotMins = slotTimes.map(parseTimeToMinutes);
+  const rows = [];
+  const dayItems = {};
+  reservationWeekDays.value.forEach((day) => { dayItems[day] = []; });
+  reservationsForWeek.value.forEach((item) => {
+    const d = (item.day || item.date || "").slice(0, 10);
+    if (dayItems[d]) dayItems[d].push(item);
+  });
+  slotTimes.forEach((time, index) => {
+    const cells = reservationWeekDays.value.map((day) => {
+      const records = dayItems[day].filter((item) => !/已取消/.test(item.status || ""));
+      // 预约起点落在该时段的格子作为主格，占用信息随主格展示
+      const hit = records.find((item) => {
+        const { start } = reservationTimeRange(item);
+        return Number.isFinite(start) && Math.abs(start - slotMins[index]) < 1;
+      });
+      return { day, time, records, record: hit || records[0] || null };
+    });
+    rows.push({ time, cells });
+  });
+  return rows;
 });
 
 const reservationDayStats = computed(() => {
@@ -4444,15 +4501,15 @@ async function ensureReservationWorkspaceContext() {
 async function loadReservations() {
   await withLoading("读取预约", async () => {
     await ensureReservationWorkspaceContext();
-    const page = pagePayload("reservations");
     const result = await callFunction("manageOperations", {
       action: "listReservations",
       status: filters.reservationStatus,
       keyword: filters.reservationKeyword,
-      day: state.reservationCalendarDate,
-      // 当日台历需要尽可能全量
-      page: page.page || 1,
-      pageSize: Math.max(Number(page.pageSize) || 20, 100)
+      startDay: weekStartOf(state.reservationWeekStart),
+      endDay: weekEndOf(state.reservationWeekStart),
+      // 周视图需要拉齐整周，避免分页截断
+      page: 1,
+      pageSize: 200
     });
     state.reservations = result.reservations || [];
     setPageMeta("reservations", result.page);
@@ -4472,15 +4529,34 @@ async function loadReservations() {
   });
 }
 
-function shiftReservationCalendar(step) {
-  const date = new Date(`${state.reservationCalendarDate}T00:00:00`);
-  date.setDate(date.getDate() + step);
-  state.reservationCalendarDate = date.toISOString().slice(0, 10);
+function addDaysToDateStr(dateStr, days) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function weekStartOf(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const dow = (d.getDay() + 6) % 7; // 周一起始
+  return addDaysToDateStr(dateStr, -dow);
+}
+
+function weekEndOf(dateStr) {
+  return addDaysToDateStr(weekStartOf(dateStr), 6);
+}
+
+function shiftReservationCalendar(stepWeeks) {
+  const weeks = Number(stepWeeks) || 0;
+  const start = weekStartOf(state.reservationWeekStart);
+  state.reservationWeekStart = addDaysToDateStr(start, weeks * 7);
+  state.reservationCalendarDate = state.reservationWeekStart;
   resetPageAndLoad("reservations", loadReservations);
 }
 
 function jumpReservationCalendarToday() {
-  state.reservationCalendarDate = new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  state.reservationWeekStart = weekStartOf(today);
+  state.reservationCalendarDate = today;
   resetPageAndLoad("reservations", loadReservations);
 }
 
@@ -4488,6 +4564,13 @@ function openReservationSlot(slot) {
   const record = slot?.record || (slot?.records && slot.records[0]);
   if (record) selectReservation(record);
 }
+
+const RESERVATION_WEEK_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+function weekDayLabel(index) {
+  return RESERVATION_WEEK_LABELS[index] || "";
+}
+
+const todayKeyStr = new Date().toISOString().slice(0, 10);
 
 function reservationPrimaryHint(row) {
   if (!row) return "";
@@ -7058,11 +7141,11 @@ onBeforeUnmount(() => {
 
         <section v-if="state.activeTab === 'reservations'" class="reservation-workspace">
           <div class="reservation-toolbar">
-            <div class="calendar-strip" role="group" aria-label="预约日期">
-              <button type="button" aria-label="前一天" @click="shiftReservationCalendar(-1)">‹</button>
-              <strong>{{ state.reservationCalendarDate }}</strong>
-              <button type="button" aria-label="后一天" @click="shiftReservationCalendar(1)">›</button>
-              <button type="button" class="strip-today" @click="jumpReservationCalendarToday">今天</button>
+            <div class="calendar-strip" role="group" aria-label="预约周">
+              <button type="button" aria-label="上一周" @click="shiftReservationCalendar(-1)">‹</button>
+              <strong>{{ reservationWeekStartOf }}</strong>
+              <button type="button" aria-label="下一周" @click="shiftReservationCalendar(1)">›</button>
+              <button type="button" class="strip-today" @click="jumpReservationCalendarToday">本周</button>
             </div>
             <div class="reservation-view-tabs" role="tablist" aria-label="预约视图">
               <button type="button" role="tab" :aria-selected="state.reservationView === 'board'" :class="['order-biz-tab', { active: state.reservationView === 'board' }]" @click="state.reservationView = 'board'">排期看板</button>
@@ -7085,38 +7168,40 @@ onBeforeUnmount(() => {
             <span v-if="reservationDayStats.noshow">未到店 <strong>{{ reservationDayStats.noshow }}</strong></span>
           </div>
 
-          <!-- 排期看板：甘特图为主视图 -->
+          <!-- 排期看板：周表格为主视图 -->
           <div v-if="state.reservationView === 'board'" class="reservation-board">
-            <div class="reservation-timeline-panel" open>
-              <div class="timeline-axis" aria-hidden="true">
-                <span
-                  v-for="mark in reservationTimelineModel.hourMarks"
-                  :key="mark.time"
-                  class="timeline-axis-mark"
-                  :style="{ left: mark.leftPct + '%' }"
-                >{{ mark.time }}</span>
+            <div class="reservation-week-table">
+              <div class="week-table-head">
+                <div class="week-time-col">时段</div>
+                <div
+                  v-for="(day, i) in reservationWeekDays"
+                  :key="day"
+                  class="week-day-col"
+                  :class="{ today: day === todayKeyStr }"
+                >{{ weekDayLabel(i) }} {{ day.slice(5) }}</div>
               </div>
-              <div v-for="row in reservationTimelineModel.rows" :key="row.room" class="timeline-row">
-                <strong class="timeline-room">{{ row.room }}</strong>
-                <div class="timeline-track">
-                  <button
-                    v-for="ev in row.events"
-                    :key="ev.id"
-                    type="button"
-                    class="timeline-event"
-                    :data-tone="ev.tone"
-                    :class="{ selected: state.selectedReservationId === ev.id }"
-                    :style="{ left: ev.leftPct + '%', width: ev.widthPct + '%' }"
-                    :title="ev.label + ' · ' + ev.status"
-                    @click="selectReservation(ev.record)"
-                  >
-                    <span>{{ ev.label }}</span>
-                  </button>
+              <div v-for="row in reservationWeekTable" :key="row.time" class="week-table-row">
+                <div class="week-time-col mono-time">{{ row.time }}</div>
+                <div
+                  v-for="cell in row.cells"
+                  :key="cell.day"
+                  class="week-cell"
+                  :class="{ busy: !!cell.record, today: cell.day === todayKeyStr }"
+                  role="button"
+                  tabindex="0"
+                  @click="openReservationSlot(cell)"
+                  @keydown.enter.prevent="openReservationSlot(cell)"
+                >
+                  <template v-if="cell.record">
+                    <span class="week-cell-name">{{ maskName(cell.record.name || cell.record.customerName) || '访客' }}</span>
+                    <span :class="['status-pill', statusTone(cell.record.status)]">{{ cell.record.status || '—' }}</span>
+                  </template>
+                  <span v-else class="week-cell-free">—</span>
                 </div>
               </div>
-              <p v-if="!reservationTimelineModel.rows.length" class="timeline-empty">暂无茶室资源，请先在「茶室资源」配置。</p>
+              <p v-if="!reservationWeekTable.length" class="timeline-empty">暂无预约时段，请先在「预约计价」配置可约时段。</p>
             </div>
-            <p class="board-tip">点击色条查看并处理预约 · 状态筛选见右上方</p>
+            <p class="board-tip">点击格子查看并处理预约 · 周一至周日 · 箭头切换周</p>
           </div>
 
           <!-- 全部记录：列表视图 -->

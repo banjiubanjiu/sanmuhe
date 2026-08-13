@@ -1839,6 +1839,108 @@ svg.spinning {
   font-size: 12px;
 }
 
+/* 周排期表格：时段行 × 日期列 */
+.reservation-week-table {
+  overflow-x: auto;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: rgba(255, 253, 247, 0.55);
+}
+
+.week-table-head,
+.week-table-row {
+  display: grid;
+  grid-template-columns: 110px repeat(7, minmax(92px, 1fr));
+}
+
+.week-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--admin-paper);
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.week-time-col {
+  padding: 8px 10px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 600;
+  border-right: 1px solid var(--admin-line);
+}
+
+.week-day-col {
+  padding: 8px 6px;
+  text-align: center;
+  color: var(--admin-ink);
+  font-size: 13px;
+  font-weight: 600;
+  border-right: 1px solid var(--admin-line);
+}
+
+.week-day-col.today {
+  color: var(--admin-green-dark);
+  background: var(--admin-green-soft);
+}
+
+.week-day-col:last-child,
+.week-cell:last-child {
+  border-right: 0;
+}
+
+.week-table-row + .week-table-row {
+  border-top: 1px solid var(--admin-line);
+}
+
+.week-time-col.mono-time {
+  font-family: var(--admin-mono, ui-monospace, monospace);
+  font-weight: 400;
+}
+
+.week-cell {
+  min-height: 52px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  justify-content: center;
+  border-right: 1px solid var(--admin-line);
+  background: rgba(255, 253, 247, 0.35);
+  cursor: pointer;
+}
+
+.week-cell:hover {
+  background: var(--admin-green-soft);
+}
+
+.week-cell.today {
+  background: rgba(234, 242, 228, 0.6);
+}
+
+.week-cell.busy {
+  background: rgba(240, 235, 220, 0.9);
+}
+
+.week-cell-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--admin-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.week-cell .status-pill {
+  font-size: 11px;
+}
+
+.week-cell-free {
+  color: var(--admin-faint);
+  font-size: 12px;
+}
+
 .reservation-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);

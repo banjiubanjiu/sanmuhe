@@ -4563,13 +4563,17 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "listReservations") {
       const day = cleanText(event.day || event.date, 20);
+      const startDay = cleanText(event.startDay, 20);
+      const endDay = cleanText(event.endDay, 20);
       const extraWhere = {};
-      // 与小程序落库 day 字段对齐（YYYY-MM-DD）；用于当日台历/待办
-      if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      // 与小程序落库 day 字段对齐（YYYY-MM-DD）；支持单日或日期范围（周视图）
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
         extraWhere.day = day;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(startDay) && /^\d{4}-\d{2}-\d{2}$/.test(endDay)) {
+        extraWhere.day = _.gte(startDay).and(_.lte(endDay));
       }
       // 当日工作台需要拉齐更多条，避免半页截断导致台历缺席
-      if (extraWhere.day && !event.pageSize) {
+      if ((extraWhere.day && !event.pageSize)) {
         event = Object.assign({}, event, { pageSize: 100 });
       }
       const result = await listCollection(
