@@ -118,17 +118,17 @@
     </scroll-view>
   </view>
 
-  <cover-view
+  <view
     wx:if="{{cartCount > 0}}"
     class="shop-cart-pill"
     bindtap="goCart"
     aria-role="button"
     aria-label="购物车共{{cartCount}}件，合计{{cartTotal}}元，前往查看购物车"
   >
-    <cover-view class="shop-cart-copy">
-      <cover-view class="shop-cart-title">购物车 {{cartCount}} 件</cover-view>
-      <cover-view class="shop-cart-meta">合计 ¥{{cartTotal}}</cover-view>
-    </cover-view>
-    <cover-view class="shop-cart-action">查看购物车</cover-view>
-  </cover-view>
+    <view class="shop-cart-copy">
+      <view class="shop-cart-title">购物车 {{cartCount}} 件</view>
+      <view class="shop-cart-meta">合计 ¥{{cartTotal}}</view>
+    </view>
+    <view class="shop-cart-action">查看购物车</view>
+  </view>
 </view>

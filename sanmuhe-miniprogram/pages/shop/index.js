@@ -305,6 +305,11 @@ Page({
   },
 
   goCart() {
-    wx.navigateTo({ url: `/pages/cart/index?mode=${RETAIL_MODE}` });
+    wx.navigateTo({
+      url: `/pages/cart/index?mode=${RETAIL_MODE}`,
+      fail: () => {
+        wx.showToast({ title: "暂时无法打开购物车", icon: "none" });
+      }
+    });
   }
 });

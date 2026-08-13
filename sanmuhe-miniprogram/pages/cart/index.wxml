@@ -1,5 +1,5 @@
 <view class="page cart-page {{items.length === 0 ? 'cart-page-empty' : ''}}">
-  <view class="page-nav">
+  <view class="page-nav" style="padding-top: {{statusBarHeight}}px;">
     <view class="back-mark" bindtap="goBack">‹</view>
     <view class="page-title">{{pageTitle}}</view>
     <view class="nav-placeholder"></view>

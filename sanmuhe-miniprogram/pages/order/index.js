@@ -316,6 +316,11 @@ Page({
   },
 
   goCart() {
-    wx.navigateTo({ url: "/pages/cart/index?mode=dinein" });
+    wx.navigateTo({
+      url: "/pages/cart/index?mode=dinein",
+      fail: () => {
+        wx.showToast({ title: "暂时无法打开茶单", icon: "none" });
+      }
+    });
   }
 });

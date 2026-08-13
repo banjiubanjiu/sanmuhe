@@ -128,17 +128,17 @@
     </scroll-view>
   </view>
 
-  <cover-view
+  <view
     wx:if="{{cartCount > 0}}"
     class="order-cart-pill"
     bindtap="goCart"
     aria-role="button"
     aria-label="茶单共{{cartCount}}道，合计{{cartTotal}}元，前往确认茶单"
   >
-    <cover-view class="order-cart-copy">
-      <cover-view class="order-cart-title">已选 {{cartCount}} 道</cover-view>
-      <cover-view class="order-cart-meta">合计 ¥{{cartTotal}}</cover-view>
-    </cover-view>
-    <cover-view class="order-cart-action">确认茶单</cover-view>
-  </cover-view>
+    <view class="order-cart-copy">
+      <view class="order-cart-title">已选 {{cartCount}} 道</view>
+      <view class="order-cart-meta">合计 ¥{{cartTotal}}</view>
+    </view>
+    <view class="order-cart-action">确认茶单</view>
+  </view>
 </view>

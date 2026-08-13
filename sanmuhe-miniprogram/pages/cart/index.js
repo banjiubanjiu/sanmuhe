@@ -79,17 +79,18 @@ function formatFen(fen) {
 }
 
 function getOptionText(item) {
-  const options = item.options || {};
-  if (item.type === "drink") {
+  const source = item || {};
+  const options = source.options || {};
+  if (source.type === "drink") {
     return [options.teaChoice || "茶品待选", options.unit || "道", options.table ? `桌号 ${options.table}` : ""]
       .filter(Boolean)
       .join(" · ");
   }
-  return [options.unit || item.unit || "默认", item.category || "茶品"].filter(Boolean).join(" · ");
+  return [options.unit || source.unit || "默认", source.category || "茶品"].filter(Boolean).join(" · ");
 }
 
 function enrichCart(cart) {
-  return cart.map((item) => Object.assign({}, item, {
+  return (Array.isArray(cart) ? cart : []).filter(Boolean).map((item) => Object.assign({}, item, {
     optionText: getOptionText(item),
     lineTotal: Number(item.price || 0) * Number(item.quantity || 1)
   }));
@@ -173,6 +174,7 @@ function addressViewModel(saved) {
 
 Page(withPrivacy({
   data: {
+    statusBarHeight: 20,
     cart: [],
     items: [],
     total: 0,
@@ -242,6 +244,7 @@ Page(withPrivacy({
   },
 
   onLoad(options = {}) {
+    const systemInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
     const mode = options.mode === "dinein" ? "dinein" : "retail";
     const isDineIn = mode === "dinein";
     const saved = isDineIn ? addressViewModel(null) : addressViewModel(loadSavedAddress());
@@ -251,6 +254,7 @@ Page(withPrivacy({
       ? pickup.phone
       : "";
     this.setData(Object.assign({
+      statusBarHeight: (systemInfo && systemInfo.statusBarHeight) || 20,
       mode,
       isDineIn,
       pageTitle: isDineIn ? "确认茶单" : "确认茶品",
@@ -282,7 +286,12 @@ Page(withPrivacy({
   },
 
   refresh() {
-    const cart = getCart(this.data.mode);
+    let cart = [];
+    try {
+      cart = getCart(this.data.mode);
+    } catch (error) {
+      cart = [];
+    }
     const items = enrichCart(cart);
     // 堂饮：桌号只读，来自扫码/缓存/开发默认，不提供手填
     const tableNo = this.data.isDineIn

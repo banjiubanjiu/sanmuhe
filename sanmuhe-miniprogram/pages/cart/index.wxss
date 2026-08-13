@@ -3,7 +3,7 @@
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  padding: 88rpx 28rpx calc(180rpx + env(safe-area-inset-bottom));
+  padding: 0 28rpx calc(180rpx + env(safe-area-inset-bottom));
   background: var(--hx-page-background);
   box-sizing: border-box;
 }
@@ -13,10 +13,19 @@
 }
 
 .page-nav {
-  height: 72rpx;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 72rpx;
   display: grid;
   grid-template-columns: 72rpx 1fr 72rpx;
   align-items: center;
+  margin: 0 -28rpx 8rpx;
+  padding-right: 28rpx;
+  padding-bottom: 8rpx;
+  padding-left: 28rpx;
+  box-sizing: border-box;
+  background: var(--hx-page-background);
 }
 
 .back-mark {
