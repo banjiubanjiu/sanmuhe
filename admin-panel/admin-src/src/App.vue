@@ -2646,7 +2646,8 @@ async function batchCatalogShelf(action) {
     }
     clearCatalogSelection();
     showToast(restore ? "已批量恢复" : "已批量下架");
-    await loadCatalog();
+    invalidateCatalogCache(state.collection);
+    await loadCatalog({ force: true });
   });
 }
 
@@ -3387,19 +3388,19 @@ async function refreshSummary() {
   }
 }
 
-async function loadActiveTab() {
+async function loadActiveTab(forceRefresh = false) {
   const map = {
     dashboard: loadDashboard,
     catalog: async () => {
       if (state.collection === "rooms") state.collection = "tea_products";
-      await loadCatalog();
+      await loadCatalog({ force: forceRefresh });
     },
     rooms: async () => {
       state.collection = "rooms";
       if (!state.settings || !Object.keys(state.settings).length) {
         try { await loadSettings(); } catch (_e) { /* ignore */ }
       }
-      await loadCatalog();
+      await loadCatalog({ force: forceRefresh });
     },
     orders: loadOrders,
     afterSales: loadAfterSales,
@@ -3652,17 +3653,40 @@ function syncDrinkCategoryIdFromName() {
   forms.catalog.categoryId = tier ? tier.id : "";
 }
 
-async function loadCatalog() {
-  await withLoading("读取商品", async () => {
+/** 商品列表内存缓存：避免切换 tab/集合时每次都白等云函数 */
+const CATALOG_CACHE_TTL = 30 * 1000;
+const catalogCache = {};
+
+/** 写操作后失效缓存，保证下次读取拿到新数据 */
+function invalidateCatalogCache(collection) {
+  const key = collection || state.collection;
+  if (key) delete catalogCache[key];
+}
+
+async function loadCatalog(options = {}) {
+  const collection = state.collection;
+  const force = options.force === true;
+  const cached = catalogCache[collection];
+  const fresh = cached && (Date.now() - cached.at) < CATALOG_CACHE_TTL;
+
+  // 有新鲜缓存且非强制刷新：先秒开渲染，再后台静默刷新，避免切换 tab 白等云函数
+  if (fresh && !force) {
+    state.catalogItems = cached.items;
+    loadCatalog({ force: true });
+    return;
+  }
+
+  await withLoading(force ? "刷新商品" : "读取商品", async () => {
     const [result] = await Promise.all([
       callFunction("manageCatalog", {
         action: "list",
-        collection: state.collection,
+        collection,
         includeHidden: true
       }),
       supportsProductShelf() ? loadProductCategories() : Promise.resolve()
     ]);
     state.catalogItems = result.items || [];
+    catalogCache[collection] = { items: state.catalogItems, at: Date.now() };
     // 抽屉打开时：同步表单到最新数据；关闭时只维护列表高亮，不强行打开编辑
     const preferredId = state.selectedCatalogId || forms.catalog.id;
     if (state.catalogDrawerOpen && preferredId) {
@@ -3910,7 +3934,8 @@ async function saveCatalog() {
     state.selectedCatalogId = savingId;
     showToast(action === "create" ? "新商品已添加" : "资料已保存");
     closeCatalogDrawer();
-    await loadCatalog();
+    invalidateCatalogCache(state.collection);
+    await loadCatalog({ force: true });
   });
 }
 
@@ -3949,7 +3974,8 @@ async function toggleCatalog(item) {
       reason
     });
     showToast(restore ? "已恢复" : "已下架");
-    await loadCatalog();
+    invalidateCatalogCache(state.collection);
+    await loadCatalog({ force: true });
   });
 }
 
@@ -3982,7 +4008,8 @@ async function removeCatalog(item) {
       closeCatalogDrawer();
     }
     showToast("已删除");
-    await loadCatalog();
+    invalidateCatalogCache(state.collection);
+    await loadCatalog({ force: true });
   });
 }
 
@@ -5896,7 +5923,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <button :class="['secondary-action icon-action', { spinning: !!state.loading }]" aria-label="刷新当前模块" type="button" :disabled="!!state.loading" @click="loadActiveTab">
+            <button :class="['secondary-action icon-action', { spinning: !!state.loading }]" aria-label="刷新当前模块" type="button" :disabled="!!state.loading" @click="loadActiveTab(true)">
               <RefreshCw :size="16" :stroke-width="1.8" />
               {{ state.loading ? "同步中" : "刷新" }}
             </button>

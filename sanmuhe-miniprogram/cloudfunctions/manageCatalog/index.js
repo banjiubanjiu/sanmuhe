@@ -22,6 +22,29 @@ const IMAGE_FIELDS = new Set(["image", "thumb", "detailImage"]);
 const IMAGE_REF_MAX = 500;
 
 const writeActions = new Set(["create", "update", "delete", "restore", "remove"]);
+
+/**
+ * 列表内存缓存：CloudBase 实例复用，热启动直接命中，避免切集合每次都查库。
+ * TTL 30s（对齐前端 SWR 缓存）；写操作后立即失效。
+ */
+const CATALOG_LIST_CACHE_TTL = 30 * 1000;
+const catalogListCache = {};
+
+function invalidateCatalogListCache(collection) {
+  if (collection) delete catalogListCache[collection];
+}
+
+function getCachedCatalogList(collection) {
+  const cached = catalogListCache[collection];
+  if (cached && Date.now() - cached.at < CATALOG_LIST_CACHE_TTL) {
+    return cached.items;
+  }
+  return null;
+}
+
+function setCachedCatalogList(collection, items) {
+  catalogListCache[collection] = { items, at: Date.now() };
+}
 const rolePermissionMap = {
   admin: ["*"],
   operator: ["catalog.read", "catalog.write"],
@@ -691,6 +714,11 @@ function sortCatalog(items) {
 }
 
 async function listItems(collection, options) {
+  // 热启动缓存命中：直接返回，避免每次切换都查库（腾讯云官方实例复用建议）
+  const cached = getCachedCatalogList(collection);
+  if (cached) {
+    return cached;
+  }
   await ensureCollection(collection);
   const result = await db.collection(collection).limit(100).get();
   const includeHidden = options && options.includeHidden;
@@ -708,7 +736,9 @@ async function listItems(collection, options) {
     }
     return item.visible !== false;
   }).map(withInventory);
-  return sortCatalog(items);
+  const sorted = sortCatalog(items);
+  setCachedCatalogList(collection, sorted);
+  return sorted;
 }
 
 exports.main = async (event = {}, context = {}) => {
@@ -795,6 +825,7 @@ exports.main = async (event = {}, context = {}) => {
         operator: callerLabel(caller),
         changes: auditDiff({}, payload, Object.keys(payload).filter((field) => !["createdAt", "updatedAt"].includes(field)))
       });
+      invalidateCatalogListCache(collection);
       return { ok: true, collection, id: payload.id, _id: addResult._id };
     }
 
@@ -847,6 +878,7 @@ exports.main = async (event = {}, context = {}) => {
         sensitiveFields,
         changes: auditDiff(existing, Object.assign({}, existing, payload), Object.keys(payload).filter((field) => field !== "updatedAt"))
       });
+      invalidateCatalogListCache(collection);
       return { ok: true, collection, id };
     }
 
@@ -867,6 +899,7 @@ exports.main = async (event = {}, context = {}) => {
         reason,
         changes: auditDiff(existing, Object.assign({}, existing, data), Object.keys(data).filter((field) => field !== "updatedAt"))
       });
+      invalidateCatalogListCache(collection);
       return { ok: true, collection, id };
     }
 
@@ -887,6 +920,7 @@ exports.main = async (event = {}, context = {}) => {
         reason,
         changes: auditDiff(existing, Object.assign({}, existing, data), Object.keys(data).filter((field) => field !== "updatedAt"))
       });
+      invalidateCatalogListCache(collection);
       return { ok: true, collection, id };
     }
 
@@ -916,6 +950,7 @@ exports.main = async (event = {}, context = {}) => {
         reason,
         changes: auditDiff(existing, Object.assign({}, existing, data), Object.keys(data).filter((field) => field !== "updatedAt"))
       });
+      invalidateCatalogListCache(collection);
       return { ok: true, collection, id };
     }
 
