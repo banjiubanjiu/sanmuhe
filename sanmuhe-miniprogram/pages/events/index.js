@@ -1,4 +1,3 @@
-const { events } = require("../../data/catalog");
 const { listEvents } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 const { decorateEventStatus, isEventListVisible } = require("../../utils/eventStatus");
@@ -127,21 +126,15 @@ function getEventSignature(items) {
   ].join("|")).join("||");
 }
 
-let initialEvents = [];
-try {
-  initialEvents = normalizeEvents(events);
-} catch (error) {
-  console.warn("[events] normalize local failed", error);
-  initialEvents = Array.isArray(events) ? events.map((item) => toViewEvent(item)) : [];
-}
-let cachedEvents = initialEvents.slice();
+let cachedEvents = [];
 
 Page({
   data: {
     categories,
     activeCategory: "全部",
-    allEvents: initialEvents,
-    events: initialEvents
+    allEvents: [],
+    events: [],
+    eventLoading: true
   },
 
   onShow() {
@@ -161,16 +154,17 @@ Page({
 
     listEvents()
       .then((nextEvents) => {
-        const source = Array.isArray(nextEvents) && nextEvents.length ? nextEvents : events;
+        const source = Array.isArray(nextEvents) ? nextEvents : [];
         const allEvents = normalizeEvents(source);
-        if (getEventSignature(allEvents) === getEventSignature(cachedEvents)) {
-          return;
+        if (getEventSignature(allEvents) !== getEventSignature(cachedEvents)) {
+          cachedEvents = allEvents;
+          this.applyEvents(allEvents);
         }
-        cachedEvents = allEvents;
-        this.applyEvents(allEvents);
+        this.setData({ eventLoading: false });
       })
       .catch((error) => {
         console.warn("[events] listEvents failed", error);
+        this.setData({ eventLoading: false });
       });
   },
 

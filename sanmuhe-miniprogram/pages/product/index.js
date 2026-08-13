@@ -1,4 +1,3 @@
-const { teaProducts } = require("../../data/catalog");
 const { addToCart } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { isFavorite, toggleFavorite } = require("../../utils/favorites");
@@ -190,6 +189,8 @@ function buildViewState(product, selectedSpecLabel, favored) {
 Page({
   data: {
     product: null,
+    catalogLoading: true,
+    catalogError: false,
     selectedSpec: "",
     selectedSpecDisplay: "",
     priceUnit: "",
@@ -206,20 +207,30 @@ Page({
   },
 
   onLoad(options) {
-    const product = normalizeProduct(teaProducts.find((item) => item.id === options.id) || teaProducts[0]);
-    this.setData(buildViewState(product, product.specs[0].label, isFavorite(product.id)));
+    this.productId = options && options.id;
+    this.loadProduct();
+  },
+
+  loadProduct() {
+    const productId = this.productId;
+    this.setData({ catalogLoading: true, catalogError: false });
     getCatalog().then((catalog) => {
-      const products = catalog.fromCloud
-        ? (catalog.teaProducts || [])
-        : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts);
-      const nextProduct = products.find((item) => item.id === options.id);
+      const products = Array.isArray(catalog.teaProducts) ? catalog.teaProducts : [];
+      const nextProduct = products.find((item) => item.id === productId);
       if (nextProduct) {
         const normalized = normalizeProduct(nextProduct);
         const selectedSpec = findSpec(normalized.specs, this.data.selectedSpec) || normalized.specs[0];
-        this.setData(buildViewState(normalized, selectedSpec.label, isFavorite(normalized.id)));
-      } else if (catalog.fromCloud) {
-        this.setData({ product: null });
+        this.setData(Object.assign({
+          catalogLoading: false,
+          catalogError: false
+        }, buildViewState(normalized, selectedSpec.label, isFavorite(normalized.id))));
+        return;
       }
+      this.setData({
+        product: null,
+        catalogLoading: false,
+        catalogError: catalog.source === "error"
+      });
     });
   },
 
@@ -254,6 +265,9 @@ Page({
 
   addProduct() {
     const { product, selectedSpec, quantity, displayPrice, selectedSoldOut } = this.data;
+    if (!product) {
+      return;
+    }
     if (selectedSoldOut) {
       wx.showToast({ title: "该规格已售罄", icon: "none" });
       return;

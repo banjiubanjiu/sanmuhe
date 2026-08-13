@@ -1,4 +1,3 @@
-const { teaProducts } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
@@ -78,9 +77,7 @@ function normalizeTeaProducts(products) {
 }
 
 function buildProducts(catalog = {}) {
-  const fromCloud = catalog.fromCloud === true;
-  const nextTeaProducts = fromCloud ? (catalog.teaProducts || []) : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts);
-  return normalizeTeaProducts(nextTeaProducts);
+  return normalizeTeaProducts(Array.isArray(catalog.teaProducts) ? catalog.teaProducts : []);
 }
 
 /**
@@ -120,11 +117,13 @@ function buildCategories(products, productCategories = []) {
 
 Page({
   data: {
-    categories: buildCategories(buildProducts({ teaProducts })),
+    categories: ["全部"],
     activeCategory: "全部",
     keyword: "",
-    products: buildProducts({ teaProducts }),
-    filteredProducts: buildProducts({ teaProducts }),
+    products: [],
+    filteredProducts: [],
+    catalogLoading: true,
+    catalogError: false,
     cartCount: 0,
     cartTotal: 0,
     statusBarHeight: 20
@@ -133,13 +132,12 @@ Page({
   onLoad() {
     const systemInfo = wx.getSystemInfoSync();
     this.setData({ statusBarHeight: systemInfo.statusBarHeight || 20 });
-    this.loadCatalog();
   },
 
   onShow() {
     syncTabBar(this);
     this.refreshCart();
-    this.applyPendingCategory();
+    this.loadCatalog();
   },
 
   refreshCart() {
@@ -151,34 +149,26 @@ Page({
   },
 
   loadCatalog() {
+    this.setData({ catalogLoading: true });
     getCatalog().then((catalog) => {
       const products = buildProducts(catalog);
       const categories = buildCategories(products, catalog.productCategories || []);
+      const pendingCategory = wx.getStorageSync(TARGET_CATEGORY_KEY);
+      let activeCategory = this.data.activeCategory;
+      if (pendingCategory && categories.indexOf(pendingCategory) >= 0) {
+        wx.removeStorageSync(TARGET_CATEGORY_KEY);
+        activeCategory = pendingCategory;
+      } else if (activeCategory !== "全部" && categories.indexOf(activeCategory) < 0) {
+        activeCategory = "全部";
+      }
       this.setData({
         products,
         categories,
-        activeCategory: this.data.activeCategory === "全部" || categories.indexOf(this.data.activeCategory) >= 0
-          ? this.data.activeCategory
-          : "全部"
+        activeCategory,
+        catalogLoading: false,
+        catalogError: catalog.source === "error"
       }, () => this.applyFilters());
-    }).catch(() => {
-      wx.showToast({
-        title: "茶品暂未更新，已显示现有内容",
-        icon: "none"
-      });
     });
-  },
-
-  applyPendingCategory() {
-    const targetCategory = wx.getStorageSync(TARGET_CATEGORY_KEY);
-    if (!targetCategory || this.data.categories.indexOf(targetCategory) < 0) {
-      return;
-    }
-    wx.removeStorageSync(TARGET_CATEGORY_KEY);
-    this.setData({
-      activeCategory: targetCategory,
-      keyword: ""
-    }, () => this.applyFilters());
   },
 
   applyFilters() {

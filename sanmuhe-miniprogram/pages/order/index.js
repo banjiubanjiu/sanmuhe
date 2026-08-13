@@ -16,7 +16,6 @@ const ORDER_HERO_IMAGE_BY_DRINK_ID = {
   "drink-004": "/assets/images/order-hero-004-pengcha.jpg",
   "drink-005": "/assets/images/order-hero-005-fangming.jpg"
 };
-const defaultMenuItems = decorateTeaOptions(normalizeMenuItems(drinks));
 const localDrinkMap = drinks.reduce((map, item) => {
   map[item.id] = item;
   return map;
@@ -84,10 +83,10 @@ function pickDefaultDrink(menuItems, requestedId) {
   return menuItems[0];
 }
 
-// 云端茶单常缺 teaGroups / 图文字段：按 id 用本地目录补齐
+// 云端茶单常缺 teaGroups / 图文字段：按 id 用本地目录补字段，空列表保持为空
 function mergeDrinkSource(remoteItems) {
   if (!remoteItems || !remoteItems.length) {
-    return drinks.slice();
+    return [];
   }
   return remoteItems.map((item) => {
     const local = localDrinkMap[item.id];
@@ -111,9 +110,11 @@ function mergeDrinkSource(remoteItems) {
 Page({
   data: {
     statusBarHeight: 20,
-    menuItems: defaultMenuItems,
-    activeDrink: defaultMenuItems[0] || null,
-    activeDrinkId: defaultMenuItems[0] ? defaultMenuItems[0].id : "",
+    menuItems: [],
+    activeDrink: null,
+    activeDrinkId: "",
+    catalogLoading: true,
+    catalogError: false,
     tableLabel: "",
     tableChipText: "",
     tableBound: false,
@@ -140,12 +141,12 @@ Page({
       requestedDrinkId: decodeURIComponent(options.id || "")
     });
     this.applyTableState(table);
-    this.loadCatalog();
   },
 
   onShow() {
     syncTabBar(this);
     this.refreshCart();
+    this.loadCatalog();
     // 热启动扫了新桌码时覆盖展示；无缓存时保持开发默认桌
     let table = tableUtil.getTableNo();
     if (!table) {
@@ -165,24 +166,24 @@ Page({
   },
 
   loadCatalog() {
+    this.setData({ catalogLoading: true });
     getCatalog()
       .then((catalog) => {
         const remote = (catalog && catalog.drinks) || [];
-        this.applyCatalog(mergeDrinkSource(remote));
-      })
-      .catch(() => {
-        this.applyCatalog(drinks);
+        this.applyCatalog(mergeDrinkSource(remote), catalog.source === "error");
       });
   },
 
-  applyCatalog(source) {
-    const menuItems = decorateTeaOptions(normalizeMenuItems(source && source.length ? source : drinks));
+  applyCatalog(source, catalogError) {
+    const menuItems = decorateTeaOptions(normalizeMenuItems(source || []));
     const preferredId = this.data.requestedDrinkId || this.data.activeDrinkId;
     const activeDrink = pickDefaultDrink(menuItems, preferredId);
     this.setData({
       menuItems,
       activeDrink,
-      activeDrinkId: activeDrink ? activeDrink.id : ""
+      activeDrinkId: activeDrink ? activeDrink.id : "",
+      catalogLoading: false,
+      catalogError: !!catalogError
     }, () => {
       if (this.data.requestedDrinkId && activeDrink && activeDrink.id === this.data.requestedDrinkId) {
         this.setData({ requestedDrinkId: "" });

@@ -83,19 +83,23 @@ function mapCatalogRoom(item, settings = {}) {
   };
 }
 
-function localFallbackRoom(settings = {}) {
-  return mapCatalogRoom({
-    id: LOCAL_FALLBACK_ROOM.id,
-    storeId: LOCAL_FALLBACK_STORE.id,
-    name: LOCAL_FALLBACK_ROOM.name || LOCAL_FALLBACK_STORE.name,
-    capacity: LOCAL_FALLBACK_ROOM.capacity,
-    floor: LOCAL_FALLBACK_ROOM.floor,
-    features: LOCAL_FALLBACK_ROOM.features,
-    image: LOCAL_FALLBACK_ROOM.image,
-    price: LOCAL_FALLBACK_ROOM.priceFrom || LOCAL_FALLBACK_ROOM.price,
-    status: LOCAL_FALLBACK_ROOM.status,
-    visible: true
-  }, settings);
+function placeholderRoom(label, settings = {}) {
+  return {
+    id: "",
+    storeId: String(settings.storeId || LOCAL_FALLBACK_STORE.id || "").trim(),
+    name: label,
+    displayName: label,
+    capacity: "",
+    maxPeople: policyMaxPeople(),
+    floor: "",
+    features: [],
+    image: "/assets/images/reservation-hero.jpg",
+    price: 0,
+    status: "暂不可约",
+    available: false,
+    city: String(settings.city || LOCAL_FALLBACK_STORE.city || "").trim(),
+    address: String(settings.address || LOCAL_FALLBACK_STORE.address || "").trim()
+  };
 }
 
 function isSlotReserved(startTime, endTime, reservedSlots) {
@@ -250,8 +254,8 @@ Page(withPrivacy({
     dayBasePrice: (activePolicy.periods && activePolicy.periods[0] && activePolicy.periods[0].basePrice) || 188,
     rooms: [],
     selectedRoomId: "",
-    selectedRoom: localFallbackRoom(),
-    roomPerks: (localFallbackRoom().features || []).slice(0, 3),
+    selectedRoom: placeholderRoom("茶室加载中"),
+    roomPerks: [],
     selectedDay: "",
     selectedDayText: "",
     slotCells: [],
@@ -306,7 +310,7 @@ Page(withPrivacy({
   currentRoomId() {
     return (this.data.selectedRoom && this.data.selectedRoom.id)
       || this.data.selectedRoomId
-      || LOCAL_FALLBACK_ROOM.id;
+      || "";
   },
 
   currentStoreId() {
@@ -315,7 +319,7 @@ Page(withPrivacy({
   },
 
   loadReservedSlots(day) {
-    if (!day) {
+    if (!day || !this.currentRoomId()) {
       return;
     }
     listReservedSlots({
@@ -360,18 +364,9 @@ Page(withPrivacy({
         .map((item) => mapCatalogRoom(item, settings))
         .filter((item) => item && item.id);
 
-      // 云端无可见茶室：本地兜底仅在非云端成功时使用；云端成功但为空则明确不可约
       if (!rooms.length) {
-        if (catalog.fromCloud) {
-          const empty = localFallbackRoom(settings);
-          empty.status = "已订满";
-          empty.name = "暂无可预约茶室";
-          empty.displayName = "暂无可预约茶室";
-          empty.available = false;
-          rooms = [empty];
-        } else {
-          rooms = [localFallbackRoom(settings)];
-        }
+        const label = catalog.source === "error" ? "茶室暂时无法加载" : "暂无可预约茶室";
+        rooms = [placeholderRoom(label, settings)];
       }
 
       const prevId = this.data.selectedRoomId || (this.data.selectedRoom && this.data.selectedRoom.id);

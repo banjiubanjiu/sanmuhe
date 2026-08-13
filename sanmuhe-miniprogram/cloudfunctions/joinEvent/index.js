@@ -93,7 +93,7 @@ exports.main = async (event = {}) => {
       date: cleanText(eventDoc && eventDoc.date, 40) || eventDate,
       time: cleanText(eventDoc && eventDoc.time, 20) || eventTime,
       place: cleanText(eventDoc && eventDoc.place, 80) || eventPlace,
-      image: cleanText(eventDoc && (eventDoc.image || eventDoc.cover), 240) || eventImage,
+      image: cleanText(eventDoc && (eventDoc.image || eventDoc.cover), 500) || eventImage,
       status: "待确认",
       createdAt: db.serverDate(),
       updatedAt: db.serverDate()

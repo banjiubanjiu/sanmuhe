@@ -1,4 +1,4 @@
-const { drinks, teaProducts, rooms, events, homeSlides } = require("../../data/catalog");
+const { homeSlides } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, listEvents } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
@@ -6,13 +6,18 @@ const { syncTabBar } = require("../../utils/tabbar");
 const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
 
 function normalizeCatalog(catalog, eventList) {
-  const fromCloud = catalog && catalog.fromCloud;
+  const source = catalog || {};
   return {
-    drinks: fromCloud ? (catalog.drinks || []) : (catalog.drinks && catalog.drinks.length ? catalog.drinks : drinks),
-    teaProducts: fromCloud ? (catalog.teaProducts || []) : (catalog.teaProducts && catalog.teaProducts.length ? catalog.teaProducts : teaProducts),
-    rooms: fromCloud ? (catalog.rooms || []) : (catalog.rooms && catalog.rooms.length ? catalog.rooms : rooms),
-    events: eventList && eventList.length ? eventList : (fromCloud ? (catalog.events || []) : (catalog.events && catalog.events.length ? catalog.events : events)),
-    fromCloud
+    drinks: Array.isArray(source.drinks) ? source.drinks : [],
+    teaProducts: Array.isArray(source.teaProducts) ? source.teaProducts : [],
+    rooms: Array.isArray(source.rooms) ? source.rooms : [],
+    events: Array.isArray(eventList)
+      ? eventList
+      : (Array.isArray(source.events) ? source.events : []),
+    fromCloud: source.fromCloud === true,
+    fromCache: source.fromCache === true,
+    source: source.source || "",
+    catalogError: source.source === "error"
   };
 }
 
@@ -279,7 +284,7 @@ function getInitialHeroSlides() {
 
 Page({
   data: {
-    homeCatalog: normalizeCatalog({ drinks, teaProducts, rooms, events }, events),
+    homeCatalog: normalizeCatalog({}, []),
     heroSlides: getInitialHeroSlides(),
     heroCurrent: 0,
     quickActions: [
@@ -288,11 +293,13 @@ Page({
       { key: "room", title: "茶室预定", desc: "静享茶时", icon: "/assets/images/home-quick-room.png" },
       { key: "event", title: "沙龙活动", desc: "茶事雅集", icon: "/assets/images/home-quick-event.png" }
     ],
-    featuredDrink: drinks[0],
-    featuredTea: teaProducts[0],
-    featuredRoom: rooms[0],
-    nextEvent: events[0],
-    recommendTeas: buildSeasonRecommendations(teaProducts),
+    featuredDrink: null,
+    featuredTea: null,
+    featuredRoom: null,
+    nextEvent: null,
+    recommendTeas: [],
+    catalogLoading: true,
+    catalogError: false,
     query: "",
     searchOpen: false,
     searchResults: [],
@@ -303,7 +310,6 @@ Page({
   onLoad() {
     // 尽早点亮底部「首页」，避免自定义 tabBar 首屏 selected=-1
     syncTabBar(this);
-    this.loadHomeData();
   },
 
   onReady() {
@@ -313,6 +319,7 @@ Page({
   onShow() {
     syncTabBar(this);
     this.refreshCart();
+    this.loadHomeData();
   },
 
   refreshCart() {
@@ -324,6 +331,7 @@ Page({
   },
 
   loadHomeData() {
+    this.setData({ catalogLoading: true });
     getCatalog().then((catalogResult) => {
       const homeCatalog = normalizeCatalog(catalogResult || {}, null);
       const content = (catalogResult && catalogResult.content) || {};
@@ -336,12 +344,14 @@ Page({
       }
       const nextData = {
         homeCatalog,
-        featuredDrink: homeCatalog.drinks[0] || drinks[0],
-        featuredTea: homeCatalog.teaProducts[0] || teaProducts[0],
-        featuredRoom: homeCatalog.rooms[0] || rooms[0],
-        nextEvent: homeCatalog.events[0] || events[0],
+        featuredDrink: homeCatalog.drinks[0] || null,
+        featuredTea: homeCatalog.teaProducts[0] || null,
+        featuredRoom: homeCatalog.rooms[0] || null,
+        nextEvent: homeCatalog.events[0] || null,
         recommendTeas: buildSeasonRecommendations(homeCatalog.teaProducts),
-        searchResults: buildSearchResults(this.data.query, homeCatalog)
+        searchResults: buildSearchResults(this.data.query, homeCatalog),
+        catalogLoading: false,
+        catalogError: homeCatalog.catalogError === true
       };
       if (!hasSameVisibleSlides(this.data.heroSlides, nextHeroSlides)) {
         nextData.heroSlides = nextHeroSlides;
@@ -352,19 +362,17 @@ Page({
       this.setData(nextData);
     }).catch((error) => {
       console.warn("[home] getCatalog failed", error);
+      this.setData({ catalogLoading: false, catalogError: true });
     });
 
     listEvents().then((eventList) => {
       const eventsFromCloud = Array.isArray(eventList) ? eventList : [];
-      if (!eventsFromCloud.length) {
-        return;
-      }
       const homeCatalog = Object.assign({}, this.data.homeCatalog, {
         events: eventsFromCloud
       });
       this.setData({
         homeCatalog,
-        nextEvent: eventsFromCloud[0] || events[0],
+        nextEvent: eventsFromCloud[0] || null,
         searchResults: buildSearchResults(this.data.query, homeCatalog)
       });
     }).catch((error) => {

@@ -381,6 +381,18 @@
   font-size: 24rpx;
 }
 
+.empty-action {
+  min-height: 88rpx;
+  margin: 28rpx auto 0;
+  padding: 0 30rpx;
+  color: #f8f0df;
+  border-radius: 999rpx;
+  background: var(--hx-action);
+  font-size: 25rpx;
+  font-weight: 600;
+  border: none;
+}
+
 .list-safe-space {
   height: calc(120rpx + env(safe-area-inset-bottom));
 }

@@ -44,7 +44,7 @@ function requireAuditReason(event = {}, label = "高风险操作") {
 }
 
 function assertSafeTextRef(value, label) {
-  const text = cleanText(value, 300);
+  const text = cleanText(value, 500);
   if (!text) {
     return;
   }
@@ -56,7 +56,7 @@ function assertSafeTextRef(value, label) {
 }
 
 function assertImageRef(value, label) {
-  const text = cleanText(value, 300);
+  const text = cleanText(value, 500);
   if (!text) {
     return;
   }
@@ -3963,7 +3963,7 @@ function normalizeContent(data = {}) {
     title: cleanText(data.title, 80),
     subtitle: cleanText(data.subtitle, 100),
     summary: cleanText(data.summary, 300),
-    image: cleanText(data.image, 240),
+    image: cleanText(data.image, 500),
     linkType: cleanText(data.linkType, 30),
     linkTarget: cleanText(data.linkTarget, 120),
     visible: data.visible !== false,

@@ -112,7 +112,16 @@
     <view class="page-title">商品详情</view>
     <view class="nav-placeholder"></view>
   </view>
-  <view class="empty-copy">
+  <view class="empty-copy" wx:if="{{catalogLoading}}">
+    <view class="empty-title">正在加载</view>
+    <view class="empty-text">请稍候</view>
+  </view>
+  <view class="empty-copy" wx:elif="{{catalogError}}">
+    <view class="empty-title">商品暂时无法加载</view>
+    <view class="empty-text">请检查网络后重试</view>
+    <button class="empty-action" bindtap="loadProduct">重新加载</button>
+  </view>
+  <view class="empty-copy" wx:else>
     <view class="empty-title">商品已下架</view>
     <view class="empty-text">请返回商城查看当前可售商品</view>
   </view>

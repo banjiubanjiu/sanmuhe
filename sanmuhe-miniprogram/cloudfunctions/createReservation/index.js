@@ -786,7 +786,7 @@ async function resolveRoom(roomId, store) {
         roomName: cleanText(row.name || row.title, 40) || store.storeName,
         storeId: cleanText(row.storeId, 40) || store.storeId,
         maxPeople,
-        image: cleanText(row.image || row.thumb, 300)
+        image: cleanText(row.image || row.thumb, 500)
       };
     }
   } catch (error) {

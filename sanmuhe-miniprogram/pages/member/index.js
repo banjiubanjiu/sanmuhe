@@ -1,8 +1,8 @@
-const { teaProducts } = require("../../data/catalog");
 const { addToCart } = require("../../utils/cart");
 const {
   activateMember,
   claimCoupon,
+  getCatalog,
   getMemberCenter,
   rechargeMember,
   saveSubscription,
@@ -89,14 +89,16 @@ function countUsableCoupons(coupons) {
   return (coupons || []).filter((item) => item.status === "可使用").length;
 }
 
-function pickRecommendations() {
-  return ["tea-001", "tea-014"]
-    .map((id) => teaProducts.find((item) => item.id === id))
-    .filter(Boolean)
-    .map((item) => Object.assign({}, item, {
-      displayImage: item.thumb || item.image,
-      memberNote: item.id === "tea-001" ? "鲜爽甘醇  春日之味" : "雅致茶礼  送礼佳选"
-    }));
+function pickRecommendations(products) {
+  const list = Array.isArray(products) ? products : [];
+  const preferred = ["tea-001", "tea-014"]
+    .map((id) => list.find((item) => item && item.id === id))
+    .filter(Boolean);
+  const extra = list.filter((item) => preferred.every((picked) => picked.id !== item.id));
+  return preferred.concat(extra).slice(0, 2).map((item) => Object.assign({}, item, {
+    displayImage: item.thumb || item.image,
+    memberNote: item.id === "tea-001" ? "鲜爽甘醇  春日之味" : "雅致茶礼  送礼佳选"
+  }));
 }
 
 const DEFAULT_PLANS = [
@@ -190,7 +192,7 @@ Page(withPrivacy({
     highlights,
     level: buildLevel(memberBootstrap.member),
     benefitDetails,
-    recommendations: pickRecommendations(),
+    recommendations: [],
     availableCoupons: [],
     userCoupons: [],
     subscriptionTemplates: [],
@@ -207,7 +209,16 @@ Page(withPrivacy({
   onShow() {
     this.syncMemberTabBar();
     this.loadMemberCenter();
+    this.loadRecommendations();
     this.syncPrivacyState();
+  },
+
+  loadRecommendations() {
+    getCatalog().then((catalog) => {
+      this.setData({
+        recommendations: pickRecommendations(catalog && catalog.teaProducts)
+      });
+    });
   },
 
   /** 会员中心非 tab 页，内嵌 custom-tab-bar 应固定高亮「我的」(下标 3) */

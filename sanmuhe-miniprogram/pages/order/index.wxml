@@ -106,9 +106,18 @@
         </view>
       </block>
 
-      <view wx:else class="empty-list">
+      <view wx:elif="{{catalogError}}" class="empty-list">
+        <view>茶单暂时无法加载</view>
+        <text>请检查网络后重试</text>
+        <button class="empty-action" bindtap="loadCatalog">重新加载</button>
+      </view>
+      <view wx:elif="{{catalogLoading}}" class="empty-list">
         <view>茶单加载中</view>
         <text>请稍候</text>
+      </view>
+      <view wx:else class="empty-list">
+        <view>今日茶单暂未开放</view>
+        <text>上架后可在此点茶</text>
       </view>
 
       <view class="list-safe-space {{cartCount > 0 ? 'with-cart' : ''}}"></view>

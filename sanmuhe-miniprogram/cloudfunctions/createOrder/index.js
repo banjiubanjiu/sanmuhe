@@ -306,7 +306,7 @@ async function findTrustedDrinkTier(id) {
         notes: teas.map((item) => cleanText(item.name, 40)).filter(Boolean).join(" / "),
         teaGroups,
         specs: [],
-        image: cleanText(tier.thumb || tier.image, 240),
+        image: cleanText(tier.thumb || tier.image, 500),
         stock: undefined,
         lockedStock: undefined,
         soldStock: undefined
@@ -347,7 +347,7 @@ async function findTrustedItem(type, id) {
         notes: cleanText(item.notes, 500),
         teaGroups: Array.isArray(item.teaGroups) ? item.teaGroups : [],
         specs: normalizeTrustedSpecs(item),
-        image: cleanText(item.thumb || item.image, 240),
+        image: cleanText(item.thumb || item.image, 500),
         stock: item.stock,
         lockedStock: item.lockedStock,
         soldStock: item.soldStock

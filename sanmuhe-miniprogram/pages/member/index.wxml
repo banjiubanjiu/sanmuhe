@@ -170,7 +170,7 @@
     <button class="notice-action" bindtap="subscribeNotices">订阅通知</button>
   </view>
 
-  <view class="recommend-card">
+  <view class="recommend-card" wx:if="{{recommendations.length}}">
     <view class="panel-head">
       <view class="panel-title">专属推荐</view>
       <view class="panel-link" bindtap="goMoreRecommendations">更多推荐 ›</view>

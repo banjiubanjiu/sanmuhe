@@ -456,6 +456,25 @@ const orderDynamicCatalogOk = createOrderJs.includes("findTrustedItem") &&
   createOrderJs.includes("await sanitizeItems");
 results.push(status("order backend dynamic catalog pricing", orderDynamicCatalogOk, orderDynamicCatalogOk ? "createOrder trusts cloud catalog first and falls back to built-in prices" : "createOrder only accepts hard-coded products"));
 
+const cloudApiJs = readText("sanmuhe-miniprogram/utils/cloudApi.js");
+const orderPageJs = readText("sanmuhe-miniprogram/pages/order/index.js");
+const shopPageJs = readText("sanmuhe-miniprogram/pages/shop/index.js");
+const catalogNoLocalShelfOk = cloudApiJs.includes("writeCatalogCache") &&
+  cloudApiJs.includes('source === "error"') &&
+  /if \(!remote\.length\) \{\s*return \[\];/.test(cloudApiJs) &&
+  !cloudApiJs.includes("getFallbackCatalog") &&
+  !cloudApiJs.includes("mergeById") &&
+  !/return localItems\.slice\(\)/.test(cloudApiJs) &&
+  !orderPageJs.includes("return drinks.slice()") &&
+  !orderPageJs.includes("this.applyCatalog(drinks)") &&
+  !shopPageJs.includes("catalog.teaProducts.length ? catalog.teaProducts : teaProducts");
+results.push(status("catalog empty list trusts cloud", catalogNoLocalShelfOk, catalogNoLocalShelfOk ? "empty/failed catalog no longer injects local demo SKUs" : "frontend still falls back to local demo catalog"));
+
+const manageCatalogJs = readText("sanmuhe-miniprogram/cloudfunctions/manageCatalog/index.js");
+const catalogImageLenOk = manageCatalogJs.includes("IMAGE_REF_MAX = 500") &&
+  manageCatalogJs.includes("IMAGE_FIELDS.has(field)");
+results.push(status("catalog image field length", catalogImageLenOk, catalogImageLenOk ? "manageCatalog keeps full cloud fileIDs for image/thumb/detailImage" : "manageCatalog may still truncate image fileIDs"));
+
 const cleanupSmokeJs = readText("sanmuhe-miniprogram/cloudfunctions/cleanupSmokeData/index.js");
 const smokeCleanupOk = cleanupSmokeJs.includes("cloud-status-smoke") &&
   cleanupSmokeJs.includes("removeByQuery") &&

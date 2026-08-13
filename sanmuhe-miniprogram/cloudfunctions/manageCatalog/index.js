@@ -17,6 +17,9 @@ const allowedCollections = {
 };
 
 const PRODUCT_CATEGORY_CHANNELS = new Set(["tea_products", "drinks"]);
+const IMAGE_FIELDS = new Set(["image", "thumb", "detailImage"]);
+/** cloud:// fileID 前缀约 80 字，后台上传路径常超过 120 */
+const IMAGE_REF_MAX = 500;
 
 const writeActions = new Set(["create", "update", "delete", "restore", "remove"]);
 const rolePermissionMap = {
@@ -54,7 +57,7 @@ function invalidInput(message) {
 }
 
 function assertSafeTextRef(value, label) {
-  const text = cleanText(value, 300);
+  const text = cleanText(value, IMAGE_REF_MAX);
   if (!text) {
     return;
   }
@@ -64,7 +67,7 @@ function assertSafeTextRef(value, label) {
 }
 
 function assertImageRef(value, label) {
-  const text = cleanText(value, 300);
+  const text = cleanText(value, IMAGE_REF_MAX);
   if (!text) {
     return;
   }
@@ -473,7 +476,10 @@ function normalizePayload(collection, payload) {
 
   for (const field of stringFields) {
     if (source[field] !== undefined) {
-      data[field] = cleanText(source[field], field === "summary" || field === "detail" ? 500 : 120);
+      const max = IMAGE_FIELDS.has(field)
+        ? IMAGE_REF_MAX
+        : (field === "summary" || field === "detail" ? 500 : 120);
+      data[field] = cleanText(source[field], max);
     }
   }
 

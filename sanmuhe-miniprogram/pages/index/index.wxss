@@ -207,6 +207,14 @@
   margin-top: 22rpx;
 }
 
+.recommend-empty {
+  margin-top: 22rpx;
+  padding: 48rpx 12rpx;
+  color: #77736b;
+  font-size: 24rpx;
+  text-align: center;
+}
+
 .recommend-card {
   min-width: 0;
   overflow: hidden;

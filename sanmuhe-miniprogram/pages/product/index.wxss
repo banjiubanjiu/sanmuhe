@@ -390,3 +390,15 @@
 .empty-text {
   font-size: 26rpx;
 }
+
+.empty-action {
+  min-height: 88rpx;
+  margin-top: 12rpx;
+  padding: 0 36rpx;
+  color: #f8f0df;
+  border-radius: 999rpx;
+  background: var(--hx-action);
+  font-size: 25rpx;
+  font-weight: 600;
+  border: none;
+}

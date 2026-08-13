@@ -31,7 +31,11 @@
 </view>
 
 <view class="page event-detail-page empty-page" wx:else>
-  <view class="empty-copy">
+  <view class="empty-copy" wx:if="{{eventLoading}}">
+    <view class="empty-title">正在加载</view>
+    <text>请稍候</text>
+  </view>
+  <view class="empty-copy" wx:else>
     <view class="empty-title">活动暂不可见</view>
     <text>请返回活动列表查看当前茶事活动。</text>
   </view>

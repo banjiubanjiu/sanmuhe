@@ -55,7 +55,8 @@
         <view class="event-arrow">›</view>
       </view>
     </view>
-    <view wx:if="{{events.length === 0}}" class="empty compact">暂无活动</view>
+    <view wx:if="{{eventLoading && events.length === 0}}" class="empty compact">正在加载活动</view>
+    <view wx:elif="{{events.length === 0}}" class="empty compact">暂无活动</view>
   </view>
 
   <view class="event-note">

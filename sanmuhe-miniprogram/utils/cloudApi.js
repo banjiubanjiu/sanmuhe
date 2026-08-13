@@ -1,19 +1,96 @@
-const { drinks, teaProducts, rooms, events, homeSlides } = require("../data/catalog");
+const { drinks, teaProducts, rooms, events } = require("../data/catalog");
 const { localImage } = require("../config/assets");
 
-function getFallbackCatalog() {
+const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v1";
+const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v1";
+
+function emptyCatalog() {
   return {
-    drinks,
-    teaProducts,
-    rooms,
-    events,
+    drinks: [],
+    teaProducts: [],
+    rooms: [],
+    events: [],
     productCategories: [],
     content: {
-      homeSlides
+      homeSlides: []
     },
-    settings: null,
-    fromCloud: false
+    settings: null
   };
+}
+
+function withCatalogMeta(catalog, source) {
+  const next = catalog || emptyCatalog();
+  return {
+    drinks: Array.isArray(next.drinks) ? next.drinks : [],
+    teaProducts: Array.isArray(next.teaProducts) ? next.teaProducts : [],
+    rooms: Array.isArray(next.rooms) ? next.rooms : [],
+    events: Array.isArray(next.events) ? next.events : [],
+    productCategories: Array.isArray(next.productCategories) ? next.productCategories : [],
+    content: next.content || { homeSlides: [] },
+    settings: next.settings || null,
+    fromCloud: source === "cloud",
+    fromCache: source === "cache",
+    source,
+    catalogError: source === "error"
+  };
+}
+
+function writeCatalogCache(catalog) {
+  try {
+    wx.setStorageSync(CATALOG_CACHE_KEY, {
+      drinks: catalog.drinks || [],
+      teaProducts: catalog.teaProducts || [],
+      rooms: catalog.rooms || [],
+      events: catalog.events || [],
+      productCategories: catalog.productCategories || [],
+      content: catalog.content || { homeSlides: [] },
+      settings: catalog.settings || null,
+      cachedAt: Date.now()
+    });
+  } catch (error) {
+    // storage 满或不可用时忽略，不影响当次展示
+  }
+}
+
+function readCatalogCache() {
+  try {
+    const cached = wx.getStorageSync(CATALOG_CACHE_KEY);
+    if (!cached || typeof cached !== "object") {
+      return null;
+    }
+    return {
+      drinks: Array.isArray(cached.drinks) ? cached.drinks : [],
+      teaProducts: Array.isArray(cached.teaProducts) ? cached.teaProducts : [],
+      rooms: Array.isArray(cached.rooms) ? cached.rooms : [],
+      events: Array.isArray(cached.events) ? cached.events : [],
+      productCategories: Array.isArray(cached.productCategories) ? cached.productCategories : [],
+      content: cached.content || { homeSlides: [] },
+      settings: cached.settings || null
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeEventsCache(list) {
+  try {
+    wx.setStorageSync(EVENTS_CACHE_KEY, Array.isArray(list) ? list : []);
+  } catch (error) {
+    // ignore
+  }
+}
+
+function readEventsCache() {
+  try {
+    const cached = wx.getStorageSync(EVENTS_CACHE_KEY);
+    if (Array.isArray(cached)) {
+      return cached;
+    }
+    const catalog = readCatalogCache();
+    return catalog && Array.isArray(catalog.events) ? catalog.events : null;
+  } catch (error) {
+    return null;
+  }
 }
 
 function withCloudImages(item) {
@@ -34,22 +111,7 @@ function withCloudImages(item) {
   return next;
 }
 
-function mergeById(remoteItems, localItems) {
-  const localMap = localItems.reduce((map, item) => {
-    map[item.id] = item;
-    return map;
-  }, {});
-
-  const remoteIds = {};
-  const mergedRemote = (remoteItems || []).map((item) => {
-    remoteIds[item.id] = true;
-    return withCloudImages(Object.assign({}, localMap[item.id] || {}, item));
-  });
-  const localOnly = localItems.filter((item) => !remoteIds[item.id]).map(withCloudImages);
-  return mergedRemote.concat(localOnly);
-}
-
-// 云端记录覆盖本地，但用本地补齐缺失字段（如 teaGroups / tagline）
+// 只补同 id 缺失字段，绝不把本地演示商品加回货架
 function fillFromLocal(remoteItems, localItems) {
   const localMap = localItems.reduce((map, item) => {
     map[item.id] = item;
@@ -84,31 +146,24 @@ function fillFromLocal(remoteItems, localItems) {
   });
 }
 
-function normalizeCatalogList(source, key, localItems, trustRemote) {
+function normalizeCatalogList(source, key, localItems) {
   const remote = Array.isArray(source[key]) ? source[key] : [];
-  if (trustRemote) {
-    // 云端可见列表为空时回退本地，避免前台被刷成空白
-    // rooms 与其它 catalog 一样：以后台（云端）列表为准
-    if (!remote.length) {
-      return localItems.slice();
-    }
-    return fillFromLocal(remote, localItems);
+  if (!remote.length) {
+    return [];
   }
-  return mergeById(remote.length ? remote : localItems, localItems);
+  return fillFromLocal(remote, localItems);
 }
 
-function enrichCatalog(catalog, options = {}) {
+function enrichCatalog(catalog) {
   const source = catalog || {};
-  const trustRemote = options.trustRemote === true;
   return {
-    drinks: normalizeCatalogList(source, "drinks", drinks, trustRemote),
-    teaProducts: normalizeCatalogList(source, "teaProducts", teaProducts, trustRemote),
-    rooms: normalizeCatalogList(source, "rooms", rooms, trustRemote),
-    events: normalizeCatalogList(source, "events", events, trustRemote),
+    drinks: normalizeCatalogList(source, "drinks", drinks),
+    teaProducts: normalizeCatalogList(source, "teaProducts", teaProducts),
+    rooms: normalizeCatalogList(source, "rooms", rooms),
+    events: normalizeCatalogList(source, "events", events),
     productCategories: Array.isArray(source.productCategories) ? source.productCategories : [],
     content: source.content || { homeSlides: [] },
-    settings: source.settings || null,
-    fromCloud: trustRemote
+    settings: source.settings || null
   };
 }
 
@@ -130,14 +185,32 @@ function callCloud(name, data) {
 
 function getCatalog() {
   return callCloud("getCatalog")
-    .then((result) => enrichCatalog(result.catalog || {}, { trustRemote: true }))
-    .catch(() => enrichCatalog(getFallbackCatalog()));
+    .then((result) => {
+      const catalog = withCatalogMeta(enrichCatalog(result.catalog || {}), "cloud");
+      writeCatalogCache(catalog);
+      writeEventsCache(catalog.events);
+      return catalog;
+    })
+    .catch(() => {
+      const cached = readCatalogCache();
+      if (cached) {
+        return withCatalogMeta(enrichCatalog(cached), "cache");
+      }
+      return withCatalogMeta(emptyCatalog(), "error");
+    });
 }
 
 function listEvents() {
   return callCloud("listEvents")
-    .then((result) => Array.isArray(result.events) ? result.events : [])
-    .catch(() => events);
+    .then((result) => {
+      const nextEvents = Array.isArray(result.events) ? result.events : [];
+      writeEventsCache(nextEvents);
+      return nextEvents;
+    })
+    .catch(() => {
+      const cached = readEventsCache();
+      return Array.isArray(cached) ? cached : [];
+    });
 }
 
 function createOrder(payload) {

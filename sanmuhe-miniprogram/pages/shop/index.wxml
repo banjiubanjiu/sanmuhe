@@ -103,10 +103,20 @@
           <image src="/assets/icons/circle-plus-green.png" mode="aspectFit" aria-hidden="{{true}}"></image>
         </view>
       </view>
-      <view wx:if="{{filteredProducts.length === 0}}" class="empty-list">
-        <view>暂无匹配茶品</view>
-        <text>可以清除搜索并查看全部茶品</text>
-        <button class="empty-action" bindtap="clearFilters">查看全部茶品</button>
+      <view wx:if="{{catalogError && !products.length}}" class="empty-list">
+        <view>茶品暂时无法加载</view>
+        <text>请检查网络后重试</text>
+        <button class="empty-action" bindtap="loadCatalog">重新加载</button>
+      </view>
+      <view wx:elif="{{catalogLoading && !products.length}}" class="empty-list">
+        <view>正在加载茶品</view>
+        <text>请稍候</text>
+      </view>
+      <view wx:elif="{{filteredProducts.length === 0}}" class="empty-list">
+        <view>{{products.length ? '暂无匹配茶品' : '暂无在售茶叶'}}</view>
+        <text wx:if="{{products.length}}">可以清除搜索并查看全部茶品</text>
+        <text wx:else>上架后将在这里展示</text>
+        <button wx:if="{{products.length}}" class="empty-action" bindtap="clearFilters">查看全部茶品</button>
       </view>
       <view class="list-safe-space {{cartCount > 0 ? 'with-cart' : ''}}"></view>
     </scroll-view>

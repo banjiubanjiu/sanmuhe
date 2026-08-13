@@ -18,12 +18,9 @@ function safeLocalImage(path, fallback) {
   }
 }
 
-function toViewEvent(raw, index) {
+function toViewEvent(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
-  const fallback = localEvents.find((item) => item.id === source.id)
-    || localEvents[index]
-    || localEvents[0]
-    || {};
+  const fallback = localEvents.find((item) => item.id === source.id) || {};
   const merged = Object.assign({}, fallback, source, {
     status: source.status || fallback.status || "敬请期待",
     image: safeLocalImage(source.image || fallback.image, "/assets/images/event-yangxin-tea.jpg"),
@@ -54,12 +51,9 @@ function toViewEvent(raw, index) {
 }
 
 function findEvent(id, source) {
-  const list = Array.isArray(source) && source.length ? source : localEvents;
-  const target = id ? list.find((item) => item && item.id === id) : list[0];
-  if (!target && source !== localEvents) {
-    return findEvent(id, localEvents);
-  }
-  return target ? toViewEvent(target, list.indexOf(target)) : null;
+  const list = Array.isArray(source) ? source : [];
+  const target = id ? list.find((item) => item && item.id === id) : null;
+  return target ? toViewEvent(target) : null;
 }
 
 function buildContactMeta(event) {
@@ -77,6 +71,7 @@ function buildContactMeta(event) {
 Page({
   data: {
     event: null,
+    eventLoading: true,
     contactSessionFrom: "event-detail",
     contactMessageTitle: "活动咨询",
     contactMessagePath: "pages/event-detail/index",
@@ -86,30 +81,24 @@ Page({
   onLoad(options) {
     const eventId = options && options.id;
     this.eventId = eventId;
-    try {
-      const fallback = findEvent(eventId, localEvents);
-      this.setData(Object.assign({ event: fallback }, buildContactMeta(fallback)));
-    } catch (error) {
-      console.warn("[event-detail] local normalize failed", error);
-      this.setData({ event: null });
-    }
+    this.setData({ event: null, eventLoading: true });
 
     listEvents()
       .then((remoteEvents) => {
         try {
-          const event = findEvent(
-            eventId,
-            remoteEvents && remoteEvents.length ? remoteEvents : localEvents
-          );
-          if (event) {
-            this.setData(Object.assign({ event }, buildContactMeta(event)));
-          }
+          const event = findEvent(eventId, remoteEvents);
+          this.setData(Object.assign({
+            event,
+            eventLoading: false
+          }, buildContactMeta(event)));
         } catch (error) {
           console.warn("[event-detail] remote normalize failed", error);
+          this.setData({ event: null, eventLoading: false });
         }
       })
       .catch((error) => {
         console.warn("[event-detail] listEvents failed", error);
+        this.setData({ event: null, eventLoading: false });
       });
   },
 
