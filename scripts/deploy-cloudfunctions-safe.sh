@@ -4,17 +4,19 @@
 # 用法：
 #   ./scripts/deploy-cloudfunctions-safe.sh                  # 部署全部：敏感函数仅 code update 或从 .secrets 注入
 #   ./scripts/deploy-cloudfunctions-safe.sh memberCenter    # 指定函数
-#   ./scripts/deploy-cloudfunctions-safe.sh createPayment   # 仅更新代码，保留云端 env
+#   ./scripts/deploy-cloudfunctions-safe.sh createPayment   # 有 .secrets 则自动带密钥；否则只更代码
 #   ./scripts/deploy-cloudfunctions-safe.sh listMyRecords   # 有 .secrets/kuaidi100.env 则注入密钥部署，否则只更代码
 #   ./scripts/deploy-cloudfunctions-safe.sh --with-pay-secrets createPayment wechatPayNotify
+#   ./scripts/deploy-cloudfunctions-safe.sh --no-pay-secrets createPayment   # 强制只更代码
 #   ./scripts/deploy-cloudfunctions-safe.sh --with-kuaidi-secrets listMyRecords
 #   ./scripts/deploy-cloudfunctions-safe.sh --dry-run
 #
 # 说明：
 # - createPayment / wechatPayNotify 的 tcb 全量 deploy 会用配置里的 envVariables
 #   **整份覆盖**云端环境变量。仓库里的 cloudbaserc.json 不含私钥，直接 deploy 会弄丢支付。
-# - 默认对这两个函数走 `tcb fn code update`（只更代码）。
-# - 需要改支付密钥时加 --with-pay-secrets，从 .secrets/wechat-pay.env + keys/*.pem 组装后部署。
+# - 有 .secrets/wechat-pay.env + pem 时：自动带密钥全量部署（与快递100相同策略）。
+# - 没有本地密钥时：只走 `tcb fn code update`，保留云端 env。
+# - --with-pay-secrets 强制要求本地密钥齐全；--no-pay-secrets 强制只更代码。
 # - listMyRecords 含快递100密钥：仓库 cloudbaserc 保持空占位；
 #   若存在 .secrets/kuaidi100.env（含 CUSTOMER+KEY）则自动注入全量部署，否则只更代码保留云端。
 # - 强制要求注入快递密钥时加 --with-kuaidi-secrets（文件缺失则失败）。
@@ -29,6 +31,7 @@ KUAIDI_ENV="${ROOT}/.secrets/kuaidi100.env"
 ENV_ID="${ENV_ID:-}"
 DRY_RUN=0
 WITH_PAY_SECRETS=0
+NO_PAY_SECRETS=0
 WITH_KUAIDI_SECRETS=0
 NAMES=()
 
@@ -45,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     -h|--help) usage 0 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --with-pay-secrets) WITH_PAY_SECRETS=1; shift ;;
+    --no-pay-secrets) NO_PAY_SECRETS=1; shift ;;
     --with-kuaidi-secrets) WITH_KUAIDI_SECRETS=1; shift ;;
     -e|--env) ENV_ID="${2:-}"; shift 2 ;;
     --) shift; break ;;
@@ -68,6 +72,11 @@ fi
 
 if [[ -z "${ENV_ID}" ]]; then
   echo "无法解析 envId，请传 --env <envId>" >&2
+  exit 1
+fi
+
+if [[ ${WITH_PAY_SECRETS} -eq 1 && ${NO_PAY_SECRETS} -eq 1 ]]; then
+  echo "不能同时使用 --with-pay-secrets 与 --no-pay-secrets" >&2
   exit 1
 fi
 
@@ -97,6 +106,37 @@ is_logistics_fn() {
     [[ "$n" == "$p" ]] && return 0
   done
   return 1
+}
+
+# 读取 .secrets/wechat-pay.env；不打印密钥。返回码 0 = 可自动注入支付密钥
+pay_secrets_ready() {
+  [[ -f "${SECRETS_ENV}" ]] || return 1
+  node -e "
+    const fs=require('fs');
+    const path=require('path');
+    const root=process.argv[2];
+    const text=fs.readFileSync(process.argv[1],'utf8');
+    const env={};
+    for (const line of text.split(/\\n/)) {
+      const t=line.trim();
+      if (!t || t.startsWith('#')) continue;
+      const i=t.indexOf('=');
+      if (i<0) continue;
+      let v=t.slice(i+1).trim();
+      if ((v.startsWith('\"')&&v.endsWith('\"'))||(v.startsWith(\"'\")&&v.endsWith(\"'\"))) v=v.slice(1,-1);
+      env[t.slice(0,i).trim()]=v;
+    }
+    const resolve=(p)=>!p? '': (path.isAbsolute(p)? p: path.join(root,p));
+    const priv=resolve(env.WECHAT_PAY_PRIVATE_KEY_PATH||'');
+    const pub=resolve(env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH||'');
+    const cert=resolve(env.WECHAT_PAY_PLATFORM_CERTIFICATE_PATH||'');
+    const serial=String(env.WECHAT_PAY_CERT_SERIAL_NO||'').trim();
+    if (!serial || !priv || !fs.existsSync(priv) || !fs.statSync(priv).isFile()) process.exit(2);
+    const hasPub=pub && fs.existsSync(pub) && fs.statSync(pub).isFile();
+    const hasCert=cert && fs.existsSync(cert) && fs.statSync(cert).isFile();
+    if (!hasPub && !hasCert) process.exit(2);
+    process.exit(0);
+  " "${SECRETS_ENV}" "${ROOT}" 2>/dev/null
 }
 
 # 读取 .secrets/kuaidi100.env；stdout 仅打印 status 行，密钥不输出
@@ -140,11 +180,23 @@ KUAIDI_FILE_OK=0
 if kuaidi_secrets_ready; then
   KUAIDI_FILE_OK=1
 fi
+PAY_FILE_OK=0
+if pay_secrets_ready; then
+  PAY_FILE_OK=1
+fi
 
 echo "Project:  ${MP}"
 echo "Env:      ${ENV_ID}"
 echo "Functions:${NAMES[*]}"
-echo "Pay mode: $([[ ${WITH_PAY_SECRETS} -eq 1 ]] && echo 'code+secrets from .secrets' || echo 'code-only for pay fns')"
+if [[ ${NO_PAY_SECRETS} -eq 1 ]]; then
+  echo "Pay mode: code-only (--no-pay-secrets)"
+elif [[ ${WITH_PAY_SECRETS} -eq 1 ]]; then
+  echo "Pay mode: force inject from .secrets/wechat-pay.env"
+elif [[ ${PAY_FILE_OK} -eq 1 ]]; then
+  echo "Pay mode: auto inject from .secrets/wechat-pay.env when deploying pay fns"
+else
+  echo "Pay mode: code-only for pay fns (preserve cloud env; add .secrets/wechat-pay.env to inject)"
+fi
 if [[ ${WITH_KUAIDI_SECRETS} -eq 1 ]]; then
   echo "Kuaidi:   force inject from .secrets/kuaidi100.env"
 elif [[ ${KUAIDI_FILE_OK} -eq 1 ]]; then
@@ -267,7 +319,8 @@ if (!createPaymentEnv.WECHAT_PAY_PLATFORM_PUBLIC_KEY && !createPaymentEnv.WECHAT
 const cfg = {
   version: "2.0",
   envId,
-  functionRoot: path.join(root, "sanmuhe-miniprogram/cloudfunctions"),
+  // 相对路径：必须在小程序根目录执行 tcb，避免 cwd+绝对路径拼成双前缀
+  functionRoot: "cloudfunctions",
   functions: [
     {
       name: "createPayment",
@@ -383,7 +436,12 @@ kuaidi_secret_deploy=()
 
 for name in "${NAMES[@]}"; do
   if is_pay_fn "$name"; then
-    if [[ ${WITH_PAY_SECRETS} -eq 1 ]]; then
+    if [[ ${NO_PAY_SECRETS} -eq 1 ]]; then
+      code_only_pay+=("$name")
+    elif [[ ${WITH_PAY_SECRETS} -eq 1 ]]; then
+      pay_secret_deploy+=("$name")
+    elif [[ ${PAY_FILE_OK} -eq 1 ]]; then
+      # 有本地密钥 → 自动注入，避免用仓库 cloudbaserc 冲掉云端支付密钥
       pay_secret_deploy+=("$name")
     else
       code_only_pay+=("$name")
@@ -405,6 +463,11 @@ done
 # 1) 普通函数：正常 deploy（用主 cloudbaserc）
 for name in "${full_deploy[@]+"${full_deploy[@]}"}"; do
   [[ -z "${name:-}" ]] && continue
+  if is_pay_fn "$name"; then
+    echo "REFUSE: ${name} 禁止用仓库 cloudbaserc 全量 deploy（会冲掉支付密钥）" >&2
+    failed=1
+    continue
+  fi
   echo ">>> deploy (config+code)  ${name}"
   if ! run bash -c "cd '${MP}' && yes | tcb fn deploy '${name}' --force -e '${ENV_ID}'"; then
     echo "FAIL: ${name}" >&2
@@ -457,7 +520,7 @@ if [[ ${#pay_secret_deploy[@]} -gt 0 ]]; then
     build_pay_config
     for name in "${pay_secret_deploy[@]}"; do
       echo ">>> deploy + pay secrets ${name}"
-      if ! run bash -c "cd '${ROOT}' && yes | tcb fn deploy '${name}' --force -e '${ENV_ID}' --config-file '${TMP_PAY_CFG}'"; then
+      if ! run bash -c "cd '${MP}' && yes | tcb fn deploy '${name}' --force -e '${ENV_ID}' --config-file '${TMP_PAY_CFG}'"; then
         echo "FAIL: ${name} with secrets" >&2
         failed=1
       else
@@ -522,6 +585,6 @@ fi
 echo
 echo "全部完成。"
 echo "提示：日常改代码请用本脚本。"
-echo "  支付密钥：只有换密钥时才加 --with-pay-secrets"
+echo "  支付函数：有 .secrets/wechat-pay.env 会自动带密钥；禁止 tcb fn deploy --force"
 echo "  快递100：密钥放 .secrets/kuaidi100.env，部署 listMyRecords 会自动注入；仓库 cloudbaserc 保持空"
 echo "禁止：tcb fn deploy createPayment/listMyRecords --force 仅用仓库 cloudbaserc.json（会冲掉密钥）。"

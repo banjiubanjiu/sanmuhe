@@ -6,6 +6,28 @@
 - CloudBase 控制台: `https://console.cloud.tencent.com/tcb/env/index?envId=cloudbase-d2gq023qn50e9d82f`
 - 完整环境信息/部署命令见仓库根 `docs/环境与链接.md`；构建: `npm run admin:build`
 
+## 云函数部署（支付密钥，必守）
+
+`createPayment` / `wechatPayNotify` 的私钥、平台公钥、APIv3 密钥只在 `.secrets/`，**不在** `cloudbaserc.json`。
+`tcb fn deploy <name> --force` 会用配置里的 env **整份覆盖**云端变量，支付会立刻不可用。
+
+**禁止：**
+
+```bash
+tcb fn deploy createPayment --force
+tcb fn deploy wechatPayNotify --force
+```
+
+**必须：**
+
+```bash
+# 有 .secrets/wechat-pay.env 时自动带密钥；没有则只更新代码、保留云端密钥
+./scripts/deploy-cloudfunctions-safe.sh createPayment
+./scripts/deploy-cloudfunctions-safe.sh wechatPayNotify
+```
+
+2026-08-13 已发生过一次：用仓库 cloudbaserc 全量部署冲掉平台公钥，顾客微信支付提示「环境变量未配置」。
+
 ## Cloud-First Frontend Content
 
 - Mini program business content must be cloud-backed. Carousel images, product images, tea room images, event images, notices, coupons, member settings, and operational records should be stored in CloudBase database/storage instead of only local files.
