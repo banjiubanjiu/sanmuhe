@@ -1,6 +1,11 @@
 const ACTIVE_STATUSES = ["已付款", "制作中", "待确认", "待发货", "待自提", "已发货", "异常待处理", "支付异常待处理"];
 const AFTER_SALE_STATUSES = ["申请售后", "审核中", "处理中", "已退款", "已拒绝", "已关闭"];
 
+const { localImage } = require("../config/assets");
+
+/** 堂饮订单头部氛围图（已上云 mp-assets/images/dinein-order-hero.jpg） */
+const DINEIN_HERO = localImage("assets/images/dinein-order-hero.jpg");
+
 function number(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -41,11 +46,25 @@ function formatDate(value, fallback = "") {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function optionText(item = {}) {
+function optionText(item = {}, opts = {}) {
   const options = item.options || {};
-  return [options.teaChoice, options.unit, options.table ? `桌号 ${options.table}` : ""]
-    .filter(Boolean)
-    .join(" · ");
+  const parts = [options.teaChoice, options.unit];
+  if (!opts.hideTable && options.table) {
+    parts.push(`桌号 ${options.table}`);
+  }
+  return parts.filter(Boolean).join(" · ");
+}
+
+function tableDisplay(table) {
+  const value = String(table || "").trim();
+  if (!value) {
+    return "";
+  }
+  // 纯数字桌号转中文（设计稿「桌 三」）；含字母/符号保留原样
+  const cleaned = /^桌/.test(value) ? value.replace(/^桌\s*/, "") : value;
+  const digits = { "0": "〇", "1": "一", "2": "二", "3": "三", "4": "四", "5": "五", "6": "六", "7": "七", "8": "八", "9": "九" };
+  const cn = /^\d+$/.test(cleaned) ? cleaned.split("").map((ch) => digits[ch] || ch).join("") : "";
+  return `桌 ${cn || cleaned}`;
 }
 
 function statusTone(status) {
@@ -163,6 +182,13 @@ function buildTimeline(order = {}) {
 
 function normalizeOrder(order = {}) {
   const status = statusCopy(order);
+  const source = String(order.source || "");
+  const bizType = String(order.bizType || "").toLowerCase();
+  const isDineIn = order.deliveryMethod === "onsite"
+    || bizType === "dinein"
+    || bizType === "dine-in"
+    || source === "dinein-tea-menu"
+    || source === "onsite-cart";
   const items = (order.items || []).map((item, index) => ({
     id: item.id || `${order.orderNo || order._id || "order"}-${index}`,
     type: item.type || "",
@@ -173,7 +199,7 @@ function normalizeOrder(order = {}) {
     priceText: money(item.price),
     lineTotalText: money(item.lineTotal !== undefined ? item.lineTotal : number(item.price) * number(item.quantity || 1)),
     options: item.options || {},
-    optionText: optionText(item)
+    optionText: optionText(item, { hideTable: isDineIn })
   }));
   const id = order._id || order.id || order.orderNo || "";
   const afterSaleOpen = !!order.afterSaleStatus && !["已退款", "已拒绝", "已关闭"].includes(order.afterSaleStatus);
@@ -206,10 +232,26 @@ function normalizeOrder(order = {}) {
       && order.payStatus !== "paid"
       && order.payStatus !== "confirming",
     canConfirmReceipt: order.deliveryMethod === "shipping" && order.status === "已发货",
+    isDineIn,
+    heroImage: isDineIn ? DINEIN_HERO : "",
+    tableDisplay: tableDisplay(order.tableNo),
+    dineInTitle: order.status === "待支付"
+      ? "待支付"
+      : (order.status === "已完成"
+        ? "已完成"
+        : (order.status === "已取消" ? "已取消" : "准备中")),
+    dineInHint: order.status === "待支付"
+      ? "请先完成支付，付款后茶席开始备茶"
+      : (order.status === "已完成"
+        ? "本次茶席已结束"
+        : (order.status === "已取消" ? "本次订单已取消" : "请稍坐，茶款送到桌边")),
+    payChannelText: order.payMode === "balance" ? "会员余额" : "微信支付",
+    paidAtText: formatDate(order.paidAt),
     canApplyAfterSale: paidOrFulfilling
       && order.status !== "已取消"
       && order.afterSaleStatus !== "已退款"
-      && !afterSaleOpen,
+      && !afterSaleOpen
+      && !(isDineIn && order.status !== "已完成"),
     canViewLogistics: !!order.trackingNo,
     afterSaleOpen,
     timeline: buildTimeline(order)

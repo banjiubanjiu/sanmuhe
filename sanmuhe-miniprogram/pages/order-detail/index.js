@@ -47,6 +47,7 @@ function safeDecode(value) {
 
 Page({
   data: {
+    statusBarHeight: 20,
     orderId: "",
     order: null,
     loading: true,
@@ -65,7 +66,11 @@ Page({
   },
 
   onLoad(options = {}) {
+    const systemInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
     const orderId = safeDecode(options.id);
+    if (options.from === "paid") {
+      wx.showToast({ title: "支付成功", icon: "success" });
+    }
     // 微信跳转进入的场景有两种，均按参数反查本地订单：
     // 1) 「订单发货通知」/「确认收货提醒」（set_msg_jump_path）附加
     //    transaction_id、merchant_id、merchant_trade_no（二级商户还有 sub_merchant_id）；
@@ -88,7 +93,10 @@ Page({
         lookup.orderNo = orderNo;
       }
     }
-    this.setData(Object.assign({ orderId }, buildContactMeta(orderId)));
+    this.setData(Object.assign({
+      statusBarHeight: (systemInfo && systemInfo.statusBarHeight) || 20,
+      orderId
+    }, buildContactMeta(orderId)));
     this.loadOrder(lookup);
   },
 
@@ -198,14 +206,16 @@ Page({
       orderId: order._id || order.id,
       orderNo: order.orderNo
     }).then(() => {
+      this.setData({ submitting: false });
+      this.loadOrder({ silent: true });
+      if (order.deliveryMethod === "onsite") {
+        wx.showToast({ title: "支付成功", icon: "success" });
+        return;
+      }
       wx.showModal({
         title: "支付成功",
         content: "付款成功，订单已付款，门店已收到。",
-        showCancel: false,
-        success: () => {
-          this.setData({ submitting: false });
-          this.loadOrder({ silent: true });
-        }
+        showCancel: false
       });
     }).catch((error) => {
       const raw = (error && (error.errMsg || error.message)) || "";

@@ -1,6 +1,6 @@
 .detail-page {
   min-height: 100vh;
-  padding: 88rpx 28rpx calc(56rpx + env(safe-area-inset-bottom));
+  padding: 0 28rpx calc(56rpx + env(safe-area-inset-bottom));
   color: var(--hx-ink);
   background: var(--hx-paper);
 }
@@ -9,11 +9,27 @@
   padding-bottom: calc(170rpx + env(safe-area-inset-bottom));
 }
 
+.detail-page.is-dinein {
+  padding-right: 0;
+  padding-left: 0;
+  background: var(--hx-paper);
+}
+
+.detail-page.is-dinein.has-action-bar {
+  padding-bottom: calc(56rpx + env(safe-area-inset-bottom));
+}
+
 .detail-nav {
-  height: 72rpx;
+  min-height: 72rpx;
   display: grid;
   grid-template-columns: 72rpx 1fr 72rpx;
   align-items: center;
+  margin: 0 -28rpx;
+  padding-right: 28rpx;
+  padding-bottom: 8rpx;
+  padding-left: 28rpx;
+  box-sizing: border-box;
+  background: var(--hx-paper);
 }
 
 .nav-back {
@@ -76,6 +92,205 @@
   color: var(--hx-text);
   font-size: 25rpx;
   line-height: 1.55;
+}
+
+/* 堂饮：氛围图 + 茶笺（对齐 HTML 设计稿） */
+.dinein-hero {
+  position: relative;
+  height: 420rpx;
+  overflow: hidden;
+}
+
+.dinein-hero-img {
+  width: 100%;
+  height: 118%;
+  display: block;
+  object-fit: cover;
+  object-position: 50% 28%;
+}
+
+.dinein-hero-mask {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(23, 59, 42, 0.22), rgba(23, 59, 42, 0.08) 40%, rgba(23, 59, 42, 0.55));
+}
+
+.dinein-nav {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  left: 0;
+  margin: 0;
+  padding-left: 20rpx;
+  padding-right: 20rpx;
+  background: transparent;
+}
+
+.dinein-nav-title {
+  color: #fffdf8;
+}
+
+.dinein-nav .nav-back {
+  color: #fffdf8;
+}
+
+.dinein-nav .nav-back image {
+  filter: brightness(0) invert(1);
+}
+
+.dinein-sheet {
+  position: relative;
+  z-index: 3;
+  margin: -64rpx 24rpx 0;
+  padding: 46rpx 24rpx 18rpx;
+  background: var(--hx-surface);
+  text-align: center;
+}
+
+.dinein-brand {
+  color: var(--hx-ink);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 34rpx;
+  font-weight: 600;
+  letter-spacing: 14rpx;
+  text-indent: 14rpx;
+}
+
+.dinein-status {
+  margin-top: 24rpx;
+  color: var(--hx-gold);
+  font-size: 19rpx;
+  letter-spacing: 10rpx;
+  text-indent: 10rpx;
+}
+
+.dinein-table {
+  margin: 10rpx 0 0;
+  color: var(--hx-ink);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 112rpx;
+  font-weight: 600;
+  line-height: 0.95;
+  letter-spacing: 6rpx;
+}
+
+.dinein-list {
+  padding: 26rpx 28rpx 4rpx;
+}
+
+.dinein-item {
+  display: flex;
+  align-items: center;
+  gap: 22rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--hx-line);
+}
+
+.dinein-item:last-child {
+  border-bottom: 0;
+}
+
+.dinein-pic {
+  flex: 0 0 104rpx;
+  width: 104rpx;
+  height: 104rpx;
+  object-fit: cover;
+  background: #efe8da;
+}
+
+.dinein-pic-fallback {
+  padding: 22rpx;
+  box-sizing: border-box;
+}
+
+.dinein-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.dinein-name {
+  color: var(--hx-ink);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.dinein-meta {
+  margin-top: 6rpx;
+  color: var(--hx-muted);
+  font-size: 23rpx;
+}
+
+.dinein-yen {
+  flex: 0 0 auto;
+  color: var(--hx-ink);
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
+  font-size: 27rpx;
+  font-weight: 600;
+}
+
+.dinein-bill {
+  margin: 6rpx 28rpx 0;
+  padding-top: 22rpx;
+  border-top: 1rpx solid var(--hx-ink);
+}
+
+.dinein-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10rpx 0;
+  color: var(--hx-muted);
+  font-size: 23rpx;
+}
+
+.dinein-sum {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 8rpx;
+  padding-top: 20rpx;
+}
+
+.dinein-sum text:first-child {
+  color: var(--hx-ink);
+  font-size: 23rpx;
+  letter-spacing: 8rpx;
+}
+
+.dinein-total {
+  color: var(--hx-ink);
+  font-family: "DIN Alternate", "Georgia", "Times New Roman", serif;
+  font-size: 48rpx;
+  font-weight: 600;
+}
+
+.dinein-cta-wrap {
+  padding: 30rpx 28rpx 40rpx;
+}
+
+.dinein-cta {
+  width: 100%;
+  height: 84rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f8f0df;
+  background: var(--hx-ink);
+  font-size: 27rpx;
+  font-weight: 600;
+  letter-spacing: 8rpx;
+  border-radius: 0;
+  border: none;
+}
+
+.dinein-cta::after {
+  border: none;
+}
+
+.dinein-after-sale {
+  margin-right: 28rpx;
+  margin-left: 28rpx;
 }
 
 .status-order-no {

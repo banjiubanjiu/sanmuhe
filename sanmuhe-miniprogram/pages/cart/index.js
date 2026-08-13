@@ -880,6 +880,25 @@ Page(withPrivacy({
 
       // 仅在线支付成功后提示成交
       setCart([], mode);
+      const orderNo = result.orderNo || "";
+      const deliveryMethod = isDineIn ? "onsite" : this.data.deliveryMethod;
+      const payChannel = paid === "balance" ? "balance" : "wechat";
+      const subKeys = isDineIn
+        ? ["orderPaidTemplateId"]
+        : ["orderPaidTemplateId", "orderShippedTemplateId"];
+
+      // 堂饮：立刻进茶单，不要先清空成空购物车、也不等订阅弹窗
+      if (isDineIn && orderId) {
+        wx.redirectTo({
+          url: `/pages/order-detail/index?id=${encodeURIComponent(orderId)}&from=paid`,
+          fail: () => {
+            wx.switchTab({ url: "/pages/order/index" });
+          }
+        });
+        requestOrderSubscriptions({ keys: subKeys }).catch(() => {});
+        return;
+      }
+
       this.setData({
         cart: [],
         items: [],
@@ -889,14 +908,6 @@ Page(withPrivacy({
         remark: "",
         submitting: false
       });
-      const orderNo = result.orderNo || "";
-      const deliveryMethod = isDineIn ? "onsite" : this.data.deliveryMethod;
-      const payChannel = paid === "balance" ? "balance" : "wechat";
-
-      // 支付成功后引导订阅：支付结果 + 发货（快递尤其需要）
-      const subKeys = isDineIn
-        ? ["orderPaidTemplateId"]
-        : ["orderPaidTemplateId", "orderShippedTemplateId"];
       const goSuccessPage = () => {
         wx.redirectTo({
           url: `/pages/pay-success/index?orderId=${encodeURIComponent(orderId)}`
@@ -904,7 +915,7 @@ Page(withPrivacy({
             + `&total=${Number(result.total || 0)}`
             + `&delivery=${encodeURIComponent(deliveryMethod)}`
             + `&pay=${encodeURIComponent(payChannel)}`
-            + `&mode=${isDineIn ? "dinein" : "retail"}`,
+            + `&mode=retail`,
           fail: () => {
             wx.switchTab({ url: "/pages/profile/index" });
           }

@@ -1,9 +1,9 @@
-<view class="detail-page {{order ? 'has-action-bar' : ''}}">
-  <view class="detail-nav">
+<view class="detail-page {{order ? 'has-action-bar' : ''}} {{order && order.isDineIn ? 'is-dinein' : ''}}">
+  <view class="detail-nav" style="padding-top: {{statusBarHeight}}px;">
     <view class="nav-back" bindtap="goBack">
       <image src="/assets/icons/back-ink.png" mode="aspectFit"></image>
     </view>
-    <view class="nav-title">订单详情</view>
+    <view class="nav-title">{{order.isDineIn ? '堂饮茶单' : '订单详情'}}</view>
     <view class="nav-balance"></view>
   </view>
 
@@ -20,6 +20,76 @@
   </view>
 
   <block wx:elif="{{order}}">
+    <block wx:if="{{order.isDineIn}}">
+      <view class="dinein-hero">
+        <image class="dinein-hero-img" src="{{order.heroImage}}" mode="aspectFill"></image>
+        <view class="dinein-hero-mask"></view>
+        <view class="detail-nav dinein-nav" style="padding-top: {{statusBarHeight}}px;">
+          <view class="nav-back" bindtap="goBack">
+            <image src="/assets/icons/back-ink.png" mode="aspectFit"></image>
+          </view>
+          <view class="nav-title dinein-nav-title">堂饮茶单</view>
+          <view class="nav-balance"></view>
+        </view>
+      </view>
+
+      <view class="dinein-sheet">
+        <view class="dinein-brand">禾煦</view>
+        <view class="dinein-status">{{order.dineInTitle}}</view>
+        <view wx:if="{{order.tableDisplay}}" class="dinein-table">{{order.tableDisplay}}</view>
+      </view>
+
+      <view class="dinein-list">
+        <view wx:for="{{order.items}}" wx:key="id" class="dinein-item">
+          <image wx:if="{{item.image}}" class="dinein-pic" src="{{item.image}}" mode="aspectFill"></image>
+          <image wx:else class="dinein-pic dinein-pic-fallback" src="/assets/icons/leaf-active.png" mode="aspectFit"></image>
+          <view class="dinein-copy">
+            <view class="dinein-name">{{item.name}}</view>
+            <view wx:if="{{item.optionText}}" class="dinein-meta">{{item.optionText}}</view>
+          </view>
+          <view class="dinein-yen">¥{{item.lineTotalText}}</view>
+        </view>
+      </view>
+
+      <view class="dinein-bill">
+        <view class="dinein-row"><text>商品金额</text><text>¥{{order.subtotalText}}</text></view>
+        <view wx:if="{{order.discount > 0}}" class="dinein-row"><text>优惠</text><text>-¥{{order.discountText}}</text></view>
+        <view class="dinein-row"><text>支付方式</text><text>{{order.payChannelText}}</text></view>
+        <view class="dinein-sum"><text>实付</text><text class="dinein-total">¥{{order.totalText}}</text></view>
+      </view>
+
+      <view wx:if="{{order.afterSaleStatus}}" class="after-sale-status dinein-after-sale">
+        <view>
+          <view class="after-sale-title">{{order.afterSaleStatus}}</view>
+          <view class="after-sale-copy">{{order.afterSaleNote || order.afterSaleReason || '门店会尽快处理你的申请。'}}</view>
+        </view>
+        <view wx:if="{{order.refundAmount > 0}}" class="refund-amount">¥{{order.refundAmountText}}</view>
+      </view>
+
+      <view class="dinein-cta-wrap">
+        <button
+          wx:if="{{order.canPay}}"
+          class="dinein-cta"
+          loading="{{submitting}}"
+          disabled="{{submitting}}"
+          bindtap="continuePayment"
+        >继续支付</button>
+        <button
+          wx:else
+          class="dinein-cta"
+          open-type="contact"
+          session-from="{{contactSessionFrom}}"
+          show-message-card="{{false}}"
+          send-message-title="{{contactMessageTitle}}"
+          send-message-path="{{contactMessagePath}}"
+          send-message-img="{{contactMessageImg}}"
+          hover-class="none"
+          bindcontact="handleContact"
+        >联系门店</button>
+      </view>
+    </block>
+
+    <block wx:else>
     <view class="status-hero status-{{order.statusTone}}">
       <view class="status-topline">{{order.deliveryText}}</view>
       <view class="status-title">{{order.statusLabel}}</view>
@@ -216,5 +286,6 @@
         bindcontact="handleContact"
       >联系门店</button>
     </view>
+    </block>
   </block>
 </view>
