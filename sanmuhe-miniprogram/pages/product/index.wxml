@@ -122,7 +122,7 @@
     <button class="empty-action" bindtap="loadProduct">重新加载</button>
   </view>
   <view class="empty-copy" wx:else>
-    <view class="empty-title">商品已下架</view>
+    <view class="empty-title">商品不存在或已下架</view>
     <view class="empty-text">请返回商城查看当前可售商品</view>
   </view>
 </view>
