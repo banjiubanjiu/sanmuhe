@@ -477,6 +477,12 @@ const catalogImageLenOk = manageCatalogJs.includes("IMAGE_REF_MAX = 500") &&
   manageCatalogJs.includes("IMAGE_FIELDS.has(field)");
 results.push(status("catalog image field length", catalogImageLenOk, catalogImageLenOk ? "manageCatalog keeps full cloud fileIDs for image/thumb/detailImage" : "manageCatalog may still truncate image fileIDs"));
 
+const getCatalogJs = readText("sanmuhe-miniprogram/cloudfunctions/getCatalog/index.js");
+const eventsCancelFilterOk = getCatalogJs.includes('status || "").trim() === "已取消"') &&
+  cloudApiJs.includes("visibleEvents") &&
+  cloudApiJs.includes("isEventListVisible");
+results.push(status("catalog events hide cancelled", eventsCancelFilterOk, eventsCancelFilterOk ? "getCatalog and client cache drop cancelled events" : "cancelled events may still leak via catalog cache"));
+
 const cleanupSmokeJs = readText("sanmuhe-miniprogram/cloudfunctions/cleanupSmokeData/index.js");
 const smokeCleanupOk = cleanupSmokeJs.includes("cloud-status-smoke") &&
   cleanupSmokeJs.includes("removeByQuery") &&

@@ -83,7 +83,14 @@ async function getCollectionData(collection) {
       : { visible: true };
     const result = await db.collection(collection).where(where).limit(100).get();
     // 软删除（removed）的资料不进小程序目录
-    const items = (result.data || []).filter((item) => item.removed !== true).map(withInventory);
+    const items = (result.data || []).filter((item) => {
+      if (item.removed === true) return false;
+      // 与 listEvents 一致：已取消不进前台目录
+      if (collection === "events" && String(item.status || "").trim() === "已取消") {
+        return false;
+      }
+      return true;
+    }).map(withInventory);
     return sortCatalog(items);
   } catch (error) {
     return [];

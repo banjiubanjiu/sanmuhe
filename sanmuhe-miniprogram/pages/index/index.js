@@ -296,7 +296,6 @@ Page({
     featuredDrink: null,
     featuredTea: null,
     featuredRoom: null,
-    nextEvent: null,
     recommendTeas: [],
     catalogLoading: true,
     catalogError: false,
@@ -347,7 +346,6 @@ Page({
         featuredDrink: homeCatalog.drinks[0] || null,
         featuredTea: homeCatalog.teaProducts[0] || null,
         featuredRoom: homeCatalog.rooms[0] || null,
-        nextEvent: homeCatalog.events[0] || null,
         recommendTeas: buildSeasonRecommendations(homeCatalog.teaProducts),
         searchResults: buildSearchResults(this.data.query, homeCatalog),
         catalogLoading: false,
@@ -372,7 +370,6 @@ Page({
       });
       this.setData({
         homeCatalog,
-        nextEvent: eventsFromCloud[0] || null,
         searchResults: buildSearchResults(this.data.query, homeCatalog)
       });
     }).catch((error) => {

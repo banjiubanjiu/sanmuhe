@@ -1,5 +1,6 @@
 const { drinks, teaProducts, rooms, events } = require("../data/catalog");
 const { localImage } = require("../config/assets");
+const { isEventListVisible } = require("./eventStatus");
 
 const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v1";
 const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v1";
@@ -9,6 +10,10 @@ const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 function isCacheFresh(cachedAt) {
   const ts = Number(cachedAt) || 0;
   return ts > 0 && (Date.now() - ts) <= CATALOG_CACHE_TTL_MS;
+}
+
+function visibleEvents(list) {
+  return (Array.isArray(list) ? list : []).filter(isEventListVisible);
 }
 
 function emptyCatalog() {
@@ -83,7 +88,7 @@ function readCatalogCache() {
 function writeEventsCache(list) {
   try {
     wx.setStorageSync(EVENTS_CACHE_KEY, {
-      events: Array.isArray(list) ? list : [],
+      events: visibleEvents(list),
       cachedAt: Date.now()
     });
   } catch (error) {
@@ -96,7 +101,7 @@ function readEventsCache() {
     const cached = wx.getStorageSync(EVENTS_CACHE_KEY);
     if (cached && typeof cached === "object" && Array.isArray(cached.events)) {
       return {
-        events: cached.events,
+        events: visibleEvents(cached.events),
         cachedAt: Number(cached.cachedAt) || 0
       };
     }
@@ -104,7 +109,7 @@ function readEventsCache() {
     const catalog = readCatalogCache();
     if (catalog && Array.isArray(catalog.events)) {
       return {
-        events: catalog.events,
+        events: visibleEvents(catalog.events),
         cachedAt: Number(catalog.cachedAt) || 0
       };
     }
@@ -181,7 +186,7 @@ function enrichCatalog(catalog) {
     drinks: normalizeCatalogList(source, "drinks", drinks),
     teaProducts: normalizeCatalogList(source, "teaProducts", teaProducts),
     rooms: normalizeCatalogList(source, "rooms", rooms),
-    events: normalizeCatalogList(source, "events", events),
+    events: visibleEvents(normalizeCatalogList(source, "events", events)),
     productCategories: Array.isArray(source.productCategories) ? source.productCategories : [],
     content: source.content || { homeSlides: [] },
     settings: source.settings || null
