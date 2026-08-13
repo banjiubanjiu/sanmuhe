@@ -150,12 +150,29 @@ Page({
   },
 
   onPullRefresh() {
+    if (this._catalogRefreshing) {
+      return;
+    }
+    this._catalogRefreshing = true;
+    this.setData({ refreshing: true });
     this.loadCatalog({ fromRefresh: true });
+  },
+
+  finishCatalogRefresh(fromRefresh) {
+    if (!fromRefresh) {
+      return;
+    }
+    setTimeout(() => {
+      this.setData({ refreshing: false });
+      this._catalogRefreshing = false;
+    }, 400);
   },
 
   loadCatalog(options = {}) {
     const fromRefresh = options.fromRefresh === true;
-    this.setData(fromRefresh ? { refreshing: true } : { catalogLoading: true });
+    if (!fromRefresh) {
+      this.setData({ catalogLoading: true });
+    }
     getCatalog().then((catalog) => {
       const products = buildProducts(catalog);
       const categories = buildCategories(products, catalog.productCategories || []);
@@ -172,9 +189,11 @@ Page({
         categories,
         activeCategory,
         catalogLoading: false,
-        catalogError: catalog.source === "error",
-        refreshing: false
-      }, () => this.applyFilters());
+        catalogError: catalog.source === "error"
+      }, () => {
+        this.applyFilters();
+        this.finishCatalogRefresh(fromRefresh);
+      });
     });
   },
 

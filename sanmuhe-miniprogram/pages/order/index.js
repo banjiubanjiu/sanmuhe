@@ -167,20 +167,37 @@ Page({
   },
 
   onPullRefresh() {
+    if (this._catalogRefreshing) {
+      return;
+    }
+    this._catalogRefreshing = true;
+    this.setData({ refreshing: true });
     this.loadCatalog({ fromRefresh: true });
+  },
+
+  finishCatalogRefresh(fromRefresh) {
+    if (!fromRefresh) {
+      return;
+    }
+    setTimeout(() => {
+      this.setData({ refreshing: false });
+      this._catalogRefreshing = false;
+    }, 400);
   },
 
   loadCatalog(options = {}) {
     const fromRefresh = options.fromRefresh === true;
-    this.setData(fromRefresh ? { refreshing: true } : { catalogLoading: true });
+    if (!fromRefresh) {
+      this.setData({ catalogLoading: true });
+    }
     getCatalog()
       .then((catalog) => {
         const remote = (catalog && catalog.drinks) || [];
-        this.applyCatalog(mergeDrinkSource(remote), catalog.source === "error");
+        this.applyCatalog(mergeDrinkSource(remote), catalog.source === "error", fromRefresh);
       });
   },
 
-  applyCatalog(source, catalogError) {
+  applyCatalog(source, catalogError, fromRefresh) {
     const menuItems = decorateTeaOptions(normalizeMenuItems(source || []));
     const preferredId = this.data.requestedDrinkId || this.data.activeDrinkId;
     const activeDrink = pickDefaultDrink(menuItems, preferredId);
@@ -189,9 +206,9 @@ Page({
       activeDrink,
       activeDrinkId: activeDrink ? activeDrink.id : "",
       catalogLoading: false,
-      catalogError: !!catalogError,
-      refreshing: false
+      catalogError: !!catalogError
     }, () => {
+      this.finishCatalogRefresh(fromRefresh);
       if (this.data.requestedDrinkId && activeDrink && activeDrink.id === this.data.requestedDrinkId) {
         this.setData({ requestedDrinkId: "" });
       }

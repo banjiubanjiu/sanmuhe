@@ -299,6 +299,7 @@ Page({
     recommendTeas: [],
     catalogLoading: true,
     catalogError: false,
+    refreshing: false,
     query: "",
     searchOpen: false,
     searchResults: [],
@@ -321,8 +322,24 @@ Page({
     this.loadHomeData();
   },
 
-  onPullDownRefresh() {
+  onPullRefresh() {
+    if (this._homeRefreshing) {
+      return;
+    }
+    this._homeRefreshing = true;
+    this.setData({ refreshing: true });
     this.loadHomeData({ fromRefresh: true });
+  },
+
+  finishHomeRefresh(fromRefresh) {
+    if (!fromRefresh) {
+      return;
+    }
+    // 官方 scroll-view：triggered 必须先 true 再延迟 false，立刻关会卡住不回弹
+    setTimeout(() => {
+      this.setData({ refreshing: false });
+      this._homeRefreshing = false;
+    }, 400);
   },
 
   refreshCart() {
@@ -365,15 +382,11 @@ Page({
       // 缓存已解析后的稳定图源，供下次冷启动首屏直接使用
       writeCachedHomeSlides(nextHeroSlides);
       this.setData(nextData);
-      if (fromRefresh && wx.stopPullDownRefresh) {
-        wx.stopPullDownRefresh();
-      }
+      this.finishHomeRefresh(fromRefresh);
     }).catch((error) => {
       console.warn("[home] getCatalog failed", error);
       this.setData({ catalogLoading: false, catalogError: true });
-      if (fromRefresh && wx.stopPullDownRefresh) {
-        wx.stopPullDownRefresh();
-      }
+      this.finishHomeRefresh(fromRefresh);
     });
 
     listEvents().then((eventList) => {

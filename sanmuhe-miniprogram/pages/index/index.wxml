@@ -1,3 +1,12 @@
+<scroll-view
+  scroll-y
+  class="home-scroll"
+  refresher-enabled="{{true}}"
+  refresher-triggered="{{refreshing}}"
+  refresher-default-style="black"
+  refresher-background="#fffdf8"
+  bindrefresherrefresh="onPullRefresh"
+>
 <view class="page home">
   <view class="home-nav">
     <image
@@ -86,7 +95,10 @@
     <text wx:else>暂无在售茶品</text>
   </view>
 
-  <!-- 首页小购物车：有货时显示，点击进零售购物车 -->
+</view>
+</scroll-view>
+
+  <!-- 首页小购物车：有货时显示，点击进购物车；放在 scroll-view 外以免跟着滚 -->
   <view
     wx:if="{{cartCount > 0}}"
     class="cart-fab"
@@ -98,4 +110,3 @@
     <image class="cart-fab-icon" src="/assets/icons/cart-white.png" mode="aspectFit"></image>
     <view class="cart-fab-badge">{{cartCount > 99 ? '99+' : cartCount}}</view>
   </view>
-</view>
