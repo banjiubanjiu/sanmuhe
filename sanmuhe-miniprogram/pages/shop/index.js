@@ -48,6 +48,8 @@ function normalizeTeaProducts(products) {
     }
     const hasMultipleSpecs = specs.length > 1;
     const isSoldOut = availableStock !== "" && availableStock <= 0;
+    const actionKind = isSoldOut ? "soldout" : hasMultipleSpecs ? "spec" : "add";
+    const actionText = isSoldOut ? "售罄" : hasMultipleSpecs ? "选规格" : "+";
     const specPrices = specs
       .map((spec) => Number(spec && spec.price))
       .filter((price) => Number.isFinite(price) && price >= 0);
@@ -62,6 +64,8 @@ function normalizeTeaProducts(products) {
       availableStock,
       hasMultipleSpecs,
       isSoldOut,
+      actionKind,
+      actionText,
       displayPrice,
       priceSuffix: hasMultipleSpecs ? "起" : "",
       actionLabel: hasMultipleSpecs ? "选规格" : "加购",

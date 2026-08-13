@@ -58,6 +58,22 @@ button::after {
   display: none;
 }
 
+/* 首页 / 点单 / 商城共用加购圆钮，避免各页 enhanced 列表里 PNG 加号丢失 */
+.hx-add-plus {
+  flex: 0 0 42rpx;
+  width: 42rpx;
+  height: 42rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fffaf1;
+  border-radius: 50%;
+  background: #416d38;
+  font-size: 34rpx;
+  font-weight: 400;
+  line-height: 1;
+}
+
 .page {
   min-height: 100vh;
   padding: 34rpx 28rpx calc(132rpx + env(safe-area-inset-bottom));

@@ -84,7 +84,7 @@
         <view class="recommend-note">{{item.shortNote}}</view>
         <view class="recommend-bottom">
           <view class="recommend-price">¥{{item.price}}<text>/{{item.unit}}</text></view>
-          <view class="recommend-add" data-id="{{item.id}}" catchtap="addRecommended">+</view>
+          <view class="recommend-add hx-add-plus" data-id="{{item.id}}" catchtap="addRecommended">+</view>
         </view>
       </view>
     </view>
