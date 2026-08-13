@@ -1337,7 +1337,7 @@ const activeSavedViews = computed(() => state.savedViews[state.activeTab] || [])
 /** 常用视图：有已保存视图，或当前有可保存筛选时才显示（堂饮档位表不启用） */
 const canSaveActiveView = computed(() => SAVED_VIEW_TABS.has(state.activeTab) && state.collection !== "drinks");
 /** 仅订单/售后/预约展示状态流；其它页不堆砌工作流卡片 */
-const showWorkflowStrip = computed(() => ["orders", "afterSales", "reservations", "signups"].includes(state.activeTab) && moduleWorkflowSteps.value.length > 0);
+const showWorkflowStrip = computed(() => ["orders", "afterSales", "signups"].includes(state.activeTab) && moduleWorkflowSteps.value.length > 0);
 /** 顶部 KPI 仅经营首页展示，避免商品页等重复「今日」指标 */
 const showMetricRow = computed(() => state.activeTab === "dashboard" && state.summary.length > 0);
 /** 有筛选条件时才显示轻量筛选条（堂饮档位表不显示） */
