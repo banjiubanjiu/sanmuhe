@@ -6374,7 +6374,7 @@ onBeforeUnmount(() => {
               </div>
               <p class="editor-hint">
                 {{ isDrinksCollection()
-                  ? "堂饮：分类＝点单左侧档位（初见/知味…），本页维护档位下的茶品。档位请点「配置档位」。"
+                  ? "标 * 为必填：茶品名称、所属档位、主图。价格留空跟随档位价。"
                   : isTeaProductsCollection()
                     ? "标 * 为必填：名称、类别、上架状态、销售规格（名/售价/库存）、主图。产地·年份·口感可空。"
                     : state.collection === "rooms"
