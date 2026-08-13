@@ -6541,7 +6541,7 @@ onBeforeUnmount(() => {
                   </label>
                   <label>
                     <span>分组</span>
-                    <input v-model="forms.catalog.groupName" placeholder="可空；知味下可填：岩茶 / 红茶 / 单丛">
+                    <input v-model="forms.catalog.groupName" placeholder="如红茶、普洱、单丛…">
                   </label>
                   <label class="wide"><span>一句话</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
 
