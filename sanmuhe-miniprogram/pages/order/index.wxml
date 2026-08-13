@@ -92,7 +92,7 @@
               <text wx:for="{{tea.tags}}" wx:key="*this" wx:for-item="tag">{{tag}}</text>
             </view>
             <view class="tea-bottom">
-              <view class="tea-price">¥{{activeDrink.price}}<text>/{{activeDrink.unit}}</text></view>
+              <view class="tea-price">¥{{tea.price > 0 ? tea.price : activeDrink.price}}<text>/{{activeDrink.unit}}</text></view>
               <view
                 class="hx-add-plus tea-add"
                 data-tea="{{tea.name}}"

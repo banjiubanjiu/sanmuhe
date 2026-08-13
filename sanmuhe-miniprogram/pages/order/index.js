@@ -280,16 +280,18 @@ Page({
     if (!activeDrink || !teaChoice) {
       return;
     }
-    this.addMenuItem(activeDrink, teaChoice);
+    const tea = (activeDrink.teaItems || []).find((item) => item.name === teaChoice) || {};
+    this.addMenuItem(activeDrink, teaChoice, Math.max(0, Number(tea.price) || 0));
   },
 
-  addMenuItem(activeDrink, teaChoice) {
+  addMenuItem(activeDrink, teaChoice, teaPrice) {
     const table = this.data.tableLabel || tableUtil.getTableNo();
+    const price = teaPrice > 0 ? teaPrice : Math.max(0, Number(activeDrink.price) || 0);
     const cart = addToCart({
       id: activeDrink.id,
       type: "drink",
       name: activeDrink.name,
-      price: activeDrink.price,
+      price,
       color: activeDrink.color,
       image: activeDrink.image,
       category: activeDrink.section,

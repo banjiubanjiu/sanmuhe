@@ -1510,6 +1510,14 @@ const managedCategoryNames = computed(() =>
     .filter(Boolean)
 );
 
+/** 堂饮：当前选中档位的价格（提示用；0 表示未知） */
+const drinkTierPrice = computed(() => {
+  const tier = managedCategoriesForCollection.value.find(
+    (item) => String(item.name || "").trim() === catalogCategoryChoice.value
+  );
+  return Math.max(0, Number(tier && tier.price) || 0);
+});
+
 /** 配置面板用：分类 + 商品数（只统计未删除） */
 const managedCategoriesWithCount = computed(() =>
   managedCategoriesForCollection.value.map((cat) => {
@@ -1644,6 +1652,10 @@ function onCatalogCategoryChoiceChange() {
   }
   forms.catalog.category = catalogCategoryChoice.value;
   syncDrinkCategoryIdFromName();
+  // 堂饮：价格未填（或为 0）时自动带出档位价，店长可直接改
+  if (isDrinksCollection() && !Number(forms.catalog.price)) {
+    forms.catalog.price = drinkTierPrice.value;
+  }
 }
 
 function formatEventDateDisplay(iso) {
@@ -2492,8 +2504,8 @@ const catalogTableCols = computed(() => {
     return {
       name: "茶品",
       category: "档位",
-      price: "分组",
-      meta: "说明",
+      price: "价格",
+      meta: "分组/说明",
       stock: "—",
       stockMode: "none"
     };
@@ -2559,7 +2571,16 @@ function displayCatalogCategory(item) {
 
 function displayCatalogPrice(item) {
   if (!item) return "-";
-  if (isDrinksCollection()) return item.groupName || "-";
+  if (isDrinksCollection()) {
+    // 茶品有独立价则显示独立价；否则显示档位价
+    const own = Number(item.price) || 0;
+    if (own > 0) return `¥${money(own)}`;
+    const tier = managedCategoriesForCollection.value.find(
+      (cat) => String(cat.name || "").trim() === String(item.category || "").trim()
+    );
+    const tierPrice = Number(tier && tier.price) || 0;
+    return tierPrice > 0 ? `¥${money(tierPrice)}（档位）` : "-";
+  }
   if (item.price !== undefined && item.price !== null && item.price !== "") {
     return `¥${money(item.price)}`;
   }
@@ -2568,7 +2589,9 @@ function displayCatalogPrice(item) {
 
 function displayCatalogMeta(item) {
   if (!item) return "-";
-  if (isDrinksCollection()) return item.subtitle || "-";
+  if (isDrinksCollection()) {
+    return [item.groupName, item.subtitle].filter(Boolean).join(" · ") || "-";
+  }
   if (state.collection === "events") {
     return [item.date, item.time].filter(Boolean).join(" ") || "-";
   }
@@ -3857,7 +3880,8 @@ async function saveCatalog() {
         forms.catalog.categoryId = tier.id;
       }
       forms.catalog.groupName = String(forms.catalog.groupName || "").trim();
-      forms.catalog.price = 0;
+      // 茶品价格可单独设置：>0 覆盖档位价；0/空 = 跟随档位价
+      forms.catalog.price = Math.max(0, Number(forms.catalog.price) || 0);
       forms.catalog.stock = 0;
       delete forms.catalog.teaGroups;
     }
@@ -3906,7 +3930,7 @@ async function saveCatalog() {
     payload.categoryId = String(payload.categoryId || "").trim();
     payload.groupName = String(payload.groupName || "").trim();
     payload.subtitle = String(payload.subtitle || "").trim();
-    payload.price = 0;
+    payload.price = Math.max(0, Number(payload.price) || 0);
     delete payload.specs;
     delete payload.teaGroups;
     delete payload.origin;
@@ -6499,6 +6523,13 @@ onBeforeUnmount(() => {
                     </select>
                   </label>
                   <label>
+                    <span>价格</span>
+                    <input v-model.number="forms.catalog.price" type="number" min="0" step="0.01" placeholder="留空跟随档位价">
+                  </label>
+                  <p class="wide specs-editor-hint">
+                    价格留空时自动用档位价（¥{{ drinkTierPrice }}）；填了则本茶款单独计价。
+                  </p>
+                  <label>
                     <span>上架状态</span>
                     <select v-model="forms.catalog.shelfStatus" class="catalog-select-input" @change="applyCatalogShelfStatus(forms.catalog.shelfStatus)">
                       <option v-for="opt in CATALOG_SHELF_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -6509,7 +6540,6 @@ onBeforeUnmount(() => {
                     <input v-model="forms.catalog.groupName" placeholder="可空；知味下可填：岩茶 / 红茶 / 单丛">
                   </label>
                   <label class="wide"><span>一句话</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
-                  <p class="wide specs-editor-hint">价格在「配置档位」里按档位设置；本页只维护该档位下可选茶品，与点单页右侧一致。</p>
 
                   <div class="wide image-dropzone-field">
                     <span>茶品图 <em class="req" aria-label="必填">*</em></span>

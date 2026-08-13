@@ -137,7 +137,12 @@ function sanitizeOptions(type, options, trusted) {
 
 function getTrustedPrice(type, trusted, options) {
   if (type !== "tea") {
-    return Math.max(0, Number(trusted.price) || 0);
+    // 堂饮：所选茶款有独立价则用之，否则档位价
+    const teaChoice = cleanText((options && options.teaChoice) || "", 40);
+    const map = (trusted && trusted.teaPriceMap) || {};
+    const own = teaChoice ? Math.max(0, Number(map[teaChoice]) || 0) : 0;
+    if (own > 0) return own;
+    return Math.max(0, Number(trusted && trusted.price) || 0);
   }
   return resolveTeaSpec(trusted, options && options.unit).price;
 }
@@ -296,6 +301,13 @@ async function findTrustedDrinkTier(id) {
       }
       const teaGroups = buildTeaGroupsFromItems(teas);
       const unit = cleanText(tier.unit || tier.badge, 40) || "道";
+      // 茶品可单独定价：name -> price 映射，下单时按所选茶款覆盖档位价
+      const teaPriceMap = {};
+      teas.forEach((tea) => {
+        const name = cleanText(tea.name, 40);
+        const p = Math.max(0, Number(tea.price) || 0);
+        if (name && p > 0) teaPriceMap[name] = p;
+      });
       return {
         collection: "product_categories",
         docId: tier._id,
@@ -305,6 +317,7 @@ async function findTrustedDrinkTier(id) {
         unit,
         notes: teas.map((item) => cleanText(item.name, 40)).filter(Boolean).join(" / "),
         teaGroups,
+        teaPriceMap,
         specs: [],
         image: cleanText(tier.thumb || tier.image, 500),
         stock: undefined,

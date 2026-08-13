@@ -198,7 +198,9 @@ function assembleDrinkMenu(productCategories, drinkRows) {
           name: item.name,
           groupName: item.groupName || "",
           image: item.image || item.thumb || "",
-          subtitle: item.subtitle || ""
+          subtitle: item.subtitle || "",
+          // 茶品可单独定价：>0 覆盖档位价；0/空跟随档位价
+          price: Math.max(0, Number(item.price) || 0)
         })),
         visible: true,
         sort: Number(tier.sort) || 0
