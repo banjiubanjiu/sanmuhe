@@ -6543,7 +6543,7 @@ onBeforeUnmount(() => {
                     <span>分组</span>
                     <input v-model="forms.catalog.groupName" placeholder="如红茶、普洱、单丛…">
                   </label>
-                  <label class="wide"><span>一句话</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
+                  <label class="wide"><span>副标题</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
 
                   <div class="wide image-dropzone-field">
                     <span>茶品图 <em class="req" aria-label="必填">*</em></span>
