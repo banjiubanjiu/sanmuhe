@@ -54,9 +54,6 @@ function normalizeTeaProducts(products) {
     const displayPrice = specPrices.length
       ? Math.min(...specPrices)
       : Math.max(0, Number(item.price) || 0);
-    const stockHint = isSoldOut
-      ? "已售罄"
-      : (availableStock !== "" && availableStock <= 10 ? `仅余 ${availableStock} 件` : "");
 
     return Object.assign({}, item, {
       productType: "tea",
@@ -67,7 +64,6 @@ function normalizeTeaProducts(products) {
       isSoldOut,
       displayPrice,
       priceSuffix: hasMultipleSpecs ? "起" : "",
-      stockHint,
       actionLabel: hasMultipleSpecs ? "选规格" : "加购",
       actionAriaLabel: hasMultipleSpecs
         ? `选择${item.name}的规格`

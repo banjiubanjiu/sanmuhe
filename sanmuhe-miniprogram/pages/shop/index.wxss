@@ -201,16 +201,6 @@
   -webkit-line-clamp: 2;
 }
 
-.goods-note {
-  margin-top: 10rpx;
-  overflow: hidden;
-  color: var(--hx-muted);
-  font-size: 25rpx;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .goods-tags {
   min-width: 0;
   display: flex;
@@ -221,13 +211,17 @@
 
 .goods-tags text {
   max-width: 100%;
-  padding: 4rpx 10rpx;
+  height: 40rpx;
+  padding: 0 10rpx;
+  display: inline-flex;
+  align-items: center;
   overflow: hidden;
   color: var(--hx-action);
   border-radius: 6rpx;
   background: var(--hx-sidebar);
   font-size: 24rpx;
   font-weight: 500;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -385,13 +379,4 @@
   font-size: 25rpx;
   font-weight: 600;
   text-align: right;
-}
-.goods-tags text.stock-low {
-  color: #765d28;
-  background: #f2e8cd;
-}
-
-.goods-tags text.stock-sold-out {
-  color: #7b4741;
-  background: #f3e2df;
 }
