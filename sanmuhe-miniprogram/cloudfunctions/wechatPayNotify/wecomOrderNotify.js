@@ -152,7 +152,7 @@ function itemSummary(items, prefixKind) {
       const spec = item && item.type === "tea"
         ? cleanText(options.unit, 24)
         : cleanText(options.teaChoice, 24);
-      const label = spec ? `（${spec}）` : "";
+      const label = spec ? `·${spec} ` : "";
       return kind ? `[${kind}]${name}${label}×${qty}` : `${name}${label}×${qty}`;
     })
     .filter((item) => item.charAt(0) !== "×")
