@@ -40,6 +40,7 @@
       </view>
 
       <view class="dinein-list">
+        <view class="dinein-list-cap">本席 · {{order.itemCount || order.items.length}} 道</view>
         <view wx:for="{{order.items}}" wx:key="id" class="dinein-item">
           <image wx:if="{{item.image}}" class="dinein-pic" src="{{item.image}}" mode="aspectFill"></image>
           <image wx:else class="dinein-pic dinein-pic-fallback" src="/assets/icons/leaf-active.png" mode="aspectFit"></image>

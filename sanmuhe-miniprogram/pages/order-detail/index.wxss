@@ -151,39 +151,46 @@
 .dinein-brand {
   color: var(--hx-ink);
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
-  font-size: 34rpx;
+  font-size: 40rpx;
   font-weight: 600;
-  letter-spacing: 14rpx;
-  text-indent: 14rpx;
+  letter-spacing: 16rpx;
+  text-indent: 16rpx;
 }
 
 .dinein-status {
   margin-top: 24rpx;
   color: var(--hx-gold);
-  font-size: 19rpx;
-  letter-spacing: 10rpx;
-  text-indent: 10rpx;
+  font-size: 22rpx;
+  letter-spacing: 12rpx;
+  text-indent: 12rpx;
 }
 
 .dinein-table {
   margin: 10rpx 0 0;
   color: var(--hx-ink);
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif;
-  font-size: 112rpx;
+  font-size: 128rpx;
   font-weight: 600;
   line-height: 0.95;
-  letter-spacing: 6rpx;
+  letter-spacing: 8rpx;
 }
 
 .dinein-list {
-  padding: 26rpx 28rpx 4rpx;
+  padding: 30rpx 28rpx 4rpx;
+}
+
+.dinein-list-cap {
+  margin-bottom: 8rpx;
+  color: var(--hx-muted);
+  font-size: 21rpx;
+  letter-spacing: 6rpx;
 }
 
 .dinein-item {
   display: flex;
   align-items: center;
-  gap: 22rpx;
-  padding: 22rpx 0;
+  gap: 24rpx;
+  padding: 26rpx 0;
   border-bottom: 1rpx solid var(--hx-line);
 }
 
@@ -192,9 +199,9 @@
 }
 
 .dinein-pic {
-  flex: 0 0 104rpx;
-  width: 104rpx;
-  height: 104rpx;
+  flex: 0 0 116rpx;
+  width: 116rpx;
+  height: 116rpx;
   object-fit: cover;
   background: #efe8da;
 }
