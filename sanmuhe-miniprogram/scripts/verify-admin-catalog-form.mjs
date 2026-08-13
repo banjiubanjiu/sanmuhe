@@ -69,7 +69,10 @@ function verifySource() {
     "自定义…",
     'type="date"',
     'type="time"',
-    "请选择商品"
+    "请选择商品",
+    "image-dropzone",
+    "点击上传主图",
+    "closeCatalogDrawer();"
   ], "App.vue source");
   assertExcludes(src, [
     'list="catalog-category-suggestions"',

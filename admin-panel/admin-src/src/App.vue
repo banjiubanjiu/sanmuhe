@@ -2868,6 +2868,24 @@ async function uploadFormImage(target, event) {
   }
 }
 
+const catalogImageInput = ref(null);
+const catalogImageDragOver = ref(false);
+const catalogImagePreview = computed(() => displayImage(forms.catalog.image));
+
+function triggerCatalogImagePick() {
+  catalogImageInput.value?.click();
+}
+
+function onCatalogImageDrop(event) {
+  catalogImageDragOver.value = false;
+  const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+  if (!file || !String(file.type || "").startsWith("image/")) {
+    showToast("请拖入图片文件");
+    return;
+  }
+  uploadFormImage("catalog", { target: { files: [file], value: "" } });
+}
+
 function initCloud() {
   if (!window.cloudbase) throw new Error("CloudBase Web SDK 加载失败");
   const options = {
@@ -3705,13 +3723,6 @@ function resetCatalog() {
   const defaultCategory = categoryPresetsForCollection()[0]
     || managedCategoryNames.value[0]
     || "";
-  const cloudImg = (name) =>
-    `cloud://cloudbase-d2gq023qn50e9d82f.636c-cloudbase-d2gq023qn50e9d82f-1458290161/mp-assets/images/${name}`;
-  const defaultImage = isDrinksCollection()
-    ? cloudImg("product-tea-001-organic-black.jpg")
-    : state.collection === "rooms"
-      ? cloudImg("reservation-hero.jpg")
-      : cloudImg("product-tea-001-organic-black.jpg");
   Object.assign(forms.catalog, emptyCatalog(), {
     id: nextId,
     status: baseStatus,
@@ -3720,8 +3731,8 @@ function resetCatalog() {
     groupName: "",
     subtitle: "",
     shelfStatus: "on",
-    image: defaultImage,
-    thumb: defaultImage,
+    image: "",
+    thumb: "",
     price: 0,
     stock: 0,
     unit: "",
@@ -3819,8 +3830,11 @@ async function saveCatalog() {
     if (forms.catalog.image && !String(forms.catalog.thumb || "").trim()) {
       forms.catalog.thumb = forms.catalog.image;
     }
+    if (!String(forms.catalog.image || "").trim()) {
+      throw new Error(isTeaProductsCollection() ? "请上传商品主图" : "请上传图片");
+    }
     if (!isUrlish(forms.catalog.image) || !isUrlish(forms.catalog.thumb)) {
-      throw new Error("图片地址必须是 cloud://、http(s) 或 /assets/；也可点「上传图片」");
+      throw new Error("请重新上传图片（需为云存储或网络地址）");
     }
     if (state.collection === "events") {
       assertText(forms.catalog.title || forms.catalog.name, "请填写活动标题");
@@ -3895,6 +3909,7 @@ async function saveCatalog() {
     });
     state.selectedCatalogId = savingId;
     showToast(action === "create" ? "新商品已添加" : "资料已保存");
+    closeCatalogDrawer();
     await loadCatalog();
   });
 }
@@ -6400,16 +6415,38 @@ onBeforeUnmount(() => {
                     <p class="specs-editor-hint">合计可售库存：{{ forms.catalog.stock || 0 }}</p>
                   </div>
 
-                  <label class="file-picker wide">
+                  <div class="wide image-dropzone-field">
                     <span>主图 <em class="req" aria-label="必填">*</em></span>
-                    <Upload :size="17" :stroke-width="1.8" />
-                    <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
-                    <em>{{ uploadState.catalog || "必填；列表与详情主图，建议 1:1" }}</em>
-                  </label>
-                  <div class="wide catalog-image-preview">
-                    <img v-if="displayImage(forms.catalog.image)" :src="displayImage(forms.catalog.image)" alt="商品主图预览">
-                    <div v-else-if="forms.catalog.image && String(forms.catalog.image).startsWith('cloud://')" class="catalog-image-placeholder">已绑定云存储图片</div>
-                    <div v-else class="catalog-image-placeholder">请上传主图（必填）</div>
+                    <div
+                      class="image-dropzone"
+                      :class="{ filled: !!catalogImagePreview, dragging: catalogImageDragOver }"
+                      role="button"
+                      tabindex="0"
+                      :aria-label="catalogImagePreview ? '更换主图' : '上传主图'"
+                      @click="triggerCatalogImagePick"
+                      @keydown.enter.prevent="triggerCatalogImagePick"
+                      @dragover.prevent="catalogImageDragOver = true"
+                      @dragleave.prevent="catalogImageDragOver = false"
+                      @drop.prevent="onCatalogImageDrop"
+                    >
+                      <input
+                        ref="catalogImageInput"
+                        class="image-dropzone-input"
+                        accept="image/*"
+                        type="file"
+                        @change="uploadFormImage('catalog', $event)"
+                        @click.stop
+                      >
+                      <template v-if="catalogImagePreview">
+                        <img :src="catalogImagePreview" alt="商品主图预览">
+                        <div class="image-dropzone-mask">更换图片</div>
+                      </template>
+                      <div v-else class="image-dropzone-empty">
+                        <Upload :size="28" :stroke-width="1.6" />
+                        <strong>点击上传主图</strong>
+                        <span>{{ uploadState.catalog || "或将图片拖到此处 · JPG / PNG · 建议 1:1" }}</span>
+                      </div>
+                    </div>
                   </div>
                   <label class="wide"><span>口感</span><textarea v-model="forms.catalog.taste" rows="3" placeholder="选填，商城列表与详情展示"></textarea></label>
                 </template>
@@ -6436,15 +6473,38 @@ onBeforeUnmount(() => {
                   <label class="wide"><span>一句话</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
                   <p class="wide specs-editor-hint">价格在「配置档位」里按档位设置；本页只维护该档位下可选茶品，与点单页右侧一致。</p>
 
-                  <label class="file-picker wide">
-                    <span>茶品图</span>
-                    <Upload :size="17" :stroke-width="1.8" />
-                    <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
-                    <em>{{ uploadState.catalog || "点单页茶品卡片图" }}</em>
-                  </label>
-                  <div class="wide catalog-image-preview">
-                    <img v-if="displayImage(forms.catalog.image)" :src="displayImage(forms.catalog.image)" alt="茶品图">
-                    <div v-else class="catalog-image-placeholder">请上传图片</div>
+                  <div class="wide image-dropzone-field">
+                    <span>茶品图 <em class="req" aria-label="必填">*</em></span>
+                    <div
+                      class="image-dropzone"
+                      :class="{ filled: !!catalogImagePreview, dragging: catalogImageDragOver }"
+                      role="button"
+                      tabindex="0"
+                      :aria-label="catalogImagePreview ? '更换茶品图' : '上传茶品图'"
+                      @click="triggerCatalogImagePick"
+                      @keydown.enter.prevent="triggerCatalogImagePick"
+                      @dragover.prevent="catalogImageDragOver = true"
+                      @dragleave.prevent="catalogImageDragOver = false"
+                      @drop.prevent="onCatalogImageDrop"
+                    >
+                      <input
+                        ref="catalogImageInput"
+                        class="image-dropzone-input"
+                        accept="image/*"
+                        type="file"
+                        @change="uploadFormImage('catalog', $event)"
+                        @click.stop
+                      >
+                      <template v-if="catalogImagePreview">
+                        <img :src="catalogImagePreview" alt="茶品图预览">
+                        <div class="image-dropzone-mask">更换图片</div>
+                      </template>
+                      <div v-else class="image-dropzone-empty">
+                        <Upload :size="28" :stroke-width="1.6" />
+                        <strong>点击上传茶品图</strong>
+                        <span>{{ uploadState.catalog || "或将图片拖到此处 · 点单卡片用图" }}</span>
+                      </div>
+                    </div>
                   </div>
                 </template>
 
@@ -6496,15 +6556,38 @@ onBeforeUnmount(() => {
                   <label v-if="state.collection === 'events'"><span>地点</span><input v-model="forms.catalog.place" placeholder="活动地点"></label>
                   <label v-if="state.collection === 'rooms'"><span>容量</span><input v-model="forms.catalog.capacity" placeholder="如 2-4人"></label>
                   <label v-if="state.collection === 'rooms'"><span>楼层/氛围</span><input v-model="forms.catalog.floor" placeholder="如 安静雅致 ｜ 观山景"></label>
-                  <label class="file-picker wide">
-                    <span>图片</span>
-                    <Upload :size="17" :stroke-width="1.8" />
-                    <input accept="image/*" type="file" @change="uploadFormImage('catalog', $event)">
-                    <em>{{ uploadState.catalog || "上传图片" }}</em>
-                  </label>
-                  <div class="wide catalog-image-preview">
-                    <img v-if="displayImage(forms.catalog.image)" :src="displayImage(forms.catalog.image)" alt="预览">
-                    <div v-else class="catalog-image-placeholder">暂无图片</div>
+                  <div class="wide image-dropzone-field">
+                    <span>图片 <em class="req" aria-label="必填">*</em></span>
+                    <div
+                      class="image-dropzone"
+                      :class="{ filled: !!catalogImagePreview, dragging: catalogImageDragOver }"
+                      role="button"
+                      tabindex="0"
+                      :aria-label="catalogImagePreview ? '更换图片' : '上传图片'"
+                      @click="triggerCatalogImagePick"
+                      @keydown.enter.prevent="triggerCatalogImagePick"
+                      @dragover.prevent="catalogImageDragOver = true"
+                      @dragleave.prevent="catalogImageDragOver = false"
+                      @drop.prevent="onCatalogImageDrop"
+                    >
+                      <input
+                        ref="catalogImageInput"
+                        class="image-dropzone-input"
+                        accept="image/*"
+                        type="file"
+                        @change="uploadFormImage('catalog', $event)"
+                        @click.stop
+                      >
+                      <template v-if="catalogImagePreview">
+                        <img :src="catalogImagePreview" alt="图片预览">
+                        <div class="image-dropzone-mask">更换图片</div>
+                      </template>
+                      <div v-else class="image-dropzone-empty">
+                        <Upload :size="28" :stroke-width="1.6" />
+                        <strong>点击上传图片</strong>
+                        <span>{{ uploadState.catalog || "或将图片拖到此处 · JPG / PNG" }}</span>
+                      </div>
+                    </div>
                   </div>
                   <label v-if="state.collection === 'events'" class="wide"><span>简介</span><textarea v-model="forms.catalog.summary" rows="3"></textarea></label>
                 </template>
