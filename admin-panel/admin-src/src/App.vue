@@ -3802,6 +3802,10 @@ function resetCatalog() {
   syncCatalogCategoryChoice();
   syncDrinkCategoryIdFromName();
   syncCatalogDateFields();
+  // 堂饮新建：默认档位已选，直接带出档位价（可改，0=留空跟随档位）
+  if (isDrinksCollection() && !Number(forms.catalog.price)) {
+    forms.catalog.price = drinkTierPrice.value;
+  }
 }
 
 function editCatalog(item) {
