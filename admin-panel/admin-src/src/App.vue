@@ -1652,8 +1652,8 @@ function onCatalogCategoryChoiceChange() {
   }
   forms.catalog.category = catalogCategoryChoice.value;
   syncDrinkCategoryIdFromName();
-  // 堂饮：价格未填（或为 0）时自动带出档位价，店长可直接改
-  if (isDrinksCollection() && !Number(forms.catalog.price)) {
+  // 堂饮：切换档位时价格自动联动为档位价（可在联动后再手动改）
+  if (isDrinksCollection()) {
     forms.catalog.price = drinkTierPrice.value;
   }
 }
