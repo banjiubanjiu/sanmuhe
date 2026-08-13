@@ -3,6 +3,13 @@ const { localImage } = require("../config/assets");
 
 const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v1";
 const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v1";
+/** 失败回落只用近期成功快照，避免刚下架的货长期留在本地 */
+const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function isCacheFresh(cachedAt) {
+  const ts = Number(cachedAt) || 0;
+  return ts > 0 && (Date.now() - ts) <= CATALOG_CACHE_TTL_MS;
+}
 
 function emptyCatalog() {
   return {
@@ -65,7 +72,8 @@ function readCatalogCache() {
       events: Array.isArray(cached.events) ? cached.events : [],
       productCategories: Array.isArray(cached.productCategories) ? cached.productCategories : [],
       content: cached.content || { homeSlides: [] },
-      settings: cached.settings || null
+      settings: cached.settings || null,
+      cachedAt: Number(cached.cachedAt) || 0
     };
   } catch (error) {
     return null;
@@ -74,7 +82,10 @@ function readCatalogCache() {
 
 function writeEventsCache(list) {
   try {
-    wx.setStorageSync(EVENTS_CACHE_KEY, Array.isArray(list) ? list : []);
+    wx.setStorageSync(EVENTS_CACHE_KEY, {
+      events: Array.isArray(list) ? list : [],
+      cachedAt: Date.now()
+    });
   } catch (error) {
     // ignore
   }
@@ -83,11 +94,21 @@ function writeEventsCache(list) {
 function readEventsCache() {
   try {
     const cached = wx.getStorageSync(EVENTS_CACHE_KEY);
-    if (Array.isArray(cached)) {
-      return cached;
+    if (cached && typeof cached === "object" && Array.isArray(cached.events)) {
+      return {
+        events: cached.events,
+        cachedAt: Number(cached.cachedAt) || 0
+      };
     }
+    // 旧版只存了数组，没有时间戳，不当作新鲜货架
     const catalog = readCatalogCache();
-    return catalog && Array.isArray(catalog.events) ? catalog.events : null;
+    if (catalog && Array.isArray(catalog.events)) {
+      return {
+        events: catalog.events,
+        cachedAt: Number(catalog.cachedAt) || 0
+      };
+    }
+    return null;
   } catch (error) {
     return null;
   }
@@ -193,7 +214,7 @@ function getCatalog() {
     })
     .catch(() => {
       const cached = readCatalogCache();
-      if (cached) {
+      if (cached && isCacheFresh(cached.cachedAt)) {
         return withCatalogMeta(enrichCatalog(cached), "cache");
       }
       return withCatalogMeta(emptyCatalog(), "error");
@@ -209,7 +230,10 @@ function listEvents() {
     })
     .catch(() => {
       const cached = readEventsCache();
-      return Array.isArray(cached) ? cached : [];
+      if (cached && isCacheFresh(cached.cachedAt)) {
+        return cached.events;
+      }
+      return [];
     });
 }
 

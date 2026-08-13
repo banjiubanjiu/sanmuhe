@@ -461,6 +461,8 @@ const orderPageJs = readText("sanmuhe-miniprogram/pages/order/index.js");
 const shopPageJs = readText("sanmuhe-miniprogram/pages/shop/index.js");
 const catalogNoLocalShelfOk = cloudApiJs.includes("writeCatalogCache") &&
   cloudApiJs.includes('source === "error"') &&
+  cloudApiJs.includes("CATALOG_CACHE_TTL_MS") &&
+  cloudApiJs.includes("isCacheFresh") &&
   /if \(!remote\.length\) \{\s*return \[\];/.test(cloudApiJs) &&
   !cloudApiJs.includes("getFallbackCatalog") &&
   !cloudApiJs.includes("mergeById") &&
