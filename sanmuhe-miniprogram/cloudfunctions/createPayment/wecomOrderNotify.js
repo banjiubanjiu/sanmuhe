@@ -148,7 +148,12 @@ function itemSummary(items, prefixKind) {
       const kind = prefixKind && item && item.type === "tea" ? "茶叶" : (prefixKind && item && item.type === "drink" ? "堂饮" : "");
       const name = cleanText(item && item.name, 36) || "商品";
       const qty = Math.max(1, Number(item && item.quantity) || 1);
-      return kind ? `[${kind}]${name}×${qty}` : `${name}×${qty}`;
+      const options = (item && item.options) || {};
+      const spec = item && item.type === "tea"
+        ? cleanText(options.unit, 24)
+        : cleanText(options.teaChoice, 24);
+      const label = spec ? `（${spec}）` : "";
+      return kind ? `[${kind}]${name}${label}×${qty}` : `${name}${label}×${qty}`;
     })
     .filter((item) => item.charAt(0) !== "×")
     .join("、")
