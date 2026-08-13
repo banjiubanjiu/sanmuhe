@@ -119,7 +119,8 @@
       "handler": "index.main",
       "envVariables": {
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
-        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY"
+        "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
+        "WECOM_ORDER_WEBHOOK": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c1c0da42-10e3-41ff-bc63-695e0016c624"
       }
     },
     {

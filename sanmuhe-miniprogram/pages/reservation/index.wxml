@@ -184,7 +184,24 @@
 
       <view class="sheet-section form-fields">
         <input class="field" placeholder="联系人" data-field="name" value="{{name}}" bindinput="onInput" />
-        <input class="field" placeholder="手机号" type="number" maxlength="11" data-field="phone" value="{{phone}}" bindinput="onInput" />
+        <view class="phone-row">
+          <input
+            class="field phone-input"
+            placeholder="手机号"
+            type="number"
+            maxlength="11"
+            data-field="phone"
+            value="{{phone}}"
+            bindinput="onInput"
+          />
+          <button
+            class="phone-auth-btn"
+            open-type="getPhoneNumber"
+            loading="{{phoneResolving}}"
+            disabled="{{phoneResolving}}"
+            bindgetphonenumber="handlePhoneAuth"
+          >微信获取</button>
+        </view>
         <textarea class="textarea-field" placeholder="备注（选填）" data-field="note" value="{{note}}" bindinput="onInput"></textarea>
       </view>
 

@@ -7,7 +7,7 @@ const {
   calculateReservationPrice,
   toMinutes
 } = require("../../data/store");
-const { createReservation, payReservation, getCatalog, listReservedSlots } = require("../../utils/cloudApi");
+const { createReservation, payReservation, getCatalog, listReservedSlots, resolvePhoneNumber } = require("../../utils/cloudApi");
 const { getBookingDays } = require("../../utils/date");
 const { withPrivacy } = require("../../utils/privacy");
 
@@ -274,6 +274,8 @@ Page(withPrivacy({
     name: "",
     phone: "",
     note: "",
+    phoneResolving: false,
+    showManualPhone: false,
     bookingOpen: false,
     pickMode: "start", // start | end — 提示下一步要点什么
     lockMinutes: 15,
@@ -580,6 +582,28 @@ Page(withPrivacy({
   onInput(event) {
     const field = event.currentTarget.dataset.field;
     this.setData({ [field]: event.detail.value });
+  },
+
+  /** 微信手机号一键填入；输入框常显，仍可手动修改 */
+  handlePhoneAuth(event) {
+    if (this.data.phoneResolving) {
+      return;
+    }
+    const detail = (event && event.detail) || {};
+    const phoneCode = detail.code;
+    if (!phoneCode) {
+      wx.showToast({ title: "请手动填写手机号", icon: "none" });
+      return;
+    }
+    this.setData({ phoneResolving: true });
+    resolvePhoneNumber(phoneCode).then((result) => {
+      const phone = String(result.phone || "").trim();
+      this.setData({ phone, phoneResolving: false });
+      if (phone) wx.showToast({ title: "手机号已填入", icon: "success" });
+    }).catch(() => {
+      this.setData({ phoneResolving: false });
+      wx.showToast({ title: "未获取到，请手动填写", icon: "none" });
+    });
   },
 
   submitReservation() {
