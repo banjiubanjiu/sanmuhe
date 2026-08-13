@@ -1,5 +1,11 @@
 # Sanmuhe Mini Program Rules
 
+## 环境链接（找后台/控制台先看这里）
+
+- 经营后台: `https://cloudbase-d2gq023qn50e9d82f-1458290161.tcloudbaseapp.com/`（域名带 `-1458290161` 后缀）
+- CloudBase 控制台: `https://console.cloud.tencent.com/tcb/env/index?envId=cloudbase-d2gq023qn50e9d82f`
+- 完整环境信息/部署命令见仓库根 `docs/环境与链接.md`；构建: `npm run admin:build`
+
 ## Cloud-First Frontend Content
 
 - Mini program business content must be cloud-backed. Carousel images, product images, tea room images, event images, notices, coupons, member settings, and operational records should be stored in CloudBase database/storage instead of only local files.

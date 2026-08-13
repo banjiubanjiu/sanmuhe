@@ -1,5 +1,12 @@
 # Project Rules
 
+## Environment Links (找后台/控制台先看这里)
+
+- 经营后台（管理面板 Web）: `https://cloudbase-d2gq023qn50e9d82f-1458290161.tcloudbaseapp.com/`（注意域名带 `-1458290161` 后缀，缺后缀会 418）
+- CloudBase 控制台: `https://console.cloud.tencent.com/tcb/env/index?envId=cloudbase-d2gq023qn50e9d82f`
+- envId: `cloudbase-d2gq023qn50e9d82f`；完整环境信息、静态托管部署命令见 `docs/环境与链接.md`
+- 后台构建: `cd sanmuhe-miniprogram && npm run admin:build`，产物在 `admin-panel/admin/`，部署用 `tcb hosting deploy ../admin-panel/admin / --env-id cloudbase-d2gq023qn50e9d82f`
+
 ## Cloud-First Assets And Data
 
 - If a file or dataset is needed by the WeChat Mini Program frontend, persist it to CloudBase first. Do not leave frontend-required content only as local files.

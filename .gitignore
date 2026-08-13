@@ -1,6 +1,10 @@
 .gitrepo/
 .agents/
 .codex/
+.claude/
+.reasonix/
+reasonix.toml
+skills-lock.json
 .playwright-mcp/
 .playwright-cli/
 output/

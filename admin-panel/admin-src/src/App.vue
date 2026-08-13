@@ -373,6 +373,8 @@ const state = reactive({
   searchResults: [],
   savedViews: {},
   settings: {},
+  /** 微信「发货信息管理」接入状态（getWxShippingStatus） */
+  wxShippingStatus: null,
   pagination: {
     orders: createPageState(),
     afterSales: createPageState(),
@@ -750,7 +752,23 @@ const forms = reactive({
 
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
 const currentModuleProfile = computed(() => moduleProfiles[state.activeTab] || moduleProfiles.dashboard);
-const currentUser = computed(() => state.user?.username || state.user?.email || state.user?.uid || "禾煦管理员");
+const currentUser = computed(() => {
+  const user = state.user;
+  if (!user || typeof user !== "object") return "禾煦管理员";
+  const meta = user.user_metadata && typeof user.user_metadata === "object" ? user.user_metadata : {};
+  return user.username
+    || user.name
+    || user.email
+    || user.nickName
+    || user.nickname
+    || meta.username
+    || meta.nickName
+    || meta.name
+    || user.uid
+    || user.id
+    || meta.uid
+    || "禾煦管理员";
+});
 const currentRoleName = computed(() => state.adminProfileError ? "未授权" : (state.adminProfile?.roleName || "管理员"));
 const orderBroadcastStatusTone = computed(() => {
   if (orderBroadcast.error || orderBroadcast.audioMessage) return "danger";
@@ -2880,7 +2898,7 @@ async function signIn() {
     } else {
       throw new Error("当前 SDK 不支持用户名密码登录");
     }
-    setCurrentUser(result?.data?.user || result?.user || result || { username });
+    setCurrentUser(normalizeSessionUser(result?.data?.user || result?.user || result, username));
     await enterDashboard();
   } catch (error) {
     state.loginError = error.message || "登录失败";
@@ -2889,15 +2907,30 @@ async function signIn() {
   }
 }
 
+/** Normalize CloudBase Auth user shapes (v1 flat vs v2 session user_metadata). */
+function normalizeSessionUser(user, fallbackUsername = "") {
+  if (!user || typeof user !== "object") {
+    return fallbackUsername ? { username: fallbackUsername } : null;
+  }
+  const meta = user.user_metadata && typeof user.user_metadata === "object" ? user.user_metadata : {};
+  return {
+    ...user,
+    uid: user.uid || user.id || meta.uid || "",
+    username: user.username || user.name || meta.username || fallbackUsername || "",
+    email: user.email || meta.email || "",
+    nickName: user.nickName || user.nickname || meta.nickName || meta.name || ""
+  };
+}
+
 async function getSessionUser() {
   if (!cloudAuth) return null;
   if (cloudAuth.getSession) {
     const result = await cloudAuth.getSession();
-    return result?.data?.session?.user || null;
+    return normalizeSessionUser(result?.data?.session?.user || null);
   }
   if (cloudAuth.getLoginState) {
     const result = await cloudAuth.getLoginState();
-    return result?.user || null;
+    return normalizeSessionUser(result?.user || null);
   }
   return null;
 }
@@ -3845,7 +3878,7 @@ async function saveCatalog() {
   }
   const needsReason = action === "update" && hasSensitiveCatalogChange(existing, payload);
   const reason = needsReason
-    ? await promptActionReason(`保存 ${displayName(forms.catalog)} 的价格、库存、规格或状态`)
+    ? await promptActionReason(`保存 ${displayName(forms.catalog)} 的价格、库存、名额或状态`)
     : "";
   if (needsReason && !reason) return;
   const savingId = String(forms.catalog.id || "").trim();
@@ -5161,6 +5194,13 @@ async function loadSettings() {
     const result = await callFunction("manageOperations", { action: "getSettings" });
     state.settings = result.settings || {};
   });
+  // 静默拉取微信「发货信息管理」接入状态，不阻塞设置表单
+  state.wxShippingStatus = null;
+  callFunction("manageOperations", { action: "getWxShippingStatus" })
+    .then((result) => {
+      state.wxShippingStatus = (result && result.status) || null;
+    })
+    .catch(() => {});
 }
 
 async function saveSettings() {
@@ -5240,6 +5280,7 @@ async function saveSettings() {
   const noticePages = [
     state.settings.orderPaidPage,
     state.settings.orderShippedPage,
+    state.settings.wxShippingJumpPath,
     state.settings.reservationNoticePage,
     state.settings.eventNoticePage
   ];
@@ -5252,6 +5293,38 @@ async function saveSettings() {
   await withLoading("保存设置", async () => {
     await callFunction("manageOperations", { action: "updateSettings", data: state.settings, reason });
     showToast("设置已保存");
+  });
+}
+
+/** 读取微信「发货信息管理」接入状态（开通、交易结算确认、跳转路径同步状态） */
+async function refreshWxShippingStatus() {
+  await withLoading("读取微信发货信息状态", async () => {
+    const result = await callFunction("manageOperations", { action: "getWxShippingStatus" });
+    state.wxShippingStatus = (result && result.status) || null;
+  });
+}
+
+/** 将「订单发货通知」跳转路径同步到微信（set_msg_jump_path） */
+async function syncWxShippingJumpPath() {
+  const path = String(state.settings.wxShippingJumpPath || "").trim().replace(/^\/+/, "");
+  if (!path || !/^[a-zA-Z0-9_/.-]+$/.test(path)) {
+    showToast("请填写合法的小程序页面路径");
+    return;
+  }
+  const reason = await promptActionReason("同步微信发货通知跳转路径");
+  if (!reason) return;
+  await withLoading("同步到微信", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "setWxShippingJumpPath",
+      path,
+      reason
+    });
+    if (result && result.ok === false) {
+      throw new Error(result.message || "同步失败");
+    }
+    showToast(result && result.message ? result.message : "已同步到微信");
+    state.settings.wxShippingJumpPath = path;
+    await refreshWxShippingStatus();
   });
 }
 
@@ -7608,6 +7681,37 @@ onBeforeUnmount(() => {
                 <label class="switch"><input v-model="state.settings.paymentEnabled" type="checkbox"> 启用微信支付</label>
                 <label class="switch"><input v-model="state.settings.pickupEnabled" type="checkbox"> 启用自提</label>
                 <label class="switch"><input v-model="state.settings.shippingEnabled" type="checkbox"> 启用配送</label>
+              </div>
+              <div class="settings-subsection">
+                <h3>微信发货信息管理</h3>
+                <p class="settings-note">后台标记快递发货、自提/堂饮/预约/充值支付成功时，云函数会自动上传发货信息到微信；用户收到「订单发货通知」后点击进入下方跳转页，即可查询物流、申请售后。</p>
+                <div v-if="state.wxShippingStatus" class="settings-status-row">
+                  <span class="status-pill" :class="state.wxShippingStatus.isTradeManaged ? 'good' : 'warn'">
+                    发货信息管理：{{ state.wxShippingStatus.isTradeManaged ? "已开通" : "未开通" }}
+                  </span>
+                  <span class="status-pill" :class="state.wxShippingStatus.confirmationCompleted ? 'good' : 'warn'">
+                    交易结算确认：{{ state.wxShippingStatus.confirmationCompleted ? "已完成" : "未完成" }}
+                  </span>
+                  <span class="status-pill" :class="state.wxShippingStatus.jumpPathSynced ? 'good' : 'warn'">
+                    通知跳转：{{ state.wxShippingStatus.jumpPathSynced ? "已同步" : "未同步" }}
+                  </span>
+                </div>
+                <p v-if="state.wxShippingStatus && state.wxShippingStatus.managedError" class="settings-status-error">
+                  {{ state.wxShippingStatus.managedError }}
+                </p>
+                <p v-if="state.wxShippingStatus && state.wxShippingStatus.confirmError" class="settings-status-error">
+                  {{ state.wxShippingStatus.confirmError }}
+                </p>
+                <p v-if="state.wxShippingStatus && state.wxShippingStatus.jumpPathError" class="settings-status-error">
+                  跳转同步失败：{{ state.wxShippingStatus.jumpPathError }}{{ state.wxShippingStatus.pendingPath ? "（期望路径 " + state.wxShippingStatus.pendingPath + "，微信侧仍生效旧路径）" : "" }}
+                </p>
+                <div class="settings-fields">
+                  <label class="wide"><span>发货通知跳转页</span><input v-model="state.settings.wxShippingJumpPath" placeholder="pages/order-detail/index"></label>
+                </div>
+                <div class="settings-row-actions">
+                  <button v-if="hasPermission('settings.write')" class="secondary-action" type="button" @click="syncWxShippingJumpPath">同步跳转路径到微信</button>
+                  <button class="secondary-action" type="button" @click="refreshWxShippingStatus">刷新接入状态</button>
+                </div>
               </div>
             </div>
             <div class="settings-section">

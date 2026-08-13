@@ -59,19 +59,61 @@ function getAuthObject() {
   return null;
 }
 
-async function getCaller() {
-  const wxContext = cloud.getWXContext();
+function usableIdentity(value, maxLength = 120) {
+  const text = cleanText(value, maxLength);
+  if (!text) {
+    return "";
+  }
+  if (/^(anonymous|null|undefined)$/i.test(text)) {
+    return "";
+  }
+  return text;
+}
+
+function firstIdentity(...values) {
+  for (const value of values) {
+    const text = usableIdentity(value);
+    if (text) {
+      return text;
+    }
+  }
+  return "";
+}
+
+async function getCaller(context = {}) {
+  const wxContext = cloud.getWXContext() || {};
+  const contextUser = context && context.userInfo && typeof context.userInfo === "object"
+    ? context.userInfo
+    : {};
+  const nestedUser = contextUser.userInfo && typeof contextUser.userInfo === "object"
+    ? contextUser.userInfo
+    : {};
   const caller = {
-    openid: wxContext.OPENID || "",
-    uid: "",
-    username: ""
+    openid: firstIdentity(wxContext.OPENID, wxContext.FROM_OPENID, contextUser.openId, contextUser.openid),
+    uid: firstIdentity(
+      contextUser.uid,
+      contextUser.userId,
+      contextUser.customUserId,
+      nestedUser.uid,
+      wxContext.TCB_UUID,
+      wxContext.UUID
+    ),
+    username: firstIdentity(contextUser.username, contextUser.name, nestedUser.username)
   };
   const auth = getAuthObject();
   if (!auth) return caller;
   try {
     const userInfo = typeof auth.getUserInfo === "function" ? auth.getUserInfo() : {};
-    caller.uid = userInfo.uid || userInfo.userInfo && userInfo.userInfo.uid || "";
-    caller.username = userInfo.username || userInfo.userInfo && userInfo.userInfo.username || "";
+    const nested = userInfo && userInfo.userInfo && typeof userInfo.userInfo === "object"
+      ? userInfo.userInfo
+      : {};
+    // Fill blanks only — empty/anonymous SDK state must not clear context identity.
+    if (!caller.uid) {
+      caller.uid = firstIdentity(userInfo.uid, nested.uid);
+    }
+    if (!caller.username) {
+      caller.username = firstIdentity(userInfo.username, nested.username, userInfo.email, nested.email);
+    }
   } catch (error) {
     // Ignore and fall back to OpenID whitelist.
   }
@@ -79,7 +121,7 @@ async function getCaller() {
     try {
       const detail = await auth.getEndUserInfo(caller.uid);
       const info = detail.userInfo || detail.data && detail.data.userInfo || {};
-      caller.username = info.username || info.email || caller.username;
+      caller.username = firstIdentity(info.username, info.email, caller.username);
     } catch (error) {
       // UID whitelist remains sufficient when detailed lookup is unavailable.
     }
@@ -87,8 +129,8 @@ async function getCaller() {
   return caller;
 }
 
-async function assertSeedAllowed() {
-  const caller = await getCaller();
+async function assertSeedAllowed(context = {}) {
+  const caller = await getCaller(context);
   if (String(process.env.SEED_DEMO_ENABLED || "").toLowerCase() === "true") {
     return { caller, source: "SEED_DEMO_ENABLED" };
   }
@@ -301,13 +343,13 @@ function summarizeResults(results) {
   }, { created: 0, updated: 0, deactivated: 0 });
 }
 
-exports.main = async (event = {}) => {
+exports.main = async (event = {}, context = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "seedDemoData" };
   }
 
   const reason = requireSeedReason(event);
-  const auth = await assertSeedAllowed();
+  const auth = await assertSeedAllowed(context);
   const startedAt = Date.now();
   await writeAdminAuditLog(auth.caller, "syncFrontendSeedDataStarted", {
     reason,

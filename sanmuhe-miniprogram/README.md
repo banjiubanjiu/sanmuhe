@@ -68,6 +68,10 @@ npm run admin:verify
 
 该命令会检查云函数语法、后台生产构建、静态资源引用、单文件资源大小，以及 `project.config.json` 的包体忽略规则。
 
+## 微信订单发货信息管理
+
+小程序已接入微信「订单管理-发货信息」（发货信息管理服务）：后台标记快递发货、自提/堂饮/预约/充值支付成功时，云函数自动调用 `upload_shipping_info` 上传发货信息；微信侧推送的**订单发货通知**通过 `set_msg_jump_path` 跳转到小程序订单详情页，用户可直接查看物流轨迹、申请售后。接入、微信后台配置与验证步骤见 `docs/微信订单发货信息接入指引.md`。
+
 ## 后续接口建议
 
 - `GET /api/drinks` 堂饮茶单
@@ -75,7 +79,7 @@ npm run admin:verify
 - `POST /api/orders` 创建订单
 - `POST /api/pay/wechat/prepay` 微信支付下单
 - `POST /api/pay/wechat/notify` 微信支付回调
-- `POST /api/shipping/upload` 订单发货信息上传
+- `POST /api/shipping/upload` 订单发货信息上传（云函数内已实现 `upload_shipping_info` 上传，无需独立服务）
 - `GET /api/rooms` 茶室列表
 - `POST /api/reservations` 创建预约
 - `GET /api/events` 活动列表

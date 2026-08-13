@@ -7,7 +7,10 @@ const {
   shippingResultFields,
   resolveExpressCompanyCode,
   buildItemDescFromItems,
-  COMMON_EXPRESS_OPTIONS
+  COMMON_EXPRESS_OPTIONS,
+  setMsgJumpPath,
+  queryIsTradeManaged,
+  queryConfirmationCompleted
 } = require("./wechatShipping");
 
 cloud.init({
@@ -366,6 +369,8 @@ const actionPermissions = {
   disableCampaign: "marketing.write",
   getSettings: "settings.read",
   updateSettings: "settings.write",
+  getWxShippingStatus: "settings.read",
+  setWxShippingJumpPath: "settings.write",
   getSystemStatus: "system.read",
   listNotificationLogs: "notification.read",
   sendTestNotice: "notification.write",
@@ -392,15 +397,99 @@ function getAuthObject() {
   return null;
 }
 
+/** Reject empty / SDK placeholder identities so they never authorize or wipe real caller. */
+function usableIdentity(value, maxLength = 120) {
+  const text = cleanText(value, maxLength);
+  if (!text) {
+    return "";
+  }
+  if (/^(anonymous|null|undefined)$/i.test(text)) {
+    return "";
+  }
+  return text;
+}
+
+function firstIdentity(...values) {
+  for (const value of values) {
+    const text = usableIdentity(value);
+    if (text) {
+      return text;
+    }
+  }
+  return "";
+}
+
+function parseContextEnvironment(context = {}) {
+  const raw = context.environment || context.environ || "";
+  if (!raw) {
+    return {};
+  }
+  if (typeof raw === "object") {
+    return raw;
+  }
+  try {
+    const text = String(raw).trim();
+    if (!text) {
+      return {};
+    }
+    // CloudBase may pass "KEY=value&..." or JSON.
+    if (text.startsWith("{")) {
+      return JSON.parse(text);
+    }
+    return text.split("&").reduce((result, pair) => {
+      const index = pair.indexOf("=");
+      if (index < 0) {
+        return result;
+      }
+      const key = decodeURIComponent(pair.slice(0, index));
+      const value = decodeURIComponent(pair.slice(index + 1));
+      result[key] = value;
+      return result;
+    }, {});
+  } catch (error) {
+    return {};
+  }
+}
+
 async function getCaller(context = {}) {
-  const wxContext = cloud.getWXContext();
+  const wxContext = cloud.getWXContext() || {};
   const contextUser = context && context.userInfo && typeof context.userInfo === "object"
     ? context.userInfo
     : {};
+  const nestedUser = contextUser.userInfo && typeof contextUser.userInfo === "object"
+    ? contextUser.userInfo
+    : {};
+  const envInfo = parseContextEnvironment(context);
+
+  // Prefer request-scoped identity (web login / mini program). Never start from empty
+  // and never let in-function @cloudbase/js-sdk session wipe a real caller.
   const caller = {
-    openid: wxContext.OPENID || "",
-    uid: cleanText(contextUser.uid || contextUser.userId, 120),
-    username: cleanText(contextUser.username || contextUser.userInfo && contextUser.userInfo.username, 120)
+    openid: firstIdentity(
+      wxContext.OPENID,
+      wxContext.FROM_OPENID,
+      contextUser.openId,
+      contextUser.openid
+    ),
+    uid: firstIdentity(
+      contextUser.uid,
+      contextUser.userId,
+      contextUser.customUserId,
+      nestedUser.uid,
+      nestedUser.userId,
+      wxContext.TCB_UUID,
+      wxContext.UUID,
+      envInfo.uid,
+      envInfo.userId,
+      envInfo.TCB_UUID
+    ),
+    username: firstIdentity(
+      contextUser.username,
+      contextUser.name,
+      nestedUser.username,
+      nestedUser.name,
+      envInfo.username,
+      envInfo.name
+    )
   };
 
   const auth = getAuthObject();
@@ -410,8 +499,16 @@ async function getCaller(context = {}) {
 
   try {
     const userInfo = typeof auth.getUserInfo === "function" ? auth.getUserInfo() : {};
-    caller.uid = userInfo.uid || userInfo.userInfo && userInfo.userInfo.uid || "";
-    caller.username = userInfo.username || userInfo.userInfo && userInfo.userInfo.username || "";
+    const nested = userInfo && userInfo.userInfo && typeof userInfo.userInfo === "object"
+      ? userInfo.userInfo
+      : {};
+    // Fill blanks only — empty/anonymous SDK state must not clear context identity.
+    if (!caller.uid) {
+      caller.uid = firstIdentity(userInfo.uid, nested.uid);
+    }
+    if (!caller.username) {
+      caller.username = firstIdentity(userInfo.username, nested.username, userInfo.email, nested.email);
+    }
   } catch (error) {
     // Ignore and try detailed user info below.
   }
@@ -420,7 +517,7 @@ async function getCaller(context = {}) {
     try {
       const detail = await auth.getEndUserInfo(caller.uid);
       const info = detail.userInfo || detail.data && detail.data.userInfo || {};
-      caller.username = info.username || info.email || caller.username;
+      caller.username = firstIdentity(info.username, info.email, caller.username);
     } catch (error) {
       // Username whitelist is optional; UID whitelist remains sufficient.
     }
@@ -4131,6 +4228,18 @@ function normalizeSettings(data = {}) {
     orderPaidPage: cleanText(data.orderPaidPage, 120) || "pages/profile/index",
     orderShippedTemplateId: cleanText(data.orderShippedTemplateId, 80),
     orderShippedPage: cleanText(data.orderShippedPage, 120) || "pages/profile/index",
+    /**
+     * 微信「发货信息管理」发货通知/确认收货提醒的跳转路径（set_msg_jump_path）。
+     * 微信会自动附加 transaction_id、merchant_id、merchant_trade_no 参数，
+     * 落地页 pages/order-detail/index 据此解析本地订单。
+     */
+    wxShippingJumpPath: cleanText(data.wxShippingJumpPath, 300) || "pages/order-detail/index",
+    /** 该跳转路径是否已成功同步到微信侧（set_msg_jump_path 成功一次即为 true） */
+    wxShippingJumpPathSynced: data.wxShippingJumpPathSynced === true,
+    /** 同步失败时保留的期望路径（未生效，成功后会清空） */
+    wxShippingJumpPathPending: cleanText(data.wxShippingJumpPathPending, 300) || "",
+    /** 最近一次同步的错误信息 */
+    wxShippingJumpPathError: cleanText(data.wxShippingJumpPathError, 300),
     staffOrderTemplateId: cleanText(data.staffOrderTemplateId, 80),
     staffOrderPage: cleanText(data.staffOrderPage, 120) || "pages/profile/index",
     // JSON 字符串，例如 {"character_string1":"orderNo","thing2":"itemSummary","amount3":"total","time4":"time"}
@@ -4210,10 +4319,16 @@ function validateSettingsInput(data = {}, payload = {}) {
   [
     ["orderPaidPage", "支付成功跳转页"],
     ["orderShippedPage", "发货通知跳转页"],
+    ["wxShippingJumpPath", "微信发货通知跳转页"],
     ["staffOrderPage", "店员新订单跳转页"],
     ["reservationNoticePage", "预约通知跳转页"],
     ["eventNoticePage", "活动通知跳转页"]
   ].forEach(([field, label]) => assertSafeTextRef(payload[field], label));
+  if (payload.wxShippingJumpPath && !/^[a-zA-Z0-9_/.-]+$/.test(payload.wxShippingJumpPath)) {
+    const error = new Error("微信发货通知跳转页必须是合法的小程序页面路径");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
 }
 
 async function updateSettings(event, caller) {
@@ -4221,6 +4336,20 @@ async function updateSettings(event, caller) {
   const data = event.data || {};
   const reason = requireAuditReason(event, "保存系统设置");
   const payload = normalizeSettings(data);
+  // 前端设置表单不含同步标记：跳转路径未变时保留微信侧同步状态，避免被保存动作覆盖
+  if (
+    existing &&
+    existing.wxShippingJumpPathSynced === true &&
+    payload.wxShippingJumpPath === (existing.wxShippingJumpPath || "pages/order-detail/index")
+  ) {
+    payload.wxShippingJumpPathSynced = true;
+  }
+  if (existing) {
+    payload.wxShippingJumpPathPending = cleanText(existing.wxShippingJumpPathPending, 300) || "";
+    payload.wxShippingJumpPathError = cleanText(existing.wxShippingJumpPathError, 300) || "";
+    payload.wxShippingJumpPathSyncedAt = existing.wxShippingJumpPathSyncedAt || null;
+    payload.wxShippingJumpPathLastAttemptAt = existing.wxShippingJumpPathLastAttemptAt || null;
+  }
   assertPhoneText(payload.phone, "门店电话");
   validateSettingsInput(data, payload);
   await upsertRecord("store_settings", "key", "store", payload);
@@ -4258,6 +4387,97 @@ async function updateSettings(event, caller) {
     ])
   });
   return { ok: true, settings: payload };
+}
+
+/**
+ * 查询微信「发货信息管理」接入状态（诊断用，不改数据）。
+ * 返回：是否已开通发货信息管理、是否已完成交易结算管理确认、当前跳转路径与同步状态。
+ */
+async function getWxShippingStatus(event, caller) {
+  const settingsResult = await getSettings();
+  const settings = settingsResult.settings || {};
+  const [managedResult, confirmResult] = await Promise.all([
+    queryIsTradeManaged(cloud).catch((error) => ({ ok: false, errmsg: String((error && error.message) || error) })),
+    queryConfirmationCompleted(cloud).catch((error) => ({ ok: false, errmsg: String((error && error.message) || error) }))
+  ]);
+  const status = {
+    ok: Boolean(managedResult && managedResult.ok && confirmResult && confirmResult.ok),
+    isTradeManaged: Boolean(managedResult && managedResult.isTradeManaged),
+    tradeManageAppid: (managedResult && managedResult.tradeManageAppid) || "",
+    isOfflineOrder: Boolean(managedResult && managedResult.isOfflineOrder),
+    confirmationCompleted: Boolean(confirmResult && confirmResult.confirmationCompleted),
+    jumpPath: settings.wxShippingJumpPath || "pages/order-detail/index",
+    jumpPathSynced: settings.wxShippingJumpPathSynced === true,
+    pendingPath: settings.wxShippingJumpPathPending || "",
+    jumpPathError: settings.wxShippingJumpPathError || "",
+    managedError: managedResult && !managedResult.ok ? (managedResult.errmsg || "") : "",
+    confirmError: confirmResult && !confirmResult.ok ? (confirmResult.errmsg || "") : ""
+  };
+  if (caller && caller.uid) {
+    try {
+      await writeAdminAuditLog(caller, "getWxShippingStatus", {
+        isTradeManaged: status.isTradeManaged,
+        confirmationCompleted: status.confirmationCompleted,
+        jumpPath: status.jumpPath
+      });
+    } catch (error) {
+      // 诊断查询的审计是尽力而为
+    }
+  }
+  return { ok: true, status };
+}
+
+/**
+ * 将「订单发货通知」跳转路径同步到微信（set_msg_jump_path，全局设置一次生效）。
+ * 微信会在 path 后自动附加 transaction_id、merchant_id、merchant_trade_no，
+ * 小程序 pages/order-detail/index 据此解析本地订单并展示物流/售后。
+ */
+async function setWxShippingJumpPath(event, caller) {
+  const settingsResult = await getSettings();
+  const settings = settingsResult.settings || {};
+  const path = cleanText(event.path || settings.wxShippingJumpPath, 300).replace(/^\/+/, "");
+  if (!path || !/^[a-zA-Z0-9_/.-]+$/.test(path)) {
+    return { ok: false, message: "跳转路径不合法" };
+  }
+
+  const result = await setMsgJumpPath(cloud, path);
+  const errcode = result && (result.errcode !== undefined ? result.errcode : result.errCode);
+  const errmsg = (result && (result.errmsg || result.errMsg)) || "";
+  const ok = Number(errcode) === 0;
+
+  const settingsPatch = Object.assign({}, settings, {
+    wxShippingJumpPathError: ok ? "" : cleanText(errmsg || "同步失败", 300),
+    wxShippingJumpPathLastAttemptAt: new Date()
+  });
+  if (ok) {
+    // 成功：应用新路径并清空待同步项
+    settingsPatch.wxShippingJumpPath = path;
+    settingsPatch.wxShippingJumpPathSynced = true;
+    settingsPatch.wxShippingJumpPathSyncedAt = new Date();
+    settingsPatch.wxShippingJumpPathPending = "";
+  } else {
+    // 失败：保留微信侧仍在生效的旧路径，仅记录期望路径供后台展示重试
+    settingsPatch.wxShippingJumpPathPending = path;
+  }
+  await upsertRecord("store_settings", "key", "store", settingsPatch);
+
+  await writeAdminAuditLog(caller, "setWxShippingJumpPath", {
+    path,
+    wxShippingOk: ok,
+    wxShippingErrcode: errcode,
+    wxShippingError: ok ? "" : (errmsg || ""),
+    changes: auditDiff(settings, settingsPatch, ["wxShippingJumpPath", "wxShippingJumpPathSynced"])
+  });
+
+  return {
+    ok,
+    message: ok ? "发货通知跳转路径已同步到微信" : (errmsg || "同步失败，请检查云函数 openapi 权限与发货信息管理开通状态"),
+    errcode: errcode,
+    status: {
+      jumpPath: path,
+      jumpPathSynced: ok
+    }
+  };
 }
 
 exports.main = async (event = {}, context = {}) => {
@@ -4363,7 +4583,10 @@ exports.main = async (event = {}, context = {}) => {
       await writeExportAuditLog(caller, event, action, "预约", result.page);
       return { ok: true, reservations: result.items, page: result.page };
     }
-    if (action === "updateReservation" || action === "afterSaleRefundReservation") {
+    if (action === "updateReservation") {
+      return await updateReservation(event, caller);
+    }
+    if (action === "afterSaleRefundReservation") {
       return await updateReservation(event, caller);
     }
     if (action === "listSignups") {
@@ -4441,6 +4664,12 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "updateSettings") {
       return await updateSettings(event, caller);
+    }
+    if (action === "getWxShippingStatus") {
+      return await getWxShippingStatus(event, caller);
+    }
+    if (action === "setWxShippingJumpPath") {
+      return await setWxShippingJumpPath(event, caller);
     }
     if (action === "getSystemStatus") {
       return await getSystemStatus(event);

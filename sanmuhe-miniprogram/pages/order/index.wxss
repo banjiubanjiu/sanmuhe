@@ -1,6 +1,9 @@
 .tea-menu-page {
+  /* 固定视口高度 + 内部 scroll-view；勿混用全局 .page 的 padding/min-height */
   height: 100vh;
+  max-height: 100vh;
   padding: 0;
+  margin: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -81,23 +84,37 @@
 }
 
 .ordering-shell {
-  flex: 1;
+  /* flex 子项用 min-height:0；scroll-view 用绝对定位吃满剩余高度（微信 grid+height:100% 常算不出高度导致无法滚动） */
+  flex: 1 1 auto;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 148rpx minmax(0, 1fr);
+  height: 0;
+  position: relative;
   overflow: hidden;
   background: var(--hx-page-background);
 }
 
-.side-cats,
-.menu-panel {
-  height: 100%;
-}
-
 .side-cats {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 148rpx;
   min-width: 0;
+  box-sizing: border-box;
   background: var(--hx-page-background);
   padding-top: 4rpx;
+}
+
+.menu-panel {
+  position: absolute;
+  left: 148rpx;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  min-width: 0;
+  padding: 8rpx 18rpx 0 14rpx;
+  box-sizing: border-box;
+  background: var(--hx-page-background);
 }
 
 .side-cat {
@@ -128,13 +145,6 @@
 
 .side-safe.with-cart {
   height: calc(280rpx + env(safe-area-inset-bottom));
-}
-
-.menu-panel {
-  min-width: 0;
-  padding: 8rpx 18rpx 0 14rpx;
-  box-sizing: border-box;
-  background: var(--hx-page-background);
 }
 
 .hero-card {

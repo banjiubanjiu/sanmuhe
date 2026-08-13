@@ -1,4 +1,4 @@
-<view class="page tea-menu-page">
+<view class="tea-menu-page">
   <view class="page-nav" style="padding-top: {{statusBarHeight}}px;">
     <view class="nav-inner">
       <view class="nav-side">
@@ -16,7 +16,7 @@
   </view>
 
   <view class="ordering-shell">
-    <scroll-view scroll-y class="side-cats">
+    <scroll-view scroll-y enhanced show-scrollbar="{{false}}" class="side-cats">
       <view
         wx:for="{{menuItems}}"
         wx:key="id"
@@ -31,6 +31,8 @@
 
     <scroll-view
       scroll-y
+      enhanced
+      show-scrollbar="{{false}}"
       class="menu-panel"
       scroll-into-view="{{scrollIntoView}}"
       scroll-with-animation

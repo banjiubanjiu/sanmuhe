@@ -317,7 +317,7 @@ async function loadReservationForRefund(reservationId, reservationNo) {
  * 要求 payStatus=refunding，业务状态为 已取消 / 已完成 / 异常待处理。
  * 支持 event.refundAmount（元）做部分退款；累计退款记在 refundAmount。
  */
-async function refundReservation(event, openid, config) {
+async function refundReservation(event, openid, config, source) {
   const reservationId = cleanText(event.reservationId || event.id, 80);
   const reservationNo = cleanText(event.reservationNo, 40);
   const row = await loadReservationForRefund(reservationId, reservationNo);
@@ -325,9 +325,17 @@ async function refundReservation(event, openid, config) {
     return { ok: false, message: "预约不存在" };
   }
 
-  // 本人取消 / 云函数互调（OPENID 可能为空）/ 管理后台代退（adminRefund）
-  const adminRefund = event.adminRefund === true || event.source === "manageOperations";
-  if (openid && row._openid && row._openid !== openid && !adminRefund) {
+  // 归属校验（S1 修复）：不再信任调用方 event 里的 source/adminRefund 标记（前端可伪造）。
+  // createPayment 只存在两种入口：小程序端 callFunction（OPENID 必非空，SOURCE=wx_client/devtools）
+  // 与云函数互调（OPENID 为空 + 平台注入 SOURCE=wx_cloud_callfunction，无法伪造；该函数无
+  // HTTP/定时器触发）。因此「OPENID 为空 + SOURCE 匹配」即证明是受控云函数互调
+  // （createReservation 用户取消 / manageOperations 后台代退，二者各有业务鉴权），视为可信代退；
+  // 其余调用一律要求本人。
+  const isTrustedCloudCall =
+    !openid && String(source || "").indexOf("wx_cloud_callfunction") === 0;
+  const adminRefund = isTrustedCloudCall;
+  const isSelf = Boolean(openid && row._openid && openid === row._openid);
+  if (!isSelf && !adminRefund) {
     return { ok: false, message: "无权操作该预约" };
   }
 
@@ -352,6 +360,24 @@ async function refundReservation(event, openid, config) {
       message: `当前状态不可退款（${row.status || "未知"}/${row.payStatus || "未知"}）`
     };
   }
+
+  // 原子抢占（S2 修复）：payStatus refunding → refunding_pending 条件更新，
+  // 并发第二个请求因状态已变 updated=0，杜绝累计退款超过实付的双退。
+  const claim = await db.collection("reservations").where({
+    _id: row._id,
+    payStatus: "refunding"
+  }).update({
+    data: {
+      payStatus: "refunding_pending",
+      refundLockedAt: db.serverDate(),
+      updatedAt: db.serverDate()
+    }
+  });
+  if (dbUpdatedCount(claim) === 0) {
+    return { ok: false, code: "REFUND_IN_PROGRESS", message: "退款处理中，请勿重复操作" };
+  }
+
+  try {
 
   const totalFee = Math.round(numberField(row.total != null ? row.total : row.price) * 100);
   const alreadyRefundedFen = Math.round(numberField(row.refundAmount) * 100);
@@ -460,6 +486,7 @@ async function refundReservation(event, openid, config) {
     }
     await db.collection("reservations").doc(row._id).update({
       data: {
+        payStatus: "refunding",
         refundError: msg.slice(0, 300),
         refundLastAttemptAt: db.serverDate(),
         updatedAt: db.serverDate()
@@ -510,6 +537,22 @@ async function refundReservation(event, openid, config) {
     partial: !fullyRefunded,
     accepted: isDone
   };
+  } catch (error) {
+    // 意外异常（如落库失败）：恢复 payStatus，避免卡死在 refunding_pending
+    try {
+      await db.collection("reservations").doc(row._id).update({
+        data: {
+          payStatus: "refunding",
+          refundError: String((error && error.message) || "退款处理异常").slice(0, 300),
+          refundLastAttemptAt: db.serverDate(),
+          updatedAt: db.serverDate()
+        }
+      });
+    } catch (restoreError) {
+      // 恢复失败则留待人工对账（payStatus 停在 refunding_pending）
+    }
+    return { ok: false, code: "REFUND_INTERNAL_ERROR", message: "退款处理异常，请重试" };
+  }
 }
 
 /** 运维诊断：不落库，仅探测密钥形态与应答验签 */
@@ -1400,7 +1443,7 @@ exports.main = async (event = {}) => {
     }
   }
 
-  const { OPENID } = cloud.getWXContext();
+  const { OPENID, SOURCE } = cloud.getWXContext();
   const orderId = cleanText(event.orderId || event.id, 80);
   const orderNo = cleanText(event.orderNo, 32);
 
@@ -1416,7 +1459,7 @@ exports.main = async (event = {}) => {
       return await createRechargePayment(event, OPENID, config);
     }
     if (reservationRefundRequest) {
-      return await refundReservation(event, OPENID, config);
+      return await refundReservation(event, OPENID, config, SOURCE);
     }
     if (reservationRequest) {
       return await createReservationPayment(event, OPENID, config);
@@ -1436,17 +1479,33 @@ exports.main = async (event = {}) => {
       return { ok: false, message: `订单支付状态不可用（${order.payStatus}）` };
     }
     if (isExpired(order)) {
-      await releaseInventory(order.inventoryLocks);
-      await releaseUserCoupon(order.coupon);
-      await db.collection("orders").doc(order._id).update({
+      // H1 修复：先条件更新抢占（仅 pending + 未释放过 命中），再释放库存/券。
+      // 与支付回调的 pending→confirming 抢占互斥，避免已支付订单被误取消、库存双扣。
+      const claim = await db.collection("orders").where({
+        _id: order._id,
+        payStatus: "pending",
+        status: "待支付",
+        lockReleased: _.neq(true)
+      }).update({
         data: {
           status: "已取消",
           payStatus: "expired",
           lockReleased: true,
           cancelReason: "支付超时，库存锁定已释放",
+          expiredAt: db.serverDate(),
           updatedAt: db.serverDate()
         }
       });
+      if (dbUpdatedCount(claim) === 0) {
+        // 竞态：支付回调已抢占入账或库存已释放，重新读库确认
+        const fresh = await findOrder(order._id, "", OPENID);
+        if (fresh && fresh.payStatus === "paid") {
+          return { ok: false, code: "ALREADY_PAID", message: "订单已支付，无需重新下单" };
+        }
+        return { ok: false, message: "订单状态已变化，请刷新后重试" };
+      }
+      await releaseInventory(order.inventoryLocks);
+      await releaseUserCoupon(order.coupon);
       return { ok: false, message: "订单已超时，请重新下单" };
     }
 

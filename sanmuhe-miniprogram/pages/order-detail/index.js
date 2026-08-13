@@ -34,6 +34,17 @@ function logisticsStateText(state) {
   return map[key] || (key ? `状态 ${key}` : "");
 }
 
+function safeDecode(value) {
+  if (!value) {
+    return "";
+  }
+  try {
+    return decodeURIComponent(String(value));
+  } catch (error) {
+    return String(value);
+  }
+}
+
 Page({
   data: {
     orderId: "",
@@ -54,9 +65,31 @@ Page({
   },
 
   onLoad(options = {}) {
-    const orderId = decodeURIComponent(options.id || "");
+    const orderId = safeDecode(options.id);
+    // 微信跳转进入的场景有两种，均按参数反查本地订单：
+    // 1) 「订单发货通知」/「确认收货提醒」（set_msg_jump_path）附加
+    //    transaction_id、merchant_id、merchant_trade_no（二级商户还有 sub_merchant_id）；
+    // 2) 开发平台「订单详情页 PATH」用 out_trade_no 替换 ${商品订单号}，
+    //    out_trade_no 即本地 orderNo。
+    const lookup = {};
+    if (!orderId) {
+      const transactionId = safeDecode(options.transaction_id || options.transactionId);
+      const orderNo = safeDecode(
+        options.orderNo ||
+          options.merchant_trade_no ||
+          options.merchantTradeNo ||
+          options.out_trade_no ||
+          options.outTradeNo
+      );
+      if (transactionId) {
+        lookup.transactionId = transactionId;
+      }
+      if (orderNo) {
+        lookup.orderNo = orderNo;
+      }
+    }
     this.setData(Object.assign({ orderId }, buildContactMeta(orderId)));
-    this.loadOrder();
+    this.loadOrder(lookup);
   },
 
   goBack() {
@@ -73,17 +106,27 @@ Page({
   },
 
   loadOrder(options = {}) {
-    if (!this.data.orderId) {
+    const silent = options.silent === true;
+    // 记住本次解析依据：微信跳转进入时没有本地 id，后续静默刷新也要能反查
+    const lookup = {
+      transactionId: options.transactionId || "",
+      orderNo: options.orderNo || ""
+    };
+    this._lookup = Object.assign({}, this._lookup || {}, lookup);
+    if (!this.data.orderId && !this._lookup.transactionId && !this._lookup.orderNo) {
       this.setData({
         loading: false,
         error: "没有找到这笔订单"
       });
       return Promise.resolve();
     }
-    if (!options.silent) {
+    if (!silent) {
       this.setData({ loading: true, error: "" });
     }
-    return getMyOrder(this.data.orderId).then((result) => {
+    return getMyOrder(this.data.orderId, {
+      transactionId: this._lookup.transactionId || "",
+      orderNo: this._lookup.orderNo || ""
+    }).then((result) => {
       const order = normalizeOrder(result.order);
       const cachedTraces = Array.isArray(order.logisticsTraces) ? order.logisticsTraces : [];
       this.setData(Object.assign({

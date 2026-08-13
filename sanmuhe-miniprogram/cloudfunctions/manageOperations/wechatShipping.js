@@ -176,6 +176,96 @@ function shouldSkipUpload(record, { force = false } = {}) {
 }
 
 /**
+ * HTTPS 直调「发货信息管理」接口（云函数内 ACCESS_TOKEN，云开发注入）。
+ * @param {string} apiPath 接口路径名，如 upload_shipping_info / set_msg_jump_path
+ * @param {object} payload 接口 body
+ */
+async function httpsPostWxaSecOrder(cloud, apiPath, payload) {
+  const wxContext = typeof cloud.getWXContext === "function" ? cloud.getWXContext() : {};
+  let accessToken = wxContext.ACCESS_TOKEN || process.env.WX_ACCESS_TOKEN || "";
+
+  if (!accessToken && cloud.openapi && cloud.openapi.auth && typeof cloud.openapi.auth.getAccessToken === "function") {
+    const tokenRes = await cloud.openapi.auth.getAccessToken();
+    accessToken = (tokenRes && (tokenRes.accessToken || tokenRes.access_token)) || "";
+  }
+
+  if (!accessToken) {
+    throw new Error("无法获取 access_token，请确认云函数已开通 openapi 权限");
+  }
+
+  const https = require("https");
+  const body = JSON.stringify(payload);
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: "api.weixin.qq.com",
+        path: `/wxa/sec/order/${apiPath}?access_token=${encodeURIComponent(accessToken)}`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body)
+        }
+      },
+      (res) => {
+        let raw = "";
+        res.on("data", (chunk) => {
+          raw += chunk;
+        });
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(raw || "{}"));
+          } catch (parseError) {
+            reject(new Error(`微信发货接口返回非 JSON: ${raw.slice(0, 200)}`));
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+/** HTTPS GET 直调「发货信息管理」查询接口（is_trade_managed 等）。 */
+async function httpsGetWxaSecOrder(cloud, apiPath) {
+  const wxContext = typeof cloud.getWXContext === "function" ? cloud.getWXContext() : {};
+  let accessToken = wxContext.ACCESS_TOKEN || process.env.WX_ACCESS_TOKEN || "";
+
+  if (!accessToken && cloud.openapi && cloud.openapi.auth && typeof cloud.openapi.auth.getAccessToken === "function") {
+    const tokenRes = await cloud.openapi.auth.getAccessToken();
+    accessToken = (tokenRes && (tokenRes.accessToken || tokenRes.access_token)) || "";
+  }
+
+  if (!accessToken) {
+    throw new Error("无法获取 access_token，请确认云函数已开通 openapi 权限");
+  }
+
+  const https = require("https");
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      {
+        hostname: "api.weixin.qq.com",
+        path: `/wxa/sec/order/${apiPath}?access_token=${encodeURIComponent(accessToken)}`
+      },
+      (res) => {
+        let raw = "";
+        res.on("data", (chunk) => {
+          raw += chunk;
+        });
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(raw || "{}"));
+          } catch (parseError) {
+            reject(new Error(`微信发货接口返回非 JSON: ${raw.slice(0, 200)}`));
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+  });
+}
+
+/**
  * 调用微信 upload_shipping_info。
  * @param {object} cloud wx-server-sdk cloud 实例
  * @param {object} payload 接口 body（snake_case）
@@ -212,50 +302,7 @@ async function callUploadShippingInfo(cloud, payload) {
 
   // 路径 3：HTTPS + 云函数内 ACCESS_TOKEN（云开发注入）
   try {
-    const wxContext = typeof cloud.getWXContext === "function" ? cloud.getWXContext() : {};
-    let accessToken = wxContext.ACCESS_TOKEN || process.env.WX_ACCESS_TOKEN || "";
-
-    if (!accessToken && cloud.openapi && cloud.openapi.auth && typeof cloud.openapi.auth.getAccessToken === "function") {
-      const tokenRes = await cloud.openapi.auth.getAccessToken();
-      accessToken = (tokenRes && (tokenRes.accessToken || tokenRes.access_token)) || "";
-    }
-
-    if (!accessToken) {
-      throw new Error("无法获取 access_token，请确认云函数已开通 openapi 权限");
-    }
-
-    const https = require("https");
-    const body = JSON.stringify(payload);
-    const result = await new Promise((resolve, reject) => {
-      const req = https.request(
-        {
-          hostname: "api.weixin.qq.com",
-          path: `/wxa/sec/order/upload_shipping_info?access_token=${encodeURIComponent(accessToken)}`,
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(body)
-          }
-        },
-        (res) => {
-          let raw = "";
-          res.on("data", (chunk) => {
-            raw += chunk;
-          });
-          res.on("end", () => {
-            try {
-              resolve(JSON.parse(raw || "{}"));
-            } catch (parseError) {
-              reject(new Error(`微信发货接口返回非 JSON: ${raw.slice(0, 200)}`));
-            }
-          });
-        }
-      );
-      req.on("error", reject);
-      req.write(body);
-      req.end();
-    });
-    return result;
+    return await httpsPostWxaSecOrder(cloud, "upload_shipping_info", payload);
   } catch (error) {
     errors.push(`https: ${error.message || error}`);
   }
@@ -444,6 +491,131 @@ function shippingResultFields(result) {
   };
 }
 
+/**
+ * 消息跳转路径设置（全局配置，设置一次即可）。
+ * 用户点击微信「订单发货通知」/「确认收货提醒」时，会进入该小程序页面；
+ * 微信会自动在 path 后附加 transaction_id、merchant_id、merchant_trade_no
+ * （存在二级商户号时还会附加 sub_merchant_id），落地页据此定位订单。
+ * 若 path 为空或页面不存在，微信将跳转平台默认确认收货页。
+ * 文档: https://developers.weixin.qq.com/miniprogram/dev/server/API/order_shipping/api_setmsgjumppath.html
+ */
+async function setMsgJumpPath(cloud, path) {
+  const cleanPath = cleanText(path, 300).replace(/^\/+/, "");
+  if (!cleanPath) {
+    return { ok: false, errmsg: "跳转路径不能为空" };
+  }
+  const errors = [];
+
+  // 路径 1：嵌套 openapi
+  try {
+    if (
+      cloud.openapi &&
+      cloud.openapi.wxa &&
+      cloud.openapi.wxa.sec &&
+      cloud.openapi.wxa.sec.order &&
+      typeof cloud.openapi.wxa.sec.order.setMsgJumpPath === "function"
+    ) {
+      return await cloud.openapi.wxa.sec.order.setMsgJumpPath({ path: cleanPath });
+    }
+  } catch (error) {
+    errors.push(`openapi.nested: ${error.message || error}`);
+  }
+
+  // 路径 2：openapi(apiName)
+  try {
+    if (typeof cloud.openapi === "function") {
+      return await cloud.openapi({
+        apiName: "wxa.sec.order.setMsgJumpPath",
+        data: { path: cleanPath }
+      });
+    }
+  } catch (error) {
+    errors.push(`openapi.fn: ${error.message || error}`);
+  }
+
+  // 路径 3：HTTPS
+  try {
+    return await httpsPostWxaSecOrder(cloud, "set_msg_jump_path", { path: cleanPath });
+  } catch (error) {
+    errors.push(`https: ${error.message || error}`);
+  }
+
+  throw new Error(`微信发货通知跳转路径设置失败: ${errors.join(" | ") || "未知错误"}`);
+}
+
+/**
+ * 查询小程序是否已开通「发货信息管理」服务。
+ * 文档: https://developers.weixin.qq.com/miniprogram/dev/server/API/order_shipping/api_istrademanaged.html
+ * @returns {{ ok: boolean, isTradeManaged: boolean, tradeManageAppid: string, isOfflineOrder: boolean, errmsg?: string }}
+ */
+async function queryIsTradeManaged(cloud) {
+  const errors = [];
+  try {
+    if (
+      cloud.openapi &&
+      cloud.openapi.wxa &&
+      cloud.openapi.wxa.sec &&
+      cloud.openapi.wxa.sec.order &&
+      typeof cloud.openapi.wxa.sec.order.isTradeManaged === "function"
+    ) {
+      return await cloud.openapi.wxa.sec.order.isTradeManaged();
+    }
+  } catch (error) {
+    errors.push(`openapi.nested: ${error.message || error}`);
+  }
+  try {
+    if (typeof cloud.openapi === "function") {
+      return await cloud.openapi({ apiName: "wxa.sec.order.isTradeManaged", data: {} });
+    }
+  } catch (error) {
+    errors.push(`openapi.fn: ${error.message || error}`);
+  }
+  try {
+    return await httpsGetWxaSecOrder(cloud, "is_trade_managed");
+  } catch (error) {
+    errors.push(`https: ${error.message || error}`);
+  }
+  return { ok: false, errmsg: `查询发货信息管理开通状态失败: ${errors.join(" | ")}` };
+}
+
+/**
+ * 查询是否已完成「交易结算管理确认」（商家侧授权）。
+ * 文档: https://developers.weixin.qq.com/miniprogram/dev/server/API/order_shipping/api_istrademanagementconfirmationcompleted.html
+ * @returns {{ ok: boolean, confirmationCompleted: boolean, errmsg?: string }}
+ */
+async function queryConfirmationCompleted(cloud) {
+  const errors = [];
+  try {
+    if (
+      cloud.openapi &&
+      cloud.openapi.wxa &&
+      cloud.openapi.wxa.sec &&
+      cloud.openapi.wxa.sec.order &&
+      typeof cloud.openapi.wxa.sec.order.isTradeManagementConfirmationCompleted === "function"
+    ) {
+      return await cloud.openapi.wxa.sec.order.isTradeManagementConfirmationCompleted();
+    }
+  } catch (error) {
+    errors.push(`openapi.nested: ${error.message || error}`);
+  }
+  try {
+    if (typeof cloud.openapi === "function") {
+      return await cloud.openapi({
+        apiName: "wxa.sec.order.isTradeManagementConfirmationCompleted",
+        data: {}
+      });
+    }
+  } catch (error) {
+    errors.push(`openapi.fn: ${error.message || error}`);
+  }
+  try {
+    return await httpsGetWxaSecOrder(cloud, "is_trade_management_confirmation_completed");
+  } catch (error) {
+    errors.push(`https: ${error.message || error}`);
+  }
+  return { ok: false, errmsg: `查询交易结算确认状态失败: ${errors.join(" | ")}` };
+}
+
 module.exports = {
   LOGISTICS,
   EXPRESS_COMPANY_MAP,
@@ -456,5 +628,8 @@ module.exports = {
   uploadExpressShipping,
   uploadPickupOrOnsiteShipping,
   uploadVirtualShipping,
-  shippingResultFields
+  shippingResultFields,
+  setMsgJumpPath,
+  queryIsTradeManaged,
+  queryConfirmationCompleted
 };

@@ -22,7 +22,7 @@
       "handler": "index.main",
       "envVariables": {
         "SEED_DEMO_ENABLED": "false",
-        "ADMIN_USERNAMES": "admin"
+        "ADMIN_USERNAMES": "admin,administrator,zizi66"
       },
       "installDependency": true,
       "timeout": 60
@@ -39,7 +39,7 @@
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "ADMIN_UIDS": "2080914484303536129,2080915821309370369,2083743999115059202",
-        "ADMIN_USERNAMES": "admin,administrator"
+        "ADMIN_USERNAMES": "admin,administrator,zizi66"
       }
     },
     {
@@ -54,7 +54,7 @@
         "ADMIN_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "STAFF_OPENIDS": "oKIOSxIJnzCHtDxNQrsUGWSLbkRM,o6zAJs5352XYBdvRcQrWzkCEZJRY",
         "ADMIN_UIDS": "2080914484303536129,2080915821309370369,2083743999115059202",
-        "ADMIN_USERNAMES": "admin,administrator"
+        "ADMIN_USERNAMES": "admin,administrator,zizi66"
       }
     },
     {

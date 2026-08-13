@@ -287,11 +287,11 @@ function listMyOrders(payload) {
   }, payload || {})).then((result) => requireOk(result, "读取订单失败"));
 }
 
-function getMyOrder(orderId) {
-  return callCloud("listMyRecords", {
+function getMyOrder(orderId, lookup = {}) {
+  return callCloud("listMyRecords", Object.assign({
     action: "getOrder",
     orderId
-  }).then((result) => requireOk(result, "读取订单详情失败"));
+  }, lookup || {})).then((result) => requireOk(result, "读取订单详情失败"));
 }
 
 function updateMyOrder(action, orderId, payload) {

@@ -222,18 +222,36 @@ async function listOrders(event, openid) {
 
 async function findOwnOrder(event, openid) {
   const orderId = cleanText(event.orderId || event.id, 80);
-  const orderNo = cleanText(event.orderNo, 40);
-  if (!orderId && !orderNo) {
+  const orderNo = cleanText(
+    event.orderNo || event.merchantTradeNo || event.merchant_trade_no || event.outTradeNo || event.out_trade_no,
+    64
+  );
+  // 微信「订单发货通知」跳转附带 transaction_id，据此定位本地订单
+  const transactionId = cleanText(event.transactionId || event.transaction_id, 64);
+  const queries = [];
+  if (orderId) {
+    queries.push({ _id: orderId });
+  }
+  if (orderNo) {
+    queries.push({ orderNo });
+  }
+  if (transactionId) {
+    queries.push({ transactionId });
+  }
+  if (!queries.length) {
     return null;
   }
-  const where = { _openid: openid };
-  if (orderId) {
-    where._id = orderId;
-  } else {
-    where.orderNo = orderNo;
+  // 按优先级逐条件回退，微信跳转同时带 orderNo 与 transaction_id 时也能兜底
+  for (const where of queries) {
+    const result = await db.collection("orders")
+      .where(Object.assign({ _openid: openid }, where))
+      .limit(1)
+      .get();
+    if (result.data && result.data[0]) {
+      return result.data[0];
+    }
   }
-  const result = await db.collection("orders").where(where).limit(1).get();
-  return result.data && result.data[0] ? result.data[0] : null;
+  return null;
 }
 
 function inventorySnapshot(item = {}) {
