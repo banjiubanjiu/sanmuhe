@@ -124,6 +124,7 @@ Page({
     filteredProducts: [],
     catalogLoading: true,
     catalogError: false,
+    refreshing: false,
     cartCount: 0,
     cartTotal: 0,
     statusBarHeight: 20
@@ -148,8 +149,13 @@ Page({
     });
   },
 
-  loadCatalog() {
-    this.setData({ catalogLoading: true });
+  onPullRefresh() {
+    this.loadCatalog({ fromRefresh: true });
+  },
+
+  loadCatalog(options = {}) {
+    const fromRefresh = options.fromRefresh === true;
+    this.setData(fromRefresh ? { refreshing: true } : { catalogLoading: true });
     getCatalog().then((catalog) => {
       const products = buildProducts(catalog);
       const categories = buildCategories(products, catalog.productCategories || []);
@@ -166,7 +172,8 @@ Page({
         categories,
         activeCategory,
         catalogLoading: false,
-        catalogError: catalog.source === "error"
+        catalogError: catalog.source === "error",
+        refreshing: false
       }, () => this.applyFilters());
     });
   },

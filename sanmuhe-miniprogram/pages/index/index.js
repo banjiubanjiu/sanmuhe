@@ -321,6 +321,10 @@ Page({
     this.loadHomeData();
   },
 
+  onPullDownRefresh() {
+    this.loadHomeData({ fromRefresh: true });
+  },
+
   refreshCart() {
     const cart = getCart();
     this.setData({
@@ -329,8 +333,11 @@ Page({
     });
   },
 
-  loadHomeData() {
-    this.setData({ catalogLoading: true });
+  loadHomeData(options = {}) {
+    const fromRefresh = options.fromRefresh === true;
+    if (!fromRefresh) {
+      this.setData({ catalogLoading: true });
+    }
     getCatalog().then((catalogResult) => {
       const homeCatalog = normalizeCatalog(catalogResult || {}, null);
       const content = (catalogResult && catalogResult.content) || {};
@@ -358,9 +365,15 @@ Page({
       // 缓存已解析后的稳定图源，供下次冷启动首屏直接使用
       writeCachedHomeSlides(nextHeroSlides);
       this.setData(nextData);
+      if (fromRefresh && wx.stopPullDownRefresh) {
+        wx.stopPullDownRefresh();
+      }
     }).catch((error) => {
       console.warn("[home] getCatalog failed", error);
       this.setData({ catalogLoading: false, catalogError: true });
+      if (fromRefresh && wx.stopPullDownRefresh) {
+        wx.stopPullDownRefresh();
+      }
     });
 
     listEvents().then((eventList) => {

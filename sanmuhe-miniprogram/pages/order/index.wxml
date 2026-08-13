@@ -36,6 +36,10 @@
       class="menu-panel"
       scroll-into-view="{{scrollIntoView}}"
       scroll-with-animation
+      refresher-enabled="{{true}}"
+      refresher-triggered="{{refreshing}}"
+      refresher-default-style="black"
+      bindrefresherrefresh="onPullRefresh"
     >
       <block wx:if="{{activeDrink}}">
         <view class="hero-card" id="hero">

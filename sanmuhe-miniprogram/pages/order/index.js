@@ -115,6 +115,7 @@ Page({
     activeDrinkId: "",
     catalogLoading: true,
     catalogError: false,
+    refreshing: false,
     tableLabel: "",
     tableChipText: "",
     tableBound: false,
@@ -165,8 +166,13 @@ Page({
     }
   },
 
-  loadCatalog() {
-    this.setData({ catalogLoading: true });
+  onPullRefresh() {
+    this.loadCatalog({ fromRefresh: true });
+  },
+
+  loadCatalog(options = {}) {
+    const fromRefresh = options.fromRefresh === true;
+    this.setData(fromRefresh ? { refreshing: true } : { catalogLoading: true });
     getCatalog()
       .then((catalog) => {
         const remote = (catalog && catalog.drinks) || [];
@@ -183,7 +189,8 @@ Page({
       activeDrink,
       activeDrinkId: activeDrink ? activeDrink.id : "",
       catalogLoading: false,
-      catalogError: !!catalogError
+      catalogError: !!catalogError,
+      refreshing: false
     }, () => {
       if (this.data.requestedDrinkId && activeDrink && activeDrink.id === this.data.requestedDrinkId) {
         this.setData({ requestedDrinkId: "" });

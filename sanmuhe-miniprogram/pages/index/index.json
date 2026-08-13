@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "禾煦",
-  "navigationStyle": "custom"
+  "navigationStyle": "custom",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
 }
