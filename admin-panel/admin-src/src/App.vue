@@ -1271,13 +1271,14 @@ const currentRecordCount = computed(() => {
 });
 const globalSearchTotal = computed(() => state.searchResults.reduce((sum, group) => sum + Number(group.total || group.items?.length || 0), 0));
 const activeSavedViews = computed(() => state.savedViews[state.activeTab] || []);
-const canSaveActiveView = computed(() => SAVED_VIEW_TABS.has(state.activeTab));
+/** 常用视图：有已保存视图，或当前有可保存筛选时才显示（堂饮档位表不启用） */
+const canSaveActiveView = computed(() => SAVED_VIEW_TABS.has(state.activeTab) && state.collection !== "drinks");
 /** 仅订单/售后/预约展示状态流；其它页不堆砌工作流卡片 */
 const showWorkflowStrip = computed(() => ["orders", "afterSales", "reservations", "signups"].includes(state.activeTab) && moduleWorkflowSteps.value.length > 0);
 /** 顶部 KPI 仅经营首页展示，避免商品页等重复「今日」指标 */
 const showMetricRow = computed(() => state.activeTab === "dashboard" && state.summary.length > 0);
-/** 有筛选条件时才显示轻量筛选条（去掉「未设置筛选」占位） */
-const showActiveFilters = computed(() => activeFilterLabels.value.length > 0);
+/** 有筛选条件时才显示轻量筛选条（堂饮档位表不显示） */
+const showActiveFilters = computed(() => activeFilterLabels.value.length > 0 && state.collection !== "drinks");
 /** 常用视图：有已保存视图，或当前有可保存筛选时才显示 */
 const showSavedViewsBar = computed(() => canSaveActiveView.value && (activeSavedViews.value.length > 0 || hasClearableFilters.value));
 const dashboardScopeText = computed(() => {
@@ -3368,6 +3369,12 @@ async function switchTab(tab) {
   }
   state.activeTab = tab;
   closeNav();
+  // 离开商品管理时清空列表态，避免切回瞬间残留旧集合数据
+  if (tab !== "catalog" && tab !== "rooms") {
+    state.catalogItems = [];
+    state.selectedCatalogId = "";
+    state.selectedCatalogIds = [];
+  }
   await loadActiveTab();
 }
 
@@ -3422,19 +3429,23 @@ async function loadActiveTab(forceRefresh = false) {
 }
 
 async function withLoading(label, task) {
+  const tab = state.activeTab;
   state.loading = label;
-  state.loadingTab = state.activeTab;
+  state.loadingTab = tab;
   state.moduleError = "";
   try {
     await task();
-    state.lastLoadedAt[state.activeTab] = new Date().toISOString();
+    state.lastLoadedAt[tab] = new Date().toISOString();
   } catch (error) {
     const message = error.message || `${label}失败`;
     state.moduleError = message;
     showToast(message);
   } finally {
-    state.loading = "";
-    state.loadingTab = "";
+    // 仅当仍是当前 tab 才清 loading，避免快速切换时旧请求误关新页面的遮罩
+    if (state.loadingTab === tab) {
+      state.loading = "";
+      state.loadingTab = "";
+    }
   }
 }
 
