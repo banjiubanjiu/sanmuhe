@@ -247,11 +247,9 @@ function normalizeOrder(order = {}) {
         : (order.status === "已取消" ? "本次订单已取消" : "请稍坐，茶款送到桌边")),
     payChannelText: order.payMode === "balance" ? "会员余额" : "微信支付",
     paidAtText: formatDate(order.paidAt),
-    canApplyAfterSale: paidOrFulfilling
-      && order.status !== "已取消"
+    canApplyAfterSale: ["已发货", "已完成"].includes(order.status)
       && order.afterSaleStatus !== "已退款"
-      && !afterSaleOpen
-      && !(isDineIn && order.status !== "已完成"),
+      && !afterSaleOpen,
     canViewLogistics: !!order.trackingNo,
     afterSaleOpen,
     timeline: buildTimeline(order)

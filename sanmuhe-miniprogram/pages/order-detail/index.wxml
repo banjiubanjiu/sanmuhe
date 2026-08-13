@@ -144,11 +144,7 @@
     <view class="detail-surface">
       <view class="section-title">交付信息</view>
       <view class="info-row">
-        <text>方式</text>
-        <view>{{order.deliveryText}}</view>
-      </view>
-      <view class="info-row">
-        <text>地点</text>
+        <text>{{order.deliveryMethod === 'shipping' ? '收货地址' : '门店'}}</text>
         <view>{{order.deliveryDetail}}</view>
       </view>
       <view wx:if="{{order.consignee}}" class="info-row">
@@ -230,36 +226,11 @@
       </view>
     </view>
 
-    <view class="secondary-actions">
-      <button
-        open-type="contact"
-        session-from="{{contactSessionFrom}}"
-        show-message-card="{{false}}"
-        send-message-title="{{contactMessageTitle}}"
-        send-message-path="{{contactMessagePath}}"
-        send-message-img="{{contactMessageImg}}"
-        hover-class="none"
-        bindcontact="handleContact"
-      >
-        <image src="/assets/icons/headset-ink.png" mode="aspectFit"></image>
-        联系门店
-      </button>
-      <button wx:if="{{order.status === '已完成'}}" bindtap="buyAgain">再次购买</button>
+    <view wx:if="{{order.status === '已完成'}}" class="secondary-actions">
+      <button bindtap="buyAgain">再次购买</button>
     </view>
 
     <view class="detail-action-bar">
-      <button
-        wx:if="{{order.canCancel}}"
-        class="danger-action"
-        disabled="{{submitting}}"
-        bindtap="cancelOrder"
-      >取消订单</button>
-      <button
-        wx:if="{{order.canApplyAfterSale && !afterSaleOpen}}"
-        class="secondary-action"
-        disabled="{{submitting}}"
-        bindtap="toggleAfterSale"
-      >申请售后</button>
       <button
         wx:if="{{order.canPay}}"
         class="primary-action"
@@ -275,7 +246,7 @@
         bindtap="confirmReceipt"
       >确认收货</button>
       <button
-        wx:elif="{{!order.canCancel && !order.canApplyAfterSale}}"
+        wx:else
         class="primary-action"
         open-type="contact"
         session-from="{{contactSessionFrom}}"
@@ -286,6 +257,18 @@
         hover-class="none"
         bindcontact="handleContact"
       >联系门店</button>
+      <button
+        wx:if="{{order.canApplyAfterSale && !afterSaleOpen}}"
+        class="secondary-action"
+        disabled="{{submitting}}"
+        bindtap="toggleAfterSale"
+      >申请售后</button>
+      <button
+        wx:if="{{order.canCancel}}"
+        class="danger-action"
+        disabled="{{submitting}}"
+        bindtap="cancelOrder"
+      >取消订单</button>
     </view>
     </block>
   </block>

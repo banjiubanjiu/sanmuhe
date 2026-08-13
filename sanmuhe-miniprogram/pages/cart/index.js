@@ -887,41 +887,23 @@ Page(withPrivacy({
         ? ["orderPaidTemplateId"]
         : ["orderPaidTemplateId", "orderShippedTemplateId"];
 
-      // 堂饮：立刻进茶单，不要先清空成空购物车、也不等订阅弹窗
-      if (isDineIn && orderId) {
-        wx.redirectTo({
-          url: `/pages/order-detail/index?id=${encodeURIComponent(orderId)}&from=paid`,
-          fail: () => {
-            wx.switchTab({ url: "/pages/order/index" });
-          }
-        });
-        requestOrderSubscriptions({ keys: subKeys }).catch(() => {});
-        return;
-      }
-
-      this.setData({
-        cart: [],
-        items: [],
-        total: 0,
-        count: 0,
-        tableNo: table || "",
-        remark: "",
-        submitting: false
+      // 付完立刻跳转（堂饮→茶单详情；商城→支付成功页），不等订阅授权，避免闪空购物车
+      const jumpUrl = isDineIn && orderId
+        ? `/pages/order-detail/index?id=${encodeURIComponent(orderId)}&from=paid`
+        : `/pages/pay-success/index?orderId=${encodeURIComponent(orderId)}`
+          + `&orderNo=${encodeURIComponent(orderNo)}`
+          + `&total=${Number(result.total || 0)}`
+          + `&delivery=${encodeURIComponent(deliveryMethod)}`
+          + `&pay=${encodeURIComponent(payChannel)}`
+          + `&mode=retail`;
+      const fallbackTab = isDineIn ? "/pages/order/index" : "/pages/shop/index";
+      wx.redirectTo({
+        url: jumpUrl,
+        fail: () => {
+          wx.switchTab({ url: fallbackTab });
+        }
       });
-      const goSuccessPage = () => {
-        wx.redirectTo({
-          url: `/pages/pay-success/index?orderId=${encodeURIComponent(orderId)}`
-            + `&orderNo=${encodeURIComponent(orderNo)}`
-            + `&total=${Number(result.total || 0)}`
-            + `&delivery=${encodeURIComponent(deliveryMethod)}`
-            + `&pay=${encodeURIComponent(payChannel)}`
-            + `&mode=retail`,
-          fail: () => {
-            wx.switchTab({ url: "/pages/profile/index" });
-          }
-        });
-      };
-      requestOrderSubscriptions({ keys: subKeys }).finally(goSuccessPage);
+      requestOrderSubscriptions({ keys: subKeys }).catch(() => {});
     }).catch((error) => {
       wx.showModal({
         title: "订单未提交",

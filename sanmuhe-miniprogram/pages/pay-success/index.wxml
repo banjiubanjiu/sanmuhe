@@ -11,12 +11,11 @@
     <view class="success-mark">
       <text class="success-mark-icon">✓</text>
     </view>
-    <view class="success-title">支付成功</view>
     <view class="success-amount">¥{{totalText}}</view>
-    <view class="success-pay">{{payText}} · 已到账</view>
+    <view class="success-paid">支付成功</view>
   </view>
 
-  <view class="success-surface">
+  <view class="success-card">
     <view class="success-row">
       <text class="row-label">订单号</text>
       <view class="order-no" bindtap="copyOrderNo" aria-role="button" aria-label="复制订单号">
@@ -25,10 +24,14 @@
       </view>
     </view>
     <view class="success-row">
-      <text class="row-label">配送方式</text>
-      <view>{{deliveryText}}</view>
+      <text class="row-label">支付方式</text>
+      <view>{{payText}}</view>
     </view>
-    <view class="success-note">{{fulfillmentText}}</view>
+  </view>
+
+  <view class="success-fulfill">
+    <view class="fulfill-title">{{delivery === 'shipping' ? '配送' : '取茶'}}</view>
+    <view class="fulfill-copy">{{fulfillmentText}}</view>
   </view>
 
   <view class="success-actions">
