@@ -28,22 +28,6 @@ function moneyFromFen(fen) {
   return (num / 100).toFixed(2);
 }
 
-function deliveryText(value, order = {}) {
-  if (value === "shipping") {
-    if (order.freightCollect || order.shippingPayMode === "collect") {
-      return "快递到付（运费客户付快递）";
-    }
-    return "快递邮寄";
-  }
-  if (value === "onsite") {
-    return "堂饮到店";
-  }
-  if (value === "pickup") {
-    return "到店自提";
-  }
-  return cleanText(value, 20) || "待确认";
-}
-
 /**
  * 业务类型：堂饮茶单 vs 茶叶商城（优先 source，其次商品 type）
  */
@@ -140,59 +124,28 @@ function normalizePayChannel(order = {}) {
   return "unknown";
 }
 
-function payChannelLines(order = {}, isPaid) {
+function payLine(order = {}, isPaid) {
   const channel = normalizePayChannel(order);
-  const orderNo = cleanText(order.orderNo, 40) || "见上";
-  const txId = cleanText(order.transactionId || order.transaction_id, 48);
-  const lines = [];
-
   if (channel === "wechat") {
-    lines.push(isPaid ? "支付方式：微信支付（线上已付）" : "支付方式：微信支付（待顾客付）");
-    lines.push(`查账入口：微信支付商户平台 → 交易中心 → 交易单`);
-    lines.push(`商户单号：${orderNo}`);
-    if (txId) {
-      lines.push(`微信交易号：${txId}`);
-    } else if (isPaid) {
-      lines.push("查账提示：用商户单号搜索；交易号以商户平台为准");
-    } else {
-      lines.push("查账提示：顾客付款成功后，用商户单号在交易单中搜索");
-    }
-    return lines;
+    return isPaid ? "支付：微信已付" : "支付：微信支付（待顾客付）";
   }
-
   if (channel === "balance") {
-    lines.push(isPaid ? "支付方式：会员余额（储值钱包已扣）" : "支付方式：会员余额（处理中）");
-    lines.push("查账入口：经营后台订单详情 / 云开发 wallet_ledger");
-    lines.push(`业务订单号：${orderNo}`);
-    lines.push("查账提示：余额单不进微信交易流水，勿在商户平台按微信单查");
-    return lines;
+    return isPaid ? "支付：会员余额" : "支付：会员余额（处理中）";
   }
-
   if (channel === "manual") {
-    lines.push(isPaid ? "支付方式：柜台扫码/线下收款" : "支付方式：柜台扫码付款（待到店付）");
-    lines.push("查账入口：门店收款码/收银记录 + 经营后台订单");
-    lines.push(`业务订单号：${orderNo}`);
-    lines.push("查账提示：线下款不在小程序自动对账，请柜台确认后改订单状态");
-    return lines;
+    return isPaid ? "支付：线下收款" : "支付：柜台扫码付款（待到店付）";
   }
-
   if (channel === "unknown_paid") {
-    lines.push("支付方式：已支付（渠道未标注）");
-    lines.push(`业务订单号：${orderNo}`);
-    lines.push("查账提示：先看经营后台订单支付方式；微信付则去商户平台用商户单号查");
-    return lines;
+    return "支付：已支付（渠道未标注）";
   }
-
-  lines.push(`支付方式：${cleanText(order.payMode, 30) || "待确认"}`);
-  lines.push(`业务订单号：${orderNo}`);
-  return lines;
+  return `支付：${cleanText(order.payMode, 30) || "待确认"}`;
 }
 
-function itemSummary(items) {
+function itemSummary(items, prefixKind) {
   return (items || [])
     .slice(0, 20)
     .map((item) => {
-      const kind = item && item.type === "tea" ? "茶叶" : (item && item.type === "drink" ? "堂饮" : "");
+      const kind = prefixKind && item && item.type === "tea" ? "茶叶" : (prefixKind && item && item.type === "drink" ? "堂饮" : "");
       const name = cleanText(item && item.name, 36) || "商品";
       const qty = Math.max(1, Number(item && item.quantity) || 1);
       return kind ? `[${kind}]${name}×${qty}` : `${name}×${qty}`;
@@ -209,39 +162,41 @@ function buildWeComOrderPayload(order = {}, mentionedMobiles = []) {
   const title = titleByBiz(order, isPaid);
   const lines = [
     title,
-    `类型：${biz}`,
-    `订单：${cleanText(order.orderNo, 40) || "待查看"}`,
-    `金额：¥${moneyYuan(order.total)}`,
-    `状态：${cleanText(order.status, 20) || (isPaid ? "已支付" : "待处理")}`,
-    `配送：${deliveryText(order.deliveryMethod)}`
+    `订单号：${cleanText(order.orderNo, 40) || "待查看"}`,
+    `金额：¥${moneyYuan(order.total)}`
   ];
-  payChannelLines(order, isPaid).forEach((line) => lines.push(line));
-  const tableNo = cleanText(order.tableNo, 20);
-  const summary = itemSummary(order.items);
-  const remark = cleanText(order.remark, 160);
-  const consignee = cleanText(order.consignee, 40);
-  const phone = cleanText(order.phone, 30);
-  const address = cleanText(order.address, 120);
-  if (tableNo) {
-    lines.push(`桌号：${tableNo}`);
-  }
+  const items = Array.isArray(order.items) ? order.items : [];
+  const hasDrink = items.some((item) => item && item.type === "drink");
+  const hasTea = items.some((item) => item && item.type === "tea");
+  const isMixed = hasDrink && hasTea;
+  const summary = itemSummary(order.items, isMixed);
   if (summary) {
     lines.push(`明细：${summary}`);
   }
+  const tableNo = cleanText(order.tableNo, 20);
+  if (tableNo) {
+    lines.push(`桌号：${tableNo}`);
+  }
+  const consignee = cleanText(order.consignee, 40);
+  const phone = cleanText(order.phone, 30);
+  const address = cleanText(order.address, 120);
   if (order.deliveryMethod === "shipping" && (consignee || phone || address)) {
     lines.push(`收件：${[consignee, phone].filter(Boolean).join(" ")}`);
     if (address) {
       lines.push(`地址：${address}`);
     }
-  }
-  if (order.deliveryMethod === "pickup" && (consignee || phone)) {
+  } else if (order.deliveryMethod === "pickup" && (consignee || phone)) {
     lines.push(`自提人：${[consignee, phone].filter(Boolean).join(" ")}`);
   }
+  lines.push(payLine(order, isPaid));
+  const remark = cleanText(order.remark, 160);
   if (remark) {
     lines.push(`备注：${remark}`);
   }
   if (biz === "堂饮茶单") {
-    lines.push(isPaid ? "请安排备茶/出杯。" : "请及时接待处理。");
+    lines.push(isMixed
+      ? (isPaid ? "请安排备茶/备货。" : "请及时处理。")
+      : (isPaid ? "请安排备茶/出杯。" : "请及时接待处理。"));
   } else if (biz === "茶叶商城") {
     lines.push(isPaid
       ? (order.deliveryMethod === "shipping" ? "请安排打包发货。" : "请安排备货自提。")
@@ -265,22 +220,14 @@ function buildWeComRechargePayload(recharge = {}, mentionedMobiles = []) {
     ? moneyFromFen(recharge.creditFen)
     : moneyYuan(recharge.creditAmount);
   const orderNo = cleanText(recharge.orderNo, 40) || "待查看";
-  const txId = cleanText(recharge.transactionId, 48);
   const lines = [
     "【禾煦会员充值】",
     `充值单号：${orderNo}`,
     `档位：${cleanText(recharge.planTitle || recharge.planId, 40) || "储值"}`,
     `实付：¥${payYuan}`,
     `到账：¥${creditYuan}`,
-    `状态：已支付入账`,
-    "支付方式：微信支付（线上充值）",
-    "查账入口：微信支付商户平台 → 交易中心 → 交易单",
-    `商户单号：${orderNo}`
+    "状态：已支付入账"
   ];
-  if (txId) {
-    lines.push(`微信交易号：${txId}`);
-  }
-  lines.push("余额入账：经营后台会员钱包 / wallet_ledger");
 
   const text = { content: lines.join("\n").slice(0, 1900) };
   if (mentionedMobiles.length) {
