@@ -1,0 +1,38 @@
+<view class="success-page">
+  <view class="success-nav">
+    <view class="nav-back" bindtap="goBack" aria-role="button" aria-label="返回">
+      <image src="/assets/icons/back-ink.png" mode="aspectFit"></image>
+    </view>
+    <view class="nav-title">支付成功</view>
+    <view class="nav-balance"></view>
+  </view>
+
+  <view class="success-hero">
+    <view class="success-mark">
+      <text class="success-mark-icon">✓</text>
+    </view>
+    <view class="success-title">支付成功</view>
+    <view class="success-amount">¥{{totalText}}</view>
+    <view class="success-pay">{{payText}} · 已到账</view>
+  </view>
+
+  <view class="success-surface">
+    <view class="success-row">
+      <text class="row-label">订单号</text>
+      <view class="order-no" bindtap="copyOrderNo" aria-role="button" aria-label="复制订单号">
+        <text>{{orderNo || '加载中'}}</text>
+        <text wx:if="{{orderNo}}" class="copy-link">复制</text>
+      </view>
+    </view>
+    <view class="success-row">
+      <text class="row-label">配送方式</text>
+      <view>{{deliveryText}}</view>
+    </view>
+    <view class="success-note">{{fulfillmentText}}</view>
+  </view>
+
+  <view class="success-actions">
+    <button class="secondary-action" bindtap="goShopping" aria-role="button">继续逛逛</button>
+    <button class="primary-action" bindtap="goOrderDetail" aria-role="button">查看订单</button>
+  </view>
+</view>

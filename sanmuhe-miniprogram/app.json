@@ -7,6 +7,7 @@
     "pages/cart/index",
     "pages/orders/index",
     "pages/order-detail/index",
+    "pages/pay-success/index",
     "pages/reservation/index",
     "pages/events/index",
     "pages/event-detail/index",

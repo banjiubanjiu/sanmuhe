@@ -881,34 +881,27 @@ Page(withPrivacy({
         submitting: false
       });
       const orderNo = result.orderNo || "";
-      const title = "支付成功";
-      const content = paid === "balance"
-        ? `订单号 ${orderNo}\n（${delivery}）已付款 ¥${Number(result.total || 0).toFixed(2)}（余额）。\n请凭订单号到店或查看「我的订单」。`
-        : `订单号 ${orderNo}\n（${delivery}）已付款，门店已收到。\n请凭订单号到店或在「我的订单」查看。`;
+      const deliveryMethod = isDineIn ? "onsite" : this.data.deliveryMethod;
+      const payChannel = paid === "balance" ? "balance" : "wechat";
 
       // 支付成功后引导订阅：支付结果 + 发货（快递尤其需要）
       const subKeys = isDineIn
         ? ["orderPaidTemplateId"]
         : ["orderPaidTemplateId", "orderShippedTemplateId"];
-      const showPaidModal = () => {
-        wx.showModal({
-          title,
-          content,
-          confirmText: "查看订单",
-          cancelText: "知道了",
-          showCancel: true,
-          success: (modal) => {
-            if (modal.confirm && orderId) {
-              wx.navigateTo({
-                url: `/pages/order-detail/index?id=${encodeURIComponent(orderId)}`
-              });
-              return;
-            }
+      const goSuccessPage = () => {
+        wx.redirectTo({
+          url: `/pages/pay-success/index?orderId=${encodeURIComponent(orderId)}`
+            + `&orderNo=${encodeURIComponent(orderNo)}`
+            + `&total=${Number(result.total || 0)}`
+            + `&delivery=${encodeURIComponent(deliveryMethod)}`
+            + `&pay=${encodeURIComponent(payChannel)}`
+            + `&mode=${isDineIn ? "dinein" : "retail"}`,
+          fail: () => {
             wx.switchTab({ url: "/pages/profile/index" });
           }
         });
       };
-      requestOrderSubscriptions({ keys: subKeys }).finally(showPaidModal);
+      requestOrderSubscriptions({ keys: subKeys }).finally(goSuccessPage);
     }).catch((error) => {
       wx.showModal({
         title: "订单未提交",

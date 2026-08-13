@@ -1,0 +1,161 @@
+.success-page {
+  min-height: 100vh;
+  background: var(--hx-paper);
+}
+
+.success-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28rpx;
+  height: 96rpx;
+}
+
+.nav-back {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.nav-back image {
+  width: 44rpx;
+  height: 44rpx;
+}
+
+.nav-title {
+  color: var(--hx-ink);
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.nav-balance {
+  width: 64rpx;
+}
+
+.success-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 56rpx 32rpx 48rpx;
+}
+
+.success-mark {
+  width: 128rpx;
+  height: 128rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--hx-action);
+  box-shadow: 0 12rpx 28rpx rgba(65, 109, 56, 0.28);
+}
+
+.success-mark-icon {
+  color: #fffaf1;
+  font-size: 64rpx;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.success-title {
+  margin-top: 28rpx;
+  color: var(--hx-ink);
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.success-amount {
+  margin-top: 16rpx;
+  color: var(--hx-ink);
+  font-size: 56rpx;
+  font-weight: 700;
+}
+
+.success-pay {
+  margin-top: 12rpx;
+  color: var(--hx-muted);
+  font-size: 26rpx;
+}
+
+.success-surface {
+  margin: 0 28rpx;
+  padding: 8rpx 28rpx 24rpx;
+  border: 1rpx solid var(--hx-line);
+  border-radius: 18rpx;
+  background: #fffdf8;
+}
+
+.success-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 88rpx;
+  border-bottom: 1rpx solid var(--hx-line);
+  color: var(--hx-ink);
+  font-size: 28rpx;
+}
+
+.success-row:last-of-type {
+  border-bottom: none;
+}
+
+.row-label {
+  color: var(--hx-muted);
+  font-size: 26rpx;
+}
+
+.order-no {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  font-size: 26rpx;
+  color: var(--hx-ink);
+}
+
+.copy-link {
+  color: var(--hx-action);
+  font-size: 24rpx;
+  text-decoration: underline;
+}
+
+.success-note {
+  margin-top: 20rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 12rpx;
+  background: #f2e8cd;
+  color: #765d28;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.success-actions {
+  display: flex;
+  gap: 20rpx;
+  margin: 48rpx 28rpx 0;
+}
+
+.success-actions button {
+  flex: 1;
+  height: 92rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.secondary-action {
+  color: var(--hx-action);
+  border: 1rpx solid var(--hx-action);
+  background: #fffdf8;
+}
+
+.primary-action {
+  color: #fffaf1;
+  border: none;
+  background: var(--hx-action);
+}
