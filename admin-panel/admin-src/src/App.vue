@@ -399,7 +399,9 @@ const state = reactive({
   selectedRoleId: "",
   selectedCouponId: "",
   selectedCampaignId: "",
-  reservationCalendarDate: new Date().toISOString().slice(0, 10)
+  reservationCalendarDate: new Date().toISOString().slice(0, 10),
+  reservationView: "board",
+  reservationDrawerOpen: false
 });
 
 if (import.meta.env.DEV && typeof window !== "undefined") {
@@ -829,7 +831,11 @@ function selectAfterSale(order) {
 
 function selectReservation(record) {
   state.selectedReservationId = record?._id || "";
-  // 预约工作台用右侧主从详情，不再弹全屏遮罩抽屉
+  state.reservationDrawerOpen = !!record;
+}
+
+function closeReservationDrawer() {
+  state.reservationDrawerOpen = false;
 }
 
 function selectSignup(record) {
@@ -7051,155 +7057,164 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-if="state.activeTab === 'reservations'" class="reservation-workspace">
-          <div class="reservation-split">
-            <article class="panel-card data-panel reservation-main">
-              <div class="panel-toolbar reservation-toolbar">
-                <div class="calendar-strip" role="group" aria-label="预约日期">
-                  <button type="button" aria-label="前一天" @click="shiftReservationCalendar(-1)">‹</button>
-                  <strong>{{ state.reservationCalendarDate }}</strong>
-                  <button type="button" aria-label="后一天" @click="shiftReservationCalendar(1)">›</button>
-                  <button type="button" class="strip-today" @click="jumpReservationCalendarToday">今天</button>
-                </div>
-                <div class="order-biz-tabs" role="tablist" aria-label="预约状态">
-                  <button type="button" role="tab" :aria-selected="!filters.reservationStatus" :class="['order-biz-tab', { active: !filters.reservationStatus }]" @click="setReservationStatusFilter('')">全部</button>
-                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '待支付'" :class="['order-biz-tab', { active: filters.reservationStatus === '待支付' }]" @click="setReservationStatusFilter('待支付')">待支付</button>
-                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已确认'" :class="['order-biz-tab', { active: filters.reservationStatus === '已确认' }]" @click="setReservationStatusFilter('已确认')">已确认</button>
-                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已完成'" :class="['order-biz-tab', { active: filters.reservationStatus === '已完成' }]" @click="setReservationStatusFilter('已完成')">已完成</button>
-                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '未到店'" :class="['order-biz-tab', { active: filters.reservationStatus === '未到店' }]" @click="setReservationStatusFilter('未到店')">未到店</button>
-                  <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已取消'" :class="['order-biz-tab', { active: filters.reservationStatus === '已取消' }]" @click="setReservationStatusFilter('已取消')">已取消</button>
-                </div>
-                <input v-model="filters.reservationKeyword" class="line-input" aria-label="搜索茶室预约" placeholder="茶室 / 姓名 / 手机 / 单号" @keydown.enter.prevent>
-                <div class="reservation-toolbar-more">
-                  <button class="ghost-button small" type="button" @click="resetPageAndLoad('reservations', loadReservations)">刷新</button>
-                  <button v-if="hasPermission('export.read')" class="ghost-button small" type="button" @click="exportReservations">导出</button>
-                  <button v-if="hasPermission('catalog.read')" class="ghost-button small" type="button" @click="openRoomsCatalog">茶室资源</button>
-                  <button v-if="hasPermission('settings.read')" class="ghost-button small" type="button" @click="switchTab('settings')">预约计价</button>
-                </div>
+          <div class="reservation-toolbar">
+            <div class="calendar-strip" role="group" aria-label="预约日期">
+              <button type="button" aria-label="前一天" @click="shiftReservationCalendar(-1)">‹</button>
+              <strong>{{ state.reservationCalendarDate }}</strong>
+              <button type="button" aria-label="后一天" @click="shiftReservationCalendar(1)">›</button>
+              <button type="button" class="strip-today" @click="jumpReservationCalendarToday">今天</button>
+            </div>
+            <div class="reservation-view-tabs" role="tablist" aria-label="预约视图">
+              <button type="button" role="tab" :aria-selected="state.reservationView === 'board'" :class="['order-biz-tab', { active: state.reservationView === 'board' }]" @click="state.reservationView = 'board'">排期看板</button>
+              <button type="button" role="tab" :aria-selected="state.reservationView === 'list'" :class="['order-biz-tab', { active: state.reservationView === 'list' }]" @click="state.reservationView = 'list'">全部记录</button>
+            </div>
+            <input v-model="filters.reservationKeyword" class="line-input" aria-label="搜索茶室预约" placeholder="茶室 / 姓名 / 手机 / 单号" @keydown.enter.prevent>
+            <div class="reservation-toolbar-more">
+              <button class="ghost-button small" type="button" @click="resetPageAndLoad('reservations', loadReservations)">刷新</button>
+              <button v-if="hasPermission('export.read')" class="ghost-button small" type="button" @click="exportReservations">导出</button>
+              <button v-if="hasPermission('catalog.read')" class="ghost-button small" type="button" @click="openRoomsCatalog">茶室资源</button>
+              <button v-if="hasPermission('settings.read')" class="ghost-button small" type="button" @click="switchTab('settings')">预约计价</button>
+            </div>
+          </div>
+
+          <div class="reservation-summary" v-if="reservationDayStats.total > 0">
+            <span>今日共 <strong>{{ reservationDayStats.total }}</strong> 单</span>
+            <span v-if="reservationDayStats.pendingPay">待支付 <strong>{{ reservationDayStats.pendingPay }}</strong></span>
+            <span v-if="reservationDayStats.confirmed">已确认 <strong>{{ reservationDayStats.confirmed }}</strong></span>
+            <span v-if="reservationDayStats.completed">已完成 <strong>{{ reservationDayStats.completed }}</strong></span>
+            <span v-if="reservationDayStats.noshow">未到店 <strong>{{ reservationDayStats.noshow }}</strong></span>
+          </div>
+
+          <!-- 排期看板：甘特图为主视图 -->
+          <div v-if="state.reservationView === 'board'" class="reservation-board">
+            <div class="reservation-timeline-panel" open>
+              <div class="timeline-axis" aria-hidden="true">
+                <span
+                  v-for="mark in reservationTimelineModel.hourMarks"
+                  :key="mark.time"
+                  class="timeline-axis-mark"
+                  :style="{ left: mark.leftPct + '%' }"
+                >{{ mark.time }}</span>
               </div>
-
-              <details class="reservation-timeline-panel">
-                <summary>
-                  资源台历
-                  <small>{{ reservationTimelineModel.openLabel }}–{{ reservationTimelineModel.closeLabel }} · 点击色条打开详情</small>
-                </summary>
-                <div class="timeline-axis" aria-hidden="true">
-                  <span
-                    v-for="mark in reservationTimelineModel.hourMarks"
-                    :key="mark.time"
-                    class="timeline-axis-mark"
-                    :style="{ left: mark.leftPct + '%' }"
-                  >{{ mark.time }}</span>
-                </div>
-                <div v-for="row in reservationTimelineModel.rows" :key="row.room" class="timeline-row">
-                  <strong class="timeline-room">{{ row.room }}</strong>
-                  <div class="timeline-track">
-                    <button
-                      v-for="ev in row.events"
-                      :key="ev.id"
-                      type="button"
-                      class="timeline-event"
-                      :data-tone="ev.tone"
-                      :class="{ selected: state.selectedReservationId === ev.id }"
-                      :style="{ left: ev.leftPct + '%', width: ev.widthPct + '%' }"
-                      :title="ev.label + ' · ' + ev.status"
-                      @click="selectReservation(ev.record)"
-                    >
-                      <span>{{ ev.label }}</span>
-                    </button>
-                  </div>
-                </div>
-                <p v-if="!reservationTimelineModel.rows.length" class="timeline-empty">暂无茶室资源，请先在「茶室资源」配置。</p>
-              </details>
-
-              <div class="table-wrap reservation-table-wrap">
-                <table class="reservation-table">
-                  <caption class="sr-only">当日预约列表</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">状态</th>
-                      <th scope="col">时段</th>
-                      <th scope="col">茶室</th>
-                      <th scope="col">客户</th>
-                      <th scope="col">人数</th>
-                      <th scope="col">支付</th>
-                      <th scope="col">金额</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="record in reservationTableRows"
-                      :key="record._id"
-                      :class="{ selected: state.selectedReservationId === record._id }"
-                      tabindex="0"
-                      role="button"
-                      :aria-selected="state.selectedReservationId === record._id"
-                      @click="selectReservation(record)"
-                      @keydown.enter.prevent="selectReservation(record)"
-                    >
-                      <td><span :class="['status-pill', statusTone(record.status)]">{{ record.status || '—' }}</span></td>
-                      <td><strong class="mono-time">{{ reservationSlotLabel(record) }}</strong></td>
-                      <td>{{ record.roomName || record.room || '—' }}</td>
-                      <td>
-                        <strong>{{ maskName(record.name || record.customerName) || '访客' }}</strong>
-                        <small v-if="record.phone || record.mobile">{{ maskPhone(record.phone || record.mobile) }}</small>
-                      </td>
-                      <td>{{ record.people || record.count || '—' }}</td>
-                      <td>{{ reservationPayLabel(record) }}</td>
-                      <td>¥{{ money(record.total != null ? record.total : record.price) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <EmptyState
-                  v-if="reservationTableRows.length === 0"
-                  :title="emptyTitle('reservations')"
-                  :hint="emptyHint('reservations')"
-                  action-label="配置茶室"
-                  @action="openRoomsCatalog"
-                />
-              </div>
-            </article>
-
-            <aside class="panel-card detail-panel reservation-detail-pane" aria-label="预约详情">
-              <template v-if="selectedReservation">
-                <div class="panel-title">
-                  <h2>预约详情</h2>
-                  <span :class="['status-pill', statusTone(selectedReservation.status)]">{{ selectedReservation.status || '—' }}</span>
-                </div>
-                <p class="reservation-task-hint">{{ reservationPrimaryHint(selectedReservation) }}</p>
-                <div v-if="hasPermission('reservation.write') && reservationAdminActions(selectedReservation).length" class="action-row reservation-primary-actions">
+              <div v-for="row in reservationTimelineModel.rows" :key="row.room" class="timeline-row">
+                <strong class="timeline-room">{{ row.room }}</strong>
+                <div class="timeline-track">
                   <button
-                    v-for="action in reservationAdminActions(selectedReservation)"
-                    :key="`side-${action.key}`"
-                    :class="action.kind === 'danger' ? 'danger-action' : (action.key === 'complete' ? 'primary-action' : 'secondary-action')"
+                    v-for="ev in row.events"
+                    :key="ev.id"
                     type="button"
-                    @click="runReservationAction(action)"
-                  >{{ action.label }}</button>
+                    class="timeline-event"
+                    :data-tone="ev.tone"
+                    :class="{ selected: state.selectedReservationId === ev.id }"
+                    :style="{ left: ev.leftPct + '%', width: ev.widthPct + '%' }"
+                    :title="ev.label + ' · ' + ev.status"
+                    @click="selectReservation(ev.record)"
+                  >
+                    <span>{{ ev.label }}</span>
+                  </button>
                 </div>
-                <DetailRow label="茶室" :value="selectedReservation.roomName || selectedReservation.room || selectedReservation.storeName || '-'" />
-                <DetailRow label="客户" :value="maskName(selectedReservation.name || selectedReservation.customerName) || '-'" />
-                <DetailRow label="电话" :value="maskPhone(selectedReservation.phone || selectedReservation.mobile) || '-'" />
-                <DetailRow label="日期" :value="selectedReservation.day || selectedReservation.date || '-'" />
-                <DetailRow label="时段" :value="reservationSlotLabel(selectedReservation)" />
-                <DetailRow label="人数" :value="selectedReservation.people || selectedReservation.count || '-'" />
-                <DetailRow label="支付" :value="reservationPayLabel(selectedReservation)" />
-                <DetailRow label="金额" :value="selectedReservation.total != null || selectedReservation.price != null ? `¥${money(selectedReservation.total != null ? selectedReservation.total : selectedReservation.price)}` : '-'" />
-                <DetailRow label="单号" :value="selectedReservation.reservationNo || selectedReservation._id || '-'" />
-                <div class="record-timeline" v-if="recordTimeline(selectedReservation).length">
-                  <h3>预约时间线</h3>
-                  <div v-for="step in recordTimeline(selectedReservation)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
-                    <span></span>
-                    <strong>{{ step.title }}</strong>
-                    <small>{{ formatDate(step.time) }}</small>
-                    <p>{{ step.detail || "-" }}</p>
-                  </div>
-                </div>
-                <div v-if="!hasPermission('reservation.write')" class="permission-note">当前角色仅可查看预约。</div>
-                <p v-else-if="!reservationAdminActions(selectedReservation).length" class="permission-note">当前为终态或无可操作项。</p>
-              </template>
-              <div v-else class="reservation-detail-empty">
-                <strong>选择一条预约</strong>
-                <span>从左侧表格点选当日订单，可处理完成、未到店、取消与退款。</span>
               </div>
+              <p v-if="!reservationTimelineModel.rows.length" class="timeline-empty">暂无茶室资源，请先在「茶室资源」配置。</p>
+            </div>
+            <p class="board-tip">点击色条查看并处理预约 · 状态筛选见右上方</p>
+          </div>
+
+          <!-- 全部记录：列表视图 -->
+          <div v-else class="reservation-list-view">
+            <div class="reservation-status-tabs" role="tablist" aria-label="预约状态">
+              <button type="button" role="tab" :aria-selected="!filters.reservationStatus" :class="['order-biz-tab', { active: !filters.reservationStatus }]" @click="setReservationStatusFilter('')">全部</button>
+              <button type="button" role="tab" :aria-selected="filters.reservationStatus === '待支付'" :class="['order-biz-tab', { active: filters.reservationStatus === '待支付' }]" @click="setReservationStatusFilter('待支付')">待支付</button>
+              <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已确认'" :class="['order-biz-tab', { active: filters.reservationStatus === '已确认' }]" @click="setReservationStatusFilter('已确认')">已确认</button>
+              <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已完成'" :class="['order-biz-tab', { active: filters.reservationStatus === '已完成' }]" @click="setReservationStatusFilter('已完成')">已完成</button>
+              <button type="button" role="tab" :aria-selected="filters.reservationStatus === '已取消'" :class="['order-biz-tab', { active: filters.reservationStatus === '已取消' }]" @click="setReservationStatusFilter('已取消')">已取消</button>
+            </div>
+            <div class="table-wrap reservation-table-wrap">
+              <table class="reservation-table">
+                <caption class="sr-only">预约列表</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">状态</th>
+                    <th scope="col">日期</th>
+                    <th scope="col">时段</th>
+                    <th scope="col">茶室</th>
+                    <th scope="col">客户</th>
+                    <th scope="col">人数</th>
+                    <th scope="col">金额</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="record in reservationTableRows"
+                    :key="record._id"
+                    :class="{ selected: state.selectedReservationId === record._id }"
+                    tabindex="0"
+                    role="button"
+                    :aria-selected="state.selectedReservationId === record._id"
+                    @click="selectReservation(record)"
+                    @keydown.enter.prevent="selectReservation(record)"
+                  >
+                    <td><span :class="['status-pill', statusTone(record.status)]">{{ record.status || '—' }}</span></td>
+                    <td>{{ (record.day || record.date || '').slice(0, 10) }}</td>
+                    <td><strong class="mono-time">{{ reservationSlotLabel(record) }}</strong></td>
+                    <td>{{ record.roomName || record.room || '—' }}</td>
+                    <td>
+                      <strong>{{ maskName(record.name || record.customerName) || '访客' }}</strong>
+                      <small v-if="record.phone || record.mobile">{{ maskPhone(record.phone || record.mobile) }}</small>
+                    </td>
+                    <td>{{ record.people || record.count || '—' }}</td>
+                    <td>¥{{ money(record.total != null ? record.total : record.price) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <EmptyState
+                v-if="reservationTableRows.length === 0"
+                :title="emptyTitle('reservations')"
+                :hint="emptyHint('reservations')"
+                action-label="配置茶室"
+                @action="openRoomsCatalog"
+              />
+            </div>
+          </div>
+
+          <!-- 预约详情抽屉 -->
+          <div v-if="state.reservationDrawerOpen && selectedReservation" class="editor-drawer" role="dialog" aria-modal="true" aria-label="预约详情">
+            <div class="editor-drawer-mask" @click="closeReservationDrawer"></div>
+            <aside class="panel-card detail-panel drawer-panel reservation-detail-pane">
+              <div class="panel-title">
+                <h2>预约详情</h2>
+                <span :class="['status-pill', statusTone(selectedReservation.status)]">{{ selectedReservation.status || '—' }}</span>
+                <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeReservationDrawer">×</button>
+              </div>
+              <p class="reservation-task-hint">{{ reservationPrimaryHint(selectedReservation) }}</p>
+              <div v-if="hasPermission('reservation.write') && reservationAdminActions(selectedReservation).length" class="action-row reservation-primary-actions">
+                <button
+                  v-for="action in reservationAdminActions(selectedReservation)"
+                  :key="`side-${action.key}`"
+                  :class="action.kind === 'danger' ? 'danger-action' : (action.key === 'complete' ? 'primary-action' : 'secondary-action')"
+                  type="button"
+                  @click="runReservationAction(action)"
+                >{{ action.label }}</button>
+              </div>
+              <DetailRow label="茶室" :value="selectedReservation.roomName || selectedReservation.room || selectedReservation.storeName || '-'" />
+              <DetailRow label="客户" :value="maskName(selectedReservation.name || selectedReservation.customerName) || '-'" />
+              <DetailRow label="电话" :value="maskPhone(selectedReservation.phone || selectedReservation.mobile) || '-'" />
+              <DetailRow label="日期" :value="selectedReservation.day || selectedReservation.date || '-'" />
+              <DetailRow label="时段" :value="reservationSlotLabel(selectedReservation)" />
+              <DetailRow label="人数" :value="selectedReservation.people || selectedReservation.count || '-'" />
+              <DetailRow label="支付" :value="reservationPayLabel(selectedReservation)" />
+              <DetailRow label="金额" :value="selectedReservation.total != null || selectedReservation.price != null ? `¥${money(selectedReservation.total != null ? selectedReservation.total : selectedReservation.price)}` : '-'" />
+              <DetailRow label="单号" :value="selectedReservation.reservationNo || selectedReservation._id || '-'" />
+              <div class="record-timeline" v-if="recordTimeline(selectedReservation).length">
+                <h3>预约时间线</h3>
+                <div v-for="step in recordTimeline(selectedReservation)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
+                  <span></span>
+                  <strong>{{ step.title }}</strong>
+                  <small>{{ formatDate(step.time) }}</small>
+                  <p>{{ step.detail || "-" }}</p>
+                </div>
+              </div>
+              <div v-if="!hasPermission('reservation.write')" class="permission-note">当前角色仅可查看预约。</div>
+              <p v-else-if="!reservationAdminActions(selectedReservation).length" class="permission-note">当前为终态或无可操作项。</p>
             </aside>
           </div>
         </section>

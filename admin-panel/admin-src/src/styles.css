@@ -1782,6 +1782,63 @@ svg.spinning {
   min-width: 0;
 }
 
+.reservation-view-tabs {
+  display: inline-flex;
+  gap: 4px;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--admin-paper);
+}
+
+.reservation-view-tabs .order-biz-tab {
+  border-radius: 999px;
+}
+
+.reservation-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: rgba(255, 253, 247, 0.55);
+  color: var(--admin-muted);
+  font-size: 13px;
+}
+
+.reservation-summary strong {
+  color: var(--admin-ink);
+}
+
+.reservation-board {
+  min-width: 0;
+}
+
+.reservation-board .reservation-timeline-panel {
+  margin: 0;
+  padding: 10px 0 6px;
+}
+
+.reservation-board .timeline-axis {
+  margin: 0 14px 6px 118px;
+}
+
+
+.reservation-status-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.board-tip {
+  margin: 8px 2px 0;
+  color: var(--admin-faint);
+  font-size: 12px;
+}
+
 .reservation-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
