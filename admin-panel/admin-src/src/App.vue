@@ -7502,11 +7502,11 @@ onBeforeUnmount(() => {
 
             <div class="settings-section">
               <div class="settings-section-head">
-                <span>01b</span>
+                <span>02</span>
                 <h2>预约计价</h2>
               </div>
               <div class="settings-fields">
-                <p class="settings-note" style="grid-column: 1 / -1; margin: 0 0 8px;">
+                <p class="settings-note settings-intro">
                   真正扣款规则：按开始时刻落入日间/晚间价带，满「最短时长」收基础价，超出部分按步长加价。与「茶室信息」无关。
                 </p>
                 <label><span>可约开始</span><input v-model="state.settings.bookingOpenTime" placeholder="10:00"></label>
@@ -7531,11 +7531,11 @@ onBeforeUnmount(() => {
             </div>
             <div class="settings-section" v-if="hasPermission('catalog.read')">
               <div class="settings-section-head">
-                <span>01c</span>
+                <span>03</span>
                 <h2>茶室信息</h2>
               </div>
               <div class="settings-fields">
-                <p class="settings-note" style="grid-column: 1 / -1; margin: 0 0 8px;">
+                <p class="settings-note settings-intro">
                   门店只有一间可预约茶室，这里维护前台「预约茶室」页展示的名称、图片与可约状态；计价在上方「预约计价」配置。保存后小程序与排期看板立即生效。
                 </p>
                 <label><span>茶室名称</span><input v-model="state.roomForm.name" placeholder="如 观山雅间"></label>
@@ -7562,7 +7562,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="settings-section">
               <div class="settings-section-head">
-                <span>02</span>
+                <span>04</span>
                 <h2>会员与积分</h2>
               </div>
               <div class="settings-fields">
@@ -7580,7 +7580,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="settings-section">
               <div class="settings-section-head">
-                <span>03</span>
+                <span>05</span>
                 <h2>订单与履约</h2>
               </div>
               <div class="settings-switches">
@@ -7622,7 +7622,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="settings-section">
               <div class="settings-section-head">
-                <span>04</span>
+                <span>06</span>
                 <h2>订阅消息</h2>
               </div>
               <div class="settings-switches">
