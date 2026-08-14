@@ -3748,6 +3748,11 @@ tr.selected td:first-child {
   margin-bottom: 10px;
 }
 
+.table-qr-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .table-qr-no {
   font-size: 13px;
   font-weight: 600;

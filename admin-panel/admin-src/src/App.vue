@@ -361,8 +361,6 @@ const state = reactive({
   settings: {},
   /** 微信「发货信息管理」接入状态（getWxShippingStatus） */
   wxShippingStatus: null,
-<<<<<<< Updated upstream
-=======
   /** 桌码列表（listTableQrs） */
   tableQrs: [],
   /** 会员储值档位（membership_plans，后台可维护） */
@@ -370,7 +368,6 @@ const state = reactive({
   rechargePlanEditing: false,
   rechargePlanForm: { id: "", title: "", description: "", principalYuan: "", bonusYuan: "", sortOrder: "", enabled: true },
   rechargePlanSaving: false,
->>>>>>> Stashed changes
   pagination: {
     orders: createPageState(),
     afterSales: createPageState(),
@@ -5078,8 +5075,6 @@ async function loadSettings() {
       state.wxShippingStatus = (result && result.status) || null;
     })
     .catch(() => {});
-<<<<<<< Updated upstream
-=======
   // 静默拉取已生成的桌码，不阻塞设置表单
   loadTableQrs();
   // 静默拉取会员储值档位，不阻塞设置表单
@@ -5088,7 +5083,6 @@ async function loadSettings() {
       state.rechargePlans = (result && result.plans) || [];
     })
     .catch(() => {});
->>>>>>> Stashed changes
 }
 
 async function saveSettings() {
@@ -5333,6 +5327,31 @@ async function regenerateTableQr(tableNo) {
     showToast(err ? `失败：${err}` : `${tableNo} 号桌码已更新`);
     await loadTableQrs();
   });
+}
+
+/** 下载桌码图片到本地 */
+async function downloadTableQr(qr) {
+  if (!qr || !qr.url) {
+    showToast("桌码尚未生成");
+    return;
+  }
+  try {
+    const resp = await fetch(qr.url);
+    if (!resp.ok) {
+      throw new Error("下载失败");
+    }
+    const blob = await resp.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = `禾煦桌码-${qr.tableNo}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+  } catch (error) {
+    showToast((error && error.message) || "下载失败，可右键图片另存");
+  }
 }
 
 /** 桌码列表（默认 01-04，合并已生成的） */
@@ -7711,7 +7730,10 @@ onBeforeUnmount(() => {
                   <div v-for="qr in tableQrList" :key="qr.tableNo" class="table-qr-item">
                     <div class="table-qr-head">
                       <span class="table-qr-no">{{ qr.tableNo }} 号桌</span>
-                      <button v-if="hasPermission('settings.write')" class="mini-action" type="button" @click="regenerateTableQr(qr.tableNo)">重新生成</button>
+                      <div class="table-qr-actions">
+                        <button v-if="qr.url" class="mini-action" type="button" @click="downloadTableQr(qr)">下载</button>
+                        <button v-if="hasPermission('settings.write')" class="mini-action" type="button" @click="regenerateTableQr(qr.tableNo)">重新生成</button>
+                      </div>
                     </div>
                     <img v-if="qr.url" class="table-qr-img" :src="qr.url" :alt="qr.tableNo + ' 号桌码'" />
                     <div v-else class="table-qr-empty">未生成</div>
