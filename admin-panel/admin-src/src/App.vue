@@ -361,6 +361,16 @@ const state = reactive({
   settings: {},
   /** 微信「发货信息管理」接入状态（getWxShippingStatus） */
   wxShippingStatus: null,
+<<<<<<< Updated upstream
+=======
+  /** 桌码列表（listTableQrs） */
+  tableQrs: [],
+  /** 会员储值档位（membership_plans，后台可维护） */
+  rechargePlans: [],
+  rechargePlanEditing: false,
+  rechargePlanForm: { id: "", title: "", description: "", principalYuan: "", bonusYuan: "", sortOrder: "", enabled: true },
+  rechargePlanSaving: false,
+>>>>>>> Stashed changes
   pagination: {
     orders: createPageState(),
     afterSales: createPageState(),
@@ -5068,6 +5078,17 @@ async function loadSettings() {
       state.wxShippingStatus = (result && result.status) || null;
     })
     .catch(() => {});
+<<<<<<< Updated upstream
+=======
+  // 静默拉取已生成的桌码，不阻塞设置表单
+  loadTableQrs();
+  // 静默拉取会员储值档位，不阻塞设置表单
+  callFunction("manageOperations", { action: "listMembershipPlans" })
+    .then((result) => {
+      state.rechargePlans = (result && result.plans) || [];
+    })
+    .catch(() => {});
+>>>>>>> Stashed changes
 }
 
 async function saveSettings() {
@@ -5259,6 +5280,70 @@ async function syncWxShippingJumpPath() {
     await refreshWxShippingStatus();
   });
 }
+
+/** 加载已生成的桌码 */
+async function loadTableQrs() {
+  try {
+    const result = await callFunction("manageOperations", { action: "listTableQrs" });
+    state.tableQrs = (result && result.qrs) || [];
+  } catch (error) {
+    state.tableQrs = [];
+  }
+}
+
+/** 生成桌面扫码点单小程序码（01-04；需小程序已发布上线） */
+async function generateTableQrs() {
+  const reason = await promptActionReason("生成桌面扫码点单小程序码");
+  if (!reason) return;
+  await withLoading("生成桌码", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "generateTableQr",
+      tables: ["01", "02", "03", "04"],
+      reason
+    });
+    if (result && result.ok === false) {
+      throw new Error(result.message || "生成失败");
+    }
+    const parts = [];
+    if (result.results && result.results.length) parts.push(`成功 ${result.results.length} 个`);
+    if (result.errors && result.errors.length) parts.push(`失败 ${result.errors.length} 个`);
+    showToast(parts.join("，") || "已完成");
+    if (result.errors && result.errors.length) {
+      // 部分失败时把详情挂到控制台，避免打断 toast
+      console.warn("[tableQr] errors:", result.errors);
+    }
+    await loadTableQrs();
+  });
+}
+
+/** 单桌重新生成 */
+async function regenerateTableQr(tableNo) {
+  const reason = await promptActionReason(`重新生成 ${tableNo} 号桌桌码`);
+  if (!reason) return;
+  await withLoading("重新生成", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "generateTableQr",
+      tables: [tableNo],
+      reason
+    });
+    if (result && result.ok === false) {
+      throw new Error(result.message || "生成失败");
+    }
+    const err = result.errors && result.errors.length ? result.errors.join(";") : "";
+    showToast(err ? `失败：${err}` : `${tableNo} 号桌码已更新`);
+    await loadTableQrs();
+  });
+}
+
+/** 桌码列表（默认 01-04，合并已生成的） */
+const tableQrList = computed(() => {
+  const DEFAULT = ["01", "02", "03", "04"];
+  const map = {};
+  (state.tableQrs || []).forEach((q) => {
+    map[q.tableNo] = q;
+  });
+  return DEFAULT.map((no) => map[no] || { tableNo: no, url: "", fileID: "" });
+});
 
 function pageKeyForTab(tab) {
   return tab === "inventory" ? "inventory" : tab;
@@ -7184,10 +7269,10 @@ onBeforeUnmount(() => {
               <label><span>副标题</span><input v-model="forms.content.subtitle"></label>
               <label class="wide"><span>图片 URL</span><input v-model="forms.content.image"></label>
               <label class="file-picker wide">
-                <span>上传图片</span>
+                <span>上传图片 · 建议 1500 × 800 px（15:8）</span>
                 <Upload :size="17" :stroke-width="1.8" />
                 <input accept="image/*" type="file" @change="uploadFormImage('content', $event)">
-                <em>{{ uploadState.content || "选择本地图片上传到云存储" }}</em>
+                <em>{{ uploadState.content || "主体尽量居中，其他比例在小程序首页会被裁切" }}</em>
               </label>
               <label class="wide"><span>摘要</span><textarea v-model="forms.content.summary" rows="4"></textarea></label>
               <label><span>排序</span><input v-model.number="forms.content.sort" type="number" min="0"></label>
@@ -7617,6 +7702,24 @@ onBeforeUnmount(() => {
                 <div class="settings-row-actions">
                   <button v-if="hasPermission('settings.write')" class="secondary-action" type="button" @click="syncWxShippingJumpPath">同步跳转路径到微信</button>
                   <button class="secondary-action" type="button" @click="refreshWxShippingStatus">刷新接入状态</button>
+                </div>
+              </div>
+              <div class="settings-subsection">
+                <h3>桌面扫码点单码</h3>
+                <p class="settings-note">顾客扫桌上小程序码直接进入点单页并自动绑定桌号。需小程序已发布上线后才能生成，生成后图片可右键另存打印。</p>
+                <div class="table-qr-grid">
+                  <div v-for="qr in tableQrList" :key="qr.tableNo" class="table-qr-item">
+                    <div class="table-qr-head">
+                      <span class="table-qr-no">{{ qr.tableNo }} 号桌</span>
+                      <button v-if="hasPermission('settings.write')" class="mini-action" type="button" @click="regenerateTableQr(qr.tableNo)">重新生成</button>
+                    </div>
+                    <img v-if="qr.url" class="table-qr-img" :src="qr.url" :alt="qr.tableNo + ' 号桌码'" />
+                    <div v-else class="table-qr-empty">未生成</div>
+                  </div>
+                </div>
+                <div class="settings-row-actions">
+                  <button v-if="hasPermission('settings.write')" class="secondary-action" type="button" @click="generateTableQrs">生成 01–04 桌码</button>
+                  <button class="secondary-action" type="button" @click="loadTableQrs">刷新</button>
                 </div>
               </div>
             </div>

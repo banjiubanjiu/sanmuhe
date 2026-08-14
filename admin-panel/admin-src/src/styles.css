@@ -3725,6 +3725,68 @@ tr.selected td:first-child {
   border-top: 1px dashed var(--admin-line);
 }
 
+.table-qr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.table-qr-item {
+  min-width: 0;
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--admin-paper);
+}
+
+.table-qr-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.table-qr-no {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--admin-ink);
+}
+
+.table-qr-item .mini-action {
+  border: none;
+  background: none;
+  color: var(--admin-green);
+  font-size: 12px;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+
+.table-qr-item .mini-action:hover {
+  text-decoration: underline;
+}
+
+.table-qr-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--admin-line);
+}
+
+.table-qr-empty {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--admin-line);
+  border-radius: 8px;
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
 .settings-subsection h3 {
   margin: 0 0 8px;
   font-size: 14px;

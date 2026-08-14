@@ -30,3 +30,4 @@ project.private.config.json
 # 支付密钥与证书（切勿提交）
 .secrets/
 **/.secrets/
+admin-src/.vite

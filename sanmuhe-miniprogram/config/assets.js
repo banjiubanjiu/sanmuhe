@@ -12,6 +12,21 @@ const CLOUD_FILE_HOST = `cloud://${cloudConfig.envId}.636c-${cloudConfig.envId}-
 // 业务图走云存储 mp-assets/（商品/轮播/茶室等）；图标仍本地
 const USE_CLOUD_ASSETS = true;
 
+<<<<<<< Updated upstream
+=======
+/**
+ * 小程序 image/audio 等组件原生支持 CloudBase fileID。
+ * 保留 cloud:// 可避免把存储地址改写为未配置的 downloadFile 合法域名。
+ */
+function resolveCloudImage(value, fallback = "") {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return fallback;
+  }
+  return raw;
+}
+
+>>>>>>> Stashed changes
 function toLocalPath(path) {
   const raw = String(path || "").trim();
   if (!raw) {
@@ -63,6 +78,7 @@ function localImage(path) {
   if (!clean) {
     return "";
   }
+<<<<<<< Updated upstream
   if (clean.indexOf("cloud://") === 0 || clean.indexOf("http") === 0) {
     // 已关闭云素材时，才把已知业务图映射回包内路径（离线兜底）
     if (!USE_CLOUD_ASSETS && clean.indexOf("cloud://") === 0) {
@@ -71,6 +87,17 @@ function localImage(path) {
         if (/home-carousel|home-brand|product-|event-|order-hero|profile-|reservation-|contact-/.test(fileName)) {
           return `/assets/images/${fileName}`;
         }
+=======
+  if (clean.indexOf("cloud://") === 0) {
+    // 云素材开启时保留 fileID，由小程序组件原生加载；关闭时才映射回包内路径。
+    if (USE_CLOUD_ASSETS) {
+      return resolveCloudImage(clean);
+    }
+    const fileName = clean.split("?")[0].split("/").filter(Boolean).pop() || "";
+    if (fileName && /\.(jpe?g|png|webp|gif)$/i.test(fileName)) {
+      if (/home-carousel|home-brand|product-|event-|order-hero|profile-|reservation-|contact-/.test(fileName)) {
+        return `/assets/images/${fileName}`;
+>>>>>>> Stashed changes
       }
     }
     return clean;

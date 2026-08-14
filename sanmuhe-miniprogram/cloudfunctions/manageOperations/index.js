@@ -10,7 +10,8 @@ const {
   COMMON_EXPRESS_OPTIONS,
   setMsgJumpPath,
   queryIsTradeManaged,
-  queryConfirmationCompleted
+  queryConfirmationCompleted,
+  wxGetUnlimited
 } = require("./wechatShipping");
 
 cloud.init({
@@ -353,6 +354,8 @@ const actionPermissions = {
   updateSettings: "settings.write",
   getWxShippingStatus: "settings.read",
   setWxShippingJumpPath: "settings.write",
+  generateTableQr: "settings.write",
+  listTableQrs: "settings.read",
   getSystemStatus: "system.read",
   listNotificationLogs: "notification.read",
   sendTestNotice: "notification.write",
@@ -4339,6 +4342,94 @@ async function setWxShippingJumpPath(event, caller) {
   };
 }
 
+/** cloud://envId.bucket/path → https://bucket.tcb.qcloud.la/path */
+function fileIdToHttps(fileId) {
+  const m = String(fileId || "").match(/^cloud:\/\/([^.]+)\.([^/]+)\/(.+)$/);
+  if (!m) {
+    return String(fileId || "");
+  }
+  return `https://${m[2]}.tcb.qcloud.la/${m[3]}`;
+}
+
+async function ensureCollection(name) {
+  try {
+    await db.createCollection(name);
+  } catch (error) {
+    // 已存在则忽略
+  }
+}
+
+async function upsertTableQr(tableNo, fileID) {
+  await ensureCollection("table_qrs");
+  const exist = await db.collection("table_qrs").where({ tableNo }).limit(1).get();
+  if (exist.data && exist.data.length) {
+    await db.collection("table_qrs").doc(exist.data[0]._id).update({
+      data: { fileID, updatedAt: db.serverDate() }
+    });
+    return;
+  }
+  await db.collection("table_qrs").add({
+    data: { tableNo, fileID, createdAt: db.serverDate(), updatedAt: db.serverDate() }
+  });
+}
+
+/**
+ * 生成桌面小程序码（wxacode.getUnlimited，page=pages/order/index，scene=t=<桌号>）。
+ * 图片存云存储 mp-assets/table-qr/，元数据落库 table_qrs。
+ */
+async function generateTableQr(event, caller) {
+  const tables = (Array.isArray(event.tables) ? event.tables : [])
+    .map((t) => cleanText(t, 20))
+    .filter(Boolean);
+  if (!tables.length) {
+    return { ok: false, message: "请提供桌号列表（如 [\"01\",\"02\"]）" };
+  }
+  if (tables.length > 30) {
+    return { ok: false, message: "单次最多生成 30 个桌码" };
+  }
+
+  const results = [];
+  const errors = [];
+  for (const tableNo of tables) {
+    try {
+      const qr = await wxGetUnlimited(cloud, tableNo);
+      if (!qr.ok) {
+        errors.push(`桌${tableNo}: ${qr.errmsg || "生成失败"}`);
+        continue;
+      }
+      const cloudPath = `mp-assets/table-qr/table-${tableNo}.png`;
+      const up = await cloud.uploadFile({ cloudPath, fileContent: qr.buffer });
+      await upsertTableQr(tableNo, up.fileID);
+      results.push({ tableNo, fileID: up.fileID, url: fileIdToHttps(up.fileID) });
+    } catch (error) {
+      errors.push(`桌${tableNo}: ${error.message || error}`);
+    }
+  }
+
+  await writeAdminAuditLog(caller, "generateTableQr", {
+    tables: tables.join(","),
+    okCount: results.length,
+    failCount: errors.length,
+    errors: errors.join(" | ") || ""
+  });
+  return { ok: results.length > 0, results, errors };
+}
+
+/** 列出已生成的桌码（table_qrs 集合）。 */
+async function listTableQrs() {
+  await ensureCollection("table_qrs");
+  const result = await db.collection("table_qrs").orderBy("tableNo", "asc").limit(50).get();
+  return {
+    ok: true,
+    qrs: (result.data || []).map((r) => ({
+      tableNo: r.tableNo,
+      fileID: r.fileID,
+      url: fileIdToHttps(r.fileID),
+      updatedAt: r.updatedAt || null
+    }))
+  };
+}
+
 exports.main = async (event = {}, context = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "manageOperations" };
@@ -4518,6 +4609,12 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "setWxShippingJumpPath") {
       return await setWxShippingJumpPath(event, caller);
+    }
+    if (action === "generateTableQr") {
+      return await generateTableQr(event, caller);
+    }
+    if (action === "listTableQrs") {
+      return await listTableQrs();
     }
     if (action === "getSystemStatus") {
       return await getSystemStatus(event);

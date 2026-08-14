@@ -595,6 +595,62 @@ async function queryConfirmationCompleted(cloud) {
   return { ok: false, errmsg: `查询交易结算确认状态失败: ${errors.join(" | ")}` };
 }
 
+/**
+ * 调 wxacode.getUnlimited 生成小程序码（扫码进点单页并带桌号）。
+ * scene 传 t=<桌号>，page 指向点单页 pages/order/index。
+ * 成功返回图片 Buffer；失败返回 JSON 错误。
+ * @returns {{ ok: boolean, buffer?: Buffer, errcode?: number, errmsg?: string }}
+ */
+async function wxGetUnlimited(cloud, tableNo) {
+  const accessToken = await resolveAccessToken(cloud);
+  if (!accessToken) {
+    return { ok: false, errmsg: "无法获取 access_token，请配置 WX_MP_APPSECRET" };
+  }
+  const https = require("https");
+  const payload = JSON.stringify({
+    scene: `t=${cleanText(tableNo, 32)}`,
+    page: "pages/order/index",
+    width: 430,
+    is_hyaline: true,
+    line_color: { r: 23, g: 59, b: 42 }
+  });
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: "api.weixin.qq.com",
+        path: `/wxa/getwxacodeunlimit?access_token=${encodeURIComponent(accessToken)}`,
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) },
+        timeout: 15000
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          const buffer = Buffer.concat(chunks);
+          const text = buffer.toString("utf8").trim();
+          if (text.startsWith("{") && text.endsWith("}")) {
+            try {
+              const data = JSON.parse(text);
+              return resolve({ ok: false, errcode: data.errcode, errmsg: data.errmsg || `生成失败 ${data.errcode}` });
+            } catch (error) {
+              return resolve({ ok: false, errmsg: "生成失败(响应解析错误)" });
+            }
+          }
+          resolve({ ok: true, buffer });
+        });
+      }
+    );
+    req.on("error", (e) => resolve({ ok: false, errmsg: `网络错误: ${e.message}` }));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve({ ok: false, errmsg: "请求超时" });
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
 module.exports = {
   LOGISTICS,
   EXPRESS_COMPANY_MAP,
@@ -610,5 +666,6 @@ module.exports = {
   shippingResultFields,
   setMsgJumpPath,
   queryIsTradeManaged,
-  queryConfirmationCompleted
+  queryConfirmationCompleted,
+  wxGetUnlimited
 };

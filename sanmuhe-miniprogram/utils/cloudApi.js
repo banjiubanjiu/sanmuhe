@@ -2,8 +2,9 @@ const { drinks, teaProducts, rooms, events } = require("../data/catalog");
 const { localImage } = require("../config/assets");
 const { isEventListVisible } = require("./eventStatus");
 
-const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v1";
-const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v1";
+// v2 清理旧版将 cloud:// 改写为未配置 CDN 域名的图片缓存。
+const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v2";
+const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v2";
 /** 失败回落只用近期成功快照，避免刚下架的货长期留在本地 */
 const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 
