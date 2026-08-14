@@ -1915,7 +1915,8 @@ svg.spinning {
 }
 
 .week-cell.today {
-  background: rgba(234, 242, 228, 0.6);
+  /* 今天由表头标识；空闲格保持中性，避免被误认为已预约。 */
+  background: rgba(255, 253, 247, 0.35);
 }
 
 .week-cell.busy {
