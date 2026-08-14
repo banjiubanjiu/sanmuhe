@@ -205,9 +205,20 @@
         <textarea class="textarea-field" placeholder="备注（选填）" data-field="note" value="{{note}}" bindinput="onInput"></textarea>
       </view>
 
-      <view class="booking-note">无论是否用满，所选时段均归您；最短 {{minHours}} 小时。{{giftTeaCopy}}提交后需在 {{lockMinutes}} 分钟内完成微信支付，支付成功即确认预约。已支付预约须提前 {{cancelAdvanceHours}} 小时取消，费用原路退回。日间满时长起价 ¥{{dayBasePrice}}（以后台设置的预约规则为准）。</view>
+      <view class="sheet-section payment-options">
+        <view wx:if="{{isMember}}" class="payment-option {{payMode === 'balance' ? 'active' : ''}} {{!balanceAvailable ? 'disabled' : ''}}" data-mode="balance" bindtap="choosePayMode">
+          <view>会员余额</view>
+          <text>余额 ¥{{walletBalance}}{{balanceAvailable ? '' : ' · 不足'}}</text>
+        </view>
+        <view class="payment-option {{payMode === 'wechat' ? 'active' : ''}}" data-mode="wechat" bindtap="choosePayMode">
+          <view>微信支付</view>
+          <text>支付成功后确认</text>
+        </view>
+      </view>
 
-      <button class="submit-reserve" hover-class="none" bindtap="submitReservation">支付并预约 · ¥{{selectedPrice}}</button>
+      <view class="booking-note">无论是否用满，所选时段均归您；最短 {{minHours}} 小时。{{giftTeaCopy}}提交后需在 {{lockMinutes}} 分钟内完成{{payMode === 'balance' ? '余额支付' : '微信支付'}}，支付成功即确认预约。已支付预约须提前 {{cancelAdvanceHours}} 小时取消，费用原路退回。日间满时长起价 ¥{{dayBasePrice}}（以后台设置的预约规则为准）。</view>
+
+      <button class="submit-reserve" hover-class="none" bindtap="submitReservation">{{payMode === 'balance' ? '余额支付' : '支付并预约'}} · ¥{{selectedPrice}}</button>
     </view>
   </view>
 

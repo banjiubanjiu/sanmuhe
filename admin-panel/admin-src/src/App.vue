@@ -66,7 +66,7 @@ const PACKAGE_INFO = {
 };
 
 const SAVED_VIEWS_KEY = "hexu-admin-saved-views-v1";
-const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "reservations", "signups", "customers", "content", "audit", "notifications"]);
+const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "signups", "customers", "content", "audit", "notifications"]);
 const ORDER_ALERT_POLL_MS = 5000;
 const ORDER_ALERT_SEEN_LIMIT = 200;
 
@@ -212,6 +212,10 @@ const permissionMap = permissionCatalog.reduce((map, item) => {
 
 const fallbackMetricIcons = [CalendarCheck, TicketPercent, BadgeDollarSign, UserPlus, CircleDollarSign];
 const createPageState = () => ({ page: 1, pageSize: 20, total: 0, pageCount: 1 });
+const localDateKey = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
 const EXPORT_PAGE_SIZE = 100;
 const EXPORT_MAX_ROWS = 5000;
 
@@ -361,6 +365,11 @@ const state = reactive({
   settings: {},
   /** 微信「发货信息管理」接入状态（getWxShippingStatus） */
   wxShippingStatus: null,
+  /** 会员储值档位（membership_plans，后台可维护） */
+  rechargePlans: [],
+  rechargePlanEditing: false,
+  rechargePlanForm: { id: "", title: "", description: "", principalYuan: "", bonusYuan: "", sortOrder: "", enabled: true },
+  rechargePlanSaving: false,
   pagination: {
     orders: createPageState(),
     afterSales: createPageState(),
@@ -383,14 +392,8 @@ const state = reactive({
   selectedCustomerId: "",
   selectedContentKey: "",
   selectedRoleId: "",
-  reservationCalendarDate: new Date().toISOString().slice(0, 10),
-  reservationWeekStart: (() => {
-    const now = new Date();
-    const dow = (now.getDay() + 6) % 7; // 周一起始
-    const start = new Date(now);
-    start.setDate(now.getDate() - dow);
-    return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-  })(),
+  reservationCalendarDate: localDateKey(),
+  reservationRangeStart: localDateKey(),
   reservationView: "board",
   reservationDrawerOpen: false
 });
@@ -970,24 +973,26 @@ const reservationsForCalendarDay = computed(() => {
   return (state.reservations || []).filter((item) => (item.day || item.date || "").slice(0, 10) === day);
 });
 
-/** 当前周：周一~周日日期数组 */
+/** 排期区间：从选择的起始日连续展示 7 天。 */
 const reservationWeekDays = computed(() => {
-  const start = weekStartOf(state.reservationWeekStart);
+  const start = state.reservationRangeStart;
   return Array.from({ length: 7 }, (_, i) => addDaysToDateStr(start, i));
 });
 
-/** 周范围显示文案：2026-08-11 ~ 08-17 */
-const reservationWeekStartOf = computed(() => {
+/** 排期范围显示文案：2026-08-14 ~ 08-20 */
+const reservationRangeLabel = computed(() => {
   const days = reservationWeekDays.value;
-  if (!days.length) return state.reservationWeekStart;
+  if (!days.length) return state.reservationRangeStart;
   const end = days[days.length - 1];
   return `${days[0]} ~ ${end.slice(5)}`;
 });
 
-/** 当前周全部预约（未取消优先，取消的仍保留供查看） */
-const reservationsForWeek = computed(() => {
-  const start = weekStartOf(state.reservationWeekStart);
-  const end = weekEndOf(state.reservationWeekStart);
+const canShiftReservationBackward = computed(() => state.reservationRangeStart > localDateKey());
+
+/** 当前 7 天全部预约（未取消优先，取消的仍保留供查看） */
+const reservationsForRange = computed(() => {
+  const start = state.reservationRangeStart;
+  const end = addDaysToDateStr(start, 6);
   return (state.reservations || []).filter((item) => {
     const d = (item.day || item.date || "").slice(0, 10);
     return d >= start && d <= end;
@@ -998,22 +1003,29 @@ const reservationsForWeek = computed(() => {
 const reservationWeekTable = computed(() => {
   const slotTimes = reservationBoardSlotTimes.value;
   const slotMins = slotTimes.map(parseTimeToMinutes);
+  const step = Math.max(15, Math.min(60, Number(state.settings?.bookingSlotStepMinutes) || 30));
   const rows = [];
   const dayItems = {};
   reservationWeekDays.value.forEach((day) => { dayItems[day] = []; });
-  reservationsForWeek.value.forEach((item) => {
+  reservationsForRange.value.forEach((item) => {
     const d = (item.day || item.date || "").slice(0, 10);
     if (dayItems[d]) dayItems[d].push(item);
   });
   slotTimes.forEach((time, index) => {
     const cells = reservationWeekDays.value.map((day) => {
       const records = dayItems[day].filter((item) => !/已取消/.test(item.status || ""));
-      // 预约起点落在该时段的格子作为主格，占用信息随主格展示
+      const slotStart = slotMins[index];
+      const slotEnd = slotStart + step;
+      // 预约时间范围与当前时段有重叠时，整段都显示为占用。
       const hit = records.find((item) => {
-        const { start } = reservationTimeRange(item);
-        return Number.isFinite(start) && Math.abs(start - slotMins[index]) < 1;
+        const { start, end } = reservationTimeRange(item);
+        return Number.isFinite(start)
+          && Number.isFinite(end)
+          && start < slotEnd
+          && end > slotStart;
       });
-      return { day, time, records, record: hit || records[0] || null };
+      // 不回退到当天首条预约，避免空闲时段被误标为已确认。
+      return { day, time, records, record: hit || null };
     });
     rows.push({ time, cells });
   });
@@ -1093,9 +1105,9 @@ const reservationTimelineModel = computed(() => {
   };
 });
 
-/** 表格数据：当日 + 状态筛选（状态在客户端再滤一层，配合 workflow） */
+/** 全部记录表格：接口不带日期范围，状态和关键词在当前页再做防御性过滤。 */
 const reservationTableRows = computed(() => {
-  let rows = reservationsForCalendarDay.value.slice();
+  let rows = (state.reservations || []).slice();
   const status = String(filters.reservationStatus || "").trim();
   if (status) {
     rows = rows.filter((item) => String(item.status || "") === status);
@@ -1116,25 +1128,14 @@ const reservationTableRows = computed(() => {
       return hay.includes(keyword);
     });
   }
-  // 待办优先：待支付 > 已确认 > 其他
-  const rank = (s) => {
-    if (/待支付/.test(s)) return 0;
-    if (/异常/.test(s)) return 1;
-    if (/已确认/.test(s)) return 2;
-    if (/已完成/.test(s)) return 3;
-    return 4;
-  };
-  rows.sort((a, b) => {
-    const d = rank(String(a.status || "")) - rank(String(b.status || ""));
-    if (d !== 0) return d;
-    return parseTimeToMinutes(a.time || a.slot) - parseTimeToMinutes(b.time || b.slot);
-  });
   return rows;
 });
 
 function setReservationStatusFilter(status) {
   filters.reservationStatus = status || "";
-  // 数据已按日拉取，状态筛选在客户端即可
+  if (state.reservationView === "list") {
+    resetPageAndLoad("reservations", loadReservations);
+  }
 }
 
 const dashboardInsight = computed(() => {
@@ -1200,11 +1201,6 @@ const activeFilterLabels = computed(() => {
     add("关键词", filters.afterSaleKeyword);
   }
   if (state.activeTab === "inventory") add("关键词", filters.inventoryKeyword);
-  if (state.activeTab === "reservations") {
-    add("日期", state.reservationCalendarDate);
-    add("状态", filters.reservationStatus);
-    add("关键词", filters.reservationKeyword);
-  }
   if (state.activeTab === "signups") {
     add("状态", filters.signupStatus);
     add("关键词", filters.signupKeyword);
@@ -2629,7 +2625,8 @@ function statusTone(value) {
   const text = String(value || "");
   if (/失败|拒绝|取消|关闭|停用|下架|错误|异常|failed|error/i.test(text)) return "danger";
   if (/待|申请|审核|处理中|未到场|提醒|跳过|pending|skipped|warn/i.test(text)) return "warn";
-  if (/已支付|已发货|已完成|已确认|已退款|已到场|已使用|成功|启用|上架|success|sent|ok/i.test(text)) return "good";
+  if (/已完成|completed/i.test(text)) return "complete";
+  if (/已支付|已发货|已确认|已退款|已到场|已使用|成功|启用|上架|success|sent|ok/i.test(text)) return "good";
   return "neutral";
 }
 
@@ -4337,32 +4334,47 @@ async function ensureReservationWorkspaceContext() {
 async function loadReservations() {
   await withLoading("读取预约", async () => {
     await ensureReservationWorkspaceContext();
-    const result = await callFunction("manageOperations", {
+    const isBoard = state.reservationView === "board";
+    const payload = {
       action: "listReservations",
-      status: filters.reservationStatus,
-      keyword: filters.reservationKeyword,
-      startDay: weekStartOf(state.reservationWeekStart),
-      endDay: weekEndOf(state.reservationWeekStart),
-      // 周视图需要拉齐整周，避免分页截断
-      page: 1,
-      pageSize: 200
-    });
+      ...(isBoard
+        ? {
+            startDay: state.reservationRangeStart,
+            endDay: addDaysToDateStr(state.reservationRangeStart, 6),
+            // 周视图需要拉齐整周；云函数单页上限为 100。
+            page: 1,
+            pageSize: 100
+          }
+        : {
+            status: filters.reservationStatus,
+            keyword: filters.reservationKeyword,
+            ...pagePayload("reservations")
+          })
+    };
+    const result = await callFunction("manageOperations", payload);
     state.reservations = result.reservations || [];
     setPageMeta("reservations", result.page);
-    const dayRows = (state.reservations || []).filter(
-      (item) => (item.day || item.date || "").slice(0, 10) === state.reservationCalendarDate
-    );
+    const selectableRows = isBoard
+      ? (state.reservations || []).filter(
+          (item) => (item.day || item.date || "").slice(0, 10) === state.reservationCalendarDate
+        )
+      : (state.reservations || []);
     if (state.selectedReservationId) {
-      const still = dayRows.some((item) => item._id === state.selectedReservationId);
-      if (!still) state.selectedReservationId = dayRows[0]?._id || "";
-    } else if (dayRows.length) {
-      // 默认选中当日第一条待办，右侧详情立刻可用
-      const pending = dayRows.find((item) => /待支付|已确认|异常/.test(String(item.status || "")));
-      state.selectedReservationId = (pending || dayRows[0])._id;
+      const still = selectableRows.some((item) => item._id === state.selectedReservationId);
+      if (!still) state.selectedReservationId = selectableRows[0]?._id || "";
+    } else if (selectableRows.length) {
+      const pending = selectableRows.find((item) => /待支付|已确认|异常/.test(String(item.status || "")));
+      state.selectedReservationId = (pending || selectableRows[0])._id;
     } else {
       state.selectedReservationId = "";
     }
   });
+}
+
+function switchReservationView(view) {
+  if (!['board', 'list'].includes(view) || state.reservationView === view) return;
+  state.reservationView = view;
+  resetPageAndLoad("reservations", loadReservations);
 }
 
 function addDaysToDateStr(dateStr, days) {
@@ -4371,27 +4383,18 @@ function addDaysToDateStr(dateStr, days) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function weekStartOf(dateStr) {
-  const d = new Date(`${dateStr}T00:00:00`);
-  const dow = (d.getDay() + 6) % 7; // 周一起始
-  return addDaysToDateStr(dateStr, -dow);
-}
-
-function weekEndOf(dateStr) {
-  return addDaysToDateStr(weekStartOf(dateStr), 6);
-}
-
-function shiftReservationCalendar(stepWeeks) {
-  const weeks = Number(stepWeeks) || 0;
-  const start = weekStartOf(state.reservationWeekStart);
-  state.reservationWeekStart = addDaysToDateStr(start, weeks * 7);
-  state.reservationCalendarDate = state.reservationWeekStart;
+function shiftReservationRange(stepRanges) {
+  const ranges = Number(stepRanges) || 0;
+  const today = localDateKey();
+  const nextStart = addDaysToDateStr(state.reservationRangeStart, ranges * 7);
+  state.reservationRangeStart = nextStart < today ? today : nextStart;
+  state.reservationCalendarDate = state.reservationRangeStart;
   resetPageAndLoad("reservations", loadReservations);
 }
 
-function jumpReservationCalendarToday() {
-  const today = new Date().toISOString().slice(0, 10);
-  state.reservationWeekStart = weekStartOf(today);
+function resetReservationRangeToday() {
+  const today = localDateKey();
+  state.reservationRangeStart = today;
   state.reservationCalendarDate = today;
   resetPageAndLoad("reservations", loadReservations);
 }
@@ -4401,12 +4404,13 @@ function openReservationSlot(slot) {
   if (record) selectReservation(record);
 }
 
-const RESERVATION_WEEK_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-function weekDayLabel(index) {
-  return RESERVATION_WEEK_LABELS[index] || "";
+const RESERVATION_WEEK_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+function weekDayLabel(day) {
+  const date = new Date(`${day}T00:00:00`);
+  return RESERVATION_WEEK_LABELS[date.getDay()] || "";
 }
 
-const todayKeyStr = new Date().toISOString().slice(0, 10);
+const todayKeyStr = localDateKey();
 
 function reservationPrimaryHint(row) {
   if (!row) return "";
@@ -5068,6 +5072,12 @@ async function loadSettings() {
       state.wxShippingStatus = (result && result.status) || null;
     })
     .catch(() => {});
+  // 静默拉取会员储值档位，不阻塞设置表单
+  callFunction("manageOperations", { action: "listMembershipPlans" })
+    .then((result) => {
+      state.rechargePlans = (result && result.plans) || [];
+    })
+    .catch(() => {});
 }
 
 async function saveSettings() {
@@ -5226,6 +5236,96 @@ async function saveRoomInfo() {
     await loadRoomInfo();
     showToast("茶室信息已保存");
   });
+}
+
+function openRechargePlanForm() {
+  state.rechargePlanForm = { id: "", title: "", description: "", principalYuan: "", bonusYuan: "", sortOrder: String((state.rechargePlans.length + 1) * 1), enabled: true };
+  state.rechargePlanEditing = true;
+}
+
+function editRechargePlan(plan) {
+  state.rechargePlanForm = {
+    id: plan.id,
+    title: plan.title || "",
+    description: plan.description || "",
+    principalYuan: String(Number(plan.principalYuan) || ""),
+    bonusYuan: String(Number(plan.bonusYuan) || ""),
+    sortOrder: String(Number(plan.sortOrder) || ""),
+    enabled: plan.enabled !== false
+  };
+  state.rechargePlanEditing = true;
+}
+
+async function saveRechargePlan() {
+  const form = state.rechargePlanForm;
+  const principalYuan = Number(form.principalYuan);
+  const bonusYuan = Number(form.bonusYuan);
+  const title = String(form.title || "").trim();
+  if (!title) {
+    showToast("请填写档位名称");
+    return;
+  }
+  if (!Number.isFinite(principalYuan) || principalYuan <= 0) {
+    showToast("充值金额必须大于 0");
+    return;
+  }
+  if (!Number.isFinite(bonusYuan) || bonusYuan < 0) {
+    showToast("赠送金额不能小于 0");
+    return;
+  }
+  const reason = await promptActionReason(form.id ? "保存充值档位" : "新增充值档位");
+  if (!reason) return;
+  state.rechargePlanSaving = true;
+  try {
+    await withLoading("保存充值档位", async () => {
+      const result = await callFunction("manageOperations", {
+        action: "saveMembershipPlan",
+        data: {
+          id: form.id || undefined,
+          title,
+          description: String(form.description || "").trim(),
+          principalYuan,
+          bonusYuan,
+          sortOrder: Number(form.sortOrder),
+          enabled: form.enabled !== false
+        },
+        reason
+      });
+      if (result && result.ok === false) {
+        throw new Error(result.message || "保存失败");
+      }
+      await reloadRechargePlans();
+    });
+    state.rechargePlanEditing = false;
+    showToast("档位已保存");
+  } catch (error) {
+    showToast((error && error.message) || "保存失败");
+  } finally {
+    state.rechargePlanSaving = false;
+  }
+}
+
+async function removeRechargePlan(plan) {
+  if (!plan || !plan.id) return;
+  const reason = await promptActionReason(`停用充值档位 ${plan.title || plan.id}`);
+  if (!reason) return;
+  await withLoading("停用档位", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "removeMembershipPlan",
+      data: { id: plan.id },
+      reason
+    });
+    if (result && result.ok === false) {
+      throw new Error(result.message || "停用失败");
+    }
+    await reloadRechargePlans();
+  });
+  showToast("档位已停用");
+}
+
+async function reloadRechargePlans() {
+  const result = await callFunction("manageOperations", { action: "listMembershipPlans" });
+  state.rechargePlans = (result && result.plans) || [];
 }
 
 /** 读取微信「发货信息管理」接入状态（开通、交易结算确认、跳转路径同步状态） */
@@ -6878,17 +6978,17 @@ onBeforeUnmount(() => {
 
         <section v-if="state.activeTab === 'reservations'" class="reservation-workspace">
           <div class="reservation-toolbar">
-            <div class="calendar-strip" role="group" aria-label="预约周">
-              <button type="button" aria-label="上一周" @click="shiftReservationCalendar(-1)">‹</button>
-              <strong>{{ reservationWeekStartOf }}</strong>
-              <button type="button" aria-label="下一周" @click="shiftReservationCalendar(1)">›</button>
-              <button type="button" class="strip-today" @click="jumpReservationCalendarToday">本周</button>
+            <div v-if="state.reservationView === 'board'" class="calendar-strip" role="group" aria-label="预约日期范围">
+              <button type="button" aria-label="前 7 天" :disabled="!canShiftReservationBackward" @click="shiftReservationRange(-1)">‹</button>
+              <strong>{{ reservationRangeLabel }}</strong>
+              <button type="button" aria-label="后 7 天" @click="shiftReservationRange(1)">›</button>
+              <button type="button" class="strip-today" @click="resetReservationRangeToday">今天起</button>
             </div>
             <div class="reservation-view-tabs" role="tablist" aria-label="预约视图">
-              <button type="button" role="tab" :aria-selected="state.reservationView === 'board'" :class="['order-biz-tab', { active: state.reservationView === 'board' }]" @click="state.reservationView = 'board'">排期看板</button>
-              <button type="button" role="tab" :aria-selected="state.reservationView === 'list'" :class="['order-biz-tab', { active: state.reservationView === 'list' }]" @click="state.reservationView = 'list'">全部记录</button>
+              <button type="button" role="tab" :aria-selected="state.reservationView === 'board'" :class="['order-biz-tab', { active: state.reservationView === 'board' }]" @click="switchReservationView('board')">排期看板</button>
+              <button type="button" role="tab" :aria-selected="state.reservationView === 'list'" :class="['order-biz-tab', { active: state.reservationView === 'list' }]" @click="switchReservationView('list')">全部记录</button>
             </div>
-            <input v-model="filters.reservationKeyword" class="line-input" aria-label="搜索茶室预约" placeholder="茶室 / 姓名 / 手机 / 单号" @keydown.enter.prevent>
+            <input v-if="state.reservationView === 'list'" v-model="filters.reservationKeyword" class="line-input" aria-label="搜索茶室预约" placeholder="茶室 / 姓名 / 手机 / 单号" @keydown.enter.prevent="resetPageAndLoad('reservations', loadReservations)">
             <div class="reservation-toolbar-more">
               <button class="ghost-button small" type="button" @click="resetPageAndLoad('reservations', loadReservations)">刷新</button>
               <button v-if="hasPermission('export.read')" class="ghost-button small" type="button" @click="exportReservations">导出</button>
@@ -6896,8 +6996,8 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="reservation-summary" v-if="reservationDayStats.total > 0">
-            <span>今日共 <strong>{{ reservationDayStats.total }}</strong> 单</span>
+          <div class="reservation-summary" v-if="state.reservationView === 'board' && reservationDayStats.total > 0">
+            <span>当日共 <strong>{{ reservationDayStats.total }}</strong> 单</span>
             <span v-if="reservationDayStats.pendingPay">待支付 <strong>{{ reservationDayStats.pendingPay }}</strong></span>
             <span v-if="reservationDayStats.confirmed">已确认 <strong>{{ reservationDayStats.confirmed }}</strong></span>
             <span v-if="reservationDayStats.completed">已完成 <strong>{{ reservationDayStats.completed }}</strong></span>
@@ -6910,11 +7010,11 @@ onBeforeUnmount(() => {
               <div class="week-table-head">
                 <div class="week-time-col">时段</div>
                 <div
-                  v-for="(day, i) in reservationWeekDays"
+                  v-for="day in reservationWeekDays"
                   :key="day"
                   class="week-day-col"
                   :class="{ today: day === todayKeyStr }"
-                >{{ weekDayLabel(i) }} {{ day.slice(5) }}</div>
+                >{{ weekDayLabel(day) }} {{ day.slice(5) }}</div>
               </div>
               <div v-for="row in reservationWeekTable" :key="row.time" class="week-table-row">
                 <div class="week-time-col mono-time">{{ row.time }}</div>
@@ -6922,7 +7022,11 @@ onBeforeUnmount(() => {
                   v-for="cell in row.cells"
                   :key="cell.day"
                   class="week-cell"
-                  :class="{ busy: !!cell.record, today: cell.day === todayKeyStr }"
+                  :class="{
+                    busy: !!cell.record,
+                    completed: statusTone(cell.record?.status) === 'complete',
+                    today: cell.day === todayKeyStr
+                  }"
                   role="button"
                   tabindex="0"
                   @click="openReservationSlot(cell)"
@@ -6937,7 +7041,7 @@ onBeforeUnmount(() => {
               </div>
               <p v-if="!reservationWeekTable.length" class="timeline-empty">暂无预约时段，请先在「预约计价」配置可约时段。</p>
             </div>
-            <p class="board-tip">点击格子查看并处理预约 · 周一至周日 · 箭头切换周</p>
+            <p class="board-tip">点击格子查看并处理预约 · 默认从今天起连续 7 天 · 箭头切换日期范围</p>
           </div>
 
           <!-- 全部记录：列表视图 -->
@@ -6994,6 +7098,11 @@ onBeforeUnmount(() => {
                 action-label="去设置"
                 @action="switchTab('settings')"
               />
+            </div>
+            <div v-if="pageMetaFor('reservations').total > pageMetaFor('reservations').pageSize" class="pager">
+              <span>{{ pageRangeText('reservations') }}</span>
+              <button type="button" :disabled="pageMetaFor('reservations').page <= 1" @click="changePage('reservations', -1, loadReservations)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('reservations').page >= pageMetaFor('reservations').pageCount" @click="changePage('reservations', 1, loadReservations)">下一页</button>
             </div>
           </div>
 
@@ -7576,6 +7685,42 @@ onBeforeUnmount(() => {
                 <label><span>三档会员</span><input v-model="state.settings.levelThreeName"></label>
                 <label><span>三档门槛</span><input v-model.number="state.settings.levelThreeMinSpend" type="number" min="0"></label>
                 <label><span>三档折扣</span><input v-model.number="state.settings.levelThreeDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
+              </div>
+              <div class="settings-subsection">
+                <h3>会员储值档位</h3>
+                <p class="settings-note">顾客在小程序会员页看到的充值档位；金额以「充值 / 赠送」填写，保存后前台会员页自动同步。停用的档位不再展示，历史充值记录不受影响。</p>
+                <div v-if="state.rechargePlans.length" class="recharge-plan-list">
+                  <div v-for="plan in state.rechargePlans" :key="plan.id" class="recharge-plan-row" :class="{ 'plan-disabled': plan.enabled === false }">
+                    <div class="recharge-plan-main">
+                      <strong>{{ plan.title || plan.id }}</strong>
+                      <span class="recharge-plan-desc">{{ plan.description || "" }}</span>
+                    </div>
+                    <div class="recharge-plan-meta">
+                      <span>充 ¥{{ plan.principalYuan }} · 送 ¥{{ plan.bonusYuan }} · 到账 ¥{{ plan.totalYuan }}</span>
+                      <span :class="['status-pill', plan.enabled === false ? 'warn' : 'good']">{{ plan.enabled === false ? "已停用" : "启用中" }}</span>
+                    </div>
+                    <div v-if="hasPermission('settings.write')" class="settings-row-actions">
+                      <button class="ghost-button small" type="button" @click="editRechargePlan(plan)">编辑</button>
+                      <button v-if="plan.enabled !== false" class="ghost-button small danger" type="button" @click="removeRechargePlan(plan)">停用</button>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="settings-note">暂无充值档位。</p>
+                <form v-if="state.rechargePlanEditing" class="settings-fields recharge-plan-form" @submit.prevent="saveRechargePlan">
+                  <label><span>充值金额（元）</span><input v-model.number="state.rechargePlanForm.principalYuan" type="number" min="1" step="0.01" required></label>
+                  <label><span>赠送金额（元）</span><input v-model.number="state.rechargePlanForm.bonusYuan" type="number" min="0" step="0.01" required></label>
+                  <label><span>档位名称</span><input v-model="state.rechargePlanForm.title" placeholder="充 500 送 100" required></label>
+                  <label class="wide"><span>说明文案</span><input v-model="state.rechargePlanForm.description" placeholder="充值 500 元，赠送 100 元，到账 600 元"></label>
+                  <label><span>排序号</span><input v-model.number="state.rechargePlanForm.sortOrder" type="number" min="0"></label>
+                  <label class="switch"><input v-model="state.rechargePlanForm.enabled" type="checkbox"> 启用该档位</label>
+                  <div class="settings-row-actions">
+                    <button class="primary-action small" type="submit" :disabled="state.rechargePlanSaving">{{ state.rechargePlanSaving ? "保存中…" : "保存档位" }}</button>
+                    <button class="ghost-button small" type="button" @click="state.rechargePlanEditing = false">取消</button>
+                  </div>
+                </form>
+                <div v-else-if="hasPermission('settings.write')" class="settings-row-actions">
+                  <button class="secondary-action" type="button" @click="openRechargePlanForm">新增档位</button>
+                </div>
               </div>
             </div>
             <div class="settings-section">

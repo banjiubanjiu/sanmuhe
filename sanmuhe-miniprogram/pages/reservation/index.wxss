@@ -764,6 +764,38 @@
   line-height: 1.45;
 }
 
+.payment-options {
+  display: grid;
+  gap: 14rpx;
+}
+
+.payment-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 22rpx;
+  color: #2a241e;
+  border: 1rpx solid #e5dfd3;
+  border-radius: 12rpx;
+  background: rgba(255, 253, 248, 0.82);
+  font-size: 27rpx;
+}
+
+.payment-option text {
+  color: #82786c;
+  font-size: 23rpx;
+}
+
+.payment-option.active {
+  color: #3f5834;
+  border-color: rgba(63, 88, 52, 0.68);
+  background: rgba(63, 88, 52, 0.08);
+}
+
+.payment-option.disabled {
+  opacity: 0.52;
+}
+
 .booking-note {
   margin-top: 18rpx;
   padding: 18rpx 20rpx;

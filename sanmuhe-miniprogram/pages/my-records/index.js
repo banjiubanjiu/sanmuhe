@@ -1,4 +1,5 @@
 const { listMyRecords, payReservation, cancelReservation } = require("../../utils/cloudApi");
+const { resolveCloudImage } = require("../../config/assets");
 const { displayReservationPlace } = require("../../data/store");
 
 const CANCEL_ADVANCE_HOURS_DEFAULT = 12;
@@ -115,7 +116,7 @@ function normalizeReservations(records, advanceHours) {
       title: displayReservationPlace(item),
       meta: item.day && timeRange ? `${item.day} ${timeRange}` : (item.day || ""),
       subMeta: `${item.people || 1} 位 · ${item.phone || ""}${price > 0 ? ` · ¥${price}` : ""}`,
-      image: item.image || "/assets/images/reservation-hero.jpg",
+      image: resolveCloudImage(item.image, "/assets/images/reservation-hero.jpg"),
       status: statusLabel,
       rawStatus: status,
       payStatus,
@@ -132,7 +133,7 @@ function normalizeSignups(records) {
     title: item.title || "活动报名",
     meta: item.date && item.time ? `${item.date} ${item.time}` : (item.date || ""),
     subMeta: item.place || "禾煦",
-    image: item.image || "/assets/images/event-yangxin-tea.jpg",
+    image: resolveCloudImage(item.image, "/assets/images/event-yangxin-tea.jpg"),
     status: item.status || "待确认"
   }));
 }

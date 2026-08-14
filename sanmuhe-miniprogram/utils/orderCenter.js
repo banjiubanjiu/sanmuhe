@@ -5,6 +5,7 @@ const { localImage } = require("../config/assets");
 
 /** 堂饮订单头部氛围图（已上云 mp-assets/images/dinein-order-hero.jpg） */
 const DINEIN_HERO = localImage("assets/images/dinein-order-hero.jpg");
+const { resolveCloudImage } = require("../config/assets");
 
 function number(value) {
   const parsed = Number(value);
@@ -193,7 +194,7 @@ function normalizeOrder(order = {}) {
     id: item.id || `${order.orderNo || order._id || "order"}-${index}`,
     type: item.type || "",
     name: item.name || "茶品",
-    image: item.image || "",
+    image: resolveCloudImage(item.image),
     quantity: Math.max(1, number(item.quantity) || 1),
     price: number(item.price),
     priceText: money(item.price),
@@ -215,7 +216,7 @@ function normalizeOrder(order = {}) {
     items,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
     itemSummary: items.map((item) => `${item.name} ×${item.quantity}`).join("，") || "商品明细待确认",
-    previewImage: items.find((item) => item.image) ? items.find((item) => item.image).image : "",
+    previewImage: items.find((item) => item.image) ? resolveCloudImage(items.find((item) => item.image).image) : "",
     statusLabel: status.label,
     statusHint: status.hint,
     statusTone: status.tone,

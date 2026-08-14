@@ -1879,8 +1879,10 @@ svg.spinning {
 }
 
 .week-day-col.today {
-  color: var(--admin-green-dark);
-  background: var(--admin-green-soft);
+  color: var(--admin-ink);
+  background: rgba(246, 242, 232, 0.88);
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 rgba(130, 119, 99, 0.35);
 }
 
 .week-day-col:last-child,
@@ -1915,11 +1917,21 @@ svg.spinning {
 }
 
 .week-cell.today {
-  background: rgba(234, 242, 228, 0.6);
+  /* 今天由表头标识；空闲格保持中性，避免被误认为已预约。 */
+  background: rgba(255, 253, 247, 0.35);
 }
 
 .week-cell.busy {
   background: rgba(240, 235, 220, 0.9);
+}
+
+.week-cell.busy.completed {
+  background: rgba(218, 229, 234, 0.78);
+  box-shadow: inset 3px 0 0 rgba(73, 101, 121, 0.68);
+}
+
+.week-cell.busy.completed .week-cell-name {
+  color: #3f596b;
 }
 
 .week-cell-name {
@@ -2133,6 +2145,10 @@ svg.spinning {
 
 .timeline-event[data-tone="danger"] {
   background: rgba(182, 90, 70, 0.92);
+}
+
+.timeline-event[data-tone="complete"] {
+  background: rgba(73, 101, 121, 0.92);
 }
 
 .timeline-event[data-tone="neutral"] {
@@ -2772,6 +2788,12 @@ svg.spinning {
   background: rgba(222, 235, 217, 0.84);
 }
 
+.record-status.complete {
+  color: #496579;
+  background: rgba(218, 229, 234, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(73, 101, 121, 0.16);
+}
+
 .record-status.danger {
   color: #9f4636;
   background: rgba(239, 207, 199, 0.9);
@@ -3091,9 +3113,73 @@ tr.selected td:first-child {
   background: rgba(222, 235, 217, 0.88);
 }
 
+.status-pill.complete {
+  color: #496579;
+  background: rgba(218, 229, 234, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(73, 101, 121, 0.16);
+}
+
 .status-pill.danger {
   color: #9f4636;
   background: rgba(239, 207, 199, 0.9);
+}
+
+/* 会员储值档位（设置页） */
+.recharge-plan-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.recharge-plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  background: var(--admin-paper);
+}
+
+.recharge-plan-row.plan-disabled {
+  opacity: 0.62;
+}
+
+.recharge-plan-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.recharge-plan-main strong {
+  font-size: 14px;
+  color: var(--admin-ink);
+}
+
+.recharge-plan-desc {
+  font-size: 12px;
+  color: var(--admin-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recharge-plan-meta {
+  display: grid;
+  gap: 4px;
+  align-items: start;
+  text-align: right;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.recharge-plan-form {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px dashed var(--admin-line);
+  border-radius: 10px;
+  background: rgba(250, 248, 243, 0.5);
 }
 
 .editor-panel,
@@ -3335,6 +3421,10 @@ tr.selected td:first-child {
 
 .timeline-step.good > span {
   background: var(--admin-green);
+}
+
+.timeline-step.complete > span {
+  background: #496579;
 }
 
 .timeline-step.warn > span {

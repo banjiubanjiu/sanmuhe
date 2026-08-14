@@ -1,72 +1,154 @@
 <view class="page address-page">
-  <!-- 有地址：列表卡 -->
-  <view wx:if="{{hasAddress && !showManual}}" class="list">
-    <view class="addr-card" bindtap="openWechatAddress">
-      <view class="addr-main">
-        <view class="addr-top">
-          <text class="addr-name">{{consignee}}</text>
-          <text class="addr-phone">{{phoneMasked}}</text>
-          <text class="addr-default">默认</text>
-        </view>
-        <view class="addr-line">{{address}}</view>
-      </view>
-      <view class="addr-edit" catchtap="openWechatAddress">更换</view>
+  <block wx:if="{{!formOpen}}">
+    <view wx:if="{{loading && !addresses.length}}" class="status-state">
+      <view class="status-title">正在读取收货地址</view>
+      <view class="status-desc">请稍候</view>
     </view>
-  </view>
 
-  <!-- 无地址 -->
-  <view wx:if="{{!hasAddress && !showManual}}" class="empty-state">
-    <image class="empty-icon" src="/assets/icons/profile-pin.png" mode="aspectFit"></image>
-    <view class="empty-title">暂无收货地址</view>
-    <view class="empty-desc">可用微信地址，或手动填写用于茶叶快递</view>
-  </view>
+    <view wx:elif="{{loadError && !addresses.length}}" class="status-state">
+      <view class="status-title">暂时无法读取地址</view>
+      <view class="status-desc">请检查网络后重试</view>
+      <button class="retry-btn" bindtap="retryLoad">重新加载</button>
+    </view>
 
-  <!-- 手动填写 -->
-  <view wx:if="{{showManual}}" class="manual-card">
-    <view class="manual-title">填写收货信息</view>
-    <input
-      class="manual-field"
-      placeholder="收货人姓名"
-      data-field="consignee"
-      value="{{consignee}}"
-      bindinput="onManualInput"
-    />
-    <input
-      class="manual-field"
-      placeholder="手机号"
-      type="number"
-      maxlength="11"
-      data-field="phone"
-      value="{{phone}}"
-      bindinput="onManualInput"
-    />
-    <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
-      <view class="manual-field manual-region {{regionText ? '' : 'placeholder'}}">
-        {{regionText || '选择省 / 市 / 区'}}
+    <view wx:elif="{{!addresses.length}}" class="empty-state">
+      <image class="empty-icon" src="/assets/icons/profile-pin.png" mode="aspectFit"></image>
+      <view class="empty-title">还没有收货地址</view>
+      <view class="empty-desc">导入微信地址更省时，也可以手动新增</view>
+    </view>
+
+    <view wx:else class="address-list">
+      <view
+        wx:for="{{addresses}}"
+        wx:key="id"
+        class="address-item {{item.isSelected && selectMode ? 'is-selected' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="onAddressTap"
+      >
+        <view wx:if="{{selectMode}}" class="select-mark {{item.isSelected ? 'active' : ''}}"></view>
+        <image wx:else class="address-pin" src="/assets/icons/profile-pin.png" mode="aspectFit"></image>
+
+        <view class="address-main">
+          <view class="address-person">
+            <text class="address-name">{{item.consignee}}</text>
+            <text class="address-phone">{{item.phoneMasked}}</text>
+            <text wx:if="{{item.isDefault}}" class="default-tag">默认</text>
+          </view>
+          <view class="address-detail">{{item.address}}</view>
+        </view>
+
+        <view class="edit-action" data-id="{{item.id}}" catchtap="editAddress">编辑</view>
       </view>
-    </picker>
-    <input
-      class="manual-field"
-      placeholder="详细地址（街道门牌等）"
-      data-field="detailAddress"
-      value="{{detailAddress}}"
-      bindinput="onManualInput"
-    />
-    <button class="add-btn manual-save" hover-class="none" bindtap="saveManual">保存地址</button>
-    <view class="footer-link" bindtap="openWechatAddress">改用微信地址</view>
-  </view>
+      <view class="list-note">结算时可临时选择其他地址</view>
+    </view>
 
-  <view wx:if="{{!showManual}}" class="footer">
-    <button
-      class="add-btn"
-      loading="{{loading}}"
-      disabled="{{loading}}"
-      hover-class="none"
-      bindtap="openWechatAddress"
-    >{{hasAddress ? '选择其他微信地址' : '选择微信收货地址'}}</button>
-    <view class="footer-link" bindtap="showManualForm">手动填写地址</view>
-    <view wx:if="{{hasAddress}}" class="footer-link muted" bindtap="clearLocal">清除</view>
-  </view>
+    <view class="list-footer">
+      <button
+        wx:if="{{!addresses.length}}"
+        class="primary-btn"
+        loading="{{submitting}}"
+        disabled="{{submitting}}"
+        bindtap="importWechatAddress"
+      >使用微信地址</button>
+      <button wx:else class="primary-btn" bindtap="openNewForm">新增收货地址</button>
+      <button
+        wx:if="{{!addresses.length}}"
+        class="secondary-btn"
+        disabled="{{submitting}}"
+        bindtap="openNewForm"
+      >手动新增</button>
+      <button
+        wx:else
+        class="secondary-btn"
+        loading="{{submitting}}"
+        disabled="{{submitting}}"
+        bindtap="importWechatAddress"
+      >从微信导入</button>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="form-head">
+      <view class="form-back" bindtap="closeForm">‹ 返回地址列表</view>
+      <view class="form-heading">{{formTitle}}</view>
+    </view>
+
+    <view class="form-card">
+      <view class="form-row {{errorConsignee ? 'has-error' : ''}}">
+        <view class="form-label">收货人</view>
+        <input
+          class="form-input"
+          placeholder="姓名"
+          placeholder-class="form-placeholder"
+          maxlength="40"
+          data-field="formConsignee"
+          value="{{formConsignee}}"
+          bindinput="onFormInput"
+        />
+      </view>
+      <view wx:if="{{errorConsignee}}" class="field-error">{{errorConsignee}}</view>
+
+      <view class="form-row {{errorPhone ? 'has-error' : ''}}">
+        <view class="form-label">手机号码</view>
+        <input
+          class="form-input"
+          placeholder="收货人手机号"
+          placeholder-class="form-placeholder"
+          type="number"
+          maxlength="11"
+          data-field="formPhone"
+          value="{{formPhone}}"
+          bindinput="onFormInput"
+        />
+      </view>
+      <view wx:if="{{errorPhone}}" class="field-error">{{errorPhone}}</view>
+
+      <picker mode="region" value="{{formRegionValue}}" bindchange="onRegionChange">
+        <view class="form-row form-row-link {{errorRegion ? 'has-error' : ''}}">
+          <view class="form-label">所在地区</view>
+          <view class="form-value {{formRegionText ? '' : 'is-placeholder'}}">
+            {{formRegionText || '省 / 市 / 区'}}
+          </view>
+          <view class="form-chevron">›</view>
+        </view>
+      </picker>
+      <view wx:if="{{errorRegion}}" class="field-error">{{errorRegion}}</view>
+
+      <view class="form-row form-row-detail {{errorDetail ? 'has-error' : ''}}">
+        <view class="form-label">详细地址</view>
+        <textarea
+          class="form-textarea"
+          placeholder="街道、门牌、楼栋房间等"
+          placeholder-class="form-placeholder"
+          maxlength="120"
+          auto-height
+          data-field="formDetailAddress"
+          value="{{formDetailAddress}}"
+          bindinput="onFormInput"
+        ></textarea>
+      </view>
+      <view wx:if="{{errorDetail}}" class="field-error">{{errorDetail}}</view>
+    </view>
+
+    <view class="default-row">
+      <view>
+        <view class="default-title">设为默认地址</view>
+        <view class="default-desc">{{formDefaultLocked ? '当前默认地址' : '下次结算时优先使用'}}</view>
+      </view>
+      <switch color="#416d38" checked="{{formIsDefault}}" disabled="{{formDefaultLocked}}" bindchange="onDefaultChange" />
+    </view>
+
+    <button wx:if="{{editingId}}" class="delete-btn" disabled="{{submitting}}" bindtap="deleteAddress">删除地址</button>
+
+    <view class="form-footer">
+      <button
+        class="primary-btn save-btn"
+        loading="{{submitting}}"
+        disabled="{{submitting}}"
+        bindtap="saveForm"
+      >{{selectMode ? '保存并使用' : '保存地址'}}</button>
+    </view>
+  </block>
 
   <privacy-gate
     show="{{privacyGateOpen}}"

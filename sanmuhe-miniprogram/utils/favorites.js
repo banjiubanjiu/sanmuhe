@@ -1,3 +1,5 @@
+const { resolveCloudImage } = require("../config/assets");
+
 const FAVORITES_KEY = "sanmuhe_favorites";
 
 function getFavorites() {
@@ -31,7 +33,7 @@ function toggleFavorite(product) {
     price: product.price,
     unit: product.unit,
     category: product.category,
-    image: product.thumb || product.image,
+    image: resolveCloudImage(product.thumb || product.image),
     savedAt: Date.now()
   };
   favorites.unshift(next);

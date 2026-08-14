@@ -1,3 +1,5 @@
+const { resolveCloudImage } = require("../config/assets");
+
 function cleanText(value) {
   return String(value || "").trim();
 }
@@ -237,7 +239,7 @@ function buildTeaOptions(item, teaGroups) {
       return {
         name,
         category,
-        image: tea.image || meta.image || fallbackImage,
+        image: resolveCloudImage(tea.image || meta.image || fallbackImage),
         subtitle,
         tags: tags.length ? tags : [category],
         groupName
@@ -256,7 +258,7 @@ function buildTeaOptions(item, teaGroups) {
       result.push({
         name,
         category,
-        image: meta.image || fallbackImage,
+        image: resolveCloudImage(meta.image || fallbackImage),
         subtitle,
         tags: tags.length ? tags : [category],
         groupName: group.name

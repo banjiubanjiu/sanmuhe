@@ -1,4 +1,5 @@
 const { addToCart } = require("../../utils/cart");
+const { resolveCloudImage } = require("../../config/assets");
 const { getCatalog } = require("../../utils/cloudApi");
 const { isFavorite, toggleFavorite } = require("../../utils/favorites");
 
@@ -157,7 +158,7 @@ function findSpec(specs, label) {
 function buildContactMeta(product) {
   const id = product && product.id ? String(product.id) : "";
   const name = product && product.name ? String(product.name) : "茶品";
-  const img = (product && (product.thumb || product.image)) || "/assets/images/contact-qr.jpg";
+  const img = resolveCloudImage(product && (product.thumb || product.image), "/assets/images/contact-qr.jpg");
   return {
     contactSessionFrom: id ? `product:${id}` : "product-detail",
     contactMessageTitle: name.slice(0, 20),
@@ -278,7 +279,7 @@ Page({
       name: product.name,
       price: displayPrice,
       color: product.color,
-      image: product.thumb || product.image,
+      image: resolveCloudImage(product.thumb || product.image),
       category: product.category,
       quantity,
       options: {
