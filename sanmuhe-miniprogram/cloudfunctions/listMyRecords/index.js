@@ -10,6 +10,9 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 
+/** 快递100官方要求同一运单查询间隔至少 30 分钟，避免高频查询导致锁单 */
+const LOGISTICS_QUERY_MIN_INTERVAL_MS = 30 * 60 * 1000;
+
 /** 微信运力编码 / 中文 → 快递100 com */
 const KUAIDI100_COM_MAP = {
   SF: "shunfeng",
@@ -677,32 +680,78 @@ async function queryLogistics(event, openid) {
     };
   }
 
-  // 短缓存：2 分钟内复用，减少接口调用
-  const cachedAt = order.logisticsUpdatedAt ? new Date(order.logisticsUpdatedAt).getTime() : 0;
-  if (
-    Array.isArray(order.logisticsTraces)
-    && order.logisticsTraces.length
-    && cachedAt
-    && Date.now() - cachedAt < 2 * 60 * 1000
-    && !event.force
-  ) {
+  const com = resolveKuaidi100Com(order);
+  const queryKey = `${com}:${order.trackingNo}`;
+  const lastAttemptValue = order.logisticsQueryAttemptAt || order.logisticsUpdatedAt;
+  const lastAttemptAt = lastAttemptValue ? new Date(lastAttemptValue).getTime() : 0;
+  const previousQueryKey = String(order.logisticsQueryKey || "").trim();
+  const isSameQuery = !previousQueryKey || previousQueryKey === queryKey;
+  const elapsed = lastAttemptAt && Number.isFinite(lastAttemptAt) ? Date.now() - lastAttemptAt : Infinity;
+  const remainingMs = Math.max(0, LOGISTICS_QUERY_MIN_INTERVAL_MS - elapsed);
+
+  // 即使客户端传 force，也不能绕过快递100的 30 分钟限频要求。
+  if (isSameQuery && remainingMs > 0) {
+    const retryAfterSeconds = Math.ceil(remainingMs / 1000);
+    const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+    const traces = Array.isArray(order.logisticsTraces) ? order.logisticsTraces : [];
+    if (traces.length) {
+      return {
+        ok: true,
+        cached: true,
+        message: `物流数据已缓存，约 ${remainingMinutes} 分钟后可再次查询`,
+        retryAfterSeconds,
+        nextRefreshAt: new Date(Date.now() + remainingMs).toISOString(),
+        trackingCompany: order.trackingCompany || "",
+        trackingNo: order.trackingNo,
+        state: order.logisticsState || "",
+        traces
+      };
+    }
     return {
       ok: true,
       cached: true,
+      pending: true,
+      message: "物流信息更新中，请稍后再查看",
+      retryAfterSeconds,
+      nextRefreshAt: new Date(Date.now() + remainingMs).toISOString(),
       trackingCompany: order.trackingCompany || "",
       trackingNo: order.trackingNo,
-      state: order.logisticsState || "",
-      traces: order.logisticsTraces
+      traces: []
     };
   }
 
-  const com = resolveKuaidi100Com(order);
+  // 查询前记录尝试时间，避免多个客户端并发重复请求同一运单。
+  try {
+    await db.collection("orders").doc(order._id).update({
+      data: {
+        logisticsQueryAttemptAt: db.serverDate(),
+        logisticsQueryKey: queryKey,
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (error) {
+    // 记录失败不阻断本次查询；快递100仍有自身限流保护。
+  }
+
   const result = await queryKuaidi100(com, order.trackingNo, order.phone);
   if (!result.ok) {
+    try {
+      await db.collection("orders").doc(order._id).update({
+        data: {
+          logisticsLastError: result.message || "查询失败",
+          logisticsQueryAttemptAt: db.serverDate(),
+          logisticsQueryKey: queryKey,
+          updatedAt: db.serverDate()
+        }
+      });
+    } catch (error) {
+      // 错误状态缓存失败不影响返回。
+    }
     return {
       ok: false,
       configured: result.configured !== false,
       message: result.message || "查询失败",
+      retryAfterSeconds: Math.ceil(LOGISTICS_QUERY_MIN_INTERVAL_MS / 1000),
       trackingCompany: order.trackingCompany || "",
       trackingNo: order.trackingNo,
       traces: order.logisticsTraces || []
@@ -715,6 +764,9 @@ async function queryLogistics(event, openid) {
         logisticsState: result.state || "",
         logisticsTraces: result.traces,
         logisticsCom: result.com || com,
+        logisticsLastError: "",
+        logisticsQueryAttemptAt: db.serverDate(),
+        logisticsQueryKey: queryKey,
         logisticsUpdatedAt: db.serverDate(),
         updatedAt: db.serverDate()
       }
@@ -726,6 +778,7 @@ async function queryLogistics(event, openid) {
   return {
     ok: true,
     cached: false,
+    retryAfterSeconds: Math.ceil(LOGISTICS_QUERY_MIN_INTERVAL_MS / 1000),
     trackingCompany: order.trackingCompany || "",
     trackingNo: order.trackingNo,
     state: result.state || "",

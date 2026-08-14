@@ -328,6 +328,18 @@
   font-weight: 600;
 }
 
+.timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timeline-copy-link {
+  color: var(--hx-action);
+  font-size: 22rpx;
+  padding: 10rpx 0 10rpx 24rpx;
+}
+
 .timeline {
   margin-top: 28rpx;
 }
@@ -525,131 +537,66 @@
   text-align: right;
 }
 
-.logistics-block {
-  margin-top: 28rpx;
-  padding-top: 24rpx;
+.logistics-hint-row {
+  margin-top: 22rpx;
+  padding-top: 20rpx;
   border-top: 1rpx solid var(--hx-line);
 }
 
-.logistics-label {
-  color: var(--hx-muted);
-  font-size: 23rpx;
-}
-
-.logistics-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  margin-top: 14rpx;
-}
-
-.logistics-company {
-  color: var(--hx-text);
-  font-size: 26rpx;
-  font-weight: 600;
-}
-
-.tracking-no {
-  margin-top: 6rpx;
+.logistics-hint-text {
   color: var(--hx-muted);
   font-size: 22rpx;
+  line-height: 1.6;
 }
 
-.logistics-main button {
-  min-width: 130rpx;
-  height: 60rpx;
-  color: var(--hx-action);
-  border: 1rpx solid var(--hx-action);
-  border-radius: 999rpx;
-  font-size: 22rpx;
-  opacity: 0.85;
-}
-
-.logistics-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.logistics-state {
-  color: var(--hx-action);
-  font-size: 22rpx;
-  font-weight: 500;
-}
-
-.logistics-actions {
-  margin-top: 16rpx;
-}
-
-.logistics-refresh {
-  height: 56rpx;
-  line-height: 56rpx;
-  padding: 0 24rpx;
-  color: var(--hx-muted);
-  background: transparent;
-  border: 1rpx solid var(--hx-line);
-  border-radius: 999rpx;
-  font-size: 22rpx;
-}
-
-.logistics-refresh::after {
-  border: none;
-}
-
-.logistics-error,
-.logistics-empty {
-  margin-top: 14rpx;
-  color: var(--hx-muted);
-  font-size: 22rpx;
-  line-height: 1.5;
-}
-
-.logistics-error {
+.logistics-hint-text.is-error {
   color: #a94a32;
 }
 
-.logistics-trace-list {
-  margin-top: 20rpx;
-  padding-left: 8rpx;
-  border-left: 2rpx solid var(--hx-line);
+.logistics-retry-link {
+  margin-left: 12rpx;
+  color: var(--hx-action);
+  text-decoration: underline;
+  padding: 8rpx 4rpx;
 }
 
-.logistics-trace-item {
-  position: relative;
-  padding: 0 0 20rpx 20rpx;
+.logistics-hint-row-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.logistics-trace-item::before {
-  content: "";
-  position: absolute;
-  left: -7rpx;
-  top: 10rpx;
-  width: 10rpx;
-  height: 10rpx;
-  border-radius: 50%;
-  background: var(--hx-line);
-}
-
-.logistics-trace-item.is-latest::before {
-  background: var(--hx-action);
-}
-
-.logistics-trace-time {
+.logistics-updated {
   color: var(--hx-muted);
-  font-size: 20rpx;
+  font-size: 22rpx;
 }
 
-.logistics-trace-text {
-  margin-top: 4rpx;
-  color: var(--hx-text);
-  font-size: 24rpx;
-  line-height: 1.5;
+.logistics-no-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10rpx;
+  margin-top: 14rpx;
+  padding: 14rpx 18rpx;
+  border-radius: 12rpx;
+  background: rgba(23, 59, 42, 0.05);
 }
 
-.logistics-trace-item.is-latest .logistics-trace-text {
+.logistics-no-label {
+  color: var(--hx-muted);
+  font-size: 21rpx;
+}
+
+.logistics-no-value {
+  color: var(--hx-ink);
+  font-size: 26rpx;
   font-weight: 600;
+  letter-spacing: 1rpx;
+}
+
+.logistics-no-company {
+  margin-left: auto;
+  color: var(--hx-muted);
+  font-size: 21rpx;
 }
 
 .after-sale-status {

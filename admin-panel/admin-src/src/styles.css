@@ -2905,6 +2905,26 @@ svg.spinning {
   background: var(--admin-green-dark);
 }
 
+.module-kicker {
+  position: relative;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2px;
+  color: var(--admin-ink);
+  font-weight: 600;
+}
+
+.module-kicker::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--admin-green-dark);
+}
+
 .line-input {
   max-width: 270px;
 }

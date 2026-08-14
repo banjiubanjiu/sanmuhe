@@ -21,7 +21,6 @@ const db = cloud.database();
 const _ = db.command;
 const DASHBOARD_READ_LIMIT = 1000;
 const ANALYTICS_READ_LIMIT = 1000;
-const MARKETING_STATS_LIMIT = 1000;
 const ORDER_ALERT_READ_LIMIT = 50;
 
 function cleanText(value, maxLength) {
@@ -85,16 +84,6 @@ function assertDateText(value, label) {
     throw error;
   }
   return date;
-}
-
-function assertDateRange(startAt, endAt, label) {
-  const startDate = assertDateText(startAt, `${label}开始`);
-  const endDate = assertDateText(endAt, `${label}结束`);
-  if (startDate && endDate && endDate.getTime() < startDate.getTime()) {
-    const error = new Error(`${label}结束时间不能早于开始时间`);
-    error.code = "INVALID_INPUT";
-    throw error;
-  }
 }
 
 function assertPhoneText(value, label) {
@@ -294,8 +283,6 @@ const rolePermissionMap = {
     "catalog.write",
     "content.read",
     "content.write",
-    "marketing.read",
-    "marketing.write",
     "analytics.read",
     "audit.read",
     "settings.read",
@@ -362,11 +349,6 @@ const actionPermissions = {
   listContent: "content.read",
   saveContent: "content.write",
   deleteContent: "content.write",
-  listMarketing: "marketing.read",
-  saveCoupon: "marketing.write",
-  saveCampaign: "marketing.write",
-  disableCoupon: "marketing.write",
-  disableCampaign: "marketing.write",
   getSettings: "settings.read",
   updateSettings: "settings.write",
   getWxShippingStatus: "settings.read",
@@ -4020,129 +4002,6 @@ async function deleteContent(event, caller) {
   return { ok: true };
 }
 
-function normalizeCoupon(data = {}) {
-  return {
-    id: cleanId(data.id, "coupon"),
-    name: cleanText(data.name, 80),
-    description: cleanText(data.description, 160),
-    amount: Math.max(0, Number(data.amount) || 0),
-    threshold: Math.max(0, Number(data.threshold) || 0),
-    stock: Math.max(0, Number(data.stock) || 0),
-    issued: Math.max(0, Number(data.issued) || 0),
-    redeemed: Math.max(0, Number(data.redeemed) || 0),
-    claimLimit: Math.max(1, Number(data.claimLimit) || 1),
-    startAt: cleanText(data.startAt, 30),
-    endAt: cleanText(data.endAt, 30),
-    status: cleanText(data.status, 20) || "领取中",
-    visible: data.visible !== false
-  };
-}
-
-function normalizeCampaign(data = {}) {
-  return {
-    id: cleanId(data.id, "campaign"),
-    name: cleanText(data.name, 80),
-    type: cleanText(data.type, 30) || "banner",
-    summary: cleanText(data.summary, 200),
-    startAt: cleanText(data.startAt, 30),
-    endAt: cleanText(data.endAt, 30),
-    status: cleanText(data.status, 20) || "进行中",
-    visible: data.visible !== false
-  };
-}
-
-async function listMarketing() {
-  const [coupons, campaigns, userCoupons, orders] = await Promise.all([
-    readCollection("coupons", { orderBy: "createdAt", limit: 100 }),
-    readCollection("marketing_campaigns", { orderBy: "createdAt", limit: 100 }),
-    readCollection("user_coupons", { orderBy: "createdAt", limit: MARKETING_STATS_LIMIT }),
-    readCollection("orders", { orderBy: "createdAt", limit: MARKETING_STATS_LIMIT })
-  ]);
-  const couponStats = coupons.map((coupon) => {
-    const claims = userCoupons.filter((item) => item.couponId === coupon.id);
-    const redeemed = claims.filter((item) => item.status === "已使用");
-    const couponOrders = orders.filter((order) => order.coupon && order.coupon.couponId === coupon.id && isRevenueOrder(order));
-    const orderAmount = couponOrders.reduce((sum, order) => sum + number(order.total), 0);
-    return {
-      id: coupon.id,
-      name: coupon.name,
-      claimed: claims.length,
-      redeemed: redeemed.length,
-      available: claims.filter((item) => item.status === "可使用").length,
-      locked: claims.filter((item) => item.status === "锁定中").length,
-      redeemRate: claims.length ? Math.round((redeemed.length / claims.length) * 1000) / 10 : 0,
-      orderAmount,
-      discountAmount: couponOrders.reduce((sum, order) => sum + number(order.couponDiscount || order.coupon && order.coupon.discount), 0)
-    };
-  });
-  return {
-    ok: true,
-    coupons,
-    campaigns,
-    couponStats,
-    scope: {
-      limit: MARKETING_STATS_LIMIT,
-      couponsRead: coupons.length,
-      campaignsRead: campaigns.length,
-      userCouponsRead: userCoupons.length,
-      ordersRead: orders.length,
-      limited: userCoupons.length >= MARKETING_STATS_LIMIT || orders.length >= MARKETING_STATS_LIMIT
-    }
-  };
-}
-
-async function saveCoupon(event, caller) {
-  const data = event.data || {};
-  const payload = normalizeCoupon(event.data || {});
-  if (!payload.name || !payload.amount) {
-    return { ok: false, message: "请填写优惠券名称和面额" };
-  }
-  if (payload.threshold > 0 && payload.amount > payload.threshold) {
-    return { ok: false, message: "优惠金额不能大于使用门槛" };
-  }
-  assertDateRange(payload.startAt, payload.endAt, "优惠券");
-  const existing = await findRecord("coupons", "id", payload.id);
-  if (existing) {
-    if (data.issued === undefined) {
-      payload.issued = number(existing.issued);
-    }
-    if (data.redeemed === undefined) {
-      payload.redeemed = number(existing.redeemed);
-    }
-  }
-  if (payload.redeemed > payload.issued) {
-    return { ok: false, message: "优惠券核销数不能大于领取数" };
-  }
-  if (payload.stock > 0 && payload.issued > payload.stock) {
-    return { ok: false, message: "优惠券库存不能小于已领取数量，0 表示不限量" };
-  }
-  await upsertRecord("coupons", "id", payload.id, payload);
-  await writeAdminAuditLog(caller, "saveCoupon", {
-    id: payload.id,
-    name: payload.name,
-    amount: payload.amount,
-    stock: payload.stock,
-    changes: auditDiff(existing || {}, payload, ["name", "description", "amount", "threshold", "stock", "claimLimit", "startAt", "endAt", "status", "visible"])
-  });
-  return { ok: true, id: payload.id };
-}
-
-async function saveCampaign(event, caller) {
-  const payload = normalizeCampaign(event.data || {});
-  if (!payload.name) {
-    return { ok: false, message: "请填写营销计划名称" };
-  }
-  assertDateRange(payload.startAt, payload.endAt, "营销计划");
-  const existing = await findRecord("marketing_campaigns", "id", payload.id);
-  await upsertRecord("marketing_campaigns", "id", payload.id, payload);
-  await writeAdminAuditLog(caller, "saveCampaign", {
-    id: payload.id,
-    name: payload.name,
-    status: payload.status,
-    changes: auditDiff(existing || {}, payload, ["name", "type", "summary", "startAt", "endAt", "status", "visible"])
-  });
-  return { ok: true, id: payload.id };
-}
 
 async function disableRecord(collection, id, caller) {
   const existing = await findRecord(collection, "id", cleanText(id, 80));
@@ -4402,10 +4261,10 @@ async function getWxShippingStatus(event, caller) {
   ]);
   const status = {
     ok: Boolean(managedResult && managedResult.ok && confirmResult && confirmResult.ok),
-    isTradeManaged: Boolean(managedResult && managedResult.isTradeManaged),
-    tradeManageAppid: (managedResult && managedResult.tradeManageAppid) || "",
-    isOfflineOrder: Boolean(managedResult && managedResult.isOfflineOrder),
-    confirmationCompleted: Boolean(confirmResult && confirmResult.confirmationCompleted),
+    isTradeManaged: Boolean(managedResult && (managedResult.isTradeManaged || managedResult.is_trade_managed)),
+    tradeManageAppid: (managedResult && (managedResult.tradeManageAppid || managedResult.trade_manage_appid)) || "",
+    isOfflineOrder: Boolean(managedResult && (managedResult.isOfflineOrder || managedResult.is_offline_order)),
+    confirmationCompleted: Boolean(confirmResult && (confirmResult.confirmationCompleted || confirmResult.completed || confirmResult.is_confirmation_completed)),
     jumpPath: settings.wxShippingJumpPath || "pages/order-detail/index",
     jumpPathSynced: settings.wxShippingJumpPathSynced === true,
     pendingPath: settings.wxShippingJumpPathPending || "",
@@ -4647,21 +4506,6 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "deleteContent") {
       return await deleteContent(event, caller);
-    }
-    if (action === "listMarketing") {
-      return await listMarketing();
-    }
-    if (action === "saveCoupon") {
-      return await saveCoupon(event, caller);
-    }
-    if (action === "saveCampaign") {
-      return await saveCampaign(event, caller);
-    }
-    if (action === "disableCoupon") {
-      return await disableRecord("coupons", event.id, caller);
-    }
-    if (action === "disableCampaign") {
-      return await disableRecord("marketing_campaigns", event.id, caller);
     }
     if (action === "getSettings") {
       return await getSettings();

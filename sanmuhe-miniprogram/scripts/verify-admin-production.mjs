@@ -165,7 +165,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "analytics data scope",
-      items: ["ANALYTICS_READ_LIMIT", "orders: revenueOrders.length", "MARKETING_STATS_LIMIT"]
+      items: ["ANALYTICS_READ_LIMIT", "orders: revenueOrders.length", "revenueOrders"]
     },
     {
       label: "system health probes",
@@ -203,11 +203,11 @@ function verifyProductionSurfaces() {
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "openRoomsCatalog", "if (!state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch", "saveCurrentView", "applySavedView", "currentFreshnessMeta", "aria-busy"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "saveRoomInfo", "if (!state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch", "saveCurrentView", "applySavedView", "currentFreshnessMeta", "aria-busy"]
     },
     {
       label: "truthful analytics copy",
-      items: ["dashboardScopeText", "analyticsScopeText", "marketingScopeText", "已支付订单数"]
+      items: ["dashboardScopeText", "analyticsScopeText", "已支付订单数"]
     },
     {
       label: "workflow-first admin polish",

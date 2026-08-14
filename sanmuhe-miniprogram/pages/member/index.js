@@ -1,7 +1,6 @@
 const { addToCart } = require("../../utils/cart");
 const {
   activateMember,
-  claimCoupon,
   getCatalog,
   getMemberCenter,
   rechargeMember,
@@ -84,10 +83,6 @@ const benefitDetails = [
   { title: "余额即享支付", desc: "储值余额可在结算时直接使用", icon: "/assets/icons/profile-coupon.png" },
   { title: "本金与赠送分记", desc: "充值本金与赠送金额分别记账，清晰可查", icon: "/assets/icons/profile-ticket.png" }
 ];
-
-function countUsableCoupons(coupons) {
-  return (coupons || []).filter((item) => item.status === "可使用").length;
-}
 
 function pickRecommendations(products) {
   const list = Array.isArray(products) ? products : [];
@@ -193,8 +188,6 @@ Page(withPrivacy({
     level: buildLevel(memberBootstrap.member),
     benefitDetails,
     recommendations: [],
-    availableCoupons: [],
-    userCoupons: [],
     subscriptionTemplates: [],
     loadingMember: !memberBootstrap.memberStatusReady,
     privacyPurpose: MEMBER_PRIVACY_PURPOSE,
@@ -328,11 +321,8 @@ Page(withPrivacy({
         highlights: [
           { title: "储值礼遇", desc: "充 500 送 100", icon: "/assets/icons/profile-wallet.png" },
           { title: "进阶礼遇", desc: "充 1000 送 250", icon: "/assets/icons/profile-star.png" },
-          { title: "当前余额", desc: `¥${walletInfo.balance || "0.00"}`, icon: "/assets/icons/profile-coupon.png" },
-          { title: "可用券", desc: `${countUsableCoupons(result.userCoupons)} 张`, icon: "/assets/icons/profile-ticket.png" }
+          { title: "当前余额", desc: `¥${walletInfo.balance || "0.00"}`, icon: "/assets/icons/profile-coupon.png" }
         ],
-        availableCoupons: result.availableCoupons || [],
-        userCoupons: result.userCoupons || [],
         subscriptionTemplates: result.subscriptionTemplates || []
       });
       this.refreshActivationState();
@@ -595,20 +585,6 @@ Page(withPrivacy({
       title: "会员权益",
       content: "储值礼遇：充 500 送 100（到账 600）、充 1000 送 250（到账 1250）。本金与赠送金额分别记账，余额可在禾煦结算时使用。",
       showCancel: false
-    });
-  },
-
-  claimCoupon(event) {
-    const id = event.currentTarget.dataset.id;
-    claimCoupon(id).then((result) => {
-      if (result && result.ok === false) {
-        wx.showToast({ title: result.message || "领取失败", icon: "none" });
-        return;
-      }
-      wx.showToast({ title: "已领取" });
-      this.loadMemberCenter();
-    }).catch(() => {
-      wx.showToast({ title: "领取失败", icon: "none" });
     });
   },
 

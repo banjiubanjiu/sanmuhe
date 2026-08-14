@@ -14,7 +14,6 @@ const defaultMember = {
   isMember: false,
   tier: "普通顾客",
   points: 0,
-  coupons: 0,
   orders: 0,
   balance: "0.00"
 };
@@ -48,7 +47,6 @@ const serviceItemsBase = [
   { label: "我的预约", icon: "/assets/icons/profile-room.png", action: "myReservations" },
   { label: "我的活动", icon: "/assets/icons/profile-calendar.png", action: "myEvents" },
   { label: "收货地址", icon: "/assets/icons/profile-pin.png", action: "address" },
-  { label: "优惠券", icon: "/assets/icons/profile-coupon.png", action: "coupon" },
   { label: "联系客服", icon: "/assets/icons/profile-headset.png", action: "service" },
   { label: "隐私协议", icon: "/assets/icons/profile-setting.png", action: "privacy" }
 ];
@@ -137,10 +135,6 @@ function getRecentOrders(orders) {
     status: item.statusLabel || item.status || "待处理",
     meta: item.itemSummary || item.deliveryText || ""
   }));
-}
-
-function getUsableCouponCount(coupons) {
-  return (coupons || []).filter((item) => item.status === "可使用").length;
 }
 
 Page(withPrivacy({
@@ -236,7 +230,6 @@ Page(withPrivacy({
         tier: isMember ? records.member.tier : defaultMember.tier,
         points: records.member && records.member.points !== undefined ? records.member.points : defaultMember.points,
         orders: orders.length,
-        coupons: isMember && Array.isArray(records.coupons) ? getUsableCouponCount(records.coupons) : defaultMember.coupons,
         balance: isMember && records.wallet ? records.wallet.balance : defaultMember.balance
       });
       writeMemberSnapshot({
@@ -311,10 +304,6 @@ Page(withPrivacy({
     }
     if (action === "address") {
       wx.navigateTo({ url: "/pages/address/index" });
-      return;
-    }
-    if (action === "coupon") {
-      wx.showToast({ title: this.data.member.coupons ? `${this.data.member.coupons} 张可用优惠券` : "暂无可用优惠券", icon: "none" });
       return;
     }
     if (action === "service") {

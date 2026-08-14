@@ -191,13 +191,6 @@ function toDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function isDateActive(startAt, endAt) {
-  const now = Date.now();
-  const start = toDate(startAt);
-  const end = toDate(endAt);
-  return (!start || start.getTime() <= now) && (!end || end.getTime() + 86400000 > now);
-}
-
 async function readSettings() {
   await ensureCollection("store_settings");
   const result = await db.collection("store_settings").where({ key: "store" }).limit(1).get();
@@ -707,44 +700,6 @@ async function simulateRecharge(openid, event, settings) {
   return getMemberCenter(openid, settings);
 }
 
-function normalizeCoupon(coupon, claimedIds = {}) {
-  const stock = number(coupon.stock);
-  const issued = number(coupon.issued);
-  const active = coupon.visible !== false && coupon.status !== "已停用" && coupon.status !== "已结束" && isDateActive(coupon.startAt, coupon.endAt);
-  return Object.assign({}, coupon, {
-    claimable: active && !claimedIds[coupon.id] && (stock === 0 || issued < stock),
-    stockLeft: stock === 0 ? 999999 : Math.max(0, stock - issued)
-  });
-}
-
-async function listUserCoupons(openid) {
-  await ensureCollection("user_coupons");
-  const result = await db.collection("user_coupons").where({ _openid: openid }).orderBy("claimedAt", "desc").limit(100).get();
-  return (result.data || []).map((item) => {
-    const expired = item.status === "可使用" && item.endAt && !isDateActive("", item.endAt);
-    return Object.assign({}, item, {
-      id: item._id,
-      displayStatus: expired ? "已过期" : item.status
-    });
-  });
-}
-
-async function listCoupons(openid) {
-  await ensureCollection("coupons");
-  const userCoupons = await listUserCoupons(openid);
-  const claimedIds = userCoupons.reduce((map, item) => {
-    if (["可使用", "已锁定", "已使用"].includes(item.status)) {
-      map[item.couponId] = true;
-    }
-    return map;
-  }, {});
-  const result = await db.collection("coupons").where({ visible: _.neq(false) }).orderBy("createdAt", "desc").limit(100).get();
-  const availableCoupons = (result.data || [])
-    .filter((item) => item.status !== "已停用")
-    .map((item) => normalizeCoupon(item, claimedIds));
-  return { userCoupons, availableCoupons };
-}
-
 function getSubscriptionTemplates(settings = {}) {
   return Object.keys(templateLabels)
     .map((key) => ({
@@ -796,9 +751,8 @@ async function getStaffNoticeState(openid, settings = {}) {
 
 async function getMemberCenter(openid, knownSettings) {
   const settings = knownSettings || await readSettings();
-  const [member, coupons, staffNotice, plans, contact] = await Promise.all([
+  const [member, staffNotice, plans, contact] = await Promise.all([
     getMember(openid, settings),
-    listCoupons(openid),
     getStaffNoticeState(openid, settings),
     listMembershipPlans(),
     readContactPhone(openid)
@@ -821,71 +775,11 @@ async function getMemberCenter(openid, knownSettings) {
       testRechargeEnabled: isTestOpenid(openid),
       realPaymentEnabledFlag: String(process.env.REAL_PAYMENT_ENABLED || "").toLowerCase() === "true"
     },
-    userCoupons: coupons.userCoupons,
-    availableCoupons: coupons.availableCoupons,
     subscriptionTemplates: getSubscriptionTemplates(settings),
     staffNotice
   };
 }
 
-async function claimCoupon(openid, event = {}) {
-  const couponId = cleanText(event.couponId || event.id, 80);
-  if (!couponId) {
-    return { ok: false, message: "请选择优惠券" };
-  }
-
-  await Promise.all([ensureCollection("coupons"), ensureCollection("user_coupons")]);
-  const settings = await readSettings();
-  const member = await getMember(openid, settings);
-  if (!isActiveMember(member)) {
-    return { ok: false, message: "开通会员后可领取会员优惠券" };
-  }
-  const couponResult = await db.collection("coupons").where({ id: couponId }).limit(1).get();
-  const coupon = couponResult.data && couponResult.data[0];
-  if (!coupon || coupon.visible === false || coupon.status !== "领取中" || !isDateActive(coupon.startAt, coupon.endAt)) {
-    return { ok: false, message: "优惠券不可领取" };
-  }
-
-  const existing = await db.collection("user_coupons").where({
-    _openid: openid,
-    couponId,
-    status: _.in(["可使用", "已锁定", "已使用"])
-  }).count();
-  const claimLimit = Math.max(1, Number(coupon.claimLimit || 1));
-  if (existing.total >= claimLimit) {
-    return { ok: false, message: "已领取过该优惠券" };
-  }
-
-  const stock = number(coupon.stock);
-  const issued = number(coupon.issued);
-  if (stock > 0 && issued >= stock) {
-    return { ok: false, message: "优惠券已领完" };
-  }
-
-  await db.collection("coupons").doc(coupon._id).update({
-    data: {
-      issued: _.inc(1),
-      updatedAt: db.serverDate()
-    }
-  });
-
-  const addResult = await db.collection("user_coupons").add({
-    data: {
-      _openid: openid,
-      couponId: coupon.id,
-      couponName: coupon.name,
-      amount: number(coupon.amount),
-      threshold: number(coupon.threshold),
-      startAt: coupon.startAt || "",
-      endAt: coupon.endAt || "",
-      status: "可使用",
-      claimedAt: db.serverDate(),
-      updatedAt: db.serverDate()
-    }
-  });
-
-  return { ok: true, id: addResult._id };
-}
 
 async function saveSubscription(openid, event = {}) {
   const subscriptions = event.subscriptions || {};
@@ -964,9 +858,6 @@ exports.main = async (event = {}) => {
     }
     if (action === "simulateRecharge") {
       return await simulateRecharge(OPENID, event, settings);
-    }
-    if (action === "claimCoupon") {
-      return await claimCoupon(OPENID, event);
     }
     if (action === "saveSubscription") {
       return await saveSubscription(OPENID, event);

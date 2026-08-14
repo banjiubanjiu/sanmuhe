@@ -15,14 +15,12 @@ import {
   HardDrive,
   Home,
   Menu,
-  Megaphone,
   Package,
   PenLine,
   Play,
   Plus,
   RefreshCw,
   Search,
-  Send,
   Settings,
   ShieldCheck,
   TicketPercent,
@@ -109,7 +107,6 @@ const EmptyState = {
 const navItems = [
   { key: "dashboard", label: "首页", icon: Home },
   { key: "reservations", label: "茶室预约", icon: CalendarCheck },
-  { key: "rooms", label: "茶室资源", icon: CalendarDays },
   { key: "signups", label: "茶事活动", icon: TicketPercent },
   { key: "orders", label: "订单管理", icon: ClipboardList },
   { key: "afterSales", label: "售后管理", icon: BadgeDollarSign },
@@ -118,7 +115,6 @@ const navItems = [
   { key: "catalog", label: "商品管理", icon: Package },
   { key: "content", label: "内容管理", icon: FileText },
   { key: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing },
-  { key: "marketing", label: "营销中心", icon: Megaphone },
   { key: "audit", label: "审计日志", icon: FileText },
   { key: "notifications", label: "通知日志", icon: Bell },
   { key: "system", label: "系统状态", icon: ShieldCheck },
@@ -129,8 +125,8 @@ const navItems = [
 
 const navGroups = [
   { label: "经营工作台", items: ["dashboard", "orders", "afterSales", "inventory"] },
-  { label: "门店服务", items: ["reservations", "rooms", "signups", "customers"] },
-  { label: "内容与增长", items: ["catalog", "content", "analytics", "marketing"] },
+  { label: "门店服务", items: ["reservations", "signups", "customers"] },
+  { label: "内容与增长", items: ["catalog", "content", "analytics"] },
   { label: "系统治理", items: ["audit", "notifications", "system", "roles", "backups", "settings"] }
 ];
 
@@ -142,7 +138,6 @@ const navItemMap = navItems.reduce((map, item) => {
 const tabPermissions = {
   dashboard: "dashboard.read",
   reservations: "reservation.read",
-  rooms: "catalog.read",
   signups: "signup.read",
   orders: "order.read",
   afterSales: "afterSale.read",
@@ -151,7 +146,6 @@ const tabPermissions = {
   catalog: "catalog.read",
   content: "content.read",
   analytics: "analytics.read",
-  marketing: "marketing.read",
   audit: "audit.read",
   notifications: "notification.read",
   system: "system.read",
@@ -167,10 +161,7 @@ const collectionTabs = [
 ];
 
 const contentTabs = [
-  { key: "home_carousel", label: "首页轮播" },
-  { key: "home_card", label: "首页卡片" },
-  { key: "notice", label: "公告" },
-  { key: "all", label: "全部内容" }
+  { key: "home_carousel", label: "首页轮播" }
 ];
 
 // 首页快捷入口固定 6 项，保证 3×2 规整网格（其余入口走左侧导航）
@@ -202,8 +193,6 @@ const permissionCatalog = [
   { key: "catalog.write", group: "内容商品", label: "编辑商品与活动资料", risk: "medium" },
   { key: "content.read", group: "内容商品", label: "查看运营内容", risk: "low" },
   { key: "content.write", group: "内容商品", label: "编辑轮播、卡片、公告", risk: "medium" },
-  { key: "marketing.read", group: "营销", label: "查看营销配置", risk: "low" },
-  { key: "marketing.write", group: "营销", label: "编辑优惠券和计划", risk: "medium" },
   { key: "analytics.read", group: "数据统计", label: "查看经营统计", risk: "low" },
   { key: "audit.read", group: "系统治理", label: "查看审计日志", risk: "high" },
   { key: "settings.read", group: "系统治理", label: "查看系统设置", risk: "low" },
@@ -215,7 +204,7 @@ const permissionCatalog = [
   { key: "backup.read", group: "系统治理", label: "查看备份记录", risk: "low" },
   { key: "backup.create", group: "系统治理", label: "创建云端备份", risk: "high" }
 ];
-const permissionGroupOrder = ["经营首页", "订单售后", "库存", "门店服务", "用户数据", "内容商品", "营销", "数据统计", "系统治理", "未归类"];
+const permissionGroupOrder = ["经营首页", "订单售后", "库存", "门店服务", "用户数据", "内容商品", "数据统计", "系统治理", "未归类"];
 const permissionMap = permissionCatalog.reduce((map, item) => {
   map[item.key] = item;
   return map;
@@ -229,7 +218,6 @@ const EXPORT_MAX_ROWS = 5000;
 const pageTitles = {
   dashboard: ["经营首页", "今日概览"],
   reservations: ["茶室预约", ""],
-  rooms: ["茶室资源", "可预约空间"],
   signups: ["活动报名", ""],
   orders: ["订单管理", "待办工作台"],
   afterSales: ["售后管理", ""],
@@ -238,7 +226,6 @@ const pageTitles = {
   catalog: ["商品管理", ""],
   content: ["内容管理", ""],
   analytics: ["数据统计", ""],
-  marketing: ["营销中心", ""],
   audit: ["审计日志", ""],
   notifications: ["通知日志", ""],
   system: ["系统状态", ""],
@@ -251,7 +238,6 @@ const pageTitles = {
 const moduleProfiles = {
   dashboard: { group: "经营", subject: "首页", countLabel: "项", note: "" },
   reservations: { group: "门店", subject: "预约", countLabel: "条", note: "" },
-  rooms: { group: "门店", subject: "茶室", countLabel: "间", note: "" },
   signups: { group: "门店", subject: "报名", countLabel: "条", note: "" },
   orders: { group: "经营", subject: "订单", countLabel: "笔", note: "" },
   afterSales: { group: "经营", subject: "售后", countLabel: "笔", note: "" },
@@ -260,7 +246,6 @@ const moduleProfiles = {
   catalog: { group: "商品", subject: "资料", countLabel: "条", note: "" },
   content: { group: "内容", subject: "内容", countLabel: "条", note: "" },
   analytics: { group: "数据", subject: "统计", countLabel: "项", note: "" },
-  marketing: { group: "营销", subject: "营销", countLabel: "项", note: "" },
   audit: { group: "系统", subject: "审计", countLabel: "条", note: "" },
   notifications: { group: "系统", subject: "通知", countLabel: "条", note: "" },
   system: { group: "系统", subject: "状态", countLabel: "项", note: "" },
@@ -274,12 +259,10 @@ const writePermissionsByTab = {
   afterSales: ["afterSale.write"],
   inventory: ["inventory.write"],
   reservations: ["reservation.write"],
-  rooms: ["catalog.write"],
   signups: ["signup.write"],
   customers: ["export.read", "privacy.delete"],
   catalog: ["catalog.write"],
   content: ["content.write"],
-  marketing: ["marketing.write"],
   audit: ["export.read"],
   notifications: ["notification.write"],
   roles: ["roles.manage"],
@@ -292,12 +275,10 @@ const riskPolicyByTab = {
   afterSales: "退款状态需保留处理备注",
   inventory: "人工调整需填写库存原因",
   reservations: "取消预约需记录业务原因",
-  rooms: "茶室上下架影响小程序可约列表",
   signups: "取消报名需记录业务原因",
   customers: "导出/删除个人数据需原因",
   catalog: "价格库存状态变更需原因",
   content: "内容停用会影响小程序展示",
-  marketing: "优惠规则影响领取与核销",
   audit: "导出审计记录需操作原因",
   notifications: "测试通知会写入投递日志",
   roles: "授权变更需二次确认",
@@ -328,9 +309,7 @@ const state = reactive({
     audit: false,
     notification: false,
     role: false,
-    backup: false,
-    coupon: false,
-    campaign: false
+    backup: false
   },
   loading: "",
   loadingTab: "",
@@ -362,14 +341,21 @@ const state = reactive({
   reservations: [],
   /** 茶室资源（预约台历行）；从 rooms 集合读取，非商品管理 */
   roomResources: [],
+  /** 茶室信息（单间配置）；随设置页加载与保存，写回 rooms 集合 */
+  roomForm: {
+    id: "",
+    name: "",
+    image: "",
+    thumb: "",
+    capacity: "",
+    floor: "",
+    status: "可预定",
+    visible: true
+  },
   signups: [],
   customers: [],
   contentItems: [],
   analytics: null,
-  coupons: [],
-  couponStats: [],
-  campaigns: [],
-  marketingScope: null,
   searchResults: [],
   savedViews: {},
   settings: {},
@@ -397,8 +383,6 @@ const state = reactive({
   selectedCustomerId: "",
   selectedContentKey: "",
   selectedRoleId: "",
-  selectedCouponId: "",
-  selectedCampaignId: "",
   reservationCalendarDate: new Date().toISOString().slice(0, 10),
   reservationWeekStart: (() => {
     const now = new Date();
@@ -475,7 +459,7 @@ function orderQueueHint() {
 }
 
 const loginForm = reactive({ username: "", password: "" });
-const uploadState = reactive({ catalog: "", content: "", category: "" });
+const uploadState = reactive({ catalog: "", content: "", category: "", room: "" });
 const orderForm = reactive({
   trackingCompany: "SF",
   trackingNo: "",
@@ -529,7 +513,6 @@ const categoryForm = reactive({
   image: ""
 });
 /** 内容链接目标：页面预设或自定义 */
-const contentLinkTargetChoice = ref("");
 const noticeTestForm = reactive({
   kind: "reservationStatus",
   openid: "",
@@ -687,59 +670,12 @@ const DRINK_CATEGORY_PRESETS = ["初见", "知味", "臻藏", "烹茶暖叙", "�
 const EVENT_CATEGORY_PRESETS = ["养心茶会", "学茶", "时令茶会"];
 /** 活动状态：与前台 utils/eventStatus 一致；默认敬请期待 */
 const EVENT_STATUS_OPTIONS = ["敬请期待", "报名中", "已满", "已结束", "已取消"];
-const ROOM_STATUS_OPTIONS = ["可预定", "已订满", "维护中", "暂停预约"];
 
 const CONTENT_TYPE_OPTIONS = [
-  { value: "home_carousel", label: "首页轮播" },
-  { value: "home_card", label: "首页卡片" },
-  { value: "notice", label: "公告" }
-];
-
-const CONTENT_LINK_TYPE_OPTIONS = [
-  { value: "page", label: "小程序页面" },
-  { value: "none", label: "无跳转" }
-];
-
-const CONTENT_PAGE_OPTIONS = [
-  { value: "/pages/index/index", label: "首页" },
-  { value: "/pages/shop/index", label: "茶品商城" },
-  { value: "/pages/order/index", label: "堂饮点单" },
-  { value: "/pages/reservation/index", label: "茶室预约" },
-  { value: "/pages/events/index", label: "茶事活动" },
-  { value: "/pages/member/index", label: "会员中心" },
-  { value: "/pages/profile/index", label: "我的" },
-  { value: "/pages/contact/index", label: "联系客服" },
-  { value: "/pages/cart/index", label: "购物车" },
-  { value: "/pages/orders/index", label: "我的订单" },
-  { value: SELECT_CUSTOM_VALUE, label: "自定义路径…" }
+  { value: "home_carousel", label: "首页轮播" }
 ];
 
 const WEEKDAY_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-
-const emptyCoupon = () => ({
-  id: "",
-  name: "",
-  description: "",
-  amount: 10,
-  threshold: 0,
-  stock: 100,
-  claimLimit: 1,
-  startAt: "",
-  endAt: "",
-  status: "领取中",
-  visible: true
-});
-
-const emptyCampaign = () => ({
-  id: "",
-  name: "",
-  type: "banner",
-  summary: "",
-  startAt: "",
-  endAt: "",
-  status: "进行中",
-  visible: true
-});
 
 const forms = reactive({
   catalog: emptyCatalog(),
@@ -750,13 +686,9 @@ const forms = reactive({
     subtitle: "",
     summary: "",
     image: "",
-    linkType: "page",
-    linkTarget: "",
     sort: 10,
     visible: true
-  },
-  coupon: emptyCoupon(),
-  campaign: emptyCampaign()
+  }
 });
 
 const currentTitle = computed(() => pageTitles[state.activeTab] || pageTitles.dashboard);
@@ -892,9 +824,6 @@ const visibleNavGroups = computed(() => navGroups
   .filter((group) => group.items.length));
 const visibleQuickActions = computed(() => quickActions.filter((action) => canAccessTab(action.tab)));
 const activeCollectionTab = computed(() => {
-  if (state.activeTab === "rooms" || state.collection === "rooms") {
-    return { key: "rooms", label: "茶室", listTitle: "茶室列表", entityLabel: "茶室" };
-  }
   return collectionTabs.find((item) => item.key === state.collection) || collectionTabs[0];
 });
 const catalogListTitle = computed(() => activeCollectionTab.value?.listTitle || "资料列表");
@@ -1281,7 +1210,6 @@ const activeFilterLabels = computed(() => {
     add("关键词", filters.signupKeyword);
   }
   if (state.activeTab === "customers") add("关键词", filters.customerKeyword);
-  if (state.activeTab === "content") add("类型", contentTabs.find((item) => item.key === state.contentType)?.label || state.contentType);
   if (state.activeTab === "audit") add("关键词", filters.auditKeyword);
   if (state.activeTab === "notifications") add("关键词", filters.notificationKeyword);
   return items;
@@ -1303,7 +1231,6 @@ const hasClearableFilters = computed(() => {
   if (state.activeTab === "reservations") return !!(filters.reservationStatus || filters.reservationKeyword.trim());
   if (state.activeTab === "signups") return !!(filters.signupStatus || filters.signupKeyword.trim());
   if (state.activeTab === "customers") return !!filters.customerKeyword.trim();
-  if (state.activeTab === "content") return state.contentType !== "home_carousel";
   if (state.activeTab === "audit") return !!filters.auditKeyword.trim();
   if (state.activeTab === "notifications") return !!filters.notificationKeyword.trim();
   return false;
@@ -1322,7 +1249,6 @@ const currentRecordCount = computed(() => {
     customers: state.pagination.customers.total || state.customers.length,
     content: state.contentItems.length,
     analytics: state.analytics?.topItems?.length || 0,
-    marketing: state.coupons.length + state.campaigns.length + state.couponStats.length,
     audit: state.pagination.audit.total || state.auditLogs.length,
     notifications: state.pagination.notifications.total || state.notificationLogs.length,
     system: state.systemStatus?.checks?.length || 0,
@@ -1359,14 +1285,6 @@ const analyticsScopeText = computed(() => {
   if (!ordersRead) return "来自已支付订单";
   const limited = scope.limited ? "，已达读取上限，请用 CSV 导出核对完整口径" : "";
   return `按最近 ${numberText(ordersRead)} 笔订单统计${limited}`;
-});
-const marketingScopeText = computed(() => {
-  const scope = state.marketingScope || {};
-  const userCouponsRead = Number(scope.userCouponsRead || 0);
-  const ordersRead = Number(scope.ordersRead || 0);
-  if (!userCouponsRead && !ordersRead) return "领取和核销后会自动形成转化统计。";
-  const limited = scope.limited ? "，已达读取上限，请导出订单和用户券数据复核" : "";
-  return `按最近 ${numberText(userCouponsRead)} 条领券记录、${numberText(ordersRead)} 笔订单统计${limited}`;
 });
 const currentFreshnessMeta = computed(() => {
   const value = state.lastLoadedAt[state.activeTab];
@@ -1681,9 +1599,7 @@ const catalogCategorySelectOptions = computed(() => {
 const catalogStatusSelectOptions = computed(() => {
   const base = state.collection === "events"
     ? EVENT_STATUS_OPTIONS.slice()
-    : state.collection === "rooms"
-      ? ROOM_STATUS_OPTIONS.slice()
-      : [];
+    : [];
   const current = String(forms.catalog.status || "").trim();
   if (current && !base.includes(current)) base.push(current);
   return base;
@@ -1766,51 +1682,6 @@ function syncCatalogDateFields() {
 function onCatalogDateIsoChange() {
   const display = formatEventDateDisplay(catalogDateIso.value);
   if (display) forms.catalog.date = display;
-}
-
-function contentPageOptionValues() {
-  return CONTENT_PAGE_OPTIONS.map((item) => item.value).filter((value) => value !== SELECT_CUSTOM_VALUE);
-}
-
-function syncContentLinkTargetChoice() {
-  if (forms.content.linkType !== "page") {
-    contentLinkTargetChoice.value = "";
-    return;
-  }
-  const target = String(forms.content.linkTarget || "").trim();
-  if (target && contentPageOptionValues().includes(target)) {
-    contentLinkTargetChoice.value = target;
-    return;
-  }
-  if (target) {
-    contentLinkTargetChoice.value = SELECT_CUSTOM_VALUE;
-    return;
-  }
-  contentLinkTargetChoice.value = CONTENT_PAGE_OPTIONS[0]?.value || SELECT_CUSTOM_VALUE;
-  if (contentLinkTargetChoice.value !== SELECT_CUSTOM_VALUE) {
-    forms.content.linkTarget = contentLinkTargetChoice.value;
-  }
-}
-
-function onContentLinkTypeChange() {
-  if (forms.content.linkType === "none") {
-    forms.content.linkTarget = "";
-    contentLinkTargetChoice.value = "";
-    return;
-  }
-  if (forms.content.linkType === "page") {
-    syncContentLinkTargetChoice();
-  }
-}
-
-function onContentLinkTargetChoiceChange() {
-  if (contentLinkTargetChoice.value === SELECT_CUSTOM_VALUE) {
-    if (contentPageOptionValues().includes(String(forms.content.linkTarget || "").trim())) {
-      forms.content.linkTarget = "";
-    }
-    return;
-  }
-  forms.content.linkTarget = contentLinkTargetChoice.value;
 }
 
 const filteredCatalog = computed(() => {
@@ -1983,14 +1854,6 @@ function buildWorkflowSteps(tab) {
       workflowStep("有预约", countWhere(state.customers, (item) => Number(item.reservations || 0) > 0), "茶室关系", "focus"),
       workflowStep("有报名", countWhere(state.customers, (item) => Number(item.signups || 0) > 0), "活动关系", "focus"),
       workflowStep("已匿名", countWhere(state.customers, (item) => item.privacyDeletedAt || item.name === "已匿名"), "隐私处理", "neutral")
-    ];
-  }
-  if (tab === "marketing") {
-    return [
-      workflowStep("领取中", countWhere(state.coupons, (item) => hasStatus(item, [/领取中/])), "可发放", "good"),
-      workflowStep("暂停/结束", countWhere(state.coupons, (item) => hasStatus(item, [/暂停|结束/])), "不可领取", "neutral"),
-      workflowStep("进行中计划", countWhere(state.campaigns, (item) => hasStatus(item, [/进行中/])), "运营中", "focus"),
-      workflowStep("核销记录", state.couponStats.length, "看板口径", "good")
     ];
   }
   if (tab === "audit") {
@@ -2583,16 +2446,6 @@ const catalogTableCols = computed(() => {
       stockMode: "quota"
     };
   }
-  if (state.collection === "rooms") {
-    return {
-      name: "茶室",
-      category: "容量",
-      price: "参考价",
-      meta: "楼层",
-      stock: "—",
-      stockMode: "none"
-    };
-  }
   // 默认茶叶
   return {
     name: "茶叶",
@@ -2628,7 +2481,6 @@ function displayInventory(item) {
 
 function displayCatalogCategory(item) {
   if (!item) return "-";
-  if (state.collection === "rooms") return item.capacity || "-";
   return item.category || "-";
 }
 
@@ -2658,7 +2510,6 @@ function displayCatalogMeta(item) {
   if (state.collection === "events") {
     return [item.date, item.time].filter(Boolean).join(" ") || "-";
   }
-  if (state.collection === "rooms") return item.floor || "-";
   if (Array.isArray(item.specs) && item.specs.length) return `${item.specs.length} 个`;
   return item.unit || "-";
 }
@@ -2931,7 +2782,9 @@ async function uploadFormImage(target, event) {
       ? state.collection
       : target === "category"
         ? "product_categories"
-        : "content";
+        : target === "room"
+          ? "rooms"
+          : "content";
     const result = await cloudApp.uploadFile({
       cloudPath: `admin/${folder}/${Date.now()}-${sanitizeFileName(file.name)}`,
       filePath: file
@@ -2946,6 +2799,12 @@ async function uploadFormImage(target, event) {
     }
     if (target === "content") forms.content.image = fileId;
     if (target === "category") categoryForm.image = fileId;
+    if (target === "room") {
+      state.roomForm.image = fileId;
+      if (!String(state.roomForm.thumb || "").trim()) {
+        state.roomForm.thumb = fileId;
+      }
+    }
     uploadState[target] = `已上传：${file.name}`;
     showToast("图片已上传到云存储");
   } catch (error) {
@@ -3456,7 +3315,7 @@ async function switchTab(tab) {
   state.activeTab = tab;
   closeNav();
   // 离开商品管理时清空列表态，避免切回瞬间残留旧集合数据
-  if (tab !== "catalog" && tab !== "rooms") {
+  if (tab !== "catalog") {
     state.catalogItems = [];
     state.selectedCatalogId = "";
     state.selectedCatalogIds = [];
@@ -3485,14 +3344,6 @@ async function loadActiveTab(forceRefresh = false) {
   const map = {
     dashboard: loadDashboard,
     catalog: async () => {
-      if (state.collection === "rooms") state.collection = "tea_products";
-      await loadCatalog({ force: forceRefresh });
-    },
-    rooms: async () => {
-      state.collection = "rooms";
-      if (!state.settings || !Object.keys(state.settings).length) {
-        try { await loadSettings(); } catch (_e) { /* ignore */ }
-      }
       await loadCatalog({ force: forceRefresh });
     },
     orders: loadOrders,
@@ -3503,7 +3354,6 @@ async function loadActiveTab(forceRefresh = false) {
     customers: loadCustomers,
     content: loadContent,
     analytics: loadAnalytics,
-    marketing: loadMarketing,
     audit: loadAuditLogs,
     notifications: loadNotificationLogs,
     system: loadSystemStatus,
@@ -3804,14 +3654,7 @@ async function loadCatalog(options = {}) {
 }
 
 function selectCollection(key) {
-  // 茶室已独立模块；商品管理里只切茶叶/堂饮/活动
-  if (key === "rooms") {
-    openRoomsCatalog();
-    return;
-  }
-  if (state.activeTab === "rooms") {
-    state.activeTab = "catalog";
-  }
+  // 商品管理只切茶叶/堂饮/活动；茶室已并入设置管理
   state.collection = key;
   state.selectedCatalogId = "";
   state.catalogDrawerOpen = false;
@@ -3819,13 +3662,6 @@ function selectCollection(key) {
   filters.catalogShelf = "";
   filters.catalogCategory = "";
   filters.catalogFlag = "";
-  loadCatalog();
-}
-
-function openRoomsCatalog() {
-  state.activeTab = "rooms";
-  state.collection = "rooms";
-  state.catalogDrawerOpen = false;
   loadCatalog();
 }
 
@@ -3840,7 +3676,7 @@ function resetCatalog() {
     : `${state.collection}-${Date.now()}`;
   state.selectedCatalogId = nextId;
   state.catalogDrawerOpen = true;
-  const baseStatus = state.collection === "events" ? "敬请期待" : state.collection === "rooms" ? "可预定" : "上架";
+  const baseStatus = state.collection === "events" ? "敬请期待" : "上架";
   const defaultCategory = categoryPresetsForCollection()[0]
     || managedCategoryNames.value[0]
     || "";
@@ -3970,10 +3806,6 @@ async function saveCatalog() {
       forms.catalog.time = normalizeEventTime(forms.catalog.time);
       assertText(forms.catalog.status, "请选择活动状态");
       if (Number(forms.catalog.signed || 0) > Number(forms.catalog.quota || 0)) throw new Error("已报名不能大于名额");
-    }
-    if (state.collection === "rooms") {
-      assertText(forms.catalog.status, "请选择茶室状态");
-      assertText(forms.catalog.name, "请填写茶室名称");
     }
   } catch (error) {
     showToast(error.message);
@@ -4477,6 +4309,19 @@ async function downloadBackup(log) {
   });
 }
 
+async function fetchRoomResources() {
+  try {
+    const result = await callFunction("manageCatalog", {
+      action: "list",
+      collection: "rooms",
+      includeHidden: true
+    });
+    return (result.items || []).filter((item) => item && item.removed !== true);
+  } catch (_error) {
+    return state.roomResources || [];
+  }
+}
+
 async function ensureReservationWorkspaceContext() {
   if (!state.settings || !Object.keys(state.settings).length || !state.settings.bookingOpenTime) {
     try {
@@ -4486,16 +4331,7 @@ async function ensureReservationWorkspaceContext() {
       // 台历回退默认 10:00–21:30
     }
   }
-  try {
-    const roomsResult = await callFunction("manageCatalog", {
-      action: "list",
-      collection: "rooms",
-      includeHidden: true
-    });
-    state.roomResources = (roomsResult.items || []).filter((item) => item && item.removed !== true);
-  } catch (_error) {
-    state.roomResources = state.roomResources || [];
-  }
+  state.roomResources = await fetchRoomResources();
 }
 
 async function loadReservations() {
@@ -5158,28 +4994,18 @@ async function loadContent() {
   });
 }
 
-function selectContentType(type) {
-  state.contentType = type;
-  state.drawers.content = false;
-  state.selectedContentKey = "";
-  loadContent();
-}
-
 function resetContent() {
   Object.assign(forms.content, {
     key: `content-${Date.now()}`,
-    type: state.contentType === "all" ? "home_carousel" : state.contentType,
+    type: "home_carousel",
     title: "",
     subtitle: "",
     summary: "",
     image: "",
-    linkType: "page",
-    linkTarget: CONTENT_PAGE_OPTIONS[0]?.value || "/pages/index/index",
     sort: 10,
     visible: true
   });
   state.selectedContentKey = forms.content.key;
-  syncContentLinkTargetChoice();
   openDrawer("content");
 }
 
@@ -5193,10 +5019,6 @@ function editContent(item) {
   if (!CONTENT_TYPE_OPTIONS.some((opt) => opt.value === forms.content.type)) {
     forms.content.type = "home_carousel";
   }
-  if (!CONTENT_LINK_TYPE_OPTIONS.some((opt) => opt.value === forms.content.linkType)) {
-    forms.content.linkType = forms.content.linkTarget ? "page" : "none";
-  }
-  syncContentLinkTargetChoice();
   openDrawer("content");
 }
 
@@ -5205,15 +5027,6 @@ async function saveContent() {
     assertText(forms.content.key, "请填写内容 Key");
     assertText(forms.content.title, "请填写内容标题");
     assertText(forms.content.type, "请选择内容类型");
-    assertText(forms.content.linkType, "请选择链接类型");
-    if (forms.content.linkType === "page") {
-      if (contentLinkTargetChoice.value !== SELECT_CUSTOM_VALUE && contentLinkTargetChoice.value) {
-        forms.content.linkTarget = contentLinkTargetChoice.value;
-      }
-      assertText(forms.content.linkTarget, "请选择或填写链接目标");
-    } else if (forms.content.linkType === "none") {
-      forms.content.linkTarget = "";
-    }
     if (!isUrlish(forms.content.image)) throw new Error("图片地址必须是 cloud://、http(s) 或 /assets/");
   } catch (error) {
     showToast(error.message);
@@ -5242,128 +5055,12 @@ async function loadAnalytics() {
   });
 }
 
-async function loadMarketing() {
-  await withLoading("读取营销", async () => {
-    const result = await callFunction("manageOperations", { action: "listMarketing" });
-    state.coupons = result.coupons || [];
-    state.couponStats = result.couponStats || [];
-    state.campaigns = result.campaigns || [];
-    state.marketingScope = result.scope || null;
-  });
-}
-
-function resetCoupon() {
-  Object.assign(forms.coupon, emptyCoupon());
-  state.selectedCouponId = "";
-  openDrawer("coupon");
-}
-
-function editCoupon(item) {
-  if (!item) {
-    resetCoupon();
-    return;
-  }
-  state.selectedCouponId = item.id;
-  Object.assign(forms.coupon, emptyCoupon(), item);
-  openDrawer("coupon");
-}
-
-async function saveCoupon() {
-  try {
-    assertText(forms.coupon.name, "请填写优惠券名称");
-    assertNonNegative(forms.coupon.amount, "优惠券面额不能为负数");
-    assertNonNegative(forms.coupon.threshold, "使用门槛不能为负数");
-    assertNonNegative(forms.coupon.stock, "库存不能为负数");
-    if (!Number.isFinite(Number(forms.coupon.claimLimit)) || Number(forms.coupon.claimLimit) < 1) {
-      throw new Error("每人限领至少为 1");
-    }
-    if (Number(forms.coupon.threshold || 0) > 0 && Number(forms.coupon.amount || 0) > Number(forms.coupon.threshold || 0)) {
-      throw new Error("优惠金额不能大于使用门槛");
-    }
-    if (forms.coupon.startAt && forms.coupon.endAt && forms.coupon.startAt > forms.coupon.endAt) {
-      throw new Error("优惠券结束日期不能早于开始日期");
-    }
-  } catch (error) {
-    showToast(error.message);
-    return;
-  }
-  await withLoading("保存优惠券", async () => {
-    const result = await callFunction("manageOperations", { action: "saveCoupon", data: forms.coupon });
-    state.selectedCouponId = result.id || forms.coupon.id || "";
-    forms.coupon.id = state.selectedCouponId;
-    showToast("优惠券已保存");
-    await loadMarketing();
-  });
-}
-
-async function disableCoupon(item = forms.coupon) {
-  if (!item?.id) {
-    showToast("请先选择优惠券");
-    return;
-  }
-  if (!(await requireTypedConfirm(`确认停用优惠券 ${item.name || item.id}？`, item.id))) return;
-  await withLoading("停用优惠券", async () => {
-    await callFunction("manageOperations", { action: "disableCoupon", id: item.id });
-    showToast("优惠券已停用");
-    resetCoupon();
-    await loadMarketing();
-  });
-}
-
-function resetCampaign() {
-  Object.assign(forms.campaign, emptyCampaign());
-  state.selectedCampaignId = "";
-  openDrawer("campaign");
-}
-
-function editCampaign(item) {
-  if (!item) {
-    resetCampaign();
-    return;
-  }
-  state.selectedCampaignId = item.id;
-  Object.assign(forms.campaign, emptyCampaign(), item);
-  openDrawer("campaign");
-}
-
-async function saveCampaign() {
-  try {
-    assertText(forms.campaign.name, "请填写营销计划名称");
-    if (forms.campaign.startAt && forms.campaign.endAt && forms.campaign.startAt > forms.campaign.endAt) {
-      throw new Error("结束时间不能早于开始时间");
-    }
-  } catch (error) {
-    showToast(error.message);
-    return;
-  }
-  await withLoading("保存计划", async () => {
-    const result = await callFunction("manageOperations", { action: "saveCampaign", data: forms.campaign });
-    state.selectedCampaignId = result.id || forms.campaign.id || "";
-    forms.campaign.id = state.selectedCampaignId;
-    showToast("营销计划已保存");
-    await loadMarketing();
-  });
-}
-
-async function disableCampaign(item = forms.campaign) {
-  if (!item?.id) {
-    showToast("请先选择营销计划");
-    return;
-  }
-  if (!(await requireTypedConfirm(`确认停用营销计划 ${item.name || item.id}？`, item.id))) return;
-  await withLoading("停用计划", async () => {
-    await callFunction("manageOperations", { action: "disableCampaign", id: item.id });
-    showToast("营销计划已停用");
-    resetCampaign();
-    await loadMarketing();
-  });
-}
-
 async function loadSettings() {
   await withLoading("读取设置", async () => {
     const result = await callFunction("manageOperations", { action: "getSettings" });
     state.settings = result.settings || {};
   });
+  await loadRoomInfo();
   // 静默拉取微信「发货信息管理」接入状态，不阻塞设置表单
   state.wxShippingStatus = null;
   callFunction("manageOperations", { action: "getWxShippingStatus" })
@@ -5463,6 +5160,71 @@ async function saveSettings() {
   await withLoading("保存设置", async () => {
     await callFunction("manageOperations", { action: "updateSettings", data: state.settings, reason });
     showToast("设置已保存");
+  });
+}
+
+/** 读取单间茶室信息（rooms 集合第一条）；同时刷新排期看板行数据 */
+async function loadRoomInfo() {
+  const items = await fetchRoomResources();
+  state.roomResources = items;
+  const room = items[0] || null;
+  if (room) {
+    Object.assign(state.roomForm, {
+      id: String(room.id || ""),
+      name: String(room.name || room.title || ""),
+      image: String(room.image || room.thumb || ""),
+      thumb: String(room.thumb || room.image || ""),
+      capacity: String(room.capacity || ""),
+      floor: String(room.floor || ""),
+      status: String(room.status || "可预定"),
+      visible: room.visible !== false
+    });
+  } else {
+    Object.assign(state.roomForm, {
+      id: "",
+      name: "",
+      image: "",
+      thumb: "",
+      capacity: "",
+      floor: "",
+      status: "可预定",
+      visible: true
+    });
+  }
+}
+
+/** 保存单间茶室信息：写回 rooms 集合第一条文档，小程序与排期看板照常读取 */
+async function saveRoomInfo() {
+  const name = String(state.roomForm.name || "").trim();
+  if (!name) {
+    showToast("请填写茶室名称");
+    return;
+  }
+  const reason = await promptActionReason("保存茶室信息");
+  if (!reason) return;
+  await withLoading("保存茶室信息", async () => {
+    const roomId = state.roomForm.id || `rooms-${Date.now()}`;
+    const data = {
+      id: roomId,
+      name,
+      image: String(state.roomForm.image || "").trim(),
+      thumb: String(state.roomForm.thumb || "").trim(),
+      capacity: String(state.roomForm.capacity || "").trim(),
+      floor: String(state.roomForm.floor || "").trim(),
+      status: state.roomForm.visible ? "可预定" : "暂停预约",
+      visible: state.roomForm.visible,
+      sort: 1
+    };
+    await callFunction("manageCatalog", {
+      action: state.roomForm.id ? "update" : "create",
+      collection: "rooms",
+      id: roomId,
+      data,
+      reason
+    });
+    state.roomForm.id = roomId;
+    await loadRoomInfo();
+    showToast("茶室信息已保存");
   });
 }
 
@@ -5746,10 +5508,8 @@ function emptyTitle(tab = state.activeTab) {
     inventory: "暂无库存流水",
     reservations: "当日暂无预约",
     signups: "暂无活动报名",
-    rooms: "暂无茶室资源",
     customers: "暂无用户记录",
     content: "暂无运营内容",
-    marketing: "暂无营销记录",
     audit: "暂无审计日志",
     notifications: "暂无订阅消息日志",
     roles: "暂无角色记录",
@@ -5768,12 +5528,10 @@ function emptyHint(tab = state.activeTab) {
       : "新订单支付或提交后会出现在这里。",
     afterSales: "订单转入售后后，可在这里处理退款状态闭环。",
     inventory: "订单锁定、支付扣减、取消释放和人工调整会自动沉淀流水。",
-    reservations: "可切换日期，或检查小程序是否已有支付/提交。也可先配置茶室资源与预约计价。",
-    rooms: "在「茶室资源」维护可约茶席；计价在「设置 → 预约计价」。",
+    reservations: "可切换日期，或检查小程序是否已有支付/提交。茶室信息与计价在「设置管理」配置。",
     signups: "活动报名、到场和未到场核销会集中展示。",
     customers: "有订单、预约或报名后会自动形成用户画像。",
-    content: "新建轮播、卡片或公告后会同步给小程序端。",
-    marketing: "创建优惠券或营销计划后可查看领取与核销表现。",
+    content: "新建轮播后会同步给小程序首页首屏。",
     audit: "后台关键操作会自动记录到这里。",
     notifications: "订阅消息发送、跳过和失败都会写入日志。",
     roles: "没有角色时，白名单账号按管理员处理。",
@@ -5788,8 +5546,7 @@ function emptyActionLabel(tab = state.activeTab) {
   if (hasClearableFilters.value) return "清除筛选";
   const labels = {
     catalog: hasPermission("catalog.write") ? "新建" : "刷新资料",
-    content: hasPermission("content.write") ? "新建内容" : "刷新内容",
-    marketing: hasPermission("marketing.write") ? "新建营销记录" : "刷新营销",
+    content: hasPermission("content.write") ? "新建轮播" : "刷新内容",
     roles: hasPermission("roles.manage") ? "新建角色" : "刷新角色",
     backups: "刷新备份",
     system: "重新检查"
@@ -5812,11 +5569,6 @@ function handleEmptyAction(tab = state.activeTab) {
   }
   if (tab === "content" && hasPermission("content.write")) {
     resetContent();
-    return;
-  }
-  if (tab === "marketing" && hasPermission("marketing.write")) {
-    resetCoupon();
-    resetCampaign();
     return;
   }
   if (tab === "roles" && hasPermission("roles.manage")) {
@@ -6197,9 +5949,9 @@ onBeforeUnmount(() => {
               <EmptyState
                 v-if="(state.dashboard?.roomBoard || []).length === 0"
                 title="暂无茶室配置"
-                hint="在「茶室资源」维护可约茶席后，这里会显示今日时段。"
-                action-label="配置茶室"
-                @action="openRoomsCatalog"
+                hint="在「设置管理 → 茶室信息」维护可约茶席后，这里会显示今日时段。"
+                action-label="去设置"
+                @action="switchTab('settings')"
               />
               <div class="room-legend">
                 <span><i class="free"></i>可预约</span>
@@ -6291,16 +6043,13 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-if="state.activeTab === 'catalog' || state.activeTab === 'rooms'" class="list-workspace">
+        <section v-if="state.activeTab === 'catalog'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar catalog-toolbar">
-              <div v-if="state.activeTab === 'catalog'" class="segmented">
+              <div class="segmented">
                 <button v-for="item in collectionTabs" :key="item.key" :class="{ active: state.collection === item.key }" type="button" @click="selectCollection(item.key)">
                   {{ item.label }}
                 </button>
-              </div>
-              <div v-else class="segmented">
-                <button type="button" class="active">茶室资源</button>
               </div>
               <div class="catalog-filters">
                 <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="名称 / ID">
@@ -6353,10 +6102,6 @@ onBeforeUnmount(() => {
                 @click="openCategoryManager"
               >{{ isDrinksCollection() ? "配置档位" : "配置分类" }}</button>
             </div>
-            <p v-if="state.activeTab === 'rooms' || state.collection === 'rooms'" class="catalog-single-store-hint">
-              茶室是<strong>可预约资源</strong>（名称/图/容量/可约状态），不是商品 SKU。
-              日间/晚间基础价与加时价在<strong>设置管理 → 预约计价</strong>配置；此处改价不会影响扣款。
-            </p>
             <div class="list-header">
               <h2>{{ catalogListTitle }}</h2>
               <div class="list-header-actions">
@@ -6466,9 +6211,7 @@ onBeforeUnmount(() => {
                   ? "标 * 为必填：茶品名称、所属档位、主图。价格留空跟随档位价。"
                   : isTeaProductsCollection()
                     ? "标 * 为必填：名称、类别、上架状态、销售规格（名/售价/库存）、主图。产地·年份·口感可空。"
-                    : state.collection === "rooms"
-                      ? "资源字段：名称、容量、说明、主图、可约状态。计价请到「设置管理 → 预约计价」。"
-                      : "填写前台展示与履约所需信息后保存。" }}
+                    : "填写前台展示与履约所需信息后保存。" }}
               </p>
               <form class="editor-grid" @submit.prevent="saveCatalog">
                 <label v-if="!isCreatingCatalog"><span>编号</span><input :value="forms.catalog.id" readonly></label>
@@ -6696,10 +6439,6 @@ onBeforeUnmount(() => {
                     前台状态由此控制：敬请期待（默认不可报）→ 报名中（可报）→ 已满/已结束/已取消。人数满时前台自动显示已满。
                   </p>
                   <label v-if="state.collection === 'events'"><span>价格</span><input v-model.number="forms.catalog.price" type="number" min="0" step="0.01"></label>
-                  <label v-if="state.collection === 'rooms'" class="wide">
-                    <span>计价说明</span>
-                    <input :value="`不按商品价扣款 · 日间满时长 ¥${Number(state.settings.bookingDayBasePrice) || 188} · 晚间 ¥${Number(state.settings.bookingEveningBasePrice) || 208} · 加时 ¥${Number(state.settings.bookingHalfHourPrice) || 30}/步`" readonly>
-                  </label>
                   <label v-if="state.collection === 'events'"><span>名额</span><input v-model.number="forms.catalog.quota" type="number" min="1"></label>
                   <label v-if="state.collection === 'events'"><span>已报名</span><input v-model.number="forms.catalog.signed" type="number" min="0"></label>
                   <label v-if="state.collection === 'events'">
@@ -6715,8 +6454,6 @@ onBeforeUnmount(() => {
                     <input v-model="forms.catalog.time" type="time" step="60">
                   </label>
                   <label v-if="state.collection === 'events'"><span>地点</span><input v-model="forms.catalog.place" placeholder="活动地点"></label>
-                  <label v-if="state.collection === 'rooms'"><span>容量</span><input v-model="forms.catalog.capacity" placeholder="如 2-4人"></label>
-                  <label v-if="state.collection === 'rooms'"><span>楼层/氛围</span><input v-model="forms.catalog.floor" placeholder="如 安静雅致 ｜ 观山景"></label>
                   <div class="wide image-dropzone-field">
                     <span>图片 <em class="req" aria-label="必填">*</em></span>
                     <div
@@ -7155,8 +6892,7 @@ onBeforeUnmount(() => {
             <div class="reservation-toolbar-more">
               <button class="ghost-button small" type="button" @click="resetPageAndLoad('reservations', loadReservations)">刷新</button>
               <button v-if="hasPermission('export.read')" class="ghost-button small" type="button" @click="exportReservations">导出</button>
-              <button v-if="hasPermission('catalog.read')" class="ghost-button small" type="button" @click="openRoomsCatalog">茶室资源</button>
-              <button v-if="hasPermission('settings.read')" class="ghost-button small" type="button" @click="switchTab('settings')">预约计价</button>
+              <button v-if="hasPermission('settings.read')" class="ghost-button small" type="button" @click="switchTab('settings')">预约设置</button>
             </div>
           </div>
 
@@ -7255,8 +6991,8 @@ onBeforeUnmount(() => {
                 v-if="reservationTableRows.length === 0"
                 :title="emptyTitle('reservations')"
                 :hint="emptyHint('reservations')"
-                action-label="配置茶室"
-                @action="openRoomsCatalog"
+                action-label="去设置"
+                @action="switchTab('settings')"
               />
             </div>
           </div>
@@ -7421,12 +7157,8 @@ onBeforeUnmount(() => {
         <section v-if="state.activeTab === 'content'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <div class="segmented">
-                <button v-for="item in contentTabs" :key="item.key" :class="{ active: state.contentType === item.key }" type="button" @click="selectContentType(item.key)">
-                  {{ item.label }}
-                </button>
-              </div>
-              <button v-if="hasPermission('content.write')" class="secondary-action small icon-action" type="button" @click="resetContent"><Plus :size="15" :stroke-width="1.8" /> 新建内容</button>
+              <span class="module-kicker">首页轮播</span>
+              <button v-if="hasPermission('content.write')" class="secondary-action small icon-action" type="button" @click="resetContent"><Plus :size="15" :stroke-width="1.8" /> 新建轮播</button>
             </div>
             <div class="record-list with-images">
               <button v-for="item in state.contentItems" :key="item.key" :class="{ selected: state.selectedContentKey === item.key }" type="button" @click="editContent(item)">
@@ -7458,22 +7190,6 @@ onBeforeUnmount(() => {
                 <em>{{ uploadState.content || "选择本地图片上传到云存储" }}</em>
               </label>
               <label class="wide"><span>摘要</span><textarea v-model="forms.content.summary" rows="4"></textarea></label>
-              <label>
-                <span>链接类型</span>
-                <select v-model="forms.content.linkType" class="catalog-select-input" required @change="onContentLinkTypeChange">
-                  <option v-for="opt in CONTENT_LINK_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
-              </label>
-              <label v-if="forms.content.linkType === 'page'">
-                <span>链接目标</span>
-                <select v-model="contentLinkTargetChoice" class="catalog-select-input" required @change="onContentLinkTargetChoiceChange">
-                  <option v-for="opt in CONTENT_PAGE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
-              </label>
-              <label v-if="forms.content.linkType === 'page' && contentLinkTargetChoice === SELECT_CUSTOM_VALUE" class="wide">
-                <span>自定义路径</span>
-                <input v-model="forms.content.linkTarget" required placeholder="/pages/shop/index">
-              </label>
               <label><span>排序</span><input v-model.number="forms.content.sort" type="number" min="0"></label>
               <label class="switch"><input v-model="forms.content.visible" type="checkbox"> 启用</label>
               <div class="drawer-actions wide">
@@ -7508,102 +7224,6 @@ onBeforeUnmount(() => {
             <table><caption>热销项目统计</caption><thead><tr><th scope="col">名称</th><th scope="col">类型</th><th scope="col">销售额</th><th scope="col">数量</th></tr></thead><tbody><tr v-for="item in (state.analytics?.topItems || [])" :key="item.name"><td>{{ item.name }}</td><td>{{ item.type }}</td><td>¥{{ money(item.amount) }}</td><td>{{ item.count }}</td></tr></tbody></table>
             <EmptyState v-if="(state.analytics?.topItems || []).length === 0" title="暂无热销项目" hint="有已支付订单后会自动生成销售排行。" :action-label="emptyActionLabel('analytics')" @action="handleEmptyAction('analytics')" />
           </article>
-        </section>
-
-        <section v-if="state.activeTab === 'marketing'" class="marketing-grid">
-          <article class="panel-card">
-            <div class="panel-title">
-              <h2>优惠券</h2>
-              <button v-if="hasPermission('marketing.write')" class="link-more" type="button" @click="resetCoupon">新建 ›</button>
-            </div>
-            <div class="flow-list">
-              <button v-for="item in state.coupons" :key="item.id" :class="['record-row', { selected: state.selectedCouponId === item.id }]" type="button" @click="editCoupon(item)">
-                <strong><span>{{ item.name }}</span><em>¥{{ money(item.amount) }}</em></strong>
-                <span class="record-meta">
-                  <span>{{ item.status }} · 门槛 ¥{{ money(item.threshold) }}</span>
-                  <i class="record-status neutral">库存 {{ item.stock || "不限" }}</i>
-                </span>
-              </button>
-              <EmptyState v-if="state.coupons.length === 0" title="暂无优惠券" :hint="emptyHint('marketing')" :action-label="emptyActionLabel('marketing')" @action="handleEmptyAction('marketing')" />
-            </div>
-          </article>
-          <article class="panel-card">
-            <div class="panel-title">
-              <h2>营销计划</h2>
-              <button v-if="hasPermission('marketing.write')" class="link-more" type="button" @click="resetCampaign">新建 ›</button>
-            </div>
-            <div class="flow-list">
-              <button v-for="item in state.campaigns" :key="item.id" :class="['record-row', { selected: state.selectedCampaignId === item.id }]" type="button" @click="editCampaign(item)">
-                <strong><span>{{ item.name }}</span><em>{{ item.status }}</em></strong>
-                <span class="record-meta">
-                  <span>{{ item.type }} · {{ item.summary || "无摘要" }}</span>
-                  <i class="record-status neutral">{{ item.visible === false ? "已停用" : "启用" }}</i>
-                </span>
-              </button>
-              <EmptyState v-if="state.campaigns.length === 0" title="暂无营销计划" :hint="emptyHint('marketing')" :action-label="emptyActionLabel('marketing')" @action="handleEmptyAction('marketing')" />
-            </div>
-          </article>
-          <article class="panel-card wide-table">
-            <div class="panel-title"><h2>优惠券核销看板</h2></div>
-            <div class="privacy-note">{{ marketingScopeText }}</div>
-            <table>
-              <caption>优惠券领取与核销统计</caption>
-              <thead><tr><th scope="col">优惠券</th><th scope="col">领取</th><th scope="col">使用</th><th scope="col">核销率</th><th scope="col">带来订单金额</th></tr></thead>
-              <tbody>
-                <tr v-for="item in state.couponStats" :key="item.id">
-                  <td>{{ item.name || item.id }}</td>
-                  <td>{{ item.claimed }}</td>
-                  <td>{{ item.redeemed }}</td>
-                  <td>{{ item.redeemRate }}%</td>
-                  <td>¥{{ money(item.orderAmount) }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <EmptyState v-if="state.couponStats.length === 0" title="暂无优惠券领取记录" hint="领取和核销后会自动形成转化统计。" :action-label="emptyActionLabel('marketing')" @action="handleEmptyAction('marketing')" />
-          </article>
-          <div v-if="state.drawers.coupon && hasPermission('marketing.write')" class="editor-drawer" role="dialog" aria-modal="true" aria-label="优惠券编辑">
-            <div class="editor-drawer-mask" @click="closeDrawer('coupon')"></div>
-            <form class="panel-card editor-form drawer-panel" @submit.prevent="saveCoupon">
-            <div class="panel-title">
-              <h2>{{ state.selectedCouponId ? "编辑优惠券" : "新建优惠券" }}</h2>
-              <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('coupon')">×</button>
-            </div>
-            <label><span>名称</span><input v-model="forms.coupon.name"></label>
-            <label><span>面额</span><input v-model.number="forms.coupon.amount" type="number" min="0" step="0.01"></label>
-            <label><span>门槛</span><input v-model.number="forms.coupon.threshold" type="number" min="0" step="0.01"></label>
-            <label><span>库存</span><input v-model.number="forms.coupon.stock" type="number" min="0" placeholder="0 表示不限量"></label>
-            <label><span>状态</span><select v-model="forms.coupon.status"><option>领取中</option><option>暂停领取</option><option>已结束</option></select></label>
-            <label><span>每人限领</span><input v-model.number="forms.coupon.claimLimit" type="number" min="1"></label>
-            <label><span>开始日期</span><input v-model="forms.coupon.startAt" type="date"></label>
-            <label><span>结束日期</span><input v-model="forms.coupon.endAt" type="date"></label>
-            <label class="wide"><span>优惠说明</span><textarea v-model="forms.coupon.description" rows="3"></textarea></label>
-            <div class="drawer-actions">
-              <button type="button" class="secondary-action" @click="closeDrawer('coupon')">取消</button>
-              <button class="primary-action icon-action" type="submit"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 保存优惠券</button>
-              <button v-if="state.selectedCouponId" class="danger-action icon-action" type="button" @click="disableCoupon()"><BadgeDollarSign :size="16" :stroke-width="1.8" /> 停用优惠券</button>
-            </div>
-          </form>
-          </div>
-          <div v-if="state.drawers.campaign && hasPermission('marketing.write')" class="editor-drawer" role="dialog" aria-modal="true" aria-label="营销计划编辑">
-            <div class="editor-drawer-mask" @click="closeDrawer('campaign')"></div>
-            <form class="panel-card editor-form drawer-panel" @submit.prevent="saveCampaign">
-            <div class="panel-title">
-              <h2>{{ state.selectedCampaignId ? "编辑营销计划" : "新建营销计划" }}</h2>
-              <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('campaign')">×</button>
-            </div>
-            <label><span>名称</span><input v-model="forms.campaign.name"></label>
-            <label><span>类型</span><input v-model="forms.campaign.type"></label>
-            <label><span>状态</span><select v-model="forms.campaign.status"><option>进行中</option><option>待上线</option><option>已暂停</option><option>已结束</option></select></label>
-            <label><span>开始日期</span><input v-model="forms.campaign.startAt" type="date"></label>
-            <label><span>结束日期</span><input v-model="forms.campaign.endAt" type="date"></label>
-            <label><span>摘要</span><textarea v-model="forms.campaign.summary" rows="3"></textarea></label>
-            <div class="drawer-actions">
-              <button type="button" class="secondary-action" @click="closeDrawer('campaign')">取消</button>
-              <button class="primary-action icon-action" type="submit"><Send :size="16" :stroke-width="1.8" /> 保存计划</button>
-              <button v-if="state.selectedCampaignId" class="danger-action icon-action" type="button" @click="disableCampaign()"><Send :size="16" :stroke-width="1.8" /> 停用计划</button>
-            </div>
-          </form>
-          </div>
         </section>
 
         <section v-if="state.activeTab === 'audit'" class="list-workspace">
@@ -7887,7 +7507,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="settings-fields">
                 <p class="settings-note" style="grid-column: 1 / -1; margin: 0 0 8px;">
-                  真正扣款规则：按开始时刻落入日间/晚间价带，满「最短时长」收基础价，超出部分按步长加价。与「茶室资源」字段无关。
+                  真正扣款规则：按开始时刻落入日间/晚间价带，满「最短时长」收基础价，超出部分按步长加价。与「茶室信息」无关。
                 </p>
                 <label><span>可约开始</span><input v-model="state.settings.bookingOpenTime" placeholder="10:00"></label>
                 <label><span>可约结束</span><input v-model="state.settings.bookingCloseTime" placeholder="21:30"></label>
@@ -7908,6 +7528,37 @@ onBeforeUnmount(() => {
                 <label class="wide"><span>赠茶文案</span><input v-model="state.settings.bookingGiftTeaCopy" placeholder="含赠 2 泡茶（价值 ¥78）"></label>
               </div>
               <p class="settings-note">茶室预付：用户自助取消须提前「取消提前小时」才全额退；后台取消可选手动全额/部分/不退。锁单超时后待支付单自动释放时段。已确认预约过「结束时间 + 自动完成宽限」后由定时任务标为已完成（默认 60 分钟，未到店仍需人工标记）。</p>
+            </div>
+            <div class="settings-section" v-if="hasPermission('catalog.read')">
+              <div class="settings-section-head">
+                <span>01c</span>
+                <h2>茶室信息</h2>
+              </div>
+              <div class="settings-fields">
+                <p class="settings-note" style="grid-column: 1 / -1; margin: 0 0 8px;">
+                  门店只有一间可预约茶室，这里维护前台「预约茶室」页展示的名称、图片与可约状态；计价在上方「预约计价」配置。保存后小程序与排期看板立即生效。
+                </p>
+                <label><span>茶室名称</span><input v-model="state.roomForm.name" placeholder="如 观山雅间"></label>
+                <label><span>容量</span><input v-model="state.roomForm.capacity" placeholder="如 2-4人"></label>
+                <label><span>楼层/氛围</span><input v-model="state.roomForm.floor" placeholder="如 安静雅致 ｜ 观山景"></label>
+                <label class="file-picker wide">
+                  <span>茶室图片</span>
+                  <Upload :size="17" :stroke-width="1.8" />
+                  <input accept="image/*" type="file" @change="uploadFormImage('room', $event)">
+                  <em>{{ uploadState.room || "选择本地图片上传到云存储" }}</em>
+                </label>
+                <label v-if="displayImage(state.roomForm.image)" class="wide">
+                  <span>当前图片</span>
+                  <img :src="displayImage(state.roomForm.image)" alt="茶室图片" style="max-width: 180px; border-radius: 8px; border: 1px solid var(--admin-line);">
+                </label>
+              </div>
+              <div class="settings-switches">
+                <label class="switch"><input v-model="state.roomForm.visible" type="checkbox"> 开放预约（关闭后小程序不可约）</label>
+              </div>
+              <div class="settings-row-actions">
+                <button v-if="hasPermission('catalog.write')" class="secondary-action" type="button" @click="saveRoomInfo">保存茶室信息</button>
+                <span v-else class="permission-note">当前角色无修改茶室信息的权限。</span>
+              </div>
             </div>
             <div class="settings-section">
               <div class="settings-section-head">

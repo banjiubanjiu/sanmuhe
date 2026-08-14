@@ -424,8 +424,6 @@ function getMemberCenter() {
       realPaymentReady: false,
       testRechargeEnabled: false
     },
-    userCoupons: [],
-    availableCoupons: [],
     subscriptionTemplates: []
   }));
 }
@@ -494,10 +492,6 @@ function rechargeMember(planId) {
   });
 }
 
-function claimCoupon(couponId) {
-  return callCloud("memberCenter", { action: "claimCoupon", couponId });
-}
-
 function saveSubscription(subscriptions, templates) {
   return callCloud("memberCenter", {
     action: "saveSubscription",
@@ -519,7 +513,6 @@ module.exports = {
   getMyOrder,
   isCloudReady,
   joinEvent,
-  claimCoupon,
   listEvents,
   listMyOrders,
   listMyRecords,

@@ -102,12 +102,20 @@
     </view>
 
     <view class="detail-surface timeline-section">
-      <view class="section-title">订单进度</view>
+      <view class="section-title timeline-head">
+        <text>订单进度</text>
+        <text wx:if="{{order.trackingNo}}" class="timeline-copy-link" bindtap="copyTrackingNo">复制单号</text>
+      </view>
+      <view wx:if="{{order.trackingNo}}" class="logistics-no-row">
+        <text class="logistics-no-label">快递单号</text>
+        <text class="logistics-no-value">{{order.trackingNo}}</text>
+        <text wx:if="{{order.trackingCompany}}" class="logistics-no-company">{{order.trackingCompany}}</text>
+      </view>
       <view wx:if="{{order.timeline.length > 0}}" class="timeline">
         <view
           wx:for="{{order.timeline}}"
-          wx:key="title"
-          class="timeline-row {{item.latest ? 'is-latest' : ''}}"
+          wx:key="index"
+          class="timeline-row {{item.latest ? 'is-latest' : ''}} {{item.logistics ? 'is-logistics' : ''}}"
         >
           <view class="timeline-track">
             <view class="timeline-dot"></view>
@@ -121,6 +129,12 @@
         </view>
       </view>
       <view wx:else class="section-empty">订单提交后，处理进度会显示在这里。</view>
+
+      <view wx:if="{{showLogisticsHint}}" class="logistics-hint-row">
+        <view wx:if="{{logisticsLoading}}" class="logistics-hint-text">正在查询物流…</view>
+        <view wx:elif="{{logisticsError}}" class="logistics-hint-text is-error">{{logisticsError}}</view>
+        <view wx:else class="logistics-hint-text">轨迹暂未更新</view>
+      </view>
     </view>
 
     <view class="detail-surface">
@@ -154,44 +168,6 @@
       <view wx:if="{{order.remark}}" class="info-row">
         <text>备注</text>
         <view>{{order.remark}}</view>
-      </view>
-      <view wx:if="{{order.canViewLogistics || (order.deliveryMethod === 'shipping' && order.trackingNo)}}" class="logistics-block">
-        <view class="logistics-label-row">
-          <view class="logistics-label">物流信息</view>
-          <view
-            wx:if="{{logisticsStateLabel}}"
-            class="logistics-state"
-          >{{logisticsStateLabel}}</view>
-        </view>
-        <view class="logistics-main">
-          <view>
-            <view class="logistics-company">{{order.trackingCompany || '快递配送'}}</view>
-            <view class="tracking-no">{{order.trackingNo}}</view>
-          </view>
-          <button bindtap="copyTrackingNo">复制单号</button>
-        </view>
-        <view class="logistics-actions">
-          <button
-            class="logistics-refresh"
-            loading="{{logisticsLoading}}"
-            disabled="{{logisticsLoading}}"
-            bindtap="refreshLogistics"
-          >{{logisticsLoading ? '查询中' : '刷新轨迹'}}</button>
-        </view>
-        <view wx:if="{{logisticsError}}" class="logistics-error">{{logisticsError}}</view>
-        <view wx:if="{{logisticsTraces.length}}" class="logistics-trace-list">
-          <view
-            wx:for="{{logisticsTraces}}"
-            wx:key="time"
-            class="logistics-trace-item {{index === 0 ? 'is-latest' : ''}}"
-          >
-            <view class="logistics-trace-time">{{item.time}}</view>
-            <view class="logistics-trace-text">{{item.context}}</view>
-          </view>
-        </view>
-        <view wx:elif="{{!logisticsLoading && !logisticsError}}" class="logistics-empty">
-          暂无轨迹，可点「刷新轨迹」或用单号在快递官网查询
-        </view>
       </view>
     </view>
 

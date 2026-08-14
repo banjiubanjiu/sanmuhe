@@ -2,7 +2,10 @@
   "permissions": {
     "openapi": [
       "wxa.sec.order.uploadShippingInfo",
-      "wxa.sec.order.getOrder"
+      "wxa.sec.order.getOrder",
+      "wxa.sec.order.setMsgJumpPath",
+      "wxa.sec.order.isTradeManaged",
+      "wxa.sec.order.isTradeManagementConfirmationCompleted"
     ]
   }
 }

@@ -15,20 +15,20 @@ function buildContactMeta(orderId, order) {
 
 function logisticsStateText(state) {
   const map = {
-    "0": "在途",
-    "1": "揽收",
-    "2": "疑难",
+    "0": "运输中",
+    "1": "已揽收",
+    "2": "疑难件",
     "3": "已签收",
-    "4": "退签",
-    "5": "派件",
-    "6": "退回",
-    "7": "转投",
-    "8": "清关",
+    "4": "已退签",
+    "5": "派件中",
+    "6": "已退回",
+    "7": "已转投",
+    "8": "清关中",
     "10": "待清关",
     "11": "清关中",
     "12": "已清关",
     "13": "清关异常",
-    "14": "拒签"
+    "14": "已拒签"
   };
   const key = String(state == null ? "" : state);
   return map[key] || (key ? `状态 ${key}` : "");
@@ -45,6 +45,37 @@ function safeDecode(value) {
   }
 }
 
+/**
+ * 将物流轨迹节点合并进订单进度时间线：
+ * 最新物流节点成为时间线最新项（已完成订单时排在完成节点下方），
+ * 历史轨迹节点依次向下，原「商品已发出」节点保留在其下方。
+ */
+function mergeLogisticsIntoTimeline(timeline, traces, stateLabel) {
+  const list = Array.isArray(timeline) ? timeline : [];
+  const traceList = Array.isArray(traces) ? traces : [];
+  if (!traceList.length) {
+    return list;
+  }
+  const logisticsSteps = traceList.map((t, i) => ({
+    title: i === 0 ? (stateLabel || "物流更新") : "物流更新",
+    timeText: t.time || "",
+    detail: t.context || "",
+    tone: "done",
+    logistics: true
+  }));
+  const shippedIdx = list.findIndex((s) => s.title === "商品已发出");
+  const doneIdx = list.findIndex((s) => s.title === "订单已完成");
+  let insertAt = 0;
+  if (doneIdx >= 0) {
+    insertAt = doneIdx + 1;
+  } else if (shippedIdx >= 0) {
+    insertAt = shippedIdx;
+  }
+  const merged = list.slice();
+  merged.splice(insertAt, 0, ...logisticsSteps);
+  return merged.map((s, i) => Object.assign({}, s, { latest: i === 0 }));
+}
+
 Page({
   data: {
     statusBarHeight: 20,
@@ -57,8 +88,10 @@ Page({
     afterSaleReason: "",
     logisticsLoading: false,
     logisticsError: "",
+    logisticsNotice: "",
     logisticsTraces: [],
     logisticsStateLabel: "",
+    showLogisticsHint: false,
     contactSessionFrom: "order-detail",
     contactMessageTitle: "订单咨询",
     contactMessagePath: "pages/orders/index",
@@ -143,7 +176,8 @@ Page({
         error: "",
         logisticsTraces: cachedTraces,
         logisticsStateLabel: logisticsStateText(order.logisticsState),
-        logisticsError: ""
+        logisticsError: "",
+        showLogisticsHint: !!(order.deliveryMethod === "shipping" && order.trackingNo)
       }, buildContactMeta(this.data.orderId, order)));
       if (order.canViewLogistics || (order.deliveryMethod === "shipping" && order.trackingNo)) {
         this.loadLogistics({ silent: true });
@@ -161,7 +195,7 @@ Page({
       return;
     }
     if (!options.silent) {
-      this.setData({ logisticsLoading: true, logisticsError: "" });
+      this.setData({ logisticsLoading: true, logisticsError: "", logisticsNotice: "" });
     } else {
       this.setData({ logisticsLoading: true });
     }
@@ -169,24 +203,36 @@ Page({
       if (!result) {
         return;
       }
+      const traces = Array.isArray(result.traces)
+        ? result.traces
+        : (result.ok === false ? this.data.logisticsTraces : []);
       if (result.ok === false) {
         this.setData({
           logisticsLoading: false,
           logisticsError: result.message || "暂时查不到轨迹",
-          logisticsTraces: Array.isArray(result.traces) ? result.traces : this.data.logisticsTraces
+          logisticsNotice: "",
+          logisticsTraces: traces
         });
         return;
       }
+      const stateLabel = logisticsStateText(result.state);
+      const order = Object.assign({}, this.data.order, {
+        timeline: mergeLogisticsIntoTimeline(this.data.order && this.data.order.timeline, traces, stateLabel)
+      });
       this.setData({
+        order,
         logisticsLoading: false,
         logisticsError: result.pending ? (result.message || "") : "",
-        logisticsTraces: Array.isArray(result.traces) ? result.traces : [],
-        logisticsStateLabel: logisticsStateText(result.state)
+        logisticsNotice: !options.silent && result.cached ? (result.message || "") : "",
+        logisticsTraces: traces,
+        logisticsStateLabel: stateLabel,
+        showLogisticsHint: !traces.length || !!result.pending
       });
     }).catch((error) => {
       this.setData({
         logisticsLoading: false,
-        logisticsError: (error && error.message) || "物流查询失败"
+        logisticsError: (error && error.message) || "物流查询失败",
+        logisticsNotice: ""
       });
     });
   },
@@ -246,7 +292,7 @@ Page({
     }
     wx.showModal({
       title: "取消这笔订单？",
-      content: "取消后，已锁定的库存和优惠券会自动释放。",
+      content: "取消后，已锁定的库存会自动释放。",
       confirmText: "确认取消",
       confirmColor: "#A64B3C",
       success: (result) => {

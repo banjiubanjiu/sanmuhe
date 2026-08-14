@@ -139,29 +139,6 @@
     </view>
   </view>
 
-  <view wx:if="{{memberStatusReady && member.isMember}}" class="coupon-card">
-    <view class="panel-head">
-      <view class="panel-title">可领取优惠券</view>
-      <view class="panel-link">{{userCoupons.length}} 张已领取</view>
-    </view>
-    <view wx:if="{{availableCoupons.length > 0}}" class="coupon-list">
-      <view wx:for="{{availableCoupons}}" wx:key="id" class="coupon-row">
-        <view class="coupon-amount">¥{{item.amount}}</view>
-        <view class="coupon-copy">
-          <view class="coupon-title">{{item.name}}</view>
-          <view class="coupon-desc">满 {{item.threshold}} 可用 · 剩余 {{item.stockLeft > 999 ? '不限' : item.stockLeft}}</view>
-        </view>
-        <button
-          class="coupon-action"
-          data-id="{{item.id}}"
-          disabled="{{!item.claimable}}"
-          bindtap="claimCoupon"
-        >{{item.claimable ? '领取' : '已领取'}}</button>
-      </view>
-    </view>
-    <view wx:if="{{availableCoupons.length === 0}}" class="empty-line">暂无可领取优惠券</view>
-  </view>
-
   <view wx:if="{{memberStatusReady && member.isMember}}" class="notice-card">
     <view>
       <view class="notice-title">服务通知</view>
