@@ -5329,22 +5329,30 @@ async function regenerateTableQr(tableNo) {
   });
 }
 
-/** 下载桌码图片到本地 */
+/** 下载桌码图片到本地（经云函数读文件返回 base64，避免云存储 CDN 的 CORS 限制） */
 async function downloadTableQr(qr) {
-  if (!qr || !qr.url) {
+  if (!qr || (!qr.fileID && !qr.url)) {
     showToast("桌码尚未生成");
     return;
   }
   try {
-    const resp = await fetch(qr.url);
-    if (!resp.ok) {
-      throw new Error(`下载失败(${resp.status})`);
+    const result = await callFunction("manageOperations", {
+      action: "downloadTableQrFile",
+      data: { fileID: qr.fileID || "", tableNo: qr.tableNo }
+    });
+    if (!result || result.ok === false) {
+      throw new Error((result && result.message) || "下载失败");
     }
-    const blob = await resp.blob();
+    const binary = atob(result.base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: result.contentType || "image/png" });
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = objectUrl;
-    link.download = `禾煦桌码-${qr.tableNo}.png`;
+    link.download = result.fileName || `禾煦桌码-${qr.tableNo}.png`;
     link.rel = "noopener";
     document.body.appendChild(link);
     link.click();

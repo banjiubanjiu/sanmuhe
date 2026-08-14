@@ -356,6 +356,7 @@ const actionPermissions = {
   setWxShippingJumpPath: "settings.write",
   generateTableQr: "settings.write",
   listTableQrs: "settings.read",
+  downloadTableQrFile: "settings.read",
   getSystemStatus: "system.read",
   listNotificationLogs: "notification.read",
   sendTestNotice: "notification.write",
@@ -4430,6 +4431,34 @@ async function listTableQrs() {
   };
 }
 
+/**
+ * 桌码图片下载：云函数读取文件返回 base64，绕开云存储 CDN 的浏览器 CORS 限制。
+ * 二维码 PNG 体积小，单次返回不会触达云函数响应上限。
+ */
+async function downloadTableQrFile(event) {
+  const fileID = cleanText(event.data && event.data.fileID, 500);
+  const tableNo = cleanText(event.data && event.data.tableNo, 10);
+  if (!fileID || fileID.indexOf("cloud://") !== 0) {
+    return { ok: false, message: "缺少有效的桌码文件" };
+  }
+  let result;
+  try {
+    result = await cloud.downloadFile({ fileID });
+  } catch (error) {
+    return { ok: false, message: "文件读取失败，请重新生成桌码" };
+  }
+  const buffer = result && result.fileContent;
+  if (!buffer) {
+    return { ok: false, message: "文件内容为空" };
+  }
+  return {
+    ok: true,
+    contentType: "image/png",
+    base64: Buffer.from(buffer).toString("base64"),
+    fileName: `禾煦桌码-${tableNo || "qr"}.png`
+  };
+}
+
 exports.main = async (event = {}, context = {}) => {
   if (event.action === "health") {
     return { ok: true, name: "manageOperations" };
@@ -4615,6 +4644,9 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "listTableQrs") {
       return await listTableQrs();
+    }
+    if (action === "downloadTableQrFile") {
+      return await downloadTableQrFile(event);
     }
     if (action === "getSystemStatus") {
       return await getSystemStatus(event);
