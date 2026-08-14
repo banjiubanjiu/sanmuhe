@@ -3096,6 +3096,64 @@ tr.selected td:first-child {
   background: rgba(239, 207, 199, 0.9);
 }
 
+/* 会员储值档位（设置页） */
+.recharge-plan-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.recharge-plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  background: var(--admin-paper);
+}
+
+.recharge-plan-row.plan-disabled {
+  opacity: 0.62;
+}
+
+.recharge-plan-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.recharge-plan-main strong {
+  font-size: 14px;
+  color: var(--admin-ink);
+}
+
+.recharge-plan-desc {
+  font-size: 12px;
+  color: var(--admin-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recharge-plan-meta {
+  display: grid;
+  gap: 4px;
+  align-items: start;
+  text-align: right;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.recharge-plan-form {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px dashed var(--admin-line);
+  border-radius: 10px;
+  background: rgba(250, 248, 243, 0.5);
+}
+
 .editor-panel,
 .detail-panel {
   align-self: start;

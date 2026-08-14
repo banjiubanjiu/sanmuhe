@@ -352,6 +352,9 @@ const actionPermissions = {
   deleteContent: "content.write",
   getSettings: "settings.read",
   updateSettings: "settings.write",
+  listMembershipPlans: "settings.read",
+  saveMembershipPlan: "settings.write",
+  removeMembershipPlan: "settings.write",
   getWxShippingStatus: "settings.read",
   setWxShippingJumpPath: "settings.write",
   generateTableQr: "settings.write",
@@ -4290,6 +4293,164 @@ async function getWxShippingStatus(event, caller) {
   return { ok: true, status };
 }
 
+/** 金额元 → 分（支持两位小数） */
+function yuanToFen(yuan) {
+  return Math.round(Number(yuan || 0) * 100);
+}
+
+function serializeMembershipPlan(item) {
+  const principalFen = Math.round(number(item.principalFen));
+  const bonusFen = Math.round(number(item.bonusFen));
+  const totalFen = Math.round(number(item.totalFen) || principalFen + bonusFen);
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    principalFen,
+    bonusFen,
+    totalFen,
+    principalYuan: (principalFen / 100).toFixed(2),
+    bonusYuan: (bonusFen / 100).toFixed(2),
+    totalYuan: (totalFen / 100).toFixed(2),
+    sortOrder: number(item.sortOrder),
+    enabled: item.enabled !== false,
+    updatedAt: item.updatedAt ? String(item.updatedAt) : ""
+  };
+}
+
+/** 后台管理用：返回全部档位（含停用），按排序号升序 */
+async function listMembershipPlans() {
+  await ensureCollection("membership_plans");
+  const result = await db.collection("membership_plans")
+    .orderBy("sortOrder", "asc")
+    .limit(50)
+    .get();
+  return { ok: true, plans: (result.data || []).map((item) => serializeMembershipPlan(item)) };
+}
+
+/**
+ * 保存充值档位（新增或更新）。金额以元为单位提交，云端转分存储；
+ * 前台 memberCenter 只展示 enabled 档位，保存后前台充值页自动同步。
+ */
+async function saveMembershipPlan(event, caller) {
+  const data = event.data || {};
+  const reason = requireAuditReason(event, "保存会员充值档位");
+  const id = cleanText(data.id, 80);
+  const title = cleanText(data.title, 40);
+  const description = cleanText(data.description, 120);
+  const principalYuan = Number(data.principalYuan);
+  const bonusYuan = Number(data.bonusYuan);
+  const sortOrder = Number(data.sortOrder);
+  const enabled = data.enabled !== false;
+
+  if (!title) {
+    const error = new Error("档位名称不能为空");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  if (!Number.isFinite(principalYuan) || principalYuan <= 0) {
+    const error = new Error("充值金额必须大于 0");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  if (!Number.isFinite(bonusYuan) || bonusYuan < 0) {
+    const error = new Error("赠送金额不能小于 0");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  if (principalYuan * 100 !== yuanToFen(principalYuan) || bonusYuan * 100 !== yuanToFen(bonusYuan)) {
+    const error = new Error("金额最多保留两位小数");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+
+  const principalFen = yuanToFen(principalYuan);
+  const bonusFen = yuanToFen(bonusYuan);
+  const totalFen = principalFen + bonusFen;
+  const nextSort = Number.isFinite(sortOrder) && sortOrder >= 0
+    ? Math.round(sortOrder)
+    : (Math.floor(Date.now() / 1000) % 100000);
+
+  let targetId = id;
+  if (targetId) {
+    await ensureCollection("membership_plans");
+    const existing = await findRecord("membership_plans", "id", targetId);
+    if (existing) {
+      await db.collection("membership_plans").doc(existing._id).update({
+        data: {
+          title,
+          description,
+          principalFen,
+          bonusFen,
+          totalFen,
+          sortOrder: nextSort,
+          enabled,
+          updatedAt: db.serverDate()
+        }
+      });
+      await writeAdminAuditLog(caller, "saveMembershipPlan", {
+        id: targetId,
+        title,
+        principalFen,
+        bonusFen,
+        enabled,
+        reason
+      });
+      return { ok: true, plan: serializeMembershipPlan(Object.assign({}, existing, {
+        title, description, principalFen, bonusFen, totalFen, sortOrder: nextSort, enabled
+      })) };
+    }
+  }
+
+  targetId = targetId || `recharge-${Date.now().toString(36)}`;
+  await ensureCollection("membership_plans");
+  const doc = {
+    id: targetId,
+    title,
+    description,
+    principalFen,
+    bonusFen,
+    totalFen,
+    sortOrder: nextSort,
+    enabled,
+    createdAt: db.serverDate(),
+    updatedAt: db.serverDate()
+  };
+  const added = await db.collection("membership_plans").add({ data: doc });
+  await writeAdminAuditLog(caller, "saveMembershipPlan", {
+    id: targetId,
+    title,
+    principalFen,
+    bonusFen,
+    enabled,
+    reason
+  });
+  return { ok: true, plan: serializeMembershipPlan(Object.assign({}, doc, { _id: added._id })) };
+}
+
+/** 停用档位（软删除，保留历史充值记录可追溯） */
+async function removeMembershipPlan(event, caller) {
+  const id = cleanText(event.data && event.data.id, 80);
+  if (!id) {
+    const error = new Error("缺少档位 ID");
+    error.code = "INVALID_INPUT";
+    throw error;
+  }
+  const reason = requireAuditReason(event, "停用会员充值档位");
+  await ensureCollection("membership_plans");
+  const existing = await findRecord("membership_plans", "id", id);
+  if (existing) {
+    await db.collection("membership_plans").doc(existing._id).update({
+      data: {
+        enabled: false,
+        updatedAt: db.serverDate()
+      }
+    });
+  }
+  await writeAdminAuditLog(caller, "removeMembershipPlan", { id, reason });
+  return { ok: true };
+}
+
 /**
  * 将「订单发货通知」跳转路径同步到微信（set_msg_jump_path，全局设置一次生效）。
  * 微信会在 path 后自动附加 transaction_id、merchant_id、merchant_trade_no，
@@ -4632,6 +4793,15 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "updateSettings") {
       return await updateSettings(event, caller);
+    }
+    if (action === "listMembershipPlans") {
+      return await listMembershipPlans();
+    }
+    if (action === "saveMembershipPlan") {
+      return await saveMembershipPlan(event, caller);
+    }
+    if (action === "removeMembershipPlan") {
+      return await removeMembershipPlan(event, caller);
     }
     if (action === "getWxShippingStatus") {
       return await getWxShippingStatus(event, caller);

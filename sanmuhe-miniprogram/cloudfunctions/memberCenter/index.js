@@ -315,16 +315,6 @@ function serializePlan(item) {
   };
 }
 
-function planNeedsCorrection(existing, expected) {
-  return integer(existing.principalFen) !== expected.principalFen
-    || integer(existing.bonusFen) !== expected.bonusFen
-    || integer(existing.totalFen) !== expected.totalFen
-    || cleanText(existing.title, 40) !== expected.title
-    || cleanText(existing.description, 120) !== expected.description
-    || existing.enabled === false
-    || number(existing.sortOrder) !== expected.sortOrder;
-}
-
 async function ensureDefaultMembershipPlans() {
   await ensureCollection("membership_plans");
   const result = await db.collection("membership_plans").limit(50).get();
@@ -336,6 +326,7 @@ async function ensureDefaultMembershipPlans() {
     }
   });
 
+  // 仅首次初始化时补写默认档；后台已调整的档位不再被强制纠正
   for (const plan of DEFAULT_MEMBERSHIP_PLANS) {
     const saved = byId[plan.id];
     if (!saved) {
@@ -344,21 +335,6 @@ async function ensureDefaultMembershipPlans() {
           createdAt: db.serverDate(),
           updatedAt: db.serverDate()
         })
-      });
-      continue;
-    }
-    if (planNeedsCorrection(saved, plan)) {
-      await db.collection("membership_plans").doc(saved._id).update({
-        data: {
-          title: plan.title,
-          description: plan.description,
-          principalFen: plan.principalFen,
-          bonusFen: plan.bonusFen,
-          totalFen: plan.totalFen,
-          sortOrder: plan.sortOrder,
-          enabled: true,
-          updatedAt: db.serverDate()
-        }
       });
     }
   }
@@ -386,17 +362,12 @@ async function ensureDefaultMembershipPlans() {
 async function listMembershipPlans() {
   await ensureDefaultMembershipPlans();
   const result = await db.collection("membership_plans")
+    .orderBy("sortOrder", "asc")
     .limit(20)
     .get();
-  const allowedIds = new Set(DEFAULT_MEMBERSHIP_PLANS.map((item) => item.id));
-  const byId = {};
-  (result.data || []).forEach((item) => {
-    if (item && item.id && allowedIds.has(item.id) && item.enabled !== false) {
-      byId[item.id] = item;
-    }
-  });
-  // Always surface published tiers in fixed order with canonical amounts.
-  return DEFAULT_MEMBERSHIP_PLANS.map((plan) => serializePlan(byId[plan.id] || plan));
+  return (result.data || [])
+    .filter((item) => item && item.enabled !== false && item.id)
+    .map((item) => serializePlan(item));
 }
 
 async function getWallet(openid, member) {
