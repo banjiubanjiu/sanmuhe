@@ -1,4 +1,5 @@
 const { addToCart } = require("../../utils/cart");
+const { resolveCloudImage } = require("../../config/assets");
 const {
   activateMember,
   getCatalog,
@@ -629,7 +630,7 @@ Page(withPrivacy({
       name: product.name,
       price: product.price,
       color: product.color,
-      image: product.thumb || product.image,
+      image: resolveCloudImage(product.thumb || product.image),
       category: product.category,
       options: {
         unit: product.unit

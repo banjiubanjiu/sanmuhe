@@ -8,6 +8,7 @@ const {
   toMinutes
 } = require("../../data/store");
 const { createReservation, payReservation, getCatalog, getMemberCenter, listReservedSlots, resolvePhoneNumber } = require("../../utils/cloudApi");
+const { resolveCloudImage } = require("../../config/assets");
 const { getBookingDays } = require("../../utils/date");
 const { withPrivacy } = require("../../utils/privacy");
 
@@ -78,7 +79,7 @@ function mapCatalogRoom(item, settings = {}) {
     maxPeople,
     floor: String(item.floor || "").trim(),
     features: features.length ? features.slice(0, 4) : ["满 2 小时起", "半小时加时"],
-    image: item.image || item.thumb || LOCAL_FALLBACK_ROOM.image,
+    image: resolveCloudImage(item.image || item.thumb, LOCAL_FALLBACK_ROOM.image),
     price: Number(item.price) || 0,
     status: String(item.status || (unavailable ? "已订满" : "可预定")).trim() || "可预定",
     available: !unavailable,

@@ -1,4 +1,5 @@
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
+const { resolveCloudImage } = require("../../config/assets");
 const { getCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
@@ -59,7 +60,7 @@ function normalizeTeaProducts(products) {
 
     return Object.assign({}, item, {
       productType: "tea",
-      thumb: item.thumb || item.image,
+      thumb: resolveCloudImage(item.thumb || item.image),
       sold: item.soldStock || item.sold || 0,
       availableStock,
       hasMultipleSpecs,
@@ -293,7 +294,7 @@ Page({
       name: product.name,
       price: defaultSpec.price,
       color: product.color,
-      image: product.thumb || product.image,
+      image: resolveCloudImage(product.thumb || product.image),
       category: product.category,
       quantity: 1,
       options: {

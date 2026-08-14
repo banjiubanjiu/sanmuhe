@@ -1,5 +1,6 @@
 const { drinks } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
+const { resolveCloudImage } = require("../../config/assets");
 const { getCatalog } = require("../../utils/cloudApi");
 const { normalizeMenuItems } = require("../../utils/teaMenu");
 const { syncTabBar } = require("../../utils/tabbar");
@@ -23,7 +24,7 @@ const localDrinkMap = drinks.reduce((map, item) => {
 
 function decorateTeaOptions(items) {
   return (items || []).map((item) => Object.assign({}, item, {
-    heroImage: ORDER_HERO_IMAGE_BY_DRINK_ID[item.id] || item.image,
+    heroImage: ORDER_HERO_IMAGE_BY_DRINK_ID[item.id] || resolveCloudImage(item.image),
     teaOptions: (item.teaOptions || []).map((tea) => Object.assign({}, tea, {
       categoryChars: String(tea.category || "茶品").split("")
     }))
@@ -97,7 +98,7 @@ function mergeDrinkSource(remoteItems) {
     return Object.assign({}, local, item, {
       teaGroups: hasGroups ? item.teaGroups : local.teaGroups,
       notes: item.notes || local.notes,
-      image: item.image || local.image,
+      image: resolveCloudImage(item.image || local.image),
       unit: item.unit || item.badge || local.unit || local.badge,
       tagline: item.tagline || local.tagline,
       brewStyle: item.brewStyle || local.brewStyle,
@@ -293,7 +294,7 @@ Page({
       name: activeDrink.name,
       price,
       color: activeDrink.color,
-      image: activeDrink.image,
+      image: resolveCloudImage(activeDrink.image),
       category: activeDrink.section,
       options: {
         unit: activeDrink.unit,

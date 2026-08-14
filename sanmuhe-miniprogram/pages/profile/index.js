@@ -1,4 +1,5 @@
 const { getMemberCenter, listMyRecords, saveSubscription } = require("../../utils/cloudApi");
+const { resolveCloudImage } = require("../../config/assets");
 const { normalizeOrder } = require("../../utils/orderCenter");
 const { syncTabBar } = require("../../utils/tabbar");
 const { withPrivacy } = require("../../utils/privacy");
@@ -69,7 +70,7 @@ function normalizeRecords(records, type) {
       canPay: item.status === "待支付" || item.payStatus === "pending",
       dateText: item.day && item.time ? `${item.day} ${item.time}` : (item.date && item.time ? `${item.date} ${item.time}` : ""),
       recordMeta: item.day && item.time ? `${item.day} ${item.time}` : (item.date && item.time ? `${item.date} ${item.time}` : (item.place || "待确认")),
-      image: item.image || (type === "reservation" ? "/assets/images/reservation-hero.jpg" : "/assets/images/event-yangxin-tea.jpg")
+      image: resolveCloudImage(item.image, type === "reservation" ? "/assets/images/reservation-hero.jpg" : "/assets/images/event-yangxin-tea.jpg")
     });
   });
 }
@@ -108,7 +109,7 @@ function getRecentReservation(reservations) {
     dateText: item.day && timeRange ? `${item.day} ${timeRange}` : (item.dateText || item.day || ""),
     people: item.people || 2,
     status: item.status || "待确认",
-    image: item.image || "/assets/images/reservation-hero.jpg"
+    image: resolveCloudImage(item.image, "/assets/images/reservation-hero.jpg")
   };
 }
 
@@ -123,7 +124,7 @@ function getRecentSignup(signups) {
     dateText: item.date && item.time ? `${item.date} ${item.time}` : item.dateText,
     place: item.place || "禾煦",
     status: item.status || "待确认",
-    image: item.image || "/assets/images/event-yangxin-tea.jpg"
+    image: resolveCloudImage(item.image, "/assets/images/event-yangxin-tea.jpg")
   };
 }
 

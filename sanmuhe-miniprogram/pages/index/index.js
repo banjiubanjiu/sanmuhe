@@ -1,4 +1,5 @@
 const { homeSlides } = require("../../data/catalog");
+const { resolveCloudImage } = require("../../config/assets");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
@@ -72,7 +73,7 @@ function buildSearchResults(query, catalog) {
       label: group.label,
       title: item.name || item.title,
       meta: group.getMeta(item),
-      image: item.thumb || item.image
+      image: resolveCloudImage(item.thumb || item.image)
     }));
     return result.concat(matched);
   }, []).slice(0, 8);
@@ -94,7 +95,7 @@ function buildSeasonRecommendations(products) {
   const picked = ids.map((id) => source.find((item) => item.id === id)).filter(Boolean);
   const fallback = source.filter((item) => picked.every((pickedItem) => pickedItem.id !== item.id)).slice(0, 3 - picked.length);
   return picked.concat(fallback).slice(0, 3).map((item) => Object.assign({}, item, {
-    displayImage: item.thumb || item.image,
+    displayImage: resolveCloudImage(item.thumb || item.image),
     seasonTag: tags[item.id] || item.category || "精选",
     shortNote: notes[item.id] || item.taste || "甄选好茶"
   }));
@@ -134,8 +135,8 @@ const PACKAGE_IMAGE_BY_ASSET = Object.keys(PACKAGE_SLIDE_IMAGE_BY_KEY).reduce((m
 }, {});
 
 /**
- * 轮播图一律优先包内本地路径。
- * 云存储当前套餐 ACL 为 PRIVATE，cloud:// 真机/预览常加载失败。
+ * 轮播图：与包内资源同源时优先包内路径（避免重载闪烁）；
+ * 其余云路径转 CDN 直链展示后台真实图（存储已配置公开读）。
  */
 function resolveSlideImage(image, key) {
   const remote = String(image || "").trim();
@@ -165,12 +166,9 @@ function resolveSlideImage(image, key) {
   if (remoteKey && /^home-carousel-[123]\.(jpe?g|png|webp)$/i.test(remoteKey)) {
     return `/assets/images/${remoteKey.replace(/\.png$/i, ".jpg")}`;
   }
-  // 云路径无法映射时，宁可回落包内默认，不展示裂图
-  if (packageByKey) {
-    return packageByKey;
-  }
-  if (remote.indexOf("cloud://") === 0 || remote.indexOf("http") === 0) {
-    return (homeSlides[0] && homeSlides[0].image) || "/assets/images/home-carousel-1.jpg";
+  // 云路径转 CDN 直链，展示后台真实上传的图；网络地址原样
+  if (remote.indexOf("cloud://") === 0) {
+    return resolveCloudImage(remote, packageByKey || "/assets/images/home-carousel-1.jpg");
   }
   return remote;
 }
@@ -517,7 +515,7 @@ Page({
       name: product.name,
       price: defaultSpec ? defaultSpec.price : product.price,
       color: product.color,
-      image: product.thumb || product.image,
+      image: resolveCloudImage(product.thumb || product.image),
       category: product.category,
       options: {
         unit: defaultSpec ? defaultSpec.label : product.unit

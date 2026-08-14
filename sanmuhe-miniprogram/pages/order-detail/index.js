@@ -1,4 +1,5 @@
 const { getMyOrder, payOrder, updateMyOrder, queryLogistics } = require("../../utils/cloudApi");
+const { resolveCloudImage } = require("../../config/assets");
 const { addToCart } = require("../../utils/cart");
 const { normalizeOrder } = require("../../utils/orderCenter");
 
@@ -405,7 +406,7 @@ Page({
         id: item.id,
         type: item.type || "tea",
         name: item.name,
-        image: item.image,
+        image: resolveCloudImage(item.image),
         price: Number(item.price) || 0,
         quantity: item.quantity,
         options: item.options || {}
