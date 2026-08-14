@@ -365,6 +365,11 @@ const state = reactive({
   settings: {},
   /** 微信「发货信息管理」接入状态（getWxShippingStatus） */
   wxShippingStatus: null,
+  /** 会员储值档位（membership_plans，后台可维护） */
+  rechargePlans: [],
+  rechargePlanEditing: false,
+  rechargePlanForm: { id: "", title: "", description: "", principalYuan: "", bonusYuan: "", sortOrder: "", enabled: true },
+  rechargePlanSaving: false,
   pagination: {
     orders: createPageState(),
     afterSales: createPageState(),
@@ -5067,6 +5072,12 @@ async function loadSettings() {
       state.wxShippingStatus = (result && result.status) || null;
     })
     .catch(() => {});
+  // 静默拉取会员储值档位，不阻塞设置表单
+  callFunction("manageOperations", { action: "listMembershipPlans" })
+    .then((result) => {
+      state.rechargePlans = (result && result.plans) || [];
+    })
+    .catch(() => {});
 }
 
 async function saveSettings() {
@@ -5225,6 +5236,96 @@ async function saveRoomInfo() {
     await loadRoomInfo();
     showToast("茶室信息已保存");
   });
+}
+
+function openRechargePlanForm() {
+  state.rechargePlanForm = { id: "", title: "", description: "", principalYuan: "", bonusYuan: "", sortOrder: String((state.rechargePlans.length + 1) * 1), enabled: true };
+  state.rechargePlanEditing = true;
+}
+
+function editRechargePlan(plan) {
+  state.rechargePlanForm = {
+    id: plan.id,
+    title: plan.title || "",
+    description: plan.description || "",
+    principalYuan: String(Number(plan.principalYuan) || ""),
+    bonusYuan: String(Number(plan.bonusYuan) || ""),
+    sortOrder: String(Number(plan.sortOrder) || ""),
+    enabled: plan.enabled !== false
+  };
+  state.rechargePlanEditing = true;
+}
+
+async function saveRechargePlan() {
+  const form = state.rechargePlanForm;
+  const principalYuan = Number(form.principalYuan);
+  const bonusYuan = Number(form.bonusYuan);
+  const title = String(form.title || "").trim();
+  if (!title) {
+    showToast("请填写档位名称");
+    return;
+  }
+  if (!Number.isFinite(principalYuan) || principalYuan <= 0) {
+    showToast("充值金额必须大于 0");
+    return;
+  }
+  if (!Number.isFinite(bonusYuan) || bonusYuan < 0) {
+    showToast("赠送金额不能小于 0");
+    return;
+  }
+  const reason = await promptActionReason(form.id ? "保存充值档位" : "新增充值档位");
+  if (!reason) return;
+  state.rechargePlanSaving = true;
+  try {
+    await withLoading("保存充值档位", async () => {
+      const result = await callFunction("manageOperations", {
+        action: "saveMembershipPlan",
+        data: {
+          id: form.id || undefined,
+          title,
+          description: String(form.description || "").trim(),
+          principalYuan,
+          bonusYuan,
+          sortOrder: Number(form.sortOrder),
+          enabled: form.enabled !== false
+        },
+        reason
+      });
+      if (result && result.ok === false) {
+        throw new Error(result.message || "保存失败");
+      }
+      await reloadRechargePlans();
+    });
+    state.rechargePlanEditing = false;
+    showToast("档位已保存");
+  } catch (error) {
+    showToast((error && error.message) || "保存失败");
+  } finally {
+    state.rechargePlanSaving = false;
+  }
+}
+
+async function removeRechargePlan(plan) {
+  if (!plan || !plan.id) return;
+  const reason = await promptActionReason(`停用充值档位 ${plan.title || plan.id}`);
+  if (!reason) return;
+  await withLoading("停用档位", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "removeMembershipPlan",
+      data: { id: plan.id },
+      reason
+    });
+    if (result && result.ok === false) {
+      throw new Error(result.message || "停用失败");
+    }
+    await reloadRechargePlans();
+  });
+  showToast("档位已停用");
+}
+
+async function reloadRechargePlans() {
+  const result = await callFunction("manageOperations", { action: "listMembershipPlans" });
+  state.rechargePlans = (result && result.plans) || [];
 }
 
 /** 读取微信「发货信息管理」接入状态（开通、交易结算确认、跳转路径同步状态） */
@@ -7584,6 +7685,42 @@ onBeforeUnmount(() => {
                 <label><span>三档会员</span><input v-model="state.settings.levelThreeName"></label>
                 <label><span>三档门槛</span><input v-model.number="state.settings.levelThreeMinSpend" type="number" min="0"></label>
                 <label><span>三档折扣</span><input v-model.number="state.settings.levelThreeDiscountRate" type="number" min="0.01" max="1" step="0.01"></label>
+              </div>
+              <div class="settings-subsection">
+                <h3>会员储值档位</h3>
+                <p class="settings-note">顾客在小程序会员页看到的充值档位；金额以「充值 / 赠送」填写，保存后前台会员页自动同步。停用的档位不再展示，历史充值记录不受影响。</p>
+                <div v-if="state.rechargePlans.length" class="recharge-plan-list">
+                  <div v-for="plan in state.rechargePlans" :key="plan.id" class="recharge-plan-row" :class="{ 'plan-disabled': plan.enabled === false }">
+                    <div class="recharge-plan-main">
+                      <strong>{{ plan.title || plan.id }}</strong>
+                      <span class="recharge-plan-desc">{{ plan.description || "" }}</span>
+                    </div>
+                    <div class="recharge-plan-meta">
+                      <span>充 ¥{{ plan.principalYuan }} · 送 ¥{{ plan.bonusYuan }} · 到账 ¥{{ plan.totalYuan }}</span>
+                      <span :class="['status-pill', plan.enabled === false ? 'warn' : 'good']">{{ plan.enabled === false ? "已停用" : "启用中" }}</span>
+                    </div>
+                    <div v-if="hasPermission('settings.write')" class="settings-row-actions">
+                      <button class="ghost-button small" type="button" @click="editRechargePlan(plan)">编辑</button>
+                      <button v-if="plan.enabled !== false" class="ghost-button small danger" type="button" @click="removeRechargePlan(plan)">停用</button>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="settings-note">暂无充值档位。</p>
+                <form v-if="state.rechargePlanEditing" class="settings-fields recharge-plan-form" @submit.prevent="saveRechargePlan">
+                  <label><span>充值金额（元）</span><input v-model.number="state.rechargePlanForm.principalYuan" type="number" min="1" step="0.01" required></label>
+                  <label><span>赠送金额（元）</span><input v-model.number="state.rechargePlanForm.bonusYuan" type="number" min="0" step="0.01" required></label>
+                  <label><span>档位名称</span><input v-model="state.rechargePlanForm.title" placeholder="充 500 送 100" required></label>
+                  <label class="wide"><span>说明文案</span><input v-model="state.rechargePlanForm.description" placeholder="充值 500 元，赠送 100 元，到账 600 元"></label>
+                  <label><span>排序号</span><input v-model.number="state.rechargePlanForm.sortOrder" type="number" min="0"></label>
+                  <label class="switch"><input v-model="state.rechargePlanForm.enabled" type="checkbox"> 启用该档位</label>
+                  <div class="settings-row-actions">
+                    <button class="primary-action small" type="submit" :disabled="state.rechargePlanSaving">{{ state.rechargePlanSaving ? "保存中…" : "保存档位" }}</button>
+                    <button class="ghost-button small" type="button" @click="state.rechargePlanEditing = false">取消</button>
+                  </div>
+                </form>
+                <div v-else-if="hasPermission('settings.write')" class="settings-row-actions">
+                  <button class="secondary-action" type="button" @click="openRechargePlanForm">新增档位</button>
+                </div>
               </div>
             </div>
             <div class="settings-section">
