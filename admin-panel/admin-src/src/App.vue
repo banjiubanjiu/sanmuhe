@@ -66,7 +66,7 @@ const PACKAGE_INFO = {
 };
 
 const SAVED_VIEWS_KEY = "hexu-admin-saved-views-v1";
-const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "reservations", "signups", "customers", "content", "audit", "notifications"]);
+const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "signups", "customers", "content", "audit", "notifications"]);
 const ORDER_ALERT_POLL_MS = 5000;
 const ORDER_ALERT_SEEN_LIMIT = 200;
 
@@ -212,6 +212,10 @@ const permissionMap = permissionCatalog.reduce((map, item) => {
 
 const fallbackMetricIcons = [CalendarCheck, TicketPercent, BadgeDollarSign, UserPlus, CircleDollarSign];
 const createPageState = () => ({ page: 1, pageSize: 20, total: 0, pageCount: 1 });
+const localDateKey = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
 const EXPORT_PAGE_SIZE = 100;
 const EXPORT_MAX_ROWS = 5000;
 
@@ -383,14 +387,8 @@ const state = reactive({
   selectedCustomerId: "",
   selectedContentKey: "",
   selectedRoleId: "",
-  reservationCalendarDate: new Date().toISOString().slice(0, 10),
-  reservationWeekStart: (() => {
-    const now = new Date();
-    const dow = (now.getDay() + 6) % 7; // 周一起始
-    const start = new Date(now);
-    start.setDate(now.getDate() - dow);
-    return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-  })(),
+  reservationCalendarDate: localDateKey(),
+  reservationRangeStart: localDateKey(),
   reservationView: "board",
   reservationDrawerOpen: false
 });
@@ -970,24 +968,26 @@ const reservationsForCalendarDay = computed(() => {
   return (state.reservations || []).filter((item) => (item.day || item.date || "").slice(0, 10) === day);
 });
 
-/** 当前周：周一~周日日期数组 */
+/** 排期区间：从选择的起始日连续展示 7 天。 */
 const reservationWeekDays = computed(() => {
-  const start = weekStartOf(state.reservationWeekStart);
+  const start = state.reservationRangeStart;
   return Array.from({ length: 7 }, (_, i) => addDaysToDateStr(start, i));
 });
 
-/** 周范围显示文案：2026-08-11 ~ 08-17 */
-const reservationWeekStartOf = computed(() => {
+/** 排期范围显示文案：2026-08-14 ~ 08-20 */
+const reservationRangeLabel = computed(() => {
   const days = reservationWeekDays.value;
-  if (!days.length) return state.reservationWeekStart;
+  if (!days.length) return state.reservationRangeStart;
   const end = days[days.length - 1];
   return `${days[0]} ~ ${end.slice(5)}`;
 });
 
-/** 当前周全部预约（未取消优先，取消的仍保留供查看） */
-const reservationsForWeek = computed(() => {
-  const start = weekStartOf(state.reservationWeekStart);
-  const end = weekEndOf(state.reservationWeekStart);
+const canShiftReservationBackward = computed(() => state.reservationRangeStart > localDateKey());
+
+/** 当前 7 天全部预约（未取消优先，取消的仍保留供查看） */
+const reservationsForRange = computed(() => {
+  const start = state.reservationRangeStart;
+  const end = addDaysToDateStr(start, 6);
   return (state.reservations || []).filter((item) => {
     const d = (item.day || item.date || "").slice(0, 10);
     return d >= start && d <= end;
@@ -1002,7 +1002,7 @@ const reservationWeekTable = computed(() => {
   const rows = [];
   const dayItems = {};
   reservationWeekDays.value.forEach((day) => { dayItems[day] = []; });
-  reservationsForWeek.value.forEach((item) => {
+  reservationsForRange.value.forEach((item) => {
     const d = (item.day || item.date || "").slice(0, 10);
     if (dayItems[d]) dayItems[d].push(item);
   });
@@ -1196,10 +1196,6 @@ const activeFilterLabels = computed(() => {
     add("关键词", filters.afterSaleKeyword);
   }
   if (state.activeTab === "inventory") add("关键词", filters.inventoryKeyword);
-  if (state.activeTab === "reservations" && state.reservationView === "list") {
-    add("状态", filters.reservationStatus);
-    add("关键词", filters.reservationKeyword);
-  }
   if (state.activeTab === "signups") {
     add("状态", filters.signupStatus);
     add("关键词", filters.signupKeyword);
@@ -2624,7 +2620,8 @@ function statusTone(value) {
   const text = String(value || "");
   if (/失败|拒绝|取消|关闭|停用|下架|错误|异常|failed|error/i.test(text)) return "danger";
   if (/待|申请|审核|处理中|未到场|提醒|跳过|pending|skipped|warn/i.test(text)) return "warn";
-  if (/已支付|已发货|已完成|已确认|已退款|已到场|已使用|成功|启用|上架|success|sent|ok/i.test(text)) return "good";
+  if (/已完成|completed/i.test(text)) return "complete";
+  if (/已支付|已发货|已确认|已退款|已到场|已使用|成功|启用|上架|success|sent|ok/i.test(text)) return "good";
   return "neutral";
 }
 
@@ -4337,8 +4334,8 @@ async function loadReservations() {
       action: "listReservations",
       ...(isBoard
         ? {
-            startDay: weekStartOf(state.reservationWeekStart),
-            endDay: weekEndOf(state.reservationWeekStart),
+            startDay: state.reservationRangeStart,
+            endDay: addDaysToDateStr(state.reservationRangeStart, 6),
             // 周视图需要拉齐整周；云函数单页上限为 100。
             page: 1,
             pageSize: 100
@@ -4381,27 +4378,18 @@ function addDaysToDateStr(dateStr, days) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function weekStartOf(dateStr) {
-  const d = new Date(`${dateStr}T00:00:00`);
-  const dow = (d.getDay() + 6) % 7; // 周一起始
-  return addDaysToDateStr(dateStr, -dow);
-}
-
-function weekEndOf(dateStr) {
-  return addDaysToDateStr(weekStartOf(dateStr), 6);
-}
-
-function shiftReservationCalendar(stepWeeks) {
-  const weeks = Number(stepWeeks) || 0;
-  const start = weekStartOf(state.reservationWeekStart);
-  state.reservationWeekStart = addDaysToDateStr(start, weeks * 7);
-  state.reservationCalendarDate = state.reservationWeekStart;
+function shiftReservationRange(stepRanges) {
+  const ranges = Number(stepRanges) || 0;
+  const today = localDateKey();
+  const nextStart = addDaysToDateStr(state.reservationRangeStart, ranges * 7);
+  state.reservationRangeStart = nextStart < today ? today : nextStart;
+  state.reservationCalendarDate = state.reservationRangeStart;
   resetPageAndLoad("reservations", loadReservations);
 }
 
-function jumpReservationCalendarToday() {
-  const today = new Date().toISOString().slice(0, 10);
-  state.reservationWeekStart = weekStartOf(today);
+function resetReservationRangeToday() {
+  const today = localDateKey();
+  state.reservationRangeStart = today;
   state.reservationCalendarDate = today;
   resetPageAndLoad("reservations", loadReservations);
 }
@@ -4411,12 +4399,13 @@ function openReservationSlot(slot) {
   if (record) selectReservation(record);
 }
 
-const RESERVATION_WEEK_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-function weekDayLabel(index) {
-  return RESERVATION_WEEK_LABELS[index] || "";
+const RESERVATION_WEEK_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+function weekDayLabel(day) {
+  const date = new Date(`${day}T00:00:00`);
+  return RESERVATION_WEEK_LABELS[date.getDay()] || "";
 }
 
-const todayKeyStr = new Date().toISOString().slice(0, 10);
+const todayKeyStr = localDateKey();
 
 function reservationPrimaryHint(row) {
   if (!row) return "";
@@ -6888,11 +6877,11 @@ onBeforeUnmount(() => {
 
         <section v-if="state.activeTab === 'reservations'" class="reservation-workspace">
           <div class="reservation-toolbar">
-            <div v-if="state.reservationView === 'board'" class="calendar-strip" role="group" aria-label="预约周">
-              <button type="button" aria-label="上一周" @click="shiftReservationCalendar(-1)">‹</button>
-              <strong>{{ reservationWeekStartOf }}</strong>
-              <button type="button" aria-label="下一周" @click="shiftReservationCalendar(1)">›</button>
-              <button type="button" class="strip-today" @click="jumpReservationCalendarToday">本周</button>
+            <div v-if="state.reservationView === 'board'" class="calendar-strip" role="group" aria-label="预约日期范围">
+              <button type="button" aria-label="前 7 天" :disabled="!canShiftReservationBackward" @click="shiftReservationRange(-1)">‹</button>
+              <strong>{{ reservationRangeLabel }}</strong>
+              <button type="button" aria-label="后 7 天" @click="shiftReservationRange(1)">›</button>
+              <button type="button" class="strip-today" @click="resetReservationRangeToday">今天起</button>
             </div>
             <div class="reservation-view-tabs" role="tablist" aria-label="预约视图">
               <button type="button" role="tab" :aria-selected="state.reservationView === 'board'" :class="['order-biz-tab', { active: state.reservationView === 'board' }]" @click="switchReservationView('board')">排期看板</button>
@@ -6920,11 +6909,11 @@ onBeforeUnmount(() => {
               <div class="week-table-head">
                 <div class="week-time-col">时段</div>
                 <div
-                  v-for="(day, i) in reservationWeekDays"
+                  v-for="day in reservationWeekDays"
                   :key="day"
                   class="week-day-col"
                   :class="{ today: day === todayKeyStr }"
-                >{{ weekDayLabel(i) }} {{ day.slice(5) }}</div>
+                >{{ weekDayLabel(day) }} {{ day.slice(5) }}</div>
               </div>
               <div v-for="row in reservationWeekTable" :key="row.time" class="week-table-row">
                 <div class="week-time-col mono-time">{{ row.time }}</div>
@@ -6932,7 +6921,11 @@ onBeforeUnmount(() => {
                   v-for="cell in row.cells"
                   :key="cell.day"
                   class="week-cell"
-                  :class="{ busy: !!cell.record, today: cell.day === todayKeyStr }"
+                  :class="{
+                    busy: !!cell.record,
+                    completed: statusTone(cell.record?.status) === 'complete',
+                    today: cell.day === todayKeyStr
+                  }"
                   role="button"
                   tabindex="0"
                   @click="openReservationSlot(cell)"
@@ -6947,7 +6940,7 @@ onBeforeUnmount(() => {
               </div>
               <p v-if="!reservationWeekTable.length" class="timeline-empty">暂无预约时段，请先在「预约计价」配置可约时段。</p>
             </div>
-            <p class="board-tip">点击格子查看并处理预约 · 周一至周日 · 箭头切换周</p>
+            <p class="board-tip">点击格子查看并处理预约 · 默认从今天起连续 7 天 · 箭头切换日期范围</p>
           </div>
 
           <!-- 全部记录：列表视图 -->
