@@ -5419,7 +5419,42 @@ async function regenerateTableQr(tableNo) {
   });
 }
 
-/** 下载桌码图片到本地（经云函数读文件返回 base64，避免云存储 CDN 的 CORS 限制） */
+/**
+ * 把微信小程序码 + 桌号标签合成为一张可打印的 PNG（dataURL）。
+ * 原码图是透明底纯码，叠加白底与「xx 号桌」文字后打印即用。
+ */
+function composeTableQrImage(base64, tableNo) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const qrSize = Math.max(320, Math.round(img.naturalWidth || 430));
+        const labelHeight = Math.round(qrSize * 0.2);
+        const canvas = document.createElement("canvas");
+        canvas.width = qrSize;
+        canvas.height = qrSize + labelHeight;
+        const ctx = canvas.getContext("2d");
+        // 白底，避免透明码图直接打印变成黑块
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, qrSize, qrSize);
+        // 底部桌号标签，颜色与小程序码 line_color 一致（墨绿）
+        ctx.fillStyle = "#173b2a";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `bold ${Math.round(qrSize * 0.1)}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+        ctx.fillText(`${tableNo} 号桌`, qrSize / 2, qrSize + labelHeight / 2);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (error) {
+        reject(error);
+      }
+    };
+    img.onerror = () => reject(new Error("码图解析失败"));
+    img.src = `data:image/png;base64,${base64}`;
+  });
+}
+
+/** 下载桌码图片到本地（经云函数读文件返回 base64，合成桌号标签后下载） */
 async function downloadTableQr(qr) {
   if (!qr || (!qr.fileID && !qr.url)) {
     showToast("桌码尚未生成");
@@ -5433,22 +5468,14 @@ async function downloadTableQr(qr) {
     if (!result || result.ok === false) {
       throw new Error((result && result.message) || "下载失败");
     }
-    const binary = atob(result.base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    const blob = new Blob([bytes], { type: result.contentType || "image/png" });
-    const objectUrl = URL.createObjectURL(blob);
+    const dataUrl = await composeTableQrImage(result.base64, qr.tableNo);
     const link = document.createElement("a");
-    link.href = objectUrl;
+    link.href = dataUrl;
     link.download = result.fileName || `禾煦桌码-${qr.tableNo}.png`;
     link.rel = "noopener";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    // 延迟释放 objectURL，避免 Chrome 取消尚未开始的下载
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
   } catch (error) {
     console.warn("[tableQr] download error:", error);
     showToast((error && error.message) || "下载失败，可右键图片另存");
