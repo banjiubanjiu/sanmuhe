@@ -6,6 +6,9 @@ const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v1";
 const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v1";
 /** 失败回落只用近期成功快照，避免刚下架的货长期留在本地 */
 const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
+/** 首屏与弱网回退可展示的缓存上限；云端数据会在后台立即刷新。 */
+const CATALOG_CACHE_MAX_STALE_MS = 60 * 60 * 1000;
+let catalogInFlight = null;
 
 function isCacheFresh(cachedAt) {
   const ts = Number(cachedAt) || 0;
@@ -210,20 +213,40 @@ function callCloud(name, data) {
 }
 
 function getCatalog() {
-  return callCloud("getCatalog")
-    .then((result) => {
-      const catalog = withCatalogMeta(enrichCatalog(result.catalog || {}), "cloud");
-      writeCatalogCache(catalog);
-      writeEventsCache(catalog.events);
-      return catalog;
-    })
-    .catch(() => {
-      const cached = readCatalogCache();
-      if (cached && isCacheFresh(cached.cachedAt)) {
-        return withCatalogMeta(enrichCatalog(cached), "cache");
-      }
-      return withCatalogMeta(emptyCatalog(), "error");
+  if (!catalogInFlight) {
+    catalogInFlight = callCloud("getCatalog")
+      .then((result) => {
+        const catalog = withCatalogMeta(enrichCatalog(result.catalog || {}), "cloud");
+        writeCatalogCache(catalog);
+        writeEventsCache(catalog.events);
+        return catalog;
+      })
+      .catch(() => {
+        // stale-if-error：首屏已展示的近期缓存不能因刷新失败被空货架覆盖。
+        const cachedCatalog = getCachedCatalog();
+        if (cachedCatalog) {
+          return cachedCatalog;
+        }
+        return withCatalogMeta(emptyCatalog(), "error");
+      });
+    catalogInFlight.finally(() => {
+      catalogInFlight = null;
     });
+  }
+  return catalogInFlight;
+}
+
+/** 为首屏提供最近一次货架快照，随后由 getCatalog 在后台刷新。 */
+function getCachedCatalog() {
+  const cached = readCatalogCache();
+  if (!cached || !cached.cachedAt || Date.now() - cached.cachedAt > CATALOG_CACHE_MAX_STALE_MS) {
+    return null;
+  }
+  return withCatalogMeta(enrichCatalog(cached), "cache");
+}
+
+function prefetchCatalog() {
+  return getCatalog();
 }
 
 function listEvents() {
@@ -509,6 +532,7 @@ module.exports = {
   createReservation,
   createReservationPayment,
   getCatalog,
+  getCachedCatalog,
   getMemberCenter,
   getMyOrder,
   isCloudReady,
@@ -519,6 +543,7 @@ module.exports = {
   listReservedSlots,
   payOrder,
   payReservation,
+  prefetchCatalog,
   queryLogistics,
   rechargeMember,
   resolvePhoneNumber,

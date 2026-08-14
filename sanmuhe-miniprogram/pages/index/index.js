@@ -1,6 +1,6 @@
 const { homeSlides } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
-const { getCatalog, listEvents } = require("../../utils/cloudApi");
+const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
 const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
@@ -310,6 +310,7 @@ Page({
   onLoad() {
     // 尽早点亮底部「首页」，避免自定义 tabBar 首屏 selected=-1
     syncTabBar(this);
+    this.hydrateHomeFromCache();
   },
 
   onReady() {
@@ -350,38 +351,47 @@ Page({
     });
   },
 
+  hydrateHomeFromCache() {
+    const cachedCatalog = getCachedCatalog();
+    if (cachedCatalog) {
+      this.applyCatalog(cachedCatalog);
+    }
+  },
+
+  applyCatalog(catalogResult) {
+    const homeCatalog = normalizeCatalog(catalogResult || {}, null);
+    const content = (catalogResult && catalogResult.content) || {};
+    // 云端与包内同源时 resolve 为包内路径，src 不变则 swiper 不重载
+    let nextHeroSlides = buildHomeSlides(content.homeSlides, this.data.heroSlides);
+    if (!nextHeroSlides || !nextHeroSlides.length) {
+      nextHeroSlides = this.data.heroSlides && this.data.heroSlides.length
+        ? this.data.heroSlides
+        : PACKAGE_FALLBACK_HERO_SLIDES;
+    }
+    const nextData = {
+      homeCatalog,
+      featuredDrink: homeCatalog.drinks[0] || null,
+      featuredTea: homeCatalog.teaProducts[0] || null,
+      featuredRoom: homeCatalog.rooms[0] || null,
+      recommendTeas: buildSeasonRecommendations(homeCatalog.teaProducts),
+      searchResults: buildSearchResults(this.data.query, homeCatalog),
+      catalogLoading: false,
+      catalogError: homeCatalog.catalogError === true
+    };
+    if (!hasSameVisibleSlides(this.data.heroSlides, nextHeroSlides)) {
+      nextData.heroSlides = nextHeroSlides;
+    }
+    writeCachedHomeSlides(nextHeroSlides);
+    this.setData(nextData);
+  },
+
   loadHomeData(options = {}) {
     const fromRefresh = options.fromRefresh === true;
     if (!fromRefresh) {
       this.setData({ catalogLoading: true });
     }
     getCatalog().then((catalogResult) => {
-      const homeCatalog = normalizeCatalog(catalogResult || {}, null);
-      const content = (catalogResult && catalogResult.content) || {};
-      // 云端与包内同源时 resolve 为包内路径，src 不变则 swiper 不重载
-      let nextHeroSlides = buildHomeSlides(content.homeSlides, this.data.heroSlides);
-      if (!nextHeroSlides || !nextHeroSlides.length) {
-        nextHeroSlides = this.data.heroSlides && this.data.heroSlides.length
-          ? this.data.heroSlides
-          : PACKAGE_FALLBACK_HERO_SLIDES;
-      }
-      const nextData = {
-        homeCatalog,
-        featuredDrink: homeCatalog.drinks[0] || null,
-        featuredTea: homeCatalog.teaProducts[0] || null,
-        featuredRoom: homeCatalog.rooms[0] || null,
-        recommendTeas: buildSeasonRecommendations(homeCatalog.teaProducts),
-        searchResults: buildSearchResults(this.data.query, homeCatalog),
-        catalogLoading: false,
-        catalogError: homeCatalog.catalogError === true
-      };
-      if (!hasSameVisibleSlides(this.data.heroSlides, nextHeroSlides)) {
-        nextData.heroSlides = nextHeroSlides;
-        // 不强制归零：避免轮播已在滑动时被重置造成「一晃」
-      }
-      // 缓存已解析后的稳定图源，供下次冷启动首屏直接使用
-      writeCachedHomeSlides(nextHeroSlides);
-      this.setData(nextData);
+      this.applyCatalog(catalogResult);
       this.finishHomeRefresh(fromRefresh);
     }).catch((error) => {
       console.warn("[home] getCatalog failed", error);
@@ -389,18 +399,6 @@ Page({
       this.finishHomeRefresh(fromRefresh);
     });
 
-    listEvents().then((eventList) => {
-      const eventsFromCloud = Array.isArray(eventList) ? eventList : [];
-      const homeCatalog = Object.assign({}, this.data.homeCatalog, {
-        events: eventsFromCloud
-      });
-      this.setData({
-        homeCatalog,
-        searchResults: buildSearchResults(this.data.query, homeCatalog)
-      });
-    }).catch((error) => {
-      console.warn("[home] listEvents failed", error);
-    });
   },
 
   onHeroChange(event) {
