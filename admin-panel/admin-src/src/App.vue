@@ -5365,11 +5365,32 @@ async function syncWxShippingJumpPath() {
   });
 }
 
-/** 加载已生成的桌码 */
+/** 加载已生成的桌码（预览图经云函数合成桌号标签，避免 CDN 跨域/透明底问题） */
 async function loadTableQrs() {
   try {
     const result = await callFunction("manageOperations", { action: "listTableQrs" });
-    state.tableQrs = (result && result.qrs) || [];
+    const qrs = (result && result.qrs) || [];
+    state.tableQrs = qrs;
+    // 静默为每张码生成带桌号的合成预览图（4 张以内，失败不影响列表）
+    qrs.forEach((qr) => {
+      if (!qr.fileID || qr.previewUrl) {
+        return;
+      }
+      callFunction("manageOperations", {
+        action: "downloadTableQrFile",
+        data: { fileID: qr.fileID, tableNo: qr.tableNo }
+      }).then((res) => {
+        if (!res || res.ok === false) {
+          return;
+        }
+        return composeTableQrImage(res.base64, qr.tableNo).then((dataUrl) => {
+          const target = state.tableQrs.find((item) => item.tableNo === qr.tableNo);
+          if (target) {
+            target.previewUrl = dataUrl;
+          }
+        });
+      }).catch(() => {});
+    });
   } catch (error) {
     state.tableQrs = [];
   }
@@ -7899,7 +7920,7 @@ onBeforeUnmount(() => {
                         <button v-if="hasPermission('settings.write')" class="mini-action" type="button" @click="regenerateTableQr(qr.tableNo)">重新生成</button>
                       </div>
                     </div>
-                    <img v-if="qr.url" class="table-qr-img" :src="qr.url" :alt="qr.tableNo + ' 号桌码'" />
+                    <img v-if="(qr.previewUrl || qr.url)" class="table-qr-img" :src="qr.previewUrl || qr.url" :alt="qr.tableNo + ' 号桌码'" />
                     <div v-else class="table-qr-empty">未生成</div>
                   </div>
                 </div>
