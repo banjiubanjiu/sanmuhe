@@ -5338,18 +5338,21 @@ async function downloadTableQr(qr) {
   try {
     const resp = await fetch(qr.url);
     if (!resp.ok) {
-      throw new Error("下载失败");
+      throw new Error(`下载失败(${resp.status})`);
     }
     const blob = await resp.blob();
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = objectUrl;
     link.download = `禾煦桌码-${qr.tableNo}.png`;
+    link.rel = "noopener";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(objectUrl);
+    // 延迟释放 objectURL，避免 Chrome 取消尚未开始的下载
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
   } catch (error) {
+    console.warn("[tableQr] download error:", error);
     showToast((error && error.message) || "下载失败，可右键图片另存");
   }
 }
