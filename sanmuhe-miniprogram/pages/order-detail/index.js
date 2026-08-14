@@ -169,8 +169,12 @@ Page({
       orderNo: this._lookup.orderNo || ""
     }).then((result) => {
       const order = normalizeOrder(result.order);
+      // 微信发货通知只会传交易号/商户订单号，不会传本地订单 _id。
+      // 反查成功后回填 _id，物流查询、刷新与客服跳转才能走本地订单链路。
+      const resolvedOrderId = this.data.orderId || result.order._id || result.order.id || order._id || order.id || "";
       const cachedTraces = Array.isArray(order.logisticsTraces) ? order.logisticsTraces : [];
       this.setData(Object.assign({
+        orderId: resolvedOrderId,
         order,
         loading: false,
         error: "",
@@ -178,7 +182,7 @@ Page({
         logisticsStateLabel: logisticsStateText(order.logisticsState),
         logisticsError: "",
         showLogisticsHint: !!(order.deliveryMethod === "shipping" && order.trackingNo)
-      }, buildContactMeta(this.data.orderId, order)));
+      }, buildContactMeta(resolvedOrderId, order)));
       if (order.canViewLogistics || (order.deliveryMethod === "shipping" && order.trackingNo)) {
         this.loadLogistics({ silent: true });
       }
