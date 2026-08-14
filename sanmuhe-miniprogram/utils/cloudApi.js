@@ -347,10 +347,11 @@ function createReservationPayment(payload) {
   return callCloud("createPayment", Object.assign({ action: "createReservationPayment" }, payload || {}));
 }
 
-function payReservation(reservation) {
+function payReservation(reservation, payMode) {
   const payload = {
     reservationId: reservation && (reservation._id || reservation.reservationId || reservation.id),
-    reservationNo: reservation && reservation.reservationNo
+    reservationNo: reservation && reservation.reservationNo,
+    payMode: payMode === "balance" ? "balance" : "wechat"
   };
 
   return createReservationPayment(payload).then((result) => {
@@ -359,6 +360,9 @@ function payReservation(reservation) {
       err.code = result && result.code;
       err.reservation = result;
       throw err;
+    }
+    if (payload.payMode === "balance" && result.payStatus === "paid") {
+      return { reservation: result, paid: "balance" };
     }
     if (!result.payment || !result.payment.timeStamp || !result.payment.paySign) {
       throw new Error("支付参数不完整，请稍后重试");

@@ -7,7 +7,7 @@ const {
   calculateReservationPrice,
   toMinutes
 } = require("../../data/store");
-const { createReservation, payReservation, getCatalog, listReservedSlots, resolvePhoneNumber } = require("../../utils/cloudApi");
+const { createReservation, payReservation, getCatalog, getMemberCenter, listReservedSlots, resolvePhoneNumber } = require("../../utils/cloudApi");
 const { getBookingDays } = require("../../utils/date");
 const { withPrivacy } = require("../../utils/privacy");
 
@@ -41,6 +41,10 @@ function decorateDays(days) {
   return days.map((item) => Object.assign({}, item, {
     slashDisplay: item.display.replace(".", "/")
   }));
+}
+
+function formatFen(value) {
+  return (Math.max(0, Math.round(Number(value) || 0)) / 100).toFixed(2);
 }
 
 /**
@@ -275,6 +279,11 @@ Page(withPrivacy({
     phone: "",
     note: "",
     phoneResolving: false,
+    isMember: false,
+    walletBalance: "0.00",
+    walletBalanceFen: 0,
+    balanceAvailable: false,
+    payMode: "wechat",
     showManualPhone: false,
     bookingOpen: false,
     pickMode: "start", // start | end — 提示下一步要点什么
@@ -297,7 +306,33 @@ Page(withPrivacy({
       phone: contact.phone || ""
     });
     this.loadCatalog();
+    this.loadMemberPayment();
     this.loadReservedSlots(selectedDay);
+  },
+
+  loadMemberPayment() {
+    getMemberCenter().then((result) => {
+      const isMember = Boolean(result && result.member && result.member.isMember);
+      const walletBalanceFen = Math.max(0, Number(result && result.wallet && result.wallet.balanceFen) || 0);
+      const balanceAvailable = isMember && walletBalanceFen >= Math.round(Number(this.data.selectedPrice || 0) * 100);
+      this.setData({
+        isMember,
+        walletBalance: result && result.wallet && result.wallet.balance || formatFen(walletBalanceFen),
+        walletBalanceFen,
+        balanceAvailable
+      });
+    }).catch(() => {
+      this.setData({ isMember: false, walletBalance: "0.00", walletBalanceFen: 0, balanceAvailable: false, payMode: "wechat" });
+    });
+  },
+
+  choosePayMode(event) {
+    const payMode = event.currentTarget.dataset.mode === "balance" ? "balance" : "wechat";
+    if (payMode === "balance" && !this.data.balanceAvailable) {
+      wx.showToast({ title: "会员余额不足", icon: "none" });
+      return;
+    }
+    this.setData({ payMode });
   },
 
   refreshCells(startTime, endTime, reservedSlots) {
@@ -556,7 +591,13 @@ Page(withPrivacy({
       this.loadReservedSlots(this.data.selectedDay);
       return;
     }
-    this.setData({ bookingOpen: true });
+    const balanceAvailable = this.data.isMember
+      && this.data.walletBalanceFen >= Math.round(Number(this.data.selectedPrice || 0) * 100);
+    this.setData({
+      bookingOpen: true,
+      balanceAvailable,
+      payMode: this.data.payMode === "balance" && !balanceAvailable ? "wechat" : this.data.payMode
+    });
   },
 
   closeBooking() {
@@ -649,6 +690,10 @@ Page(withPrivacy({
       return;
     }
 
+    let payMode = this.data.payMode === "balance" ? "balance" : "wechat";
+    if (payMode === "balance" && !this.data.balanceAvailable) {
+      payMode = "wechat";
+    }
     const payload = {
       storeId: room.storeId || this.currentStoreId(),
       roomId: room.id,
@@ -691,7 +736,7 @@ Page(withPrivacy({
         }
         // 茶室预约必须在线支付后生效
         if (result && (result.status === "待支付" || result.needPayment || result.requiresPayment)) {
-          this.handleReservationPayment(result);
+          this.handleReservationPayment(result, payMode);
           return;
         }
         wx.showModal({
@@ -713,10 +758,10 @@ Page(withPrivacy({
     });
   },
 
-  handleReservationPayment(reservation) {
+  handleReservationPayment(reservation, payMode) {
     const lockMinutes = this.data.lockMinutes || 15;
     const cancelHours = this.data.cancelAdvanceHours || 12;
-    payReservation(reservation).then(() => {
+    payReservation(reservation, payMode).then(() => {
       wx.showModal({
         title: "预约已确认",
         content: `支付成功，茶室预约已确认。如需取消请至少提前 ${cancelHours} 小时操作，费用将原路退回。`,

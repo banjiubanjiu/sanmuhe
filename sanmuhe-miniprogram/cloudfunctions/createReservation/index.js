@@ -717,6 +717,11 @@ async function notifyAdmins(reservation = {}) {
 }
 
 async function notifyWeCom(reservation = {}) {
+  const paidLifecycle = reservation.status === "已确认"
+    || ["paid", "refunding", "refunded"].includes(String(reservation.payStatus || "").toLowerCase());
+  if (!paidLifecycle) {
+    return { ok: true, skipped: true, reason: "reservation_not_paid" };
+  }
   try {
     return await sendWeComReservationNotification(reservation);
   } catch (error) {
@@ -1012,10 +1017,9 @@ exports.main = async (event = {}) => {
     lockedUntil
   };
 
-  const [wecomNotify, adminNotify] = await Promise.all([
-    notifyWeCom(reservationSnapshot),
-    notifyAdmins(reservationSnapshot)
-  ]);
+  // 待支付预约只写后台待办，不推企业微信。企业微信的支付确认通知由
+  // 微信支付回调/余额扣款成功后发送，避免顾客取消支付也打扰门店。
+  const adminNotify = await notifyAdmins(reservationSnapshot);
 
   return {
     ok: true,
@@ -1038,7 +1042,6 @@ exports.main = async (event = {}) => {
     periodLabel,
     people,
     price,
-    wecomNotify,
     adminNotify
   };
 };
