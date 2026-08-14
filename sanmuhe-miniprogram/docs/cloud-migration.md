@@ -49,6 +49,7 @@ module.exports = {
 - `joinEvent`：活动报名，防止同一用户重复报名。
 - `listMyRecords`：读取当前用户订单、预约和活动报名。
 - `memberCenter`：会员主动开通、手机号核验、会员资料、储值套餐、测试充值与钱包查询。
+- `addressBook`：按当前用户 OPENID 管理多条收货地址、默认地址与旧版单地址迁移。
 - `createPayment`：普通订单和会员充值的微信支付预下单；缺少支付配置时拒绝真实下单。
 - `wechatPayNotify`：微信支付回调验签、解密、订单确认和会员充值入账。
 - `cleanupSmokeData`：清理开发阶段自动检查产生的测试订单、预约、活动和报名记录（仅开发使用）。
@@ -90,12 +91,13 @@ deploy-cloudfunctions.bat 你的云环境ID
 - `wallet_accounts`
 - `wallet_ledger`
 - `recharge_orders`
+- `user_addresses`
 
 建议权限：
 
 - `drinks`、`tea_products`、`rooms`、`events`：公开读，写入走云函数或后台。
 - `orders`、`reservations`、`event_signups`：仅用户读自己的数据，写入走云函数。
-- `members`、`membership_plans`、`wallet_accounts`、`wallet_ledger`、`recharge_orders`：全部仅管理员读写，客户端统一通过云函数访问，避免手机号、账户余额和流水被直接读取或篡改。
+- `members`、`membership_plans`、`wallet_accounts`、`wallet_ledger`、`recharge_orders`、`user_addresses`：全部仅管理员读写，客户端统一通过云函数访问，避免手机号、地址、账户余额和流水被直接读取或篡改。
 
 ## 会员储值测试与上线
 
@@ -113,7 +115,7 @@ Windows 里双击项目上级目录的：
 - `read-cloud-config.ps1`：读取当前已保存的 AppID/envId，供部署脚本复用。
 - `check-cloud-ready.bat`：预检 AppID、envId、云函数目录和微信开发者工具登录状态。
 - `open-sanmuhe-devtools.bat`：打开项目。
-- `deploy-cloudfunctions.bat`：部署 11 个云函数。
+- `deploy-cloudfunctions.bat`：部署项目清单中的全部云函数。
 
 打开项目后，直接在微信开发者工具里点击编译或热部署查看效果。
 

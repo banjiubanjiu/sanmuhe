@@ -10,6 +10,7 @@ $OutDir = Join-Path $Root "downloads"
 $DeployLog = Join-Path $OutDir "sanmuhe-cloudfunctions-deploy.log"
 $FunctionNames = @(
   "getOpenId",
+  "addressBook",
   "getCatalog",
   "seedDemoData",
   "manageCatalog",

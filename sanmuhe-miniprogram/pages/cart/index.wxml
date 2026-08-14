@@ -102,9 +102,9 @@
           />
         </view>
 
-        <!-- 快递：请选择地址 → 弹层（新建 / 微信获取） -->
+        <!-- 快递：当前地址；选择、编辑与新增统一进入地址簿 -->
         <view wx:if="{{deliveryMethod === 'shipping'}}" class="shipping-block">
-          <view class="address-entry" hover-class="address-entry-hover" bindtap="openAddressSheet">
+          <view class="address-entry" hover-class="address-entry-hover" bindtap="openAddressBook">
             <view wx:if="{{hasAddress}}" class="address-entry-body">
               <view class="address-entry-top">
                 <text class="address-entry-name">{{consignee}}</text>
@@ -182,104 +182,6 @@
       <button class="checkout-action" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitOrder">{{payMode === 'balance' ? '余额支付' : '去支付'}}</button>
     </view>
   </block>
-
-  <!-- 选择收货地址：底部弹层 -->
-  <view wx:if="{{addressSheetOpen}}" class="addr-sheet-mask" catchtouchmove="noop" bindtap="closeAddressSheet">
-    <view class="addr-sheet" catchtap="noop">
-      <view class="addr-sheet-head">
-        <text class="addr-sheet-title">选择收货地址</text>
-        <view class="addr-sheet-close" bindtap="closeAddressSheet">×</view>
-      </view>
-
-      <scroll-view scroll-y class="addr-sheet-body">
-        <view wx:if="{{sheetHasAddress}}" class="addr-sheet-item" hover-class="addr-sheet-item-hover" bindtap="selectSheetAddress">
-          <view class="addr-sheet-item-main">
-            <view class="addr-sheet-item-top">
-              <text class="addr-sheet-item-name">{{sheetConsignee}}</text>
-              <text class="addr-sheet-item-phone">{{sheetPhoneMasked}}</text>
-              <text wx:if="{{sheetIsDefault}}" class="addr-sheet-tag">默认</text>
-            </view>
-            <view class="addr-sheet-item-line">{{sheetAddress}}</view>
-          </view>
-          <view class="addr-sheet-check">✓</view>
-        </view>
-        <view wx:else class="addr-sheet-empty">
-          <view class="addr-sheet-empty-title">暂无收货地址</view>
-          <view class="addr-sheet-empty-desc">新建地址，或从微信一键获取</view>
-        </view>
-      </scroll-view>
-
-      <view class="addr-sheet-footer">
-        <button class="addr-sheet-primary" hover-class="none" bindtap="openAddressForm">＋ 新建地址</button>
-        <button class="addr-sheet-secondary" hover-class="none" bindtap="chooseAddressFromWechat">从微信获取新地址</button>
-      </view>
-    </view>
-  </view>
-
-  <!-- 新建/编辑地址：全屏表单（对齐参考「地址管理」） -->
-  <view wx:if="{{addressFormOpen}}" class="addr-form-page" catchtouchmove="noop">
-    <view class="addr-form-nav">
-      <view class="addr-form-back" bindtap="closeAddressForm">‹</view>
-      <view class="addr-form-nav-title">地址管理</view>
-      <view class="addr-form-nav-spacer"></view>
-    </view>
-
-    <view class="addr-form-card">
-      <view class="addr-form-row">
-        <text class="addr-form-label">收货人</text>
-        <input
-          class="addr-form-input"
-          placeholder="请输入收货人姓名"
-          placeholder-class="addr-form-ph"
-          data-field="formConsignee"
-          value="{{formConsignee}}"
-          bindinput="onFormInput"
-        />
-      </view>
-      <view class="addr-form-row">
-        <text class="addr-form-label">手机号码</text>
-        <input
-          class="addr-form-input"
-          placeholder="请输入收货人手机号"
-          placeholder-class="addr-form-ph"
-          type="number"
-          maxlength="11"
-          data-field="formPhone"
-          value="{{formPhone}}"
-          bindinput="onFormInput"
-        />
-      </view>
-      <picker mode="region" value="{{formRegionValue}}" bindchange="onFormRegionChange">
-        <view class="addr-form-row addr-form-row-link">
-          <text class="addr-form-label">所在地区</text>
-          <view class="addr-form-value {{formRegionText ? '' : 'is-placeholder'}}">
-            {{formRegionText || '请选择收货地址'}}
-          </view>
-          <text class="addr-form-chevron">›</text>
-        </view>
-      </picker>
-      <view class="addr-form-row addr-form-row-last">
-        <text class="addr-form-label">详细地址</text>
-        <input
-          class="addr-form-input"
-          placeholder="请输入详细街道/栋/室"
-          placeholder-class="addr-form-ph"
-          data-field="formDetailAddress"
-          value="{{formDetailAddress}}"
-          bindinput="onFormInput"
-        />
-      </view>
-    </view>
-
-    <view class="addr-form-card addr-form-switch-card">
-      <text class="addr-form-switch-label">设置为默认地址</text>
-      <switch color="#416d38" checked="{{formIsDefault}}" bindchange="onFormDefaultChange" />
-    </view>
-
-    <view class="addr-form-save-wrap">
-      <button class="addr-form-save" hover-class="none" bindtap="saveAddressForm">保 存</button>
-    </view>
-  </view>
 
   <privacy-gate
     show="{{privacyGateOpen}}"
