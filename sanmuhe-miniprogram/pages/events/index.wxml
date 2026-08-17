@@ -33,7 +33,7 @@
 
   <view class="event-list">
     <view wx:for="{{events}}" wx:key="id" class="event-card" data-id="{{item.id}}" bindtap="viewEvent">
-      <image class="event-image" src="{{item.image}}" mode="aspectFill"></image>
+      <image class="event-image" src="{{item.image}}" mode="aspectFill" lazy-load="{{true}}"></image>
       <view class="event-main">
         <view class="event-title">{{item.title}}</view>
         <view class="event-summary">{{item.summary}}</view>

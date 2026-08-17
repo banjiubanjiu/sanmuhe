@@ -1,6 +1,6 @@
 const { drinks } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
-const { getCatalog } = require("../../utils/cloudApi");
+const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { normalizeMenuItems } = require("../../utils/teaMenu");
 const { syncTabBar } = require("../../utils/tabbar");
 const tableUtil = require("../../utils/table");
@@ -142,6 +142,11 @@ Page({
       requestedDrinkId: decodeURIComponent(options.id || "")
     });
     this.applyTableState(table);
+    const cachedCatalog = getCachedCatalog();
+    if (cachedCatalog) {
+      const remote = cachedCatalog.drinks || [];
+      this.applyCatalog(mergeDrinkSource(remote), false, false);
+    }
   },
 
   onShow() {

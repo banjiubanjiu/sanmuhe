@@ -1,5 +1,5 @@
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
-const { getCatalog } = require("../../utils/cloudApi");
+const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 
 /** 无云端类别时的兜底顺序（与 seed product_categories 对齐） */
@@ -133,6 +133,10 @@ Page({
   onLoad() {
     const systemInfo = wx.getSystemInfoSync();
     this.setData({ statusBarHeight: systemInfo.statusBarHeight || 20 });
+    const cachedCatalog = getCachedCatalog();
+    if (cachedCatalog) {
+      this.applyCatalog(cachedCatalog, false);
+    }
   },
 
   onShow() {
@@ -174,26 +178,30 @@ Page({
       this.setData({ catalogLoading: true });
     }
     getCatalog().then((catalog) => {
-      const products = buildProducts(catalog);
-      const categories = buildCategories(products, catalog.productCategories || []);
-      const pendingCategory = wx.getStorageSync(TARGET_CATEGORY_KEY);
-      let activeCategory = this.data.activeCategory;
-      if (pendingCategory && categories.indexOf(pendingCategory) >= 0) {
-        wx.removeStorageSync(TARGET_CATEGORY_KEY);
-        activeCategory = pendingCategory;
-      } else if (activeCategory !== "全部" && categories.indexOf(activeCategory) < 0) {
-        activeCategory = "全部";
-      }
-      this.setData({
-        products,
-        categories,
-        activeCategory,
-        catalogLoading: false,
-        catalogError: catalog.source === "error"
-      }, () => {
-        this.applyFilters();
-        this.finishCatalogRefresh(fromRefresh);
-      });
+      this.applyCatalog(catalog, fromRefresh);
+    });
+  },
+
+  applyCatalog(catalog, fromRefresh) {
+    const products = buildProducts(catalog);
+    const categories = buildCategories(products, catalog.productCategories || []);
+    const pendingCategory = wx.getStorageSync(TARGET_CATEGORY_KEY);
+    let activeCategory = this.data.activeCategory;
+    if (pendingCategory && categories.indexOf(pendingCategory) >= 0) {
+      wx.removeStorageSync(TARGET_CATEGORY_KEY);
+      activeCategory = pendingCategory;
+    } else if (activeCategory !== "全部" && categories.indexOf(activeCategory) < 0) {
+      activeCategory = "全部";
+    }
+    this.setData({
+      products,
+      categories,
+      activeCategory,
+      catalogLoading: false,
+      catalogError: catalog.source === "error"
+    }, () => {
+      this.applyFilters();
+      this.finishCatalogRefresh(fromRefresh);
     });
   },
 

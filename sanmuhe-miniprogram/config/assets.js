@@ -96,6 +96,7 @@ module.exports = {
   USE_CLOUD_ASSETS,
   assetUrl,
   localImage,
+  resolveCloudImage,
   toCloudPath,
   toLocalPath
 };

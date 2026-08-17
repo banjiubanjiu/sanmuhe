@@ -2780,11 +2780,94 @@ function sanitizeFileName(name) {
   return String(name || "image").replace(/[^\w.-]/g, "_");
 }
 
+const IMAGE_UPLOAD_TARGET_BYTES = 420 * 1024;
+const IMAGE_UPLOAD_QUALITY_STEPS = [0.82, 0.74, 0.66, 0.58];
+
+function formatUploadSize(bytes) {
+  const value = Math.max(0, Number(bytes) || 0);
+  return value >= 1024 * 1024
+    ? `${(value / 1024 / 1024).toFixed(1)}MB`
+    : `${Math.max(1, Math.round(value / 1024))}KB`;
+}
+
+function loadUploadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("图片读取失败，请更换图片后重试"));
+    };
+    image.src = url;
+  });
+}
+
+function canvasToJpegBlob(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("图片压缩失败，请更换图片后重试"));
+    }, "image/jpeg", quality);
+  });
+}
+
+async function optimizeUploadImage(file, target) {
+  const type = String(file?.type || "").toLowerCase();
+  if (!type.startsWith("image/") || type === "image/gif" || type === "image/svg+xml") {
+    return file;
+  }
+  if (file.size <= IMAGE_UPLOAD_TARGET_BYTES) {
+    return file;
+  }
+
+  const image = await loadUploadImage(file);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  if (!sourceWidth || !sourceHeight) {
+    throw new Error("无法读取图片尺寸，请更换图片后重试");
+  }
+
+  const maxEdge = target === "content" ? 1600 : 1200;
+  const initialScale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+  let bestBlob = null;
+
+  for (let index = 0; index < IMAGE_UPLOAD_QUALITY_STEPS.length; index += 1) {
+    const scale = initialScale * Math.pow(0.88, index);
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("当前浏览器不支持图片压缩");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+    bestBlob = await canvasToJpegBlob(canvas, IMAGE_UPLOAD_QUALITY_STEPS[index]);
+    if (bestBlob.size <= IMAGE_UPLOAD_TARGET_BYTES) break;
+  }
+
+  if (!bestBlob || bestBlob.size >= file.size) {
+    return file;
+  }
+  const baseName = String(file.name || "image").replace(/\.[^.]+$/, "") || "image";
+  return new File([bestBlob], `${baseName}.jpg`, {
+    type: "image/jpeg",
+    lastModified: Date.now()
+  });
+}
+
 async function uploadFormImage(target, event) {
   const file = event?.target?.files?.[0];
   if (!file) return;
-  uploadState[target] = "上传中";
+  uploadState[target] = "图片处理中";
   try {
+    const uploadFile = await optimizeUploadImage(file, target);
+    uploadState[target] = `上传中 · ${formatUploadSize(uploadFile.size)}`;
     const folder = target === "catalog"
       ? state.collection
       : target === "category"
@@ -2793,16 +2876,14 @@ async function uploadFormImage(target, event) {
           ? "rooms"
           : "content";
     const result = await cloudApp.uploadFile({
-      cloudPath: `admin/${folder}/${Date.now()}-${sanitizeFileName(file.name)}`,
-      filePath: file
+      cloudPath: `admin/${folder}/${Date.now()}-${sanitizeFileName(uploadFile.name)}`,
+      filePath: uploadFile
     });
     const fileId = result.fileID || result.fileId || "";
     if (!fileId) throw new Error("上传成功但未返回文件 ID");
     if (target === "catalog") {
       forms.catalog.image = fileId;
-      if (!String(forms.catalog.thumb || "").trim()) {
-        forms.catalog.thumb = fileId;
-      }
+      forms.catalog.thumb = fileId;
     }
     if (target === "content") forms.content.image = fileId;
     if (target === "category") categoryForm.image = fileId;
@@ -2812,8 +2893,11 @@ async function uploadFormImage(target, event) {
         state.roomForm.thumb = fileId;
       }
     }
-    uploadState[target] = `已上传：${file.name}`;
-    showToast("图片已上传到云存储");
+    const optimizedNote = uploadFile.size < file.size
+      ? `（${formatUploadSize(file.size)} → ${formatUploadSize(uploadFile.size)}）`
+      : "";
+    uploadState[target] = `已上传：${uploadFile.name}${optimizedNote}`;
+    showToast("图片已优化并上传到云存储");
   } catch (error) {
     uploadState[target] = error.message || "图片上传失败";
     showToast(uploadState[target]);

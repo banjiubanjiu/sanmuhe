@@ -77,7 +77,7 @@
 
   <view wx:if="{{recommendTeas.length}}" class="recommend-grid">
     <view wx:for="{{recommendTeas}}" wx:key="id" class="recommend-card" data-id="{{item.id}}" bindtap="goProduct">
-      <image class="recommend-image" src="{{item.displayImage}}" mode="aspectFill"></image>
+      <image class="recommend-image" src="{{item.displayImage}}" mode="aspectFill" lazy-load="{{true}}"></image>
       <view class="recommend-body">
         <view class="recommend-tag">{{item.seasonTag}}</view>
         <view class="recommend-name">{{item.name}}</view>

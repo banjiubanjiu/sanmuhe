@@ -160,7 +160,7 @@
         data-id="{{item.id}}"
         bindtap="goProduct"
       >
-        <image class="recommend-image" src="{{item.displayImage}}" mode="aspectFill"></image>
+        <image class="recommend-image" src="{{item.displayImage}}" mode="aspectFill" lazy-load="{{true}}"></image>
         <view class="recommend-copy">
           <view class="recommend-name">{{item.name}}</view>
           <view class="recommend-note">{{item.memberNote}}</view>

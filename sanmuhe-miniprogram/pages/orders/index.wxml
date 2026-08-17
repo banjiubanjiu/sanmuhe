@@ -68,7 +68,7 @@
 
       <view class="order-product">
         <view class="product-visual">
-          <image wx:if="{{item.previewImage}}" src="{{item.previewImage}}" mode="aspectFill"></image>
+          <image wx:if="{{item.previewImage}}" src="{{item.previewImage}}" mode="aspectFill" lazy-load="{{true}}"></image>
           <image wx:else class="product-fallback" src="/assets/icons/leaf-active.png" mode="aspectFit"></image>
         </view>
         <view class="product-copy">

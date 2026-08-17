@@ -20,7 +20,7 @@
       </view>
       <view class="group-card">
         <view wx:for="{{items}}" wx:key="key" class="cart-row">
-          <image wx:if="{{item.image}}" class="cart-image" src="{{item.image}}" mode="aspectFill"></image>
+          <image wx:if="{{item.image}}" class="cart-image" src="{{item.image}}" mode="aspectFill" lazy-load="{{true}}"></image>
           <view wx:if="{{!item.image}}" class="cart-swatch" style="background: {{item.color}};"></view>
           <view class="cart-copy">
             <view class="cart-name">{{item.name}}</view>

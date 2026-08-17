@@ -1,5 +1,6 @@
 const cloudConfig = require("./config/cloud");
 const tableUtil = require("./utils/table");
+const { prefetchCatalog } = require("./utils/cloudApi");
 
 function applyTableFromOptions(options) {
   const table = tableUtil.parseTableFromLaunch(options || {});
@@ -51,6 +52,8 @@ App({
       });
       this.globalData.cloudReady = true;
       this.globalData.cloudEnv = cloudConfig.envId;
+      // 预热聚合目录；各页面复用同一个请求，减少首屏等待和重复云函数调用。
+      prefetchCatalog();
     } else if (cloudConfig.useCloud && !cloudConfig.envId) {
       console.warn("禾煦云开发未配置 envId，当前仅展示本地基础资料。");
     } else if (cloudConfig.useCloud && !wx.cloud) {
