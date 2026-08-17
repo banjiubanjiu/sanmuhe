@@ -149,7 +149,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "commercial admin workflows",
-      items: ["globalSearch", "listBackupLogs", "createDataBackup", "deleteCustomerData", "exportCustomerData", "adjustInventory", "truncatedCollections"]
+      items: ["globalSearch", "deleteCustomerData", "exportCustomerData", "adjustInventory"]
     },
     {
       label: "server-side operation guards",
@@ -176,8 +176,8 @@ function verifyProductionSurfaces() {
       items: ["frontendCatalog", "前台资料云端数据", "catalogCounts", "content_blocks", "避免依赖本地兜底数据", "countCollectionStatus", "云端资料集合读取失败"]
     },
     {
-      label: "backup completeness system status",
-      items: ["backupTruncatedCollections", "hasBackupCompleteness", "旧记录未包含完整性校验", "最近备份完整", "sha256", "checksum"]
+      label: "offsite backup system status",
+      items: ["backupTruncatedCollections", "hasBackupCompleteness", "latestBackupIntegrityReady", "最近异地备份完整", "sha256", "checksum"]
     }
   ]);
 
@@ -198,7 +198,7 @@ function verifyProductionSurfaces() {
   verifySourceContains("admin-src/src/App.vue", [
     {
       label: "core production tabs",
-      items: ["afterSales", "inventory", "audit", "notifications", "backups", "system"]
+      items: ["afterSales", "inventory", "audit", "notifications", "system"]
     },
     {
       label: "search export and calendar workflows",
@@ -206,7 +206,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "risk controls and customer context",
-      items: ["requireTypedConfirm", "promptActionReason", "customerTimeline", "exportScopeLabel", "保存系统设置", "创建云端数据备份"]
+      items: ["requireTypedConfirm", "promptActionReason", "customerTimeline", "exportScopeLabel", "保存系统设置"]
     },
     {
       label: "professional state handling",
@@ -222,11 +222,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "system required functions",
-      items: ["requiredFunctions", "createPayment", "serviceNotify", "scheduledBackup", "cleanupSmokeData", "云函数探测明细", "health-table", "backupCompleteness"]
-    },
-    {
-      label: "backup integrity UI",
-      items: ["backupFileHint", "sha256"]
+      items: ["requiredFunctions", "createPayment", "serviceNotify", "scheduledBackup", "cleanupSmokeData", "云函数探测明细", "health-table"]
     },
     {
       label: "catalog sensitive operation reasons",
@@ -235,7 +231,9 @@ function verifyProductionSurfaces() {
   ]);
   verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%", "68.5", "20.3", "11.2", "2024年", "room-001"]);
   verifySourceExcludes("admin-src/src/App.vue", ["state.activeTab === 'roles'", "roleForm", "listAdminRoles", "saveAdminRole", "角色权限"]);
+  verifySourceExcludes("admin-src/src/App.vue", ["state.activeTab === 'backups'", "backupForm", "backupLogs", "createDataBackup", "listBackupLogs", "getBackupDownloadUrl", "数据备份"]);
   verifySourceExcludes("cloudfunctions/manageOperations/index.js", ["room-001", "getAdminRole", "listAdminRoles", "saveAdminRole", "ROLE_PERMISSION_DENIED", "rolePermissionMap"]);
+  verifySourceExcludes("cloudfunctions/manageOperations/index.js", ["createDataBackup", "listBackupLogs", "getBackupDownloadUrl", "admin-backups/"]);
   verifySourceExcludes("cloudfunctions/manageCatalog/index.js", ["getAdminRole", "ROLE_PERMISSION_DENIED", "rolePermissionMap"]);
 
   verifySourceContains("admin-src/src/styles.css", [

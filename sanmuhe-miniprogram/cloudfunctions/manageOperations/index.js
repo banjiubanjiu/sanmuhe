@@ -1,5 +1,4 @@
 const cloud = require("wx-server-sdk");
-const crypto = require("crypto");
 const { buildAnalytics, normalizeRangeDays } = require("./analytics");
 const {
   uploadExpressShipping,
@@ -27,10 +26,6 @@ const ORDER_ALERT_READ_LIMIT = 50;
 
 function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
-}
-
-function sha256(buffer) {
-  return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
 function requireAuditReason(event = {}, label = "高风险操作") {
@@ -312,10 +307,7 @@ const allowedActions = new Set([
   "downloadTableQrFile",
   "getSystemStatus",
   "listNotificationLogs",
-  "sendTestNotice",
-  "listBackupLogs",
-  "getBackupDownloadUrl",
-  "createDataBackup"
+  "sendTestNotice"
 ]);
 
 function getAuthObject() {
@@ -3195,7 +3187,17 @@ async function getSystemStatus(event = {}) {
   const emptyCatalogCollections = catalogCounts.filter((item) => item.count <= 0);
   const latestBackup = latestBackupResult[0] || null;
   const latestBackupTruncated = backupTruncatedCollections(latestBackup || {});
-  const latestBackupReady = latestBackup && latestBackup.status === "success" && latestBackup.fileId;
+  const latestBackupLocation = latestBackup && (
+    latestBackup.fileId
+    || latestBackup.bucket && latestBackup.objectKey && `${latestBackup.region || "异地"}/${latestBackup.bucket}/${latestBackup.objectKey}`
+  ) || "";
+  const latestBackupReady = Boolean(latestBackup && latestBackup.status === "success" && latestBackupLocation);
+  const latestBackupIntegrityReady = Boolean(
+    latestBackupReady
+    && latestBackup.checksum
+    && latestBackupTruncated.length === 0
+    && hasBackupCompleteness(latestBackup)
+  );
   const functionHealth = await checkCloudFunctionHealth(packageInfo.requiredFunctions);
   const createPaymentHealth = functionHealth.results.find((item) => item.name === "createPayment");
   const createPaymentConfig = createPaymentHealth && createPaymentHealth.paymentConfig || null;
@@ -3263,17 +3265,17 @@ async function getSystemStatus(event = {}) {
     ),
     statusItem(
       "backupRecovery",
-      "最近备份可恢复",
-      latestBackupReady && latestBackupTruncated.length === 0 && hasBackupCompleteness(latestBackup) ? "ok" : "warn",
+      "最近异地备份",
+      latestBackupIntegrityReady ? "ok" : "warn",
       latestBackup
         ? latestBackupReady
           ? latestBackupTruncated.length
-            ? `最近备份可下载，但可能截断：${latestBackupTruncated.join("、")}`
-            : hasBackupCompleteness(latestBackup)
-              ? `最近备份完整：${latestBackup.cloudPath || latestBackup.fileId}`
-              : `最近备份可下载；旧记录未包含完整性校验，建议重新创建一次备份`
-          : `最近备份不可直接下载：${latestBackup.error || "缺少云文件 ID"}`
-        : "暂无成功备份，建议上线前先创建一次云端备份"
+            ? `最近备份可能截断：${latestBackupTruncated.join("、")}`
+            : latestBackupIntegrityReady
+              ? `最近异地备份完整：${latestBackupLocation}；sha256 ${String(latestBackup.checksum).slice(0, 12)}`
+              : `最近备份已生成，但缺少完整性信息`
+          : `最近备份失败：${latestBackup.error || "缺少异地文件位置"}`
+        : "暂无异地备份记录，请检查 scheduledBackup 定时任务"
     )
   ];
   return {
@@ -3702,93 +3704,6 @@ async function exportCustomerData(event, caller) {
   return { ok: true, data };
 }
 
-const backupCollections = [
-  "orders",
-  "reservations",
-  "event_signups",
-  "members",
-  "tea_products",
-  "drinks",
-  "rooms",
-  "events",
-  "content_blocks",
-  "coupons",
-  "user_coupons",
-  "store_settings",
-  "admin_audit_logs",
-  "notification_logs",
-  "inventory_logs"
-];
-
-async function readBackupCollection(collection, limit) {
-  await ensureCollection(collection);
-  const countResult = await db.collection(collection).count();
-  const result = await db.collection(collection).limit(limit).get();
-  const items = result.data || [];
-  const total = Number(countResult.total || 0);
-  return {
-    items,
-    total,
-    truncated: total > items.length
-  };
-}
-
-async function listBackupLogs(event = {}) {
-  const result = await readCollectionPage("data_backup_logs", {
-    keyword: cleanText(event.keyword, 80),
-    keywordFields: ["cloudPath", "status", "operator", "error"],
-    orderBy: "createdAt",
-    event
-  });
-  return { ok: true, logs: result.items, page: result.page };
-}
-
-async function getBackupDownloadUrl(event, caller) {
-  const reason = requireAuditReason(event, "下载数据备份");
-  const id = cleanText(event.id, 120);
-  const cloudPath = cleanText(event.cloudPath, 240);
-  let record = null;
-  if (id) {
-    try {
-      record = await getByDocId("data_backup_logs", id);
-    } catch (error) {
-      record = null;
-    }
-  }
-  if (!record && cloudPath) {
-    record = await findRecord("data_backup_logs", "cloudPath", cloudPath);
-  }
-  if (!record) {
-    return { ok: false, message: "备份记录不存在" };
-  }
-  const fileId = record.fileId || record.fileID || "";
-  if (record.status !== "success" || !fileId) {
-    return { ok: false, message: "该备份没有可下载的云文件" };
-  }
-  const result = await cloud.getTempFileURL({
-    fileList: [fileId]
-  });
-  const item = result.fileList && result.fileList[0] || {};
-  const url = item.tempFileURL || item.download_url || "";
-  if (!url || item.status && item.status !== 0) {
-    return { ok: false, message: item.errMsg || "获取备份下载链接失败" };
-  }
-  await writeAdminAuditLog(caller, "getBackupDownloadUrl", {
-    cloudPath: record.cloudPath || "",
-    size: record.size || 0,
-    checksum: record.checksum || "",
-    reason
-  });
-  return {
-    ok: true,
-    url,
-    cloudPath: record.cloudPath || "",
-    size: record.size || 0,
-    checksum: record.checksum || "",
-    expireIn: 7200
-  };
-}
-
 function adminProfile() {
   return {
     roleKey: "admin",
@@ -3797,102 +3712,6 @@ function adminProfile() {
     source: "admin_whitelist",
     disabled: false
   };
-}
-
-async function createDataBackup(event, caller) {
-  const reason = requireAuditReason(event, "创建数据备份");
-  const limit = Math.min(1000, Math.max(50, Number(event.limit) || 500));
-  const selected = Array.isArray(event.collections) && event.collections.length
-    ? event.collections.map((item) => cleanText(item, 60)).filter((item) => backupCollections.includes(item))
-    : backupCollections;
-  const exported = {};
-  const counts = {};
-  const totals = {};
-  const truncated = {};
-  for (const collection of selected) {
-    const backup = await readBackupCollection(collection, limit);
-    exported[collection] = backup.items;
-    counts[collection] = backup.items.length;
-    totals[collection] = backup.total;
-    truncated[collection] = backup.truncated;
-  }
-  const truncatedCollections = Object.keys(truncated).filter((collection) => truncated[collection]);
-  const fileName = `backup-${Date.now()}.json`;
-  const cloudPath = `admin-backups/${fileName}`;
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    operator: callerLabel(caller),
-    limit,
-    counts,
-    totals,
-    truncated,
-    truncatedCollections,
-    data: exported
-  };
-  const fileContent = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
-  const checksum = sha256(fileContent);
-  try {
-    const upload = await cloud.uploadFile({ cloudPath, fileContent });
-    await ensureCollection("data_backup_logs");
-    await db.collection("data_backup_logs").add({
-      data: {
-        cloudPath,
-        fileId: upload.fileID || upload.fileId || "",
-        size: fileContent.length,
-        checksum,
-        counts,
-        totals,
-        truncated,
-        truncatedCollections,
-        limit,
-        operator: callerLabel(caller),
-        reason,
-        status: "success",
-        createdAt: db.serverDate()
-      }
-    });
-    await writeAdminAuditLog(caller, "createDataBackup", {
-      cloudPath,
-      size: fileContent.length,
-      checksum,
-      counts,
-      totals,
-      truncated,
-      truncatedCollections,
-      reason
-    });
-    return {
-      ok: true,
-      cloudPath,
-      fileId: upload.fileID || upload.fileId || "",
-      size: fileContent.length,
-      checksum,
-      counts,
-      totals,
-      truncated,
-      truncatedCollections
-    };
-  } catch (error) {
-    await ensureCollection("data_backup_logs");
-    await db.collection("data_backup_logs").add({
-      data: {
-        cloudPath,
-        size: fileContent.length,
-        checksum,
-        counts,
-        totals,
-        truncated,
-        truncatedCollections,
-        limit,
-        operator: callerLabel(caller),
-        reason,
-        status: "failed",
-        error: error.message || String(error),
-        createdAt: db.serverDate()
-      }
-    });
-    return { ok: false, message: error.message || "备份上传失败" };
-  }
 }
 
 async function getAnalytics(event = {}) {
@@ -4793,15 +4612,6 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "sendTestNotice") {
       return await sendTestNotice(event, caller);
-    }
-    if (action === "listBackupLogs") {
-      return await listBackupLogs(event);
-    }
-    if (action === "getBackupDownloadUrl") {
-      return await getBackupDownloadUrl(event, caller);
-    }
-    if (action === "createDataBackup") {
-      return await createDataBackup(event, caller);
     }
 
     return { ok: false, message: "未知后台操作" };

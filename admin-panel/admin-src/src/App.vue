@@ -10,9 +10,7 @@ import {
   ChevronDown,
   CircleDollarSign,
   ClipboardList,
-  Database,
   FileText,
-  HardDrive,
   Home,
   Menu,
   Package,
@@ -124,7 +122,6 @@ const navItems = [
   { key: "audit", label: "审计日志", icon: FileText },
   { key: "notifications", label: "通知日志", icon: Bell },
   { key: "system", label: "系统状态", icon: ShieldCheck },
-  { key: "backups", label: "数据备份", icon: HardDrive },
   { key: "settings", label: "设置管理", icon: Settings }
 ];
 
@@ -132,7 +129,7 @@ const navGroups = [
   { label: "经营工作台", items: ["dashboard", "orders", "afterSales", "inventory"] },
   { label: "门店服务", items: ["reservations", "signups", "customers"] },
   { label: "内容与增长", items: ["catalog", "content", "analytics"] },
-  { label: "系统治理", items: ["audit", "notifications", "system", "backups", "settings"] }
+  { label: "系统治理", items: ["audit", "notifications", "system", "settings"] }
 ];
 
 const navItemMap = navItems.reduce((map, item) => {
@@ -179,7 +176,6 @@ const pageTitles = {
   audit: ["审计日志", ""],
   notifications: ["通知日志", ""],
   system: ["系统状态", ""],
-  backups: ["数据备份", ""],
   settings: ["设置管理", ""]
 };
 
@@ -198,7 +194,6 @@ const moduleProfiles = {
   audit: { group: "系统", subject: "审计", countLabel: "条", note: "" },
   notifications: { group: "系统", subject: "通知", countLabel: "条", note: "" },
   system: { group: "系统", subject: "状态", countLabel: "项", note: "" },
-  backups: { group: "系统", subject: "备份", countLabel: "条", note: "" },
   settings: { group: "系统", subject: "设置", countLabel: "项", note: "" }
 };
 
@@ -213,7 +208,6 @@ const riskPolicyByTab = {
   content: "内容停用会影响小程序展示",
   audit: "导出审计记录需操作原因",
   notifications: "测试通知会写入投递日志",
-  backups: "备份和下载均写入审计",
   settings: "生产配置变更需审计"
 };
 
@@ -238,8 +232,7 @@ const state = reactive({
     customer: false,
     content: false,
     audit: false,
-    notification: false,
-    backup: false
+    notification: false
   },
   loading: "",
   loadingTab: "",
@@ -264,7 +257,6 @@ const state = reactive({
   auditLogs: [],
   notificationLogs: [],
   systemStatus: null,
-  backupLogs: [],
   lastLoadedAt: {},
   reservations: [],
   /** 茶室资源（预约台历行）；从 rooms 集合读取，非商品管理 */
@@ -305,8 +297,7 @@ const state = reactive({
     signups: createPageState(),
     customers: createPageState(),
     audit: createPageState(),
-    notifications: createPageState(),
-    backups: createPageState()
+    notifications: createPageState()
   },
   selectedCatalogId: "",
   selectedOrderId: "",
@@ -452,9 +443,6 @@ const noticeTestForm = reactive({
   kind: "reservationStatus",
   openid: "",
   note: "后台测试发送"
-});
-const backupForm = reactive({
-  limit: 500
 });
 const toast = reactive({ show: false, text: "" });
 const actionDialog = reactive({
@@ -1145,7 +1133,6 @@ const currentRecordCount = computed(() => {
     audit: state.pagination.audit.total || state.auditLogs.length,
     notifications: state.pagination.notifications.total || state.notificationLogs.length,
     system: state.systemStatus?.checks?.length || 0,
-    backups: state.pagination.backups.total || state.backupLogs.length,
     settings: Object.keys(state.settings || {}).length
   };
   return counts[state.activeTab] || 0;
@@ -1824,14 +1811,6 @@ function buildWorkflowSteps(tab) {
       workflowStep("提醒", numberText(summary.warn || 0), "需补配置", "warn"),
       workflowStep("错误", numberText(summary.error || 0), "影响生产", "danger"),
       workflowStep("包体上限", PACKAGE_INFO.sourceSizeLimit, "预览限制", "focus")
-    ];
-  }
-  if (tab === "backups") {
-    return [
-      workflowStep("成功备份", countWhere(state.backupLogs, (item) => hasStatus(item, [/success|成功/i])), "云存储", "good"),
-      workflowStep("失败备份", countWhere(state.backupLogs, (item) => hasStatus(item, [/failed|error|失败|错误/i])), "需处理", "danger"),
-      workflowStep("当前上限", numberText(backupForm.limit), "每集合", "focus"),
-      workflowStep("下载链接", "临时", "会写审计", "warn")
     ];
   }
   if (tab === "settings") {
@@ -2562,35 +2541,6 @@ function statusTone(value) {
   if (/待|申请|审核|处理中|未到场|提醒|跳过|pending|skipped|warn/i.test(text)) return "warn";
   if (/已支付|已发货|已完成|已确认|已退款|已到场|已使用|成功|启用|上架|success|sent|ok/i.test(text)) return "good";
   return "neutral";
-}
-
-function backupTruncatedCollections(log = {}) {
-  if (Array.isArray(log.truncatedCollections)) {
-    return log.truncatedCollections.filter(Boolean);
-  }
-  const truncated = log.truncated || {};
-  return Object.keys(truncated).filter((collection) => truncated[collection]);
-}
-
-function backupCompleteness(log = {}) {
-  if (log.status && log.status !== "success") {
-    return {
-      tone: statusTone(log.status),
-      label: "未完成",
-      hint: log.error || "备份未生成可核对文件"
-    };
-  }
-  const names = backupTruncatedCollections(log);
-  return {
-    tone: names.length ? "warn" : "good",
-    label: names.length ? "可能截断" : "完整",
-    hint: names.length ? `超出上限：${names.join("、")}` : `上限 ${numberText(log.limit || backupForm.limit || 500)} / 集合`
-  };
-}
-
-function backupFileHint(log = {}) {
-  if (log.checksum) return `sha256 ${String(log.checksum).slice(0, 12)}`;
-  return log.error || log.fileId || "";
 }
 
 function addTimeline(items, time, title, detail, tone = "") {
@@ -3410,7 +3360,6 @@ async function loadActiveTab(forceRefresh = false) {
     audit: loadAuditLogs,
     notifications: loadNotificationLogs,
     system: loadSystemStatus,
-    backups: loadBackupLogs,
     settings: loadSettings
   };
   return map[state.activeTab]?.();
@@ -4245,54 +4194,6 @@ async function loadSystemStatus() {
       packageInfo: PACKAGE_INFO
     });
     state.systemStatus = result;
-  });
-}
-
-async function loadBackupLogs() {
-  await withLoading("读取备份", async () => {
-    const result = await callFunction("manageOperations", {
-      action: "listBackupLogs",
-      ...pagePayload("backups")
-    });
-    state.backupLogs = result.logs || [];
-    setPageMeta("backups", result.page);
-  });
-}
-
-async function createDataBackup() {
-  const limit = Number(backupForm.limit || 500);
-  if (!Number.isFinite(limit) || limit < 50 || limit > 1000) {
-    showToast("备份上限需在 50 到 1000 之间");
-    return;
-  }
-  if (!(await requireTypedConfirm("确认创建包含订单、用户、审计和库存数据的云端备份？", "创建备份"))) return;
-  const reason = await promptActionReason("创建云端数据备份");
-  if (!reason) return;
-  await withLoading("创建备份", async () => {
-    const result = await callFunction("manageOperations", {
-      action: "createDataBackup",
-      limit,
-      reason
-    });
-    showToast(result.cloudPath ? "备份已写入云存储" : "备份已完成");
-    await loadBackupLogs();
-  });
-}
-
-async function downloadBackup(log) {
-  if (!log) return;
-  const reason = await promptActionReason(`下载备份 ${log.cloudPath || log._id}`);
-  if (!reason) return;
-  await withLoading("获取备份链接", async () => {
-    const result = await callFunction("manageOperations", {
-      action: "getBackupDownloadUrl",
-      id: log._id,
-      cloudPath: log.cloudPath,
-      reason
-    });
-    if (!result.url) throw new Error("未返回备份下载链接");
-    window.open(result.url, "_blank", "noopener,noreferrer");
-    showToast("临时备份下载链接已打开");
   });
 }
 
@@ -5754,8 +5655,7 @@ function emptyTitle(tab = state.activeTab) {
     customers: "暂无用户记录",
     content: "暂无运营内容",
     audit: "暂无审计日志",
-    notifications: "暂无订阅消息日志",
-    backups: "暂无备份记录"
+    notifications: "暂无订阅消息日志"
   }[tab] || "暂无数据";
 }
 
@@ -5775,8 +5675,7 @@ function emptyHint(tab = state.activeTab) {
     customers: "有订单、预约或报名后会自动形成用户画像。",
     content: "新建轮播后会同步给小程序首页首屏。",
     audit: "后台关键操作会自动记录到这里。",
-    notifications: "订阅消息发送、跳过和失败都会写入日志。",
-    backups: "可以先创建一次云端备份，之后定时任务会每日执行。"
+    notifications: "订阅消息发送、跳过和失败都会写入日志。"
   }[tab] || "暂无可展示记录。";
 }
 
@@ -5788,7 +5687,6 @@ function emptyActionLabel(tab = state.activeTab) {
   const labels = {
     catalog: hasPermission("catalog.write") ? "新建" : "刷新资料",
     content: hasPermission("content.write") ? "新建轮播" : "刷新内容",
-    backups: "刷新备份",
     system: "重新检查"
   };
   return labels[tab] || "刷新记录";
@@ -7740,54 +7638,6 @@ onBeforeUnmount(() => {
               </table>
             </div>
           </article>
-        </section>
-
-        <section v-if="state.activeTab === 'backups'" class="list-workspace">
-          <article class="panel-card data-panel">
-            <div class="panel-title"><h2>备份记录</h2>
-              <div class="panel-toolbar" style="margin:0">
-                <button class="secondary-action small" type="button" @click="loadBackupLogs">刷新</button>
-                <button v-if="hasPermission('backup.create')" class="primary-action small" type="button" @click="openDrawer('backup')">创建备份</button>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <caption>云端备份记录</caption>
-                <thead><tr><th scope="col">时间</th><th scope="col">状态</th><th scope="col">完整性</th><th scope="col">文件</th><th scope="col">大小</th><th scope="col">操作</th></tr></thead>
-                <tbody>
-                  <tr v-for="log in state.backupLogs" :key="log._id">
-                    <td>{{ formatDate(log.createdAt) }}</td>
-                    <td><span :class="['status-pill', statusTone(log.status)]">{{ log.status }}</span></td>
-                    <td><span :class="['status-pill', backupCompleteness(log).tone]">{{ backupCompleteness(log).label }}</span><small>{{ backupCompleteness(log).hint }}</small></td>
-                    <td><strong>{{ log.cloudPath || "-" }}</strong><small>{{ backupFileHint(log) }}</small></td>
-                    <td>{{ numberText(log.size || 0) }} B</td>
-                    <td><button v-if="log.status === 'success' && log.fileId" class="ghost-button" type="button" @click="downloadBackup(log)">下载</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <EmptyState v-if="state.backupLogs.length === 0" :title="emptyTitle('backups')" :hint="emptyHint('backups')" :action-label="emptyActionLabel('backups')" @action="handleEmptyAction('backups')" />
-            <div v-if="pageMetaFor('backups').total > pageMetaFor('backups').pageSize" class="pager">
-              <span>{{ pageRangeText('backups') }}</span>
-              <button type="button" :disabled="pageMetaFor('backups').page <= 1" @click="changePage('backups', -1, loadBackupLogs)">上一页</button>
-              <button type="button" :disabled="pageMetaFor('backups').page >= pageMetaFor('backups').pageCount" @click="changePage('backups', 1, loadBackupLogs)">下一页</button>
-            </div>
-          </article>
-          <div v-if="state.drawers.backup" class="editor-drawer" role="dialog" aria-modal="true" aria-label="创建备份">
-            <div class="editor-drawer-mask" @click="closeDrawer('backup')"></div>
-            <aside class="panel-card editor-panel drawer-panel">
-            <div class="panel-title"><h2>创建备份</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('backup')">×</button></div>
-            <form class="editor-grid" @submit.prevent="createDataBackup">
-              <label><span>每个集合上限</span><input v-model.number="backupForm.limit" type="number" min="50" max="1000"></label>
-              <div class="privacy-note wide">导出订单、预约、会员、商品等关键集合到云存储；超过上限会标记为可能截断。</div>
-              <div class="drawer-actions wide">
-                <button type="button" class="secondary-action" @click="closeDrawer('backup')">取消</button>
-                <button v-if="hasPermission('backup.create')" class="primary-action icon-action" type="submit"><Database :size="16" :stroke-width="1.8" /> 创建备份</button>
-                <div v-else class="permission-note">当前角色仅可查看备份记录。</div>
-              </div>
-            </form>
-            </aside>
-          </div>
         </section>
 
         <section v-if="state.activeTab === 'settings'" class="panel-card settings-panel">
