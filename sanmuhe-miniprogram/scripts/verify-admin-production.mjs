@@ -116,36 +116,36 @@ function verifySourceExcludes(file, items) {
   if (found.length) {
     fail(`${file} contains non-production demo text: ${found.join(", ")}`);
   }
-  console.log(`[admin:verify] ${file} excludes demo-only metric copy`);
+  console.log(`[admin:verify] ${file} excludes ${items.length} forbidden markers`);
 }
 
-function verifyManageOperationsPermissionCoverage() {
+function verifyManageOperationsActionCoverage() {
   const source = readFileSync(join(root, "cloudfunctions/manageOperations/index.js"), "utf8");
-  const permissionBlock = source.match(/const actionPermissions = \{([\s\S]*?)\n\};/);
-  if (!permissionBlock) {
-    fail("manageOperations actionPermissions map missing");
+  const actionBlock = source.match(/const allowedActions = new Set\(\[([\s\S]*?)\]\);/);
+  if (!actionBlock) {
+    fail("manageOperations allowedActions set missing");
   }
-  const permissionActions = new Set([...permissionBlock[1].matchAll(/^\s*([A-Za-z0-9_]+):/gm)].map((match) => match[1]));
+  const allowedActions = new Set([...actionBlock[1].matchAll(/"([A-Za-z0-9_]+)"/g)].map((match) => match[1]));
   const dispatchedActions = new Set([...source.matchAll(/if \(action === "([^"]+)"\)/g)].map((match) => match[1]));
-  const missingPermissions = [...dispatchedActions].filter((action) => !permissionActions.has(action));
-  if (missingPermissions.length) {
-    fail(`manageOperations actions missing permission entries: ${missingPermissions.join(", ")}`);
+  const missingActions = [...dispatchedActions].filter((action) => !allowedActions.has(action));
+  if (missingActions.length) {
+    fail(`manageOperations dispatch branches missing from allowedActions: ${missingActions.join(", ")}`);
   }
-  const unhandledPermissions = [...permissionActions].filter((action) => !dispatchedActions.has(action));
-  if (unhandledPermissions.length) {
-    fail(`manageOperations actionPermissions has no dispatch branch: ${unhandledPermissions.join(", ")}`);
+  const unhandledActions = [...allowedActions].filter((action) => !dispatchedActions.has(action));
+  if (unhandledActions.length) {
+    fail(`manageOperations allowedActions has no dispatch branch: ${unhandledActions.join(", ")}`);
   }
-  if (!source.includes('getAdminProfile: ""')) {
-    fail("getAdminProfile must remain readable after admin whitelist auth so disabled/no-permission accounts can see their access state");
+  if (!allowedActions.has("getAdminProfile")) {
+    fail("getAdminProfile must remain available after administrator whitelist authentication");
   }
-  console.log(`[admin:verify] manageOperations permission map covers ${dispatchedActions.size} dispatched actions`);
+  console.log(`[admin:verify] manageOperations allowlist covers ${dispatchedActions.size} dispatched actions`);
 }
 
 function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageOperations/index.js", [
     {
-      label: "permissions and audit",
-      items: ["const actionPermissions", "getAdminProfile: \"\"", "unknownAction", "writeAdminAuditLog", "writeExportAuditLog", "writePermissionDeniedAudit", "permissionDenied", "role.disabled === true", "导出 CSV 需填写原因", "requireAuditReason"]
+      label: "administrator whitelist and audit",
+      items: ["const allowedActions", "getAdminProfile", "assertAdmin", "unknownAction", "writeAdminAuditLog", "writeExportAuditLog", "writeAccessDeniedAudit", "accessDenied", "管理员白名单拦截", "导出 CSV 需填写原因", "requireAuditReason"]
     },
     {
       label: "commercial admin workflows",
@@ -191,14 +191,14 @@ function verifyProductionSurfaces() {
   verifySourceContains("cloudfunctions/manageCatalog/index.js", [
     {
       label: "catalog sensitive change audit",
-      items: ["requireAuditReason", "changedSensitiveCatalogFields", "修改价格、库存、名额或状态", "catalog.delete", "catalog.restore", "writePermissionDeniedAudit", "permissionDenied", "role.disabled === true"]
+      items: ["requireAuditReason", "changedSensitiveCatalogFields", "修改价格、库存、名额或状态", "catalog.delete", "catalog.restore", "assertCanWrite", "writePermissionDeniedAudit", "accessDenied", "管理员白名单拦截"]
     }
   ]);
 
   verifySourceContains("admin-src/src/App.vue", [
     {
       label: "core production tabs",
-      items: ["afterSales", "inventory", "audit", "notifications", "roles", "backups", "system"]
+      items: ["afterSales", "inventory", "audit", "notifications", "backups", "system"]
     },
     {
       label: "search export and calendar workflows",
@@ -210,7 +210,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "professional state handling",
-      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "saveRoomInfo", "if (!state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch", "saveCurrentView", "applySavedView", "currentFreshnessMeta", "aria-busy"]
+      items: ["EmptyState", "emptyActionLabel", "handleEmptyAction", "showSyncBanner", "runtimeError", "unhandledrejection", "navigator.onLine", "aria-selected", "saveRoomInfo", "Boolean(state.adminProfile)", "accessBlocked", "adminProfileError", "focusGlobalSearch", "saveCurrentView", "applySavedView", "currentFreshnessMeta", "aria-busy"]
     },
     {
       label: "truthful analytics copy",
@@ -234,7 +234,9 @@ function verifyProductionSurfaces() {
     }
   ]);
   verifySourceExcludes("admin-src/src/App.vue", ["较昨日", "较上月", "+12.5%", "+18.6%", "68.5", "20.3", "11.2", "2024年", "room-001"]);
-  verifySourceExcludes("cloudfunctions/manageOperations/index.js", ["room-001"]);
+  verifySourceExcludes("admin-src/src/App.vue", ["state.activeTab === 'roles'", "roleForm", "listAdminRoles", "saveAdminRole", "角色权限"]);
+  verifySourceExcludes("cloudfunctions/manageOperations/index.js", ["room-001", "getAdminRole", "listAdminRoles", "saveAdminRole", "ROLE_PERMISSION_DENIED", "rolePermissionMap"]);
+  verifySourceExcludes("cloudfunctions/manageCatalog/index.js", ["getAdminRole", "ROLE_PERMISSION_DENIED", "rolePermissionMap"]);
 
   verifySourceContains("admin-src/src/styles.css", [
     {
@@ -303,7 +305,7 @@ for (const entrypoint of listFunctionEntrypoints()) {
 }
 
 verifyProductionSurfaces();
-verifyManageOperationsPermissionCoverage();
+verifyManageOperationsActionCoverage();
 verifyCloudFunctionHealthChecks();
 verifyCloudFunctionDependencyHygiene();
 

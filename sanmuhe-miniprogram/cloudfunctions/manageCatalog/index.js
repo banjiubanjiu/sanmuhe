@@ -45,17 +45,6 @@ function getCachedCatalogList(collection) {
 function setCachedCatalogList(collection, items) {
   catalogListCache[collection] = { items, at: Date.now() };
 }
-const rolePermissionMap = {
-  admin: ["*"],
-  operator: ["catalog.read", "catalog.write"],
-  clerk: ["catalog.read"]
-};
-const roleLabels = {
-  admin: "管理员",
-  operator: "运营",
-  clerk: "店员"
-};
-
 function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
 }
@@ -324,78 +313,16 @@ function assertCanWrite(caller) {
   throw error;
 }
 
-function roleSubjectMatches(role, caller) {
-  const subject = cleanText(role.subject, 120);
-  return subject && (subject === caller.uid || subject === caller.username || subject === caller.openid);
-}
-
-function normalizeRoleKey(value) {
-  const key = cleanText(value, 30) || "clerk";
-  return rolePermissionMap[key] ? key : "clerk";
-}
-
-async function getAdminRole(caller) {
-  await ensureCollection("admin_roles");
-  const result = await db.collection("admin_roles")
-    .limit(100)
-    .get();
-  const role = (result.data || []).find((item) => roleSubjectMatches(item, caller));
-  if (role && role.disabled === true) {
-    return { roleKey: "disabled", roleName: "已停用", permissions: [], disabled: true };
-  }
-  if (!role) {
-    return { roleKey: "admin", roleName: roleLabels.admin, permissions: rolePermissionMap.admin };
-  }
-  const roleKey = normalizeRoleKey(role.roleKey);
-  return {
-    roleKey,
-    roleName: role.roleName || roleLabels[roleKey],
-    permissions: Array.isArray(role.permissions) && role.permissions.length ? role.permissions : rolePermissionMap[roleKey]
-  };
-}
-
-function requirePermission(role, permission) {
-  const permissions = role && Array.isArray(role.permissions) ? role.permissions : [];
-  if (permissions.includes("*") || permissions.includes(permission)) {
-    return;
-  }
-  const error = new Error("当前后台角色无权修改商品和活动数据");
-  error.code = "ROLE_PERMISSION_DENIED";
-  throw error;
-}
-
-function hasRolePermission(role, permission) {
-  if (!permission) {
-    return true;
-  }
-  const permissions = role && Array.isArray(role.permissions) ? role.permissions : [];
-  return permissions.includes("*") || permissions.includes(permission);
-}
-
-async function writePermissionDeniedAudit(caller = {}, attemptedAction, requiredPermission, detail = {}) {
+async function writePermissionDeniedAudit(caller = {}, attemptedAction, collection = "") {
   try {
-    await writeAdminAuditLog(caller, "permissionDenied", {
+    await writeAdminAuditLog(caller, "accessDenied", {
       attemptedAction: cleanText(attemptedAction, 60),
-      requiredPermission: cleanText(requiredPermission, 80),
-      collection: cleanText(detail.collection, 40),
-      roleKey: cleanText(detail.role && detail.role.roleKey, 30),
-      roleName: cleanText(detail.role && detail.role.roleName, 40),
-      reason: "权限拦截"
+      collection: cleanText(collection, 40),
+      reason: "管理员白名单拦截"
     });
   } catch (error) {
-    // Permission denial should never fail the original response path.
+    // Access denial should never fail the original response path.
   }
-}
-
-async function requirePermissionWithAudit(role, permission, caller, attemptedAction, detail = {}) {
-  if (hasRolePermission(role, permission)) {
-    return;
-  }
-  await writePermissionDeniedAudit(caller, attemptedAction, permission, Object.assign({}, detail, { role }));
-  const error = new Error("当前后台角色无权修改商品和活动数据");
-  error.code = "ROLE_PERMISSION_DENIED";
-  error.permissionDeniedAudited = true;
-  throw error;
 }
 
 function auditValue(value) {
@@ -766,16 +693,11 @@ exports.main = async (event = {}, context = {}) => {
       try {
         assertCanWrite(caller);
       } catch (error) {
-        await writePermissionDeniedAudit(caller, action, "catalog.write", {
-          collection,
-          role: { roleKey: "not-admin", roleName: "非管理员" }
-        });
+        await writePermissionDeniedAudit(caller, action, collection);
         error.permissionDeniedAudited = true;
         throw error;
       }
     }
-    const role = await getAdminRole(caller);
-    await requirePermissionWithAudit(role, writeActions.has(action) ? "catalog.write" : "catalog.read", caller, action, { collection });
 
     if (action === "list") {
       const items = await listItems(collection, { includeHidden, includeRemoved });
@@ -956,8 +878,8 @@ exports.main = async (event = {}, context = {}) => {
 
     return { ok: false, message: "未知操作" };
   } catch (error) {
-    if ((error.code === "NO_PERMISSION" || error.code === "ROLE_PERMISSION_DENIED") && !error.permissionDeniedAudited) {
-      await writePermissionDeniedAudit(caller, action, "", { collection });
+    if (error.code === "NO_PERMISSION" && !error.permissionDeniedAudited) {
+      await writePermissionDeniedAudit(caller, action, collection);
     }
     return {
       ok: false,

@@ -124,7 +124,6 @@ const navItems = [
   { key: "audit", label: "审计日志", icon: FileText },
   { key: "notifications", label: "通知日志", icon: Bell },
   { key: "system", label: "系统状态", icon: ShieldCheck },
-  { key: "roles", label: "角色权限", icon: Users },
   { key: "backups", label: "数据备份", icon: HardDrive },
   { key: "settings", label: "设置管理", icon: Settings }
 ];
@@ -133,32 +132,13 @@ const navGroups = [
   { label: "经营工作台", items: ["dashboard", "orders", "afterSales", "inventory"] },
   { label: "门店服务", items: ["reservations", "signups", "customers"] },
   { label: "内容与增长", items: ["catalog", "content", "analytics"] },
-  { label: "系统治理", items: ["audit", "notifications", "system", "roles", "backups", "settings"] }
+  { label: "系统治理", items: ["audit", "notifications", "system", "backups", "settings"] }
 ];
 
 const navItemMap = navItems.reduce((map, item) => {
   map[item.key] = item;
   return map;
 }, {});
-
-const tabPermissions = {
-  dashboard: "dashboard.read",
-  reservations: "reservation.read",
-  signups: "signup.read",
-  orders: "order.read",
-  afterSales: "afterSale.read",
-  inventory: "inventory.read",
-  customers: "customer.read",
-  catalog: "catalog.read",
-  content: "content.read",
-  analytics: "analytics.read",
-  audit: "audit.read",
-  notifications: "notification.read",
-  system: "system.read",
-  roles: "roles.manage",
-  backups: "backup.read",
-  settings: "settings.read"
-};
 
 const collectionTabs = [
   { key: "tea_products", label: "茶叶", listTitle: "茶叶列表", entityLabel: "茶叶" },
@@ -180,42 +160,6 @@ const quickActions = [
   { tab: "customers", label: "用户管理", icon: Users }
 ];
 
-const permissionCatalog = [
-  { key: "dashboard.read", group: "经营首页", label: "查看首页与全局搜索", risk: "low" },
-  { key: "order.read", group: "订单售后", label: "查看订单", risk: "low" },
-  { key: "order.write", group: "订单售后", label: "确认、发货、自提、取消订单", risk: "medium" },
-  { key: "afterSale.read", group: "订单售后", label: "查看售后", risk: "low" },
-  { key: "afterSale.write", group: "订单售后", label: "处理售后状态", risk: "medium" },
-  { key: "inventory.read", group: "库存", label: "查看库存流水", risk: "low" },
-  { key: "inventory.write", group: "库存", label: "人工调整库存", risk: "medium" },
-  { key: "reservation.read", group: "门店服务", label: "查看茶室预约", risk: "low" },
-  { key: "reservation.write", group: "门店服务", label: "确认、完成、取消预约", risk: "medium" },
-  { key: "signup.read", group: "门店服务", label: "查看活动报名", risk: "low" },
-  { key: "signup.write", group: "门店服务", label: "报名确认与核销", risk: "medium" },
-  { key: "customer.read", group: "用户数据", label: "查看用户画像", risk: "low" },
-  { key: "export.read", group: "用户数据", label: "导出经营数据", risk: "high" },
-  { key: "privacy.delete", group: "用户数据", label: "删除/匿名化个人数据", risk: "high" },
-  { key: "catalog.read", group: "内容商品", label: "查看商品资料", risk: "low" },
-  { key: "catalog.write", group: "内容商品", label: "编辑商品与活动资料", risk: "medium" },
-  { key: "content.read", group: "内容商品", label: "查看运营内容", risk: "low" },
-  { key: "content.write", group: "内容商品", label: "编辑轮播、卡片、公告", risk: "medium" },
-  { key: "analytics.read", group: "数据统计", label: "查看经营统计", risk: "low" },
-  { key: "audit.read", group: "系统治理", label: "查看审计日志", risk: "high" },
-  { key: "settings.read", group: "系统治理", label: "查看系统设置", risk: "low" },
-  { key: "settings.write", group: "系统治理", label: "修改门店、支付、通知配置", risk: "high" },
-  { key: "notification.read", group: "系统治理", label: "查看通知日志", risk: "low" },
-  { key: "notification.write", group: "系统治理", label: "发送测试通知", risk: "medium" },
-  { key: "system.read", group: "系统治理", label: "查看系统状态", risk: "low" },
-  { key: "roles.manage", group: "系统治理", label: "管理后台角色", risk: "high" },
-  { key: "backup.read", group: "系统治理", label: "查看备份记录", risk: "low" },
-  { key: "backup.create", group: "系统治理", label: "创建云端备份", risk: "high" }
-];
-const permissionGroupOrder = ["经营首页", "订单售后", "库存", "门店服务", "用户数据", "内容商品", "数据统计", "系统治理", "未归类"];
-const permissionMap = permissionCatalog.reduce((map, item) => {
-  map[item.key] = item;
-  return map;
-}, {});
-
 const fallbackMetricIcons = [CalendarCheck, TicketPercent, BadgeDollarSign, UserPlus, CircleDollarSign];
 const createPageState = () => ({ page: 1, pageSize: 20, total: 0, pageCount: 1 });
 const EXPORT_PAGE_SIZE = 100;
@@ -235,7 +179,6 @@ const pageTitles = {
   audit: ["审计日志", ""],
   notifications: ["通知日志", ""],
   system: ["系统状态", ""],
-  roles: ["角色权限", ""],
   backups: ["数据备份", ""],
   settings: ["设置管理", ""]
 };
@@ -255,25 +198,8 @@ const moduleProfiles = {
   audit: { group: "系统", subject: "审计", countLabel: "条", note: "" },
   notifications: { group: "系统", subject: "通知", countLabel: "条", note: "" },
   system: { group: "系统", subject: "状态", countLabel: "项", note: "" },
-  roles: { group: "系统", subject: "角色", countLabel: "个", note: "" },
   backups: { group: "系统", subject: "备份", countLabel: "条", note: "" },
   settings: { group: "系统", subject: "设置", countLabel: "项", note: "" }
-};
-
-const writePermissionsByTab = {
-  orders: ["order.write", "afterSale.write"],
-  afterSales: ["afterSale.write"],
-  inventory: ["inventory.write"],
-  reservations: ["reservation.write"],
-  signups: ["signup.write"],
-  customers: ["export.read", "privacy.delete"],
-  catalog: ["catalog.write"],
-  content: ["content.write"],
-  audit: ["export.read"],
-  notifications: ["notification.write"],
-  roles: ["roles.manage"],
-  backups: ["backup.create"],
-  settings: ["settings.write"]
 };
 
 const riskPolicyByTab = {
@@ -287,7 +213,6 @@ const riskPolicyByTab = {
   content: "内容停用会影响小程序展示",
   audit: "导出审计记录需操作原因",
   notifications: "测试通知会写入投递日志",
-  roles: "授权变更需二次确认",
   backups: "备份和下载均写入审计",
   settings: "生产配置变更需审计"
 };
@@ -314,7 +239,6 @@ const state = reactive({
     content: false,
     audit: false,
     notification: false,
-    role: false,
     backup: false
   },
   loading: "",
@@ -340,8 +264,6 @@ const state = reactive({
   auditLogs: [],
   notificationLogs: [],
   systemStatus: null,
-  adminRoles: [],
-  rolePresets: [],
   backupLogs: [],
   lastLoadedAt: {},
   reservations: [],
@@ -395,7 +317,6 @@ const state = reactive({
   selectedSignupId: "",
   selectedCustomerId: "",
   selectedContentKey: "",
-  selectedRoleId: "",
   reservationCalendarDate: new Date().toISOString().slice(0, 10),
   reservationWeekStart: (() => {
     const now = new Date();
@@ -530,14 +451,6 @@ const noticeTestForm = reactive({
   kind: "reservationStatus",
   openid: "",
   note: "后台测试发送"
-});
-const roleForm = reactive({
-  id: "",
-  subjectType: "username",
-  subject: "",
-  displayName: "",
-  roleKey: "clerk",
-  disabled: false
 });
 const backupForm = reactive({
   limit: 500
@@ -723,7 +636,7 @@ const currentUser = computed(() => {
     || meta.uid
     || "禾煦管理员";
 });
-const currentRoleName = computed(() => state.adminProfileError ? "未授权" : (state.adminProfile?.roleName || "管理员"));
+const currentRoleName = computed(() => state.adminProfileError ? "未授权" : "管理员");
 const orderBroadcastStatusTone = computed(() => {
   if (orderBroadcast.error || orderBroadcast.audioMessage) return "danger";
   if (orderBroadcast.starting || (orderBroadcast.enabled && !orderBroadcast.visible)) return "warn";
@@ -760,7 +673,6 @@ const selectedReservation = computed(() => state.reservations.find((item) => ite
 const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || null);
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || null);
 const selectedCustomerSignal = computed(() => customerSignal(selectedCustomer.value));
-const selectedRole = computed(() => state.adminRoles.find((item) => item.id === state.selectedRoleId) || null);
 
 function openDrawer(key) {
   if (key in state.drawers) state.drawers[key] = true;
@@ -804,31 +716,6 @@ function selectAuditLog(log) {
   state.selectedAuditLogId = log?._id || "";
   openDrawer("audit");
 }
-const currentRolePreset = computed(() => state.rolePresets.find((item) => item.key === roleForm.roleKey) || state.rolePresets[0] || null);
-const currentPermissionGroups = computed(() => {
-  const permissions = currentRolePreset.value?.permissions || [];
-  if (permissions.includes("*")) {
-    return [{
-      group: "全部后台",
-      items: [{ key: "*", label: "全部模块与高风险操作", risk: "high" }]
-    }];
-  }
-  const groups = permissions.reduce((result, permission) => {
-    const meta = permissionMap[permission] || { key: permission, group: "未归类", label: permission, risk: "low" };
-    if (!result[meta.group]) result[meta.group] = [];
-    result[meta.group].push(meta);
-    return result;
-  }, {});
-  return permissionGroupOrder
-    .filter((group) => groups[group]?.length)
-    .map((group) => ({ group, items: groups[group] }));
-});
-const currentPermissionSummary = computed(() => {
-  const permissions = currentRolePreset.value?.permissions || [];
-  if (permissions.includes("*")) return "拥有全部权限，适合实际负责人或超级管理员。";
-  const highRiskCount = currentPermissionGroups.value.reduce((sum, group) => sum + group.items.filter((item) => item.risk === "high").length, 0);
-  return `${permissions.length} 项权限，其中 ${highRiskCount} 项高风险权限。`;
-});
 const visibleNavGroups = computed(() => navGroups
   .map((group) => ({
     ...group,
@@ -841,17 +728,9 @@ const activeCollectionTab = computed(() => {
 });
 const catalogListTitle = computed(() => activeCollectionTab.value?.listTitle || "资料列表");
 const catalogEntityLabel = computed(() => activeCollectionTab.value?.entityLabel || "资料");
-const accessBlocked = computed(() => !!state.adminProfileError || (!!state.adminProfile && (state.adminProfile.disabled === true || !visibleNavGroups.value.length)));
-const accessBlockTitle = computed(() => {
-  if (state.adminProfileError) return "无法读取后台权限";
-  return state.adminProfile?.disabled ? "当前后台账号已停用" : "当前账号暂无可访问模块";
-});
-const accessBlockHint = computed(() => {
-  if (state.adminProfileError) return `${state.adminProfileError}。后台不会继续读取经营数据，请退出后重新登录或检查账号权限配置。`;
-  return state.adminProfile?.disabled
-    ? "该账号已被停用，后台不会继续读取经营数据。请使用仍在启用状态的管理员账号重新登录。"
-    : "该账号没有任何后台模块权限，无法查看订单、预约、用户或系统配置。";
-});
+const accessBlocked = computed(() => !!state.adminProfileError);
+const accessBlockTitle = computed(() => "无法验证管理员身份");
+const accessBlockHint = computed(() => `${state.adminProfileError || "管理员身份验证失败"}。后台不会继续读取经营数据，请退出后重新登录或检查管理员白名单。`);
 function parseTimeToMinutes(value) {
   const text = String(value || "").trim();
   const match = text.match(/^(\d{1,2}):(\d{2})/);
@@ -1265,7 +1144,6 @@ const currentRecordCount = computed(() => {
     audit: state.pagination.audit.total || state.auditLogs.length,
     notifications: state.pagination.notifications.total || state.notificationLogs.length,
     system: state.systemStatus?.checks?.length || 0,
-    roles: state.adminRoles.length,
     backups: state.pagination.backups.total || state.backupLogs.length,
     settings: Object.keys(state.settings || {}).length
   };
@@ -1389,15 +1267,7 @@ const currentFreshnessMeta = computed(() => {
   };
 });
 const currentFreshnessText = computed(() => currentFreshnessMeta.value.text);
-const currentAccessText = computed(() => {
-  if (!state.adminProfile) return "角色资料未加载";
-  const permissions = writePermissionsByTab[state.activeTab] || [];
-  if (!permissions.length) return "只读核对";
-  const allowed = permissions.filter((permission) => hasPermission(permission));
-  if (!allowed.length) return "只读访问";
-  if (allowed.length === permissions.length) return "可执行全部操作";
-  return `可执行 ${allowed.length}/${permissions.length} 项操作`;
-});
+const currentAccessText = computed(() => state.adminProfile ? "白名单管理员" : "身份待验证");
 const currentResultText = computed(() => {
   const page = state.pagination[pageKeyForTab(state.activeTab)];
   if (page && (page.total || page.pageCount > 1)) {
@@ -1406,14 +1276,10 @@ const currentResultText = computed(() => {
   const prefix = hasClearableFilters.value ? "筛选后" : "当前";
   return `${prefix} ${numberText(currentRecordCount.value)} 条`;
 });
-const currentRiskText = computed(() => {
-  const permissions = writePermissionsByTab[state.activeTab] || [];
-  if (permissions.length && !permissions.some((permission) => hasPermission(permission))) return "当前角色无写入风险";
-  return riskPolicyByTab[state.activeTab] || "关键写入保留操作痕迹";
-});
+const currentRiskText = computed(() => riskPolicyByTab[state.activeTab] || "关键写入保留操作痕迹");
 const operationAssuranceItems = computed(() => [
   { label: "最后同步", value: currentFreshnessText.value, tone: state.loading ? "busy" : currentFreshnessMeta.value.tone, title: currentFreshnessMeta.value.title },
-  { label: "权限边界", value: currentAccessText.value, tone: currentAccessText.value.includes("只读") ? "quiet" : "" },
+  { label: "访问范围", value: currentAccessText.value, tone: "" },
   { label: "结果范围", value: currentResultText.value, tone: hasClearableFilters.value ? "focus" : "" },
   { label: "风控提示", value: currentRiskText.value, tone: currentRiskText.value.includes("无写入") ? "quiet" : "risk" }
 ]);
@@ -1959,14 +1825,6 @@ function buildWorkflowSteps(tab) {
       workflowStep("包体上限", PACKAGE_INFO.sourceSizeLimit, "预览限制", "focus")
     ];
   }
-  if (tab === "roles") {
-    return [
-      workflowStep("启用角色", countWhere(state.adminRoles, (item) => item.disabled !== true), "可登录授权", "good"),
-      workflowStep("停用角色", countWhere(state.adminRoles, (item) => item.disabled === true), "不可用", "neutral"),
-      workflowStep("管理员", countWhere(state.adminRoles, (item) => item.roleKey === "admin"), "高风险", "danger"),
-      workflowStep("可选预设", state.rolePresets.length, "权限模板", "focus")
-    ];
-  }
   if (tab === "backups") {
     return [
       workflowStep("成功备份", countWhere(state.backupLogs, (item) => hasStatus(item, [/success|成功/i])), "云存储", "good"),
@@ -2392,19 +2250,13 @@ function reservationAdminActions(row) {
   return actions;
 }
 
-function hasPermission(permission) {
-  if (!permission) {
-    return true;
-  }
-  if (!state.adminProfile) {
-    return false;
-  }
-  const permissions = state.adminProfile.permissions || [];
-  return permissions.includes("*") || permissions.includes(permission);
+/** 兼容现有按钮显隐：通过管理员白名单验证后统一拥有全部后台能力。 */
+function hasPermission() {
+  return Boolean(state.adminProfile) && !state.adminProfileError;
 }
 
 function canAccessTab(tab) {
-  return hasPermission(tabPermissions[tab]);
+  return Boolean(navItemMap[tab]) && hasPermission();
 }
 
 function customerDisplayName(customer) {
@@ -3519,7 +3371,6 @@ async function loadActiveTab(forceRefresh = false) {
     audit: loadAuditLogs,
     notifications: loadNotificationLogs,
     system: loadSystemStatus,
-    roles: loadAdminRoles,
     backups: loadBackupLogs,
     settings: loadSettings
   };
@@ -4355,71 +4206,6 @@ async function loadSystemStatus() {
       packageInfo: PACKAGE_INFO
     });
     state.systemStatus = result;
-  });
-}
-
-async function loadAdminRoles() {
-  await withLoading("读取角色", async () => {
-    const result = await callFunction("manageOperations", { action: "listAdminRoles" });
-    state.adminRoles = result.roles || [];
-    state.rolePresets = result.presets || [];
-    // 不自动打开角色编辑抽屉
-    if (!state.drawers.role) state.selectedRoleId = "";
-  });
-}
-
-function resetRole() {
-  Object.assign(roleForm, {
-    id: "",
-    subjectType: "username",
-    subject: "",
-    displayName: "",
-    roleKey: "clerk",
-    disabled: false
-  });
-  state.selectedRoleId = "";
-  openDrawer("role");
-}
-
-function editRole(role) {
-  if (!role) {
-    resetRole();
-    return;
-  }
-  state.selectedRoleId = role.id;
-  Object.assign(roleForm, {
-    id: role.id || "",
-    subjectType: role.subjectType || "username",
-    subject: role.subject || "",
-    displayName: role.displayName || "",
-    roleKey: role.roleKey || "clerk",
-    disabled: role.disabled === true
-  });
-  openDrawer("role");
-}
-
-async function saveAdminRole() {
-  const subject = roleForm.subject.trim();
-  if (!subject) {
-    showToast("请填写账号标识");
-    return;
-  }
-  if (roleForm.roleKey === "admin" && !(await requireTypedConfirm(`确认授予 ${subject} 管理员权限？`, subject))) return;
-  const reason = await promptActionReason(`保存角色 ${subject}`);
-  if (!reason) return;
-  await withLoading("保存角色", async () => {
-    await callFunction("manageOperations", {
-      action: "saveAdminRole",
-      reason,
-      data: {
-        ...roleForm,
-        subject,
-        id: roleForm.id || subject,
-        permissions: currentRolePreset.value?.permissions || []
-      }
-    });
-    showToast("角色已保存");
-    await loadAdminRoles();
   });
 }
 
@@ -5923,7 +5709,6 @@ function emptyTitle(tab = state.activeTab) {
     content: "暂无运营内容",
     audit: "暂无审计日志",
     notifications: "暂无订阅消息日志",
-    roles: "暂无角色记录",
     backups: "暂无备份记录"
   }[tab] || "暂无数据";
 }
@@ -5945,7 +5730,6 @@ function emptyHint(tab = state.activeTab) {
     content: "新建轮播后会同步给小程序首页首屏。",
     audit: "后台关键操作会自动记录到这里。",
     notifications: "订阅消息发送、跳过和失败都会写入日志。",
-    roles: "没有角色时，白名单账号按管理员处理。",
     backups: "可以先创建一次云端备份，之后定时任务会每日执行。"
   }[tab] || "暂无可展示记录。";
 }
@@ -5958,7 +5742,6 @@ function emptyActionLabel(tab = state.activeTab) {
   const labels = {
     catalog: hasPermission("catalog.write") ? "新建" : "刷新资料",
     content: hasPermission("content.write") ? "新建轮播" : "刷新内容",
-    roles: hasPermission("roles.manage") ? "新建角色" : "刷新角色",
     backups: "刷新备份",
     system: "重新检查"
   };
@@ -5980,10 +5763,6 @@ function handleEmptyAction(tab = state.activeTab) {
   }
   if (tab === "content" && hasPermission("content.write")) {
     resetContent();
-    return;
-  }
-  if (tab === "roles" && hasPermission("roles.manage")) {
-    resetRole();
     return;
   }
   if (tab === "system") {
@@ -6133,7 +5912,7 @@ onBeforeUnmount(() => {
 
       <section v-if="accessBlocked" class="workspace access-workspace">
         <div class="access-block">
-          <span class="section-kicker">权限边界</span>
+          <span class="section-kicker">身份验证</span>
           <h1>{{ accessBlockTitle }}</h1>
           <p>{{ accessBlockHint }}</p>
           <div class="access-facts">
@@ -7906,50 +7685,6 @@ onBeforeUnmount(() => {
               </table>
             </div>
           </article>
-        </section>
-
-        <section v-if="state.activeTab === 'roles'" class="list-workspace">
-          <article class="panel-card data-panel">
-            <div class="panel-toolbar">
-              <button v-if="hasPermission('roles.manage')" class="secondary-action small icon-action" type="button" @click="resetRole"><Plus :size="15" :stroke-width="1.8" /> 新建角色</button>
-            </div>
-            <div class="record-list">
-              <button v-for="role in state.adminRoles" :key="role.id" :class="{ selected: state.selectedRoleId === role.id }" type="button" @click="editRole(role)">
-                <strong>{{ role.displayName || role.subject }} <em>{{ role.roleName || role.roleKey }}</em></strong>
-                <span>{{ role.subjectType || "username" }} · {{ role.disabled ? "已停用" : "启用" }}</span>
-              </button>
-              <EmptyState v-if="state.adminRoles.length === 0" :title="emptyTitle('roles')" :hint="emptyHint('roles')" :action-label="emptyActionLabel('roles')" @action="handleEmptyAction('roles')" />
-            </div>
-          </article>
-          <div v-if="state.drawers.role" class="editor-drawer" role="dialog" aria-modal="true" aria-label="角色编辑">
-            <div class="editor-drawer-mask" @click="closeDrawer('role')"></div>
-            <aside class="panel-card editor-panel drawer-panel">
-            <div class="panel-title"><h2>角色编辑</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('role')">×</button></div>
-            <form class="editor-grid" @submit.prevent="saveAdminRole">
-              <label><span>标识类型</span><select v-model="roleForm.subjectType"><option value="username">用户名</option><option value="uid">UID</option><option value="openid">OpenID</option></select></label>
-              <label><span>角色</span><select v-model="roleForm.roleKey"><option value="admin">管理员</option><option value="operator">运营</option><option value="clerk">店员</option></select></label>
-              <label class="wide"><span>账号标识</span><input v-model="roleForm.subject" required placeholder="用户名、UID 或 OpenID"></label>
-              <label class="wide"><span>显示名</span><input v-model="roleForm.displayName" placeholder="如 前台店员"></label>
-              <label class="switch wide"><input v-model="roleForm.disabled" type="checkbox"> 停用该角色</label>
-              <div class="permission-preview wide">
-                <div class="permission-summary">
-                  <span>{{ currentRolePreset?.label || "角色" }}</span>
-                  <strong>{{ currentPermissionSummary }}</strong>
-                </div>
-                <div v-for="group in currentPermissionGroups" :key="group.group" class="permission-group">
-                  <strong>{{ group.group }} <em>{{ group.items.length }} 项</em></strong>
-                  <div>
-                    <span v-for="permission in group.items" :key="permission.key" :class="`risk-${permission.risk}`">{{ permission.label }}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="drawer-actions wide">
-                <button type="button" class="secondary-action" @click="closeDrawer('role')">取消</button>
-                <button v-if="hasPermission('roles.manage')" class="primary-action" type="submit">保存角色</button>
-              </div>
-            </form>
-            </aside>
-          </div>
         </section>
 
         <section v-if="state.activeTab === 'backups'" class="list-workspace">

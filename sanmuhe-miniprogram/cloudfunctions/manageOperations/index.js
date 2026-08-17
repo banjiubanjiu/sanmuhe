@@ -266,110 +266,57 @@ function callerLabel(caller = {}) {
   return caller.username || caller.uid || caller.openid || "admin";
 }
 
-const rolePermissionMap = {
-  admin: ["*"],
-  operator: [
-    "dashboard.read",
-    "order.read",
-    "order.write",
-    "afterSale.read",
-    "afterSale.write",
-    "inventory.read",
-    "inventory.write",
-    "reservation.read",
-    "reservation.write",
-    "signup.read",
-    "signup.write",
-    "customer.read",
-    "catalog.read",
-    "catalog.write",
-    "content.read",
-    "content.write",
-    "analytics.read",
-    "audit.read",
-    "settings.read",
-    "notification.read",
-    "notification.write",
-    "system.read",
-    "backup.read",
-    "backup.create",
-    "export.read"
-  ],
-  clerk: [
-    "dashboard.read",
-    "order.read",
-    "order.write",
-    "afterSale.read",
-    "reservation.read",
-    "reservation.write",
-    "signup.read",
-    "signup.write",
-    "customer.read",
-    "catalog.read",
-    "inventory.read",
-    "notification.read",
-    "system.read"
-  ]
-};
-
-const roleLabels = {
-  admin: "管理员",
-  operator: "运营",
-  clerk: "店员"
-};
-
-const actionPermissions = {
-  getAdminProfile: "",
-  getSummary: "dashboard.read",
-  getDashboard: "dashboard.read",
-  globalSearch: "dashboard.read",
-  listOrders: "order.read",
-  listPaidOrderAlerts: "order.read",
-  listStoreVoiceAlerts: "order.read",
-  cancelOrder: "order.write",
-  confirmManualOrder: "order.write",
-  markShipped: "order.write",
-  retryWxShipping: "order.write",
-  listExpressCompanies: "order.read",
-  markPickupDone: "order.write",
-  markPreparingDone: "order.write",
-  listReservations: "reservation.read",
-  updateReservation: "reservation.write",
-  afterSaleRefundReservation: "reservation.write",
-  listSignups: "signup.read",
-  updateSignup: "signup.write",
-  checkInSignup: "signup.write",
-  listCustomers: "customer.read",
-  exportCustomerData: "export.read",
-  deleteCustomerData: "privacy.delete",
-  listAuditLogs: "audit.read",
-  listInventoryLogs: "inventory.read",
-  adjustInventory: "inventory.write",
-  listAfterSales: "afterSale.read",
-  updateAfterSale: "afterSale.write",
-  getAnalytics: "analytics.read",
-  listContent: "content.read",
-  saveContent: "content.write",
-  deleteContent: "content.write",
-  getSettings: "settings.read",
-  updateSettings: "settings.write",
-  listMembershipPlans: "settings.read",
-  saveMembershipPlan: "settings.write",
-  removeMembershipPlan: "settings.write",
-  getWxShippingStatus: "settings.read",
-  setWxShippingJumpPath: "settings.write",
-  generateTableQr: "settings.write",
-  listTableQrs: "settings.read",
-  downloadTableQrFile: "settings.read",
-  getSystemStatus: "system.read",
-  listNotificationLogs: "notification.read",
-  sendTestNotice: "notification.write",
-  listAdminRoles: "roles.manage",
-  saveAdminRole: "roles.manage",
-  listBackupLogs: "backup.read",
-  getBackupDownloadUrl: "backup.read",
-  createDataBackup: "backup.create"
-};
+// 白名单账号统一拥有全部后台能力；这里仅维护合法 action，避免未知调用进入业务分支。
+const allowedActions = new Set([
+  "getAdminProfile",
+  "getSummary",
+  "getDashboard",
+  "globalSearch",
+  "listOrders",
+  "listPaidOrderAlerts",
+  "listStoreVoiceAlerts",
+  "cancelOrder",
+  "confirmManualOrder",
+  "markShipped",
+  "retryWxShipping",
+  "listExpressCompanies",
+  "markPickupDone",
+  "markPreparingDone",
+  "listReservations",
+  "updateReservation",
+  "afterSaleRefundReservation",
+  "listSignups",
+  "updateSignup",
+  "checkInSignup",
+  "listCustomers",
+  "exportCustomerData",
+  "deleteCustomerData",
+  "listAuditLogs",
+  "listInventoryLogs",
+  "adjustInventory",
+  "listAfterSales",
+  "updateAfterSale",
+  "getAnalytics",
+  "listContent",
+  "saveContent",
+  "deleteContent",
+  "getSettings",
+  "updateSettings",
+  "listMembershipPlans",
+  "saveMembershipPlan",
+  "removeMembershipPlan",
+  "getWxShippingStatus",
+  "setWxShippingJumpPath",
+  "generateTableQr",
+  "listTableQrs",
+  "downloadTableQrFile",
+  "getSystemStatus",
+  "listNotificationLogs",
+  "sendTestNotice",
+  "listBackupLogs",
+  "getBackupDownloadUrl",
+  "createDataBackup"
+]);
 
 function getAuthObject() {
   try {
@@ -543,106 +490,17 @@ function assertAdmin(caller) {
   throw error;
 }
 
-function roleSubjectMatches(role, caller) {
-  const subject = cleanText(role.subject, 120);
-  if (!subject) {
-    return false;
-  }
-  return subject === caller.uid || subject === caller.username || subject === caller.openid;
-}
-
-function normalizeRoleKey(value) {
-  const key = cleanText(value, 30) || "clerk";
-  return rolePermissionMap[key] ? key : "clerk";
-}
-
-function normalizePermissionList(value, roleKey) {
-  const defaults = rolePermissionMap[roleKey] || rolePermissionMap.clerk;
-  const source = Array.isArray(value) && value.length ? value : defaults;
-  return source.map((item) => cleanText(item, 80)).filter(Boolean);
-}
-
-async function getAdminRole(caller) {
-  await ensureCollection("admin_roles");
-  const result = await db.collection("admin_roles")
-    .limit(100)
-    .get();
-  const role = (result.data || []).find((item) => roleSubjectMatches(item, caller));
-  if (role && role.disabled === true) {
-    return {
-      roleKey: "disabled",
-      roleName: "已停用",
-      permissions: [],
-      source: "admin_roles",
-      disabled: true,
-      raw: role
-    };
-  }
-  if (!role) {
-    return {
-      roleKey: "admin",
-      roleName: roleLabels.admin,
-      permissions: rolePermissionMap.admin,
-      source: "whitelist"
-    };
-  }
-  const roleKey = normalizeRoleKey(role.roleKey);
-  return {
-    roleKey,
-    roleName: role.roleName || roleLabels[roleKey],
-    permissions: normalizePermissionList(role.permissions, roleKey),
-    source: "admin_roles",
-    raw: role
-  };
-}
-
-function requirePermission(role, permission) {
-  if (hasRolePermission(role, permission)) {
-    return;
-  }
-  const error = new Error("当前后台角色无权执行该操作");
-  error.code = "ROLE_PERMISSION_DENIED";
-  throw error;
-}
-
-function hasRolePermission(role, permission) {
-  if (!permission) {
-    return true;
-  }
-  const permissions = role && Array.isArray(role.permissions) ? role.permissions : [];
-  if (permissions.includes("*") || permissions.includes(permission)) {
-    return true;
-  }
-  return false;
-}
-
-async function writePermissionDeniedAudit(caller = {}, attemptedAction, requiredPermission, detail = {}) {
+async function writeAccessDeniedAudit(caller = {}, attemptedAction, error = {}) {
   try {
-    await writeAdminAuditLog(caller, "permissionDenied", Object.assign({
+    await writeAdminAuditLog(caller, "accessDenied", {
       attemptedAction: cleanText(attemptedAction, 60),
-      requiredPermission: cleanText(requiredPermission, 80),
-      roleKey: cleanText(detail.role && detail.role.roleKey, 30),
-      roleName: cleanText(detail.role && detail.role.roleName, 40),
-      roleSource: cleanText(detail.role && detail.role.source, 40),
-      reason: "权限拦截"
-    }, detail.extra || {}));
-  } catch (error) {
-    // Permission denial should never fail the original response path.
+      code: cleanText(error.code, 40),
+      message: cleanText(error.message, 160),
+      reason: "管理员白名单拦截"
+    });
+  } catch (auditError) {
+    // Access denial should never fail the original response path.
   }
-}
-
-async function requirePermissionWithAudit(role, permission, caller, attemptedAction, extra = {}) {
-  if (hasRolePermission(role, permission)) {
-    return;
-  }
-  await writePermissionDeniedAudit(caller, attemptedAction, permission, {
-    role,
-    extra
-  });
-  const error = new Error("当前后台角色无权执行该操作");
-  error.code = "ROLE_PERMISSION_DENIED";
-  error.permissionDeniedAudited = true;
-  throw error;
 }
 
 function auditValue(value) {
@@ -2757,7 +2615,7 @@ function searchGroup(key, tab, label, result, items) {
   };
 }
 
-async function globalSearch(event, role) {
+async function globalSearch(event) {
   const keyword = cleanText(event.keyword, 80);
   if (keyword.length < 2) {
     return { ok: true, keyword, groups: [], message: "请输入至少 2 个字符" };
@@ -2765,7 +2623,6 @@ async function globalSearch(event, role) {
   const searchEvent = { keyword, page: 1, pageSize: 5 };
   const tasks = [
     {
-      permission: "order.read",
       run: async () => {
         const result = await readCollectionPage("orders", {
           keyword,
@@ -2798,7 +2655,6 @@ async function globalSearch(event, role) {
       }
     },
     {
-      permission: "afterSale.read",
       run: async () => {
         const result = await listAfterSales(searchEvent);
         return searchGroup("afterSales", "afterSales", "售后", { page: result.page }, (result.orders || []).map((order) => searchItem(
@@ -2812,7 +2668,6 @@ async function globalSearch(event, role) {
       }
     },
     {
-      permission: "reservation.read",
       run: async () => {
         const result = await readCollectionPage("reservations", {
           keyword,
@@ -2831,7 +2686,6 @@ async function globalSearch(event, role) {
       }
     },
     {
-      permission: "signup.read",
       run: async () => {
         const result = await readCollectionPage("event_signups", {
           keyword,
@@ -2850,7 +2704,6 @@ async function globalSearch(event, role) {
       }
     },
     {
-      permission: "customer.read",
       run: async () => {
         const result = await listCustomers(searchEvent);
         return searchGroup("customers", "customers", "用户", result, (result.customers || []).map((customer) => searchItem(
@@ -2864,7 +2717,6 @@ async function globalSearch(event, role) {
       }
     },
     {
-      permission: "inventory.read",
       run: async () => {
         const result = await readCollectionPage("inventory_logs", {
           keyword,
@@ -2883,7 +2735,6 @@ async function globalSearch(event, role) {
       }
     },
     {
-      permission: "audit.read",
       run: async () => {
         const result = await readCollectionPage("admin_audit_logs", {
           keyword,
@@ -2902,7 +2753,6 @@ async function globalSearch(event, role) {
       }
     },
     {
-      permission: "notification.read",
       run: async () => {
         const result = await readCollectionPage("notification_logs", {
           keyword,
@@ -2923,9 +2773,6 @@ async function globalSearch(event, role) {
   ];
   const groups = [];
   for (const task of tasks) {
-    if (!hasRolePermission(role, task.permission)) {
-      continue;
-    }
     const group = await task.run();
     if (group.items.length || group.total) {
       groups.push(group);
@@ -2957,51 +2804,6 @@ async function sendTestNotice(event, caller) {
     ok: result.result && result.result.ok !== false
   });
   return result.result || { ok: true };
-}
-
-async function listAdminRoles() {
-  await ensureCollection("admin_roles");
-  const roles = await readCollection("admin_roles", { orderBy: "createdAt", limit: 100 });
-  return {
-    ok: true,
-    roles,
-    presets: Object.keys(rolePermissionMap).map((key) => ({
-      key,
-      label: roleLabels[key],
-      permissions: rolePermissionMap[key]
-    }))
-  };
-}
-
-async function saveAdminRole(event, caller) {
-  const data = event.data && typeof event.data === "object" ? event.data : {};
-  const reason = requireAuditReason(event, "保存角色权限");
-  const roleKey = normalizeRoleKey(data.roleKey);
-  const payload = {
-    id: cleanId(data.id || data.subject || data.username || data.uid || data.openid, "role"),
-    subject: cleanText(data.subject || data.username || data.uid || data.openid, 120),
-    subjectType: cleanText(data.subjectType, 20) || "username",
-    displayName: cleanText(data.displayName, 80),
-    roleKey,
-    roleName: roleLabels[roleKey],
-    permissions: normalizePermissionList(data.permissions, roleKey),
-    disabled: data.disabled === true
-  };
-  if (!payload.subject) {
-    return { ok: false, message: "请填写角色账号标识" };
-  }
-  const existing = await findRecord("admin_roles", "id", payload.id);
-  await upsertRecord("admin_roles", "id", payload.id, payload);
-  await writeAdminAuditLog(caller, "saveAdminRole", {
-    subject: payload.subject,
-    subjectType: payload.subjectType,
-    displayName: payload.displayName,
-    roleKey: payload.roleKey,
-    disabled: payload.disabled,
-    reason,
-    changes: auditDiff(existing || {}, payload, ["subject", "subjectType", "displayName", "roleKey", "roleName", "permissions", "disabled"])
-  });
-  return { ok: true, role: payload };
 }
 
 function statusItem(key, label, status, detail, action) {
@@ -3162,11 +2964,10 @@ async function getSystemStatus(event = {}) {
     ["content_blocks", "首页内容"],
     ["events", "活动"]
   ];
-  const [auditCount, notificationCount, backupCount, roleCount, latestBackupResult, catalogCounts] = await Promise.all([
+  const [auditCount, notificationCount, backupCount, latestBackupResult, catalogCounts] = await Promise.all([
     countCollection("admin_audit_logs"),
     countCollection("notification_logs"),
     countCollection("data_backup_logs"),
-    countCollection("admin_roles"),
     readCollection("data_backup_logs", { orderBy: "createdAt", limit: 1 }),
     Promise.all(catalogCollections.map(async ([collection, label]) => ({
       collection,
@@ -3257,12 +3058,6 @@ async function getSystemStatus(event = {}) {
               : `最近备份可下载；旧记录未包含完整性校验，建议重新创建一次备份`
           : `最近备份不可直接下载：${latestBackup.error || "缺少云文件 ID"}`
         : "暂无成功备份，建议上线前先创建一次云端备份"
-    ),
-    statusItem(
-      "adminRoles",
-      "角色权限",
-      roleCount ? "ok" : "warn",
-      roleCount ? `已配置 ${roleCount} 个角色` : "未配置角色时，白名单账号默认按管理员处理"
     )
   ];
   return {
@@ -3778,13 +3573,13 @@ async function getBackupDownloadUrl(event, caller) {
   };
 }
 
-function adminProfile(role) {
+function adminProfile() {
   return {
-    roleKey: role.roleKey,
-    roleName: role.roleName,
-    permissions: role.permissions || [],
-    source: role.source || "admin_roles",
-    disabled: role.disabled === true
+    roleKey: "admin",
+    roleName: "管理员",
+    permissions: ["*"],
+    source: "admin_whitelist",
+    disabled: false
   };
 }
 
@@ -4589,20 +4384,15 @@ exports.main = async (event = {}, context = {}) => {
   try {
     caller = await getCaller(context);
     assertAdmin(caller);
-    const role = await getAdminRole(caller);
 
-    if (!Object.prototype.hasOwnProperty.call(actionPermissions, action)) {
+    if (!allowedActions.has(action)) {
       await writeAdminAuditLog(caller, "unknownAction", {
-        attemptedAction: action,
-        roleKey: role.roleKey || "",
-        roleName: role.roleName || ""
+        attemptedAction: action
       });
       return { ok: false, message: "未知后台操作" };
     }
 
-    await requirePermissionWithAudit(role, actionPermissions[action], caller, action);
     if (event.exportAll) {
-      await requirePermissionWithAudit(role, "export.read", caller, action, { exportAll: true });
       const exportReason = cleanText(event.exportReason || event.reason, 200);
       if (!exportReason) {
         return { ok: false, message: "导出 CSV 需填写原因" };
@@ -4615,7 +4405,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getAdminProfile") {
       return {
         ok: true,
-        admin: adminProfile(role)
+        admin: adminProfile()
       };
     }
     if (action === "getSummary") {
@@ -4625,7 +4415,7 @@ exports.main = async (event = {}, context = {}) => {
       return await getDashboard();
     }
     if (action === "globalSearch") {
-      return await globalSearch(event, role);
+      return await globalSearch(event);
     }
     if (action === "listOrders") {
       // 支持：业务线 bizType（dinein/retail）、状态、订单号/姓名/手机/桌号/备注
@@ -4788,12 +4578,6 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "sendTestNotice") {
       return await sendTestNotice(event, caller);
     }
-    if (action === "listAdminRoles") {
-      return await listAdminRoles();
-    }
-    if (action === "saveAdminRole") {
-      return await saveAdminRole(event, caller);
-    }
     if (action === "listBackupLogs") {
       return await listBackupLogs(event);
     }
@@ -4806,13 +4590,8 @@ exports.main = async (event = {}, context = {}) => {
 
     return { ok: false, message: "未知后台操作" };
   } catch (error) {
-    if ((error.code === "NO_PERMISSION" || error.code === "ROLE_PERMISSION_DENIED") && !error.permissionDeniedAudited) {
-      await writePermissionDeniedAudit(caller, action, "", {
-        extra: {
-          code: error.code || "",
-          message: error.message || ""
-        }
-      });
+    if (error.code === "NO_PERMISSION") {
+      await writeAccessDeniedAudit(caller, action, error);
     }
     return {
       ok: false,
