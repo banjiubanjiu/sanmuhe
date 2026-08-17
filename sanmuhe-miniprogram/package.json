@@ -13,7 +13,8 @@
     "admin:verify": "node scripts/verify-admin-production.mjs",
     "admin:e2e-catalog-form": "node scripts/verify-admin-catalog-form.mjs",
     "admin:e2e-catalog-form:remote": "node scripts/verify-admin-catalog-form.mjs --remote https://cloudbase-d2gq023qn50e9d82f-1458290161.tcloudbaseapp.com",
-    "admin:verify-caller": "node scripts/verify-admin-caller-identity.mjs"
+    "admin:verify-caller": "node scripts/verify-admin-caller-identity.mjs",
+    "backup:verify": "node scripts/verify-scheduled-backup.mjs"
   },
   "keywords": [],
   "author": "",

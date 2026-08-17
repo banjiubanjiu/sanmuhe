@@ -1,4 +1,6 @@
 const cloud = require("wx-server-sdk");
+const COS = require("cos-nodejs-sdk-v5");
+const { BACKUP_COLLECTIONS, createBackup } = require("./backup");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV
@@ -6,50 +8,35 @@ cloud.init({
 
 const db = cloud.database();
 
-const backupCollections = [
-  "orders",
-  "reservations",
-  "event_signups",
-  "members",
-  "tea_products",
-  "drinks",
-  "product_categories",
-  "rooms",
-  "events",
-  "content_blocks",
-  "coupons",
-  "user_coupons",
-  "store_settings",
-  "admin_roles",
-  "admin_audit_logs",
-  "notification_logs",
-  "inventory_logs",
-  "data_backup_logs"
-];
-
-async function ensureCollection(name) {
-  try {
-    await db.createCollection(name);
-  } catch (error) {
-    // Existing collections are expected after first setup.
-  }
+function requiredEnv(name) {
+  const value = String(process.env[name] || "").trim();
+  if (!value) throw new Error(`missing required environment variable ${name}`);
+  return value;
 }
 
-async function readCollection(collection, limit) {
-  await ensureCollection(collection);
-  const countResult = await db.collection(collection).count();
-  const result = await db.collection(collection).limit(limit).get();
-  const items = result.data || [];
-  const total = Number(countResult.total || 0);
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function cosCredentials() {
   return {
-    items,
-    total,
-    truncated: total > items.length
+    SecretId: process.env.TENCENTCLOUD_SECRETID || process.env.TENCENTCLOUD_SECRET_ID || "",
+    SecretKey: process.env.TENCENTCLOUD_SECRETKEY || process.env.TENCENTCLOUD_SECRET_KEY || "",
+    SecurityToken: process.env.TENCENTCLOUD_SESSIONTOKEN || process.env.TENCENTCLOUD_SESSION_TOKEN || ""
   };
 }
 
+async function ensureBackupLogCollection() {
+  try {
+    await db.createCollection("data_backup_logs");
+  } catch (error) {
+    // The collection normally already exists in production.
+  }
+}
+
 async function writeBackupLog(data) {
-  await ensureCollection("data_backup_logs");
+  await ensureBackupLogCollection();
   await db.collection("data_backup_logs").add({
     data: Object.assign({
       source: "scheduledBackup",
@@ -58,90 +45,98 @@ async function writeBackupLog(data) {
   });
 }
 
+async function safeWriteBackupLog(data) {
+  try {
+    await writeBackupLog(data);
+  } catch (error) {
+    console.error("scheduledBackup log write failed", error && error.message || String(error));
+  }
+}
+
 exports.main = async (event = {}) => {
+  const credentials = cosCredentials();
+  const configuration = {
+    bucket: String(process.env.BACKUP_COS_BUCKET || "").trim(),
+    destinationRegion: String(process.env.BACKUP_COS_REGION || "").trim(),
+    prefix: String(process.env.BACKUP_COS_PREFIX || "sanmuhe/database").trim(),
+    environmentId: process.env.TCB_ENV || process.env.SCF_NAMESPACE || "cloudbase-d2gq023qn50e9d82f",
+    sourceRegion: process.env.TENCENTCLOUD_REGION || "ap-shanghai"
+  };
+
   if (event.action === "health") {
-    return { ok: true, name: "scheduledBackup" };
+    return {
+      ok: true,
+      name: "scheduledBackup",
+      destinationConfigured: Boolean(configuration.bucket && configuration.destinationRegion),
+      runtimeCredentialsAvailable: Boolean(credentials.SecretId && credentials.SecretKey),
+      collectionCount: BACKUP_COLLECTIONS.length
+    };
   }
 
-  const limit = Math.min(1000, Math.max(50, Number(event.limit || process.env.BACKUP_LIMIT) || 500));
-  const selected = Array.isArray(event.collections) && event.collections.length
-    ? event.collections.filter((item) => backupCollections.includes(item))
-    : backupCollections;
-  const exported = {};
-  const counts = {};
-  const totals = {};
-  const truncated = {};
   const startedAt = new Date();
-
+  let objectKey = "";
   try {
-    for (const collection of selected) {
-      const backup = await readCollection(collection, limit);
-      exported[collection] = backup.items;
-      counts[collection] = backup.items.length;
-      totals[collection] = backup.total;
-      truncated[collection] = backup.truncated;
+    configuration.bucket = requiredEnv("BACKUP_COS_BUCKET");
+    configuration.destinationRegion = requiredEnv("BACKUP_COS_REGION");
+    if (!credentials.SecretId || !credentials.SecretKey) {
+      throw new Error("SCF runtime credentials are unavailable");
     }
-    const truncatedCollections = Object.keys(truncated).filter((collection) => truncated[collection]);
 
-    const dateKey = startedAt.toISOString().slice(0, 10);
-    const fileName = `scheduled-${dateKey}-${Date.now()}.json`;
-    const cloudPath = `admin-backups/scheduled/${fileName}`;
-    const payload = {
-      exportedAt: startedAt.toISOString(),
-      operator: "scheduledBackup",
-      limit,
-      counts,
-      totals,
-      truncated,
-      truncatedCollections,
-      data: exported
-    };
-    const fileContent = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
-    const upload = await cloud.uploadFile({ cloudPath, fileContent });
-    const fileId = upload.fileID || upload.fileId || "";
+    const result = await createBackup({
+      db,
+      cos: new COS(credentials),
+      collections: BACKUP_COLLECTIONS,
+      startedAt,
+      environmentId: configuration.environmentId,
+      sourceRegion: configuration.sourceRegion,
+      bucket: configuration.bucket,
+      destinationRegion: configuration.destinationRegion,
+      prefix: configuration.prefix,
+      pageSize: positiveInteger(process.env.BACKUP_PAGE_SIZE, 200),
+      maxDocuments: positiveInteger(process.env.BACKUP_MAX_DOCUMENTS, 100000)
+    });
+    objectKey = result.objectKey;
 
-    await writeBackupLog({
-      cloudPath,
-      fileId,
-      size: fileContent.length,
-      counts,
-      totals,
-      truncated,
-      truncatedCollections,
-      limit,
+    await safeWriteBackupLog({
+      storage: "cos",
+      bucket: configuration.bucket,
+      region: configuration.destinationRegion,
+      cloudPath: result.objectKey,
+      objectKey: result.objectKey,
+      size: result.size,
+      uncompressedSize: result.uncompressedSize,
+      checksum: result.checksum,
+      contentChecksum: result.contentChecksum,
+      etag: result.etag,
+      counts: result.counts,
+      totals: result.counts,
+      truncated: {},
+      truncatedCollections: [],
+      collectionCount: result.collectionCount,
       operator: "scheduledBackup",
       status: "success"
     });
 
-    return {
-      ok: true,
-      cloudPath,
-      fileId,
-      size: fileContent.length,
-      counts,
-      totals,
-      truncated,
-      truncatedCollections
-    };
+    console.log("scheduledBackup completed", JSON.stringify({
+      objectKey: result.objectKey,
+      size: result.size,
+      checksum: result.checksum,
+      collectionCount: result.collectionCount
+    }));
+    return { ok: true, ...result };
   } catch (error) {
-    await writeBackupLog({
-      cloudPath: "",
-      size: 0,
-      counts,
-      totals,
-      truncated,
-      truncatedCollections: Object.keys(truncated).filter((collection) => truncated[collection]),
-      limit,
+    const message = error && error.message || String(error);
+    await safeWriteBackupLog({
+      storage: "cos",
+      bucket: configuration.bucket,
+      region: configuration.destinationRegion,
+      cloudPath: objectKey,
+      objectKey,
       operator: "scheduledBackup",
       status: "failed",
-      error: error.message || String(error)
+      error: message
     });
-    return {
-      ok: false,
-      message: error.message || "定时备份失败",
-      counts,
-      totals,
-      truncated
-    };
+    console.error("scheduledBackup failed", message);
+    return { ok: false, message };
   }
 };
