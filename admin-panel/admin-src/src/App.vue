@@ -69,6 +69,12 @@ const SAVED_VIEWS_KEY = "hexu-admin-saved-views-v1";
 const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "reservations", "signups", "customers", "content", "audit", "notifications"]);
 const ORDER_ALERT_POLL_MS = 5000;
 const ORDER_ALERT_SEEN_LIMIT = 200;
+const ANALYTICS_RANGE_OPTIONS = [
+  { days: 7, label: "近 7 天" },
+  { days: 30, label: "近 30 天" },
+  { days: 90, label: "近 90 天" }
+];
+const analyticsRangeDays = ref(30);
 
 let cloudApp = null;
 let cloudAuth = null;
@@ -1288,11 +1294,76 @@ const dashboardScopeText = computed(() => {
 });
 const analyticsScopeText = computed(() => {
   const scope = state.analytics?.scope || {};
-  const ordersRead = Number(scope.ordersRead || 0);
-  if (!ordersRead) return "来自已支付订单";
-  const limited = scope.limited ? "，已达读取上限，请用 CSV 导出核对完整口径" : "";
-  return `按最近 ${numberText(ordersRead)} 笔订单统计${limited}`;
+  if (!scope.startDate || !scope.endDate) return "正在建立经营统计口径";
+  const limited = scope.limited ? " · 数据量已达读取上限，请结合订单导出复核" : "";
+  return `${scope.startDate} 至 ${scope.endDate} · ${scope.revenueBasis || "按支付日期统计"}${limited}`;
 });
+const analyticsPeriodText = computed(() => {
+  const scope = state.analytics?.scope || {};
+  if (!scope.startDate || !scope.endDate) return `近 ${analyticsRangeDays.value} 天`;
+  return `${scope.startDate.replaceAll("-", ".")} — ${scope.endDate.replaceAll("-", ".")}`;
+});
+const analyticsTrendGeometry = computed(() => {
+  const trend = Array.isArray(state.analytics?.trend) ? state.analytics.trend : [];
+  const width = 760;
+  const height = 260;
+  const top = 18;
+  const bottom = 34;
+  const baseline = height - bottom;
+  const max = Math.max(1, ...trend.map((item) => Number(item.amount || 0)));
+  const points = trend.map((item, index) => {
+    const x = trend.length <= 1 ? width / 2 : (index / (trend.length - 1)) * width;
+    const y = top + (1 - Number(item.amount || 0) / max) * (baseline - top);
+    return { ...item, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  });
+  const line = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const area = points.length
+    ? `M ${points[0].x} ${baseline} L ${points.map((point) => `${point.x} ${point.y}`).join(" L ")} L ${points[points.length - 1].x} ${baseline} Z`
+    : "";
+  const middle = points.length ? points[Math.floor((points.length - 1) / 2)] : null;
+  return {
+    width,
+    height,
+    baseline,
+    max,
+    half: max / 2,
+    points,
+    line,
+    area,
+    labels: points.length ? [points[0], middle, points[points.length - 1]].filter(Boolean) : []
+  };
+});
+const analyticsChannels = computed(() => Array.isArray(state.analytics?.channels) ? state.analytics.channels : []);
+const analyticsTopItems = computed(() => Array.isArray(state.analytics?.topItems) ? state.analytics.topItems : []);
+
+function analyticsMoney(value) {
+  const amount = Number(value || 0);
+  return amount.toLocaleString("zh-CN", {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function analyticsDeltaText(key) {
+  const value = state.analytics?.comparison?.[key];
+  if (value === null || value === undefined) return "上期无基数";
+  if (Number(value) === 0) return "与上期持平";
+  return `较上期 ${Number(value) > 0 ? "+" : ""}${numberText(value)}%`;
+}
+
+function analyticsDeltaTone(key, inverse = false) {
+  const value = state.analytics?.comparison?.[key];
+  if (value === null || value === undefined || Number(value) === 0) return "neutral";
+  const positive = Number(value) > 0;
+  return (inverse ? !positive : positive) ? "good" : "risk";
+}
+
+async function setAnalyticsRange(days) {
+  const next = Number(days);
+  if (![7, 30, 90].includes(next) || next === analyticsRangeDays.value) return;
+  analyticsRangeDays.value = next;
+  await loadAnalytics();
+}
 const currentFreshnessMeta = computed(() => {
   const value = state.lastLoadedAt[state.activeTab];
   if (!value) {
@@ -5141,7 +5212,10 @@ async function deleteContent(item) {
 
 async function loadAnalytics() {
   await withLoading("读取统计", async () => {
-    const result = await callFunction("manageOperations", { action: "getAnalytics" });
+    const result = await callFunction("manageOperations", {
+      action: "getAnalytics",
+      rangeDays: analyticsRangeDays.value
+    });
     state.analytics = result.analytics || {};
   });
 }
@@ -7540,26 +7614,136 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-if="state.activeTab === 'analytics'" class="analytics-layout">
-          <article class="panel-card metric-card large">
-            <span>总营业额</span>
-            <strong>¥{{ money(state.analytics?.summary?.revenue) }}</strong>
-            <p>{{ analyticsScopeText }}</p>
+        <section v-if="state.activeTab === 'analytics'" class="analytics-layout" aria-label="经营数据统计">
+          <header class="panel-card analytics-command">
+            <div>
+              <span class="analytics-eyebrow">经营分析 / BUSINESS REVIEW</span>
+              <h2>经营表现</h2>
+              <p>{{ analyticsScopeText }}</p>
+            </div>
+            <div class="analytics-range" role="group" aria-label="统计周期">
+              <button
+                v-for="option in ANALYTICS_RANGE_OPTIONS"
+                :key="option.days"
+                type="button"
+                :class="{ active: analyticsRangeDays === option.days }"
+                :aria-pressed="analyticsRangeDays === option.days"
+                :disabled="state.loading === '读取统计'"
+                @click="setAnalyticsRange(option.days)"
+              >{{ option.label }}</button>
+            </div>
+          </header>
+
+          <article class="panel-card analytics-revenue">
+            <div class="analytics-revenue-head">
+              <span>订单净收入</span>
+              <em :data-tone="analyticsDeltaTone('revenue')">{{ analyticsDeltaText("revenue") }}</em>
+            </div>
+            <strong><small>¥</small>{{ analyticsMoney(state.analytics?.summary?.revenue) }}</strong>
+            <p>{{ analyticsPeriodText }}</p>
+            <div class="analytics-revenue-breakdown">
+              <span><small>订单销售额</small><b>¥{{ analyticsMoney(state.analytics?.summary?.grossRevenue) }}</b></span>
+              <span><small>已记录退款</small><b>¥{{ analyticsMoney(state.analytics?.summary?.refunds) }}</b></span>
+              <span><small>退款率</small><b>{{ numberText(state.analytics?.summary?.refundRate || 0) }}%</b></span>
+            </div>
           </article>
-          <article class="panel-card metric-card large">
-            <span>已支付订单数</span>
-            <strong>{{ numberText(state.analytics?.summary?.orders || 0) }}</strong>
-            <p>含零售茶品和堂饮茶单订单</p>
+
+          <aside class="analytics-snapshot" aria-label="经营关键指标">
+            <article class="panel-card analytics-stat">
+              <span>支付订单</span>
+              <strong>{{ numberText(state.analytics?.summary?.orders || 0) }}</strong>
+              <small :data-tone="analyticsDeltaTone('orders')">{{ analyticsDeltaText("orders") }}</small>
+            </article>
+            <article class="panel-card analytics-stat">
+              <span>平均客单价</span>
+              <strong>¥{{ analyticsMoney(state.analytics?.summary?.averageOrder) }}</strong>
+              <small :data-tone="analyticsDeltaTone('averageOrder')">{{ analyticsDeltaText("averageOrder") }}</small>
+            </article>
+            <article class="panel-card analytics-stat">
+              <span>新增预约</span>
+              <strong>{{ numberText(state.analytics?.summary?.reservations || 0) }}</strong>
+              <small :data-tone="analyticsDeltaTone('reservations')">{{ analyticsDeltaText("reservations") }}</small>
+            </article>
+            <article class="panel-card analytics-stat">
+              <span>活动报名</span>
+              <strong>{{ numberText(state.analytics?.summary?.signups || 0) }}</strong>
+              <small :data-tone="analyticsDeltaTone('signups')">{{ analyticsDeltaText("signups") }}</small>
+            </article>
+          </aside>
+
+          <article class="panel-card analytics-trend-panel">
+            <div class="analytics-panel-head">
+              <div><span>收入走势</span><h2>每日订单净收入</h2></div>
+              <p>已扣除订单累计退款</p>
+            </div>
+            <div v-if="analyticsTrendGeometry.points.length" class="analytics-chart-wrap">
+              <div class="analytics-y-axis" aria-hidden="true">
+                <span>¥{{ analyticsMoney(analyticsTrendGeometry.max) }}</span>
+                <span>¥{{ analyticsMoney(analyticsTrendGeometry.half) }}</span>
+                <span>0</span>
+              </div>
+              <svg
+                class="analytics-line-chart"
+                :viewBox="`0 0 ${analyticsTrendGeometry.width} ${analyticsTrendGeometry.height}`"
+                role="img"
+                :aria-label="`${analyticsPeriodText} 每日订单净收入趋势`"
+                preserveAspectRatio="none"
+              >
+                <line x1="0" :y1="18" :x2="analyticsTrendGeometry.width" :y2="18" class="chart-grid-line" />
+                <line x1="0" :y1="(18 + analyticsTrendGeometry.baseline) / 2" :x2="analyticsTrendGeometry.width" :y2="(18 + analyticsTrendGeometry.baseline) / 2" class="chart-grid-line" />
+                <line x1="0" :y1="analyticsTrendGeometry.baseline" :x2="analyticsTrendGeometry.width" :y2="analyticsTrendGeometry.baseline" class="chart-grid-line" />
+                <path v-if="analyticsTrendGeometry.area" :d="analyticsTrendGeometry.area" class="chart-area" />
+                <polyline v-if="analyticsTrendGeometry.line" :points="analyticsTrendGeometry.line" class="chart-line" />
+                <g v-if="analyticsTrendGeometry.points.length <= 31">
+                  <circle v-for="point in analyticsTrendGeometry.points" :key="point.date" :cx="point.x" :cy="point.y" r="3" class="chart-point">
+                    <title>{{ point.date }}：净收入 ¥{{ analyticsMoney(point.amount) }}，{{ point.orders }} 笔订单</title>
+                  </circle>
+                </g>
+              </svg>
+              <div class="analytics-x-axis" aria-hidden="true">
+                <span v-for="point in analyticsTrendGeometry.labels" :key="point.date">{{ point.label }}</span>
+              </div>
+            </div>
+            <EmptyState v-else title="暂无收入走势" hint="当前统计周期内还没有可绘制的支付订单。" />
           </article>
-          <article class="panel-card metric-card large">
-            <span>预约量</span>
-            <strong>{{ numberText(state.analytics?.summary?.reservations || 0) }}</strong>
-            <p>未取消茶室预约</p>
-          </article>
-          <article class="panel-card wide-table">
-            <div class="panel-title"><h2>热销项目</h2></div>
-            <table><caption>热销项目统计</caption><thead><tr><th scope="col">名称</th><th scope="col">类型</th><th scope="col">销售额</th><th scope="col">数量</th></tr></thead><tbody><tr v-for="item in (state.analytics?.topItems || [])" :key="item.name"><td>{{ item.name }}</td><td>{{ item.type }}</td><td>¥{{ money(item.amount) }}</td><td>{{ item.count }}</td></tr></tbody></table>
-            <EmptyState v-if="(state.analytics?.topItems || []).length === 0" title="暂无热销项目" hint="有已支付订单后会自动生成销售排行。" :action-label="emptyActionLabel('analytics')" @action="handleEmptyAction('analytics')" />
+
+          <aside class="panel-card analytics-channel-panel">
+            <div class="analytics-panel-head">
+              <div><span>收入结构</span><h2>订单渠道构成</h2></div>
+            </div>
+            <div v-if="analyticsChannels.length" class="analytics-channel-list">
+              <div v-for="channel in analyticsChannels" :key="channel.key" class="analytics-channel-item">
+                <div><strong>{{ channel.name }}</strong><span>{{ channel.orders }} 笔</span></div>
+                <div class="analytics-progress"><i :style="{ width: `${Math.min(100, Number(channel.share || 0))}%` }"></i></div>
+                <p><b>¥{{ analyticsMoney(channel.amount) }}</b><span>{{ numberText(channel.share) }}%</span></p>
+              </div>
+            </div>
+            <EmptyState v-else title="暂无渠道数据" hint="有支付订单后会显示零售与堂饮构成。" />
+            <p class="analytics-footnote">按订单销售额计算，退款暂不向渠道分摊。</p>
+          </aside>
+
+          <article class="panel-card analytics-ranking">
+            <div class="analytics-panel-head">
+              <div><span>商品表现</span><h2>热销项目贡献榜</h2></div>
+              <p>按订单销售额排序</p>
+            </div>
+            <div v-if="analyticsTopItems.length" class="table-wrap">
+              <table>
+                <caption>统计周期内热销项目销售贡献</caption>
+                <thead><tr><th scope="col">排名</th><th scope="col">项目</th><th scope="col">业务</th><th scope="col">销量</th><th scope="col">销售额</th><th scope="col">贡献率</th></tr></thead>
+                <tbody>
+                  <tr v-for="item in analyticsTopItems" :key="`${item.type}-${item.name}`">
+                    <td><span class="analytics-rank">{{ String(item.rank).padStart(2, "0") }}</span></td>
+                    <td><strong>{{ item.name }}</strong></td>
+                    <td><span class="status-pill neutral">{{ item.type }}</span></td>
+                    <td>{{ numberText(item.count) }}</td>
+                    <td><strong>¥{{ analyticsMoney(item.amount) }}</strong></td>
+                    <td><div class="analytics-share"><span class="analytics-share-track"><i :style="{ width: `${Math.min(100, Number(item.share || 0))}%` }"></i></span><span>{{ numberText(item.share) }}%</span></div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <EmptyState v-else title="暂无热销项目" hint="当前周期有已支付订单后会自动生成真实销售排行。" :action-label="emptyActionLabel('analytics')" @action="handleEmptyAction('analytics')" />
           </article>
         </section>
 

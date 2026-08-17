@@ -165,7 +165,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "analytics data scope",
-      items: ["ANALYTICS_READ_LIMIT", "orders: revenueOrders.length", "revenueOrders"]
+      items: ["ANALYTICS_READ_LIMIT", "normalizeRangeDays", "buildAnalytics", "rangeDays"]
     },
     {
       label: "system health probes",
@@ -178,6 +178,13 @@ function verifyProductionSurfaces() {
     {
       label: "backup completeness system status",
       items: ["backupTruncatedCollections", "hasBackupCompleteness", "旧记录未包含完整性校验", "最近备份完整", "sha256", "checksum"]
+    }
+  ]);
+
+  verifySourceContains("cloudfunctions/manageOperations/analytics.js", [
+    {
+      label: "period-aware analytics",
+      items: ["ALLOWED_RANGE_DAYS", "previousStartDate", "percentageChange", "grossRevenue", "refundRate", "channels", "topItems", "revenueBasis"]
     }
   ]);
 
@@ -207,7 +214,7 @@ function verifyProductionSurfaces() {
     },
     {
       label: "truthful analytics copy",
-      items: ["dashboardScopeText", "analyticsScopeText", "已支付订单数"]
+      items: ["dashboardScopeText", "analyticsScopeText", "订单净收入", "analyticsDeltaText", "每日订单净收入"]
     },
     {
       label: "workflow-first admin polish",

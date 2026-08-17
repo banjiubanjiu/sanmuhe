@@ -1,5 +1,6 @@
 const cloud = require("wx-server-sdk");
 const crypto = require("crypto");
+const { buildAnalytics, normalizeRangeDays } = require("./analytics");
 const {
   uploadExpressShipping,
   uploadPickupOrOnsiteShipping,
@@ -3883,65 +3884,23 @@ async function createDataBackup(event, caller) {
   }
 }
 
-function addTrend(bucket, key, amount) {
-  if (!bucket[key]) {
-    bucket[key] = 0;
-  }
-  bucket[key] += amount;
-}
-
-async function getAnalytics() {
+async function getAnalytics(event = {}) {
+  const rangeDays = normalizeRangeDays(event.rangeDays);
   const [orders, reservations, signups] = await Promise.all([
     readCollection("orders", { orderBy: "createdAt", limit: ANALYTICS_READ_LIMIT }),
     readCollection("reservations", { orderBy: "createdAt", limit: ANALYTICS_READ_LIMIT }),
     readCollection("event_signups", { orderBy: "createdAt", limit: ANALYTICS_READ_LIMIT })
   ]);
-  const revenueOrders = orders.filter(isRevenueOrder);
-  const byDay = {};
-  const byCategory = {};
-  const topItems = {};
-
-  revenueOrders.forEach((order) => {
-    addTrend(byDay, dateKey(order.createdAt), number(order.total));
-    (order.items || []).forEach((item) => {
-      const category = item.type === "drink" ? "茶饮" : "茶品";
-      addTrend(byCategory, category, number(item.lineTotal || item.price * item.quantity));
-      if (!topItems[item.name]) {
-        topItems[item.name] = { name: item.name, type: category, amount: 0, count: 0 };
-      }
-      topItems[item.name].amount += number(item.lineTotal || item.price * item.quantity);
-      topItems[item.name].count += number(item.quantity);
-    });
-  });
-
-  const trend = Object.keys(byDay).sort().slice(-14).map((key) => ({ date: key, amount: byDay[key] }));
-  const categories = Object.keys(byCategory).map((name) => ({ name, amount: byCategory[name] }))
-    .sort((a, b) => b.amount - a.amount);
 
   return {
     ok: true,
-    analytics: {
-      summary: {
-        revenue: revenueOrders.reduce((sum, order) => sum + number(order.total), 0),
-        orders: revenueOrders.length,
-        totalOrders: orders.length,
-        reservations: reservations.filter((item) => item.status !== "已取消").length,
-        signups: signups.filter((item) => item.status !== "已取消").length,
-        averageOrder: revenueOrders.length
-          ? Math.round(revenueOrders.reduce((sum, order) => sum + number(order.total), 0) / revenueOrders.length)
-          : 0
-      },
-      trend,
-      categories,
-      topItems: Object.values(topItems).sort((a, b) => b.amount - a.amount).slice(0, 10),
-      scope: {
-        limit: ANALYTICS_READ_LIMIT,
-        ordersRead: orders.length,
-        reservationsRead: reservations.length,
-        signupsRead: signups.length,
-        limited: orders.length >= ANALYTICS_READ_LIMIT || reservations.length >= ANALYTICS_READ_LIMIT || signups.length >= ANALYTICS_READ_LIMIT
-      }
-    }
+    analytics: buildAnalytics({
+      orders,
+      reservations,
+      signups,
+      rangeDays,
+      readLimit: ANALYTICS_READ_LIMIT
+    })
   };
 }
 
@@ -4777,7 +4736,7 @@ exports.main = async (event = {}, context = {}) => {
       return await updateAfterSale(event, caller);
     }
     if (action === "getAnalytics") {
-      return await getAnalytics();
+      return await getAnalytics(event);
     }
     if (action === "listContent") {
       return await listContent(event);
