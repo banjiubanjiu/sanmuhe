@@ -2517,7 +2517,223 @@ async function getDashboard() {
   };
 }
 
+function recordTimeRank(value) {
+  const date = toDate(value);
+  return date ? date.getTime() : 0;
+}
+
+function memberRecordTime(record = {}) {
+  return record.lastPaidAt || record.updatedAt || record.createdAt || null;
+}
+
+function rechargeRecordTime(record = {}) {
+  return record.paidAt || record.updatedAt || record.createdAt || null;
+}
+
+function ledgerRecordTime(record = {}) {
+  return record.createdAt || record.updatedAt || null;
+}
+
+function ledgerTypeLabel(type) {
+  const labels = {
+    wechat_recharge: "微信充值",
+    test_recharge: "模拟充值",
+    reservation_payment: "余额支付",
+    recharge_refund: "充值退款",
+    balance_adjustment: "余额调整"
+  };
+  return labels[type] || "余额变动";
+}
+
+function ledgerSignedFen(record = {}) {
+  const amountFen = number(record.amountFen);
+  return /payment|consume|spend|debit/i.test(String(record.type || "")) ? -amountFen : amountFen;
+}
+
+function summarizeMembers(members, wallets, recharges, ledger, orders) {
+  const activeMembers = new Map();
+  (members || []).forEach((member) => {
+    if (!member || member.status !== "active" || !member.phone) {
+      return;
+    }
+    const key = member._openid || member._id;
+    const saved = activeMembers.get(key);
+    if (!saved || recordTimeRank(memberRecordTime(member)) > recordTimeRank(memberRecordTime(saved))) {
+      activeMembers.set(key, member);
+    }
+  });
+
+  const walletsByOpenid = new Map();
+  const walletsByMemberId = new Map();
+  (wallets || []).forEach((wallet) => {
+    if (wallet._openid) walletsByOpenid.set(wallet._openid, wallet);
+    if (wallet.memberId) walletsByMemberId.set(wallet.memberId, wallet);
+  });
+
+  const rechargesByOpenid = new Map();
+  const rechargesByMemberId = new Map();
+  (recharges || []).forEach((recharge) => {
+    if (recharge._openid) {
+      const rows = rechargesByOpenid.get(recharge._openid) || [];
+      rows.push(recharge);
+      rechargesByOpenid.set(recharge._openid, rows);
+    }
+    if (recharge.memberId) {
+      const rows = rechargesByMemberId.get(recharge.memberId) || [];
+      rows.push(recharge);
+      rechargesByMemberId.set(recharge.memberId, rows);
+    }
+  });
+
+  const ledgerByOpenid = new Map();
+  const ledgerByMemberId = new Map();
+  const ledgerByWalletId = new Map();
+  (ledger || []).forEach((entry) => {
+    if (entry._openid) {
+      const rows = ledgerByOpenid.get(entry._openid) || [];
+      rows.push(entry);
+      ledgerByOpenid.set(entry._openid, rows);
+    }
+    if (entry.memberId) {
+      const rows = ledgerByMemberId.get(entry.memberId) || [];
+      rows.push(entry);
+      ledgerByMemberId.set(entry.memberId, rows);
+    }
+    if (entry.walletId) {
+      const rows = ledgerByWalletId.get(entry.walletId) || [];
+      rows.push(entry);
+      ledgerByWalletId.set(entry.walletId, rows);
+    }
+  });
+
+  const ordersByOpenid = new Map();
+  (orders || []).filter(isRevenueOrder).forEach((order) => {
+    if (!order._openid) return;
+    const rows = ordersByOpenid.get(order._openid) || [];
+    rows.push(order);
+    ordersByOpenid.set(order._openid, rows);
+  });
+
+  return Array.from(activeMembers.values()).map((member) => {
+    const openid = member._openid || "";
+    const memberId = member._id || "";
+    const wallet = walletsByOpenid.get(openid) || walletsByMemberId.get(memberId) || {};
+    const memberRecharges = Array.from(new Map([
+      ...(rechargesByOpenid.get(openid) || []),
+      ...(rechargesByMemberId.get(memberId) || [])
+    ].map((row) => [row._id || row.orderNo, row])).values());
+    const memberLedger = Array.from(new Map([
+      ...(ledgerByOpenid.get(openid) || []),
+      ...(ledgerByMemberId.get(memberId) || []),
+      ...(ledgerByWalletId.get(wallet._id) || [])
+    ].map((row) => [row._id, row])).values());
+    const memberOrders = (ordersByOpenid.get(openid) || [])
+      .sort((a, b) => recordTimeRank(b.paidAt || b.updatedAt || b.createdAt) - recordTimeRank(a.paidAt || a.updatedAt || a.createdAt));
+    const orderSpend = memberOrders.reduce((sum, order) => sum + number(order.total), 0);
+    const latestRechargeAt = memberRecharges.reduce((latest, row) => Math.max(latest, recordTimeRank(rechargeRecordTime(row))), 0);
+    const latestOrderAt = memberOrders.reduce((latest, row) => Math.max(latest, recordTimeRank(row.paidAt || row.updatedAt || row.createdAt)), 0);
+    const latestAt = Math.max(recordTimeRank(memberRecordTime(member)), latestRechargeAt, latestOrderAt);
+
+    return {
+      id: openid || memberId,
+      memberId,
+      openid,
+      name: member.name || "禾煦会员",
+      phone: member.phone || "",
+      cardNo: member.cardNo || "",
+      levelName: member.tier || "雅客会员",
+      status: member.status || "active",
+      points: number(member.points),
+      spend: Math.max(number(member.totalSpend), orderSpend),
+      totalSpend: Math.max(number(member.totalSpend), orderSpend),
+      orders: Math.max(number(member.paidOrders), memberOrders.length),
+      joinedAt: member.agreementAcceptedAt || member.createdAt || null,
+      latestAt: latestAt ? new Date(latestAt) : memberRecordTime(member),
+      balance: number(wallet.balanceFen) / 100,
+      principalBalance: number(wallet.principalBalanceFen) / 100,
+      bonusBalance: number(wallet.bonusBalanceFen) / 100,
+      recentRecharges: memberRecharges
+        .sort((a, b) => recordTimeRank(rechargeRecordTime(b)) - recordTimeRank(rechargeRecordTime(a)))
+        .slice(0, 6)
+        .map((row) => ({
+          id: row._id || row.orderNo,
+          orderNo: row.orderNo || "",
+          title: row.planTitle || "会员充值",
+          principal: number(row.principalFen) / 100,
+          bonus: number(row.bonusFen) / 100,
+          credit: number(row.creditFen) / 100,
+          status: row.payStatus || row.status || "pending",
+          time: rechargeRecordTime(row)
+        })),
+      recentOrders: memberOrders.slice(0, 6).map((row) => ({
+        id: row._id || row.orderNo,
+        orderNo: row.orderNo || "",
+        amount: number(row.total),
+        status: row.status || row.payStatus || "",
+        time: row.paidAt || row.updatedAt || row.createdAt || null
+      })),
+      walletLedger: memberLedger
+        .sort((a, b) => recordTimeRank(ledgerRecordTime(b)) - recordTimeRank(ledgerRecordTime(a)))
+        .slice(0, 8)
+        .map((row) => ({
+          id: row._id || "",
+          type: row.type || "",
+          label: ledgerTypeLabel(row.type),
+          amount: ledgerSignedFen(row) / 100,
+          balanceAfter: row.balanceAfterFen === undefined || row.balanceAfterFen === null ? null : number(row.balanceAfterFen) / 100,
+          status: row.status || "",
+          time: ledgerRecordTime(row)
+        }))
+    };
+  }).sort((a, b) => recordTimeRank(b.latestAt) - recordTimeRank(a.latestAt) || b.totalSpend - a.totalSpend);
+}
+
+async function listMembers(event) {
+  const keyword = cleanText(event.keyword, 80).toLowerCase();
+  const [members, wallets, recharges, ledger, orders] = await Promise.all([
+    readCollection("members", { limit: 1000 }),
+    readCollection("wallet_accounts", { limit: 1000 }),
+    readCollection("recharge_orders", { orderBy: "createdAt", limit: 1000 }),
+    readCollection("wallet_ledger", { orderBy: "createdAt", limit: 1000 }),
+    readCollection("orders", { orderBy: "createdAt", limit: 1000 })
+  ]);
+  const allMembers = summarizeMembers(members, wallets, recharges, ledger, orders);
+  const filtered = allMembers.filter((member) => {
+    if (!keyword) return true;
+    return [member.name, member.phone, member.cardNo, member.levelName, member.openid]
+      .join(" ")
+      .toLowerCase()
+      .includes(keyword);
+  });
+  const currentMonth = todayKey().slice(0, 7);
+  const memberOpenids = new Set(allMembers.map((item) => item.openid).filter(Boolean));
+  const memberIds = new Set(allMembers.map((item) => item.memberId).filter(Boolean));
+  const monthRecharge = (recharges || []).filter((row) => {
+    const belongsToMember = memberOpenids.has(row._openid) || memberIds.has(row.memberId);
+    return belongsToMember && row.payStatus === "paid" && dateKey(row.paidAt || row.updatedAt).slice(0, 7) === currentMonth;
+  }).reduce((sum, row) => sum + number(row.principalFen), 0) / 100;
+  const paged = paginateArray(filtered, event);
+  return {
+    ok: true,
+    customers: paged.items,
+    page: paged.page,
+    summary: {
+      totalMembers: allMembers.length,
+      totalBalance: allMembers.reduce((sum, member) => sum + number(member.balance), 0),
+      monthRecharge,
+      matchedMembers: filtered.length
+    },
+    scope: {
+      limit: 1000,
+      limited: [members, wallets, recharges, ledger, orders].some((rows) => rows.length >= 1000)
+    }
+  };
+}
+
 async function listCustomers(event) {
+  if (event.memberOnly === true) {
+    return await listMembers(event);
+  }
   const keyword = cleanText(event.keyword, 80);
   const [orders, reservations, signups] = await Promise.all([
     readCollection("orders", { orderBy: "createdAt", limit: 1000 }),

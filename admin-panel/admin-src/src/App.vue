@@ -117,7 +117,7 @@ const navItems = [
   { key: "orders", label: "订单管理", icon: ClipboardList },
   { key: "afterSales", label: "售后管理", icon: BadgeDollarSign },
   { key: "inventory", label: "库存流水", icon: Package },
-  { key: "customers", label: "用户管理", icon: UserRound },
+  { key: "customers", label: "会员管理", icon: UserRound },
   { key: "catalog", label: "商品管理", icon: Package },
   { key: "content", label: "内容管理", icon: FileText },
   { key: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing },
@@ -157,7 +157,7 @@ const quickActions = [
   { tab: "orders", label: "订单管理", icon: ClipboardList },
   { tab: "catalog", label: "商品资料", icon: Package },
   { tab: "content", label: "运营内容", icon: PenLine },
-  { tab: "customers", label: "用户管理", icon: Users }
+  { tab: "customers", label: "会员管理", icon: Users }
 ];
 
 const fallbackMetricIcons = [CalendarCheck, TicketPercent, BadgeDollarSign, UserPlus, CircleDollarSign];
@@ -172,7 +172,7 @@ const pageTitles = {
   orders: ["订单管理", "待办工作台"],
   afterSales: ["售后管理", ""],
   inventory: ["库存流水", ""],
-  customers: ["用户管理", ""],
+  customers: ["会员管理", ""],
   catalog: ["商品管理", ""],
   content: ["内容管理", ""],
   analytics: ["数据统计", ""],
@@ -191,7 +191,7 @@ const moduleProfiles = {
   orders: { group: "经营", subject: "订单", countLabel: "笔", note: "" },
   afterSales: { group: "经营", subject: "售后", countLabel: "笔", note: "" },
   inventory: { group: "经营", subject: "库存", countLabel: "条", note: "" },
-  customers: { group: "门店", subject: "用户", countLabel: "位", note: "" },
+  customers: { group: "门店", subject: "会员", countLabel: "位", note: "" },
   catalog: { group: "商品", subject: "资料", countLabel: "条", note: "" },
   content: { group: "内容", subject: "内容", countLabel: "条", note: "" },
   analytics: { group: "数据", subject: "统计", countLabel: "项", note: "" },
@@ -208,7 +208,7 @@ const riskPolicyByTab = {
   inventory: "人工调整需填写库存原因",
   reservations: "取消预约需记录业务原因",
   signups: "取消报名需记录业务原因",
-  customers: "导出/删除个人数据需原因",
+  customers: "导出/删除会员个人数据需原因",
   catalog: "价格库存状态变更需原因",
   content: "内容停用会影响小程序展示",
   audit: "导出审计记录需操作原因",
@@ -282,6 +282,7 @@ const state = reactive({
   },
   signups: [],
   customers: [],
+  customerSummary: { totalMembers: 0, totalBalance: 0, monthRecharge: 0, matchedMembers: 0 },
   contentItems: [],
   analytics: null,
   searchResults: [],
@@ -2639,6 +2640,44 @@ function customerTimeline(customer) {
   });
 }
 
+function memberRechargeStatus(status) {
+  const labels = { paid: "已到账", pending: "待支付", failed: "失败", cancelled: "已取消", expired: "已过期" };
+  return labels[status] || status || "待确认";
+}
+
+function memberTimeline(member) {
+  const entries = [];
+  (member?.recentRecharges || []).forEach((row) => {
+    const status = memberRechargeStatus(row.status);
+    entries.push({
+      time: row.time,
+      title: row.title || "会员充值",
+      detail: [`实付 ¥${money(row.principal)}`, row.bonus ? `赠送 ¥${money(row.bonus)}` : "", `到账 ¥${money(row.credit)}`, status].filter(Boolean).join(" · "),
+      tone: status === "已到账" ? "good" : status === "待支付" ? "warn" : "danger"
+    });
+  });
+  (member?.recentOrders || []).forEach((row) => {
+    entries.push({
+      time: row.time,
+      title: row.orderNo ? `消费订单 ${row.orderNo}` : "消费订单",
+      detail: [`¥${money(row.amount)}`, row.status].filter(Boolean).join(" · "),
+      tone: customerActivityTone(row)
+    });
+  });
+  (member?.walletLedger || []).filter((row) => !/recharge/i.test(row.type || "")).forEach((row) => {
+    const amount = Number(row.amount || 0);
+    entries.push({
+      time: row.time,
+      title: row.label || "余额变动",
+      detail: [amount ? `${amount > 0 ? "+" : "-"}¥${money(Math.abs(amount))}` : "", row.balanceAfter === null ? "" : `余额 ¥${money(row.balanceAfter)}`].filter(Boolean).join(" · "),
+      tone: amount < 0 ? "neutral" : "good"
+    });
+  });
+  return entries
+    .sort((a, b) => new Date(b.time?.$date || b.time?.seconds * 1000 || b.time || 0) - new Date(a.time?.$date || a.time?.seconds * 1000 || a.time || 0))
+    .slice(0, 12);
+}
+
 function customerSignal(customer) {
   if (!customer) {
     return { title: "暂无用户", detail: "选择用户后显示最近互动和运营判断。" };
@@ -4383,13 +4422,15 @@ async function loadSignups() {
 }
 
 async function loadCustomers() {
-  await withLoading("读取用户", async () => {
+  await withLoading("读取会员", async () => {
     const result = await callFunction("manageOperations", {
       action: "listCustomers",
+      memberOnly: true,
       keyword: filters.customerKeyword,
       ...pagePayload("customers")
     });
     state.customers = result.customers || [];
+    state.customerSummary = Object.assign({ totalMembers: 0, totalBalance: 0, monthRecharge: 0, matchedMembers: 0 }, result.summary || {});
     setPageMeta("customers", result.page);
     state.selectedCustomerId = state.customers[0]?.id || "";
   });
@@ -4834,27 +4875,32 @@ async function exportSignups() {
 }
 
 async function exportCustomers() {
-  await withLoading("导出用户", async () => {
+  await withLoading("导出会员", async () => {
     const rows = await fetchExportRows({
       action: "listCustomers",
       rowsKey: "customers",
-      label: "用户",
+      label: "会员",
       payload: {
+        memberOnly: true,
         keyword: filters.customerKeyword
       }
     });
     if (!rows) return;
-    downloadCsv(csvFilename("customers"), [
-      { label: "标识", value: (item) => item.openid || item.id || "" },
+    downloadCsv(csvFilename("members"), [
+      { label: "会员卡号", value: (item) => item.cardNo || "" },
       { label: "姓名", value: (item) => item.name || "" },
       { label: "手机号", value: (item) => item.phone || "" },
+      { label: "等级", value: (item) => item.levelName || "" },
+      { label: "储值余额", value: (item) => money(item.balance) },
+      { label: "本金余额", value: (item) => money(item.principalBalance) },
+      { label: "赠送余额", value: (item) => money(item.bonusBalance) },
+      { label: "累计消费", value: (item) => money(customerSpend(item)) },
       { label: "订单数", value: (item) => item.orders || 0 },
-      { label: "预约数", value: (item) => item.reservations || 0 },
-      { label: "报名数", value: (item) => item.signups || 0 },
-      { label: "消费", value: (item) => money(customerSpend(item)) },
-      { label: "标签", value: (item) => Array.isArray(item.tags) ? item.tags.join(" ") : item.tag || "" }
+      { label: "积分", value: (item) => item.points || 0 },
+      { label: "加入时间", value: (item) => formatDate(item.joinedAt) },
+      { label: "最近活跃", value: (item) => formatDate(customerLatestAt(item)) }
     ], rows);
-    showToast(`已导出 ${numberText(rows.length)} 位用户`);
+    showToast(`已导出 ${numberText(rows.length)} 位会员`);
   });
 }
 
@@ -7290,21 +7336,26 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-if="state.activeTab === 'customers'" class="list-workspace">
+        <section v-if="state.activeTab === 'customers'" class="list-workspace member-workspace">
+          <div class="member-overview" aria-label="会员概览">
+            <article><span>会员总数</span><strong>{{ numberText(state.customerSummary.totalMembers) }}</strong><small>位已开通会员</small></article>
+            <article><span>储值总余额</span><strong>¥{{ money(state.customerSummary.totalBalance) }}</strong><small>本金与赠送余额合计</small></article>
+            <article><span>本月充值</span><strong>¥{{ money(state.customerSummary.monthRecharge) }}</strong><small>仅统计已支付本金</small></article>
+          </div>
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
-              <input v-model="filters.customerKeyword" class="line-input" aria-label="搜索用户" placeholder="姓名、手机号、OpenID" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
+              <input v-model="filters.customerKeyword" class="line-input" aria-label="搜索会员" placeholder="姓名、手机号或会员卡号" @keydown.enter="resetPageAndLoad('customers', loadCustomers)">
               <button v-if="hasPermission('export.read')" class="secondary-action small" type="button" @click="exportCustomers">{{ exportScopeLabel }}</button>
             </div>
             <div class="record-list">
               <button v-for="customer in state.customers" :key="customer.id" :class="['record-row', { selected: state.drawers.customer && state.selectedCustomerId === customer.id }]" type="button" @click="selectCustomer(customer)">
                 <strong><span>{{ customerDisplayName(customer) }}</span><em>{{ customerLevel(customer) }}</em></strong>
                 <span class="record-meta">
-                  <span>消费 ¥{{ money(customerSpend(customer)) }} · 订单 {{ customer.orders || 0 }}</span>
-                  <i class="record-status neutral">预约 {{ customer.reservations || 0 }}</i>
+                  <span>余额 ¥{{ money(customer.balance) }} · 累计消费 ¥{{ money(customerSpend(customer)) }}</span>
+                  <i class="record-status neutral">{{ customer.orders || 0 }} 笔消费</i>
                 </span>
               </button>
-              <EmptyState v-if="state.customers.length === 0" :title="emptyTitle('customers')" :hint="emptyHint('customers')" :action-label="emptyActionLabel('customers')" @action="handleEmptyAction('customers')" />
+              <EmptyState v-if="state.customers.length === 0" title="暂无会员" hint="顾客在小程序开通会员后会出现在这里。" :action-label="emptyActionLabel('customers')" @action="handleEmptyAction('customers')" />
             </div>
             <div v-if="pageMetaFor('customers').total > pageMetaFor('customers').pageSize" class="pager">
               <span>{{ pageRangeText('customers') }}</span>
@@ -7312,33 +7363,37 @@ onBeforeUnmount(() => {
               <button type="button" :disabled="pageMetaFor('customers').page >= pageMetaFor('customers').pageCount" @click="changePage('customers', 1, loadCustomers)">下一页</button>
             </div>
           </article>
-          <div v-if="state.drawers.customer && selectedCustomer" class="editor-drawer" role="dialog" aria-modal="true" aria-label="用户画像">
+          <div v-if="state.drawers.customer && selectedCustomer" class="editor-drawer" role="dialog" aria-modal="true" aria-label="会员详情">
             <div class="editor-drawer-mask" @click="closeDrawer('customer')"></div>
             <aside class="panel-card detail-panel drawer-panel">
-            <div class="panel-title"><h2>用户画像</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('customer')">×</button></div>
-            <DetailRow label="标识" :value="maskOpenid(selectedCustomer.openid || selectedCustomer.id) || '-'" />
+            <div class="panel-title"><h2>会员详情</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('customer')">×</button></div>
+            <DetailRow label="会员" :value="customerDisplayName(selectedCustomer)" />
+            <DetailRow label="等级" :value="customerLevel(selectedCustomer)" />
+            <DetailRow label="会员卡号" :value="selectedCustomer.cardNo || '-'" />
             <DetailRow label="手机号" :value="maskPhone(selectedCustomer.phone) || '-'" />
+            <DetailRow label="储值余额" :value="`¥${money(selectedCustomer.balance)}`" />
+            <div class="member-balance-split">
+              <span><small>本金余额</small><strong>¥{{ money(selectedCustomer.principalBalance) }}</strong></span>
+              <span><small>赠送余额</small><strong>¥{{ money(selectedCustomer.bonusBalance) }}</strong></span>
+            </div>
             <DetailRow label="累计消费" :value="`¥${money(customerSpend(selectedCustomer))}`" />
             <DetailRow label="积分" :value="selectedCustomer.points || 0" />
-            <DetailRow label="最近访问" :value="formatDate(customerLatestAt(selectedCustomer))" />
-            <div class="customer-signal">
-              <span>{{ selectedCustomerSignal.title }}</span>
-              <strong>{{ selectedCustomerSignal.detail }}</strong>
-            </div>
-            <div class="record-timeline" v-if="customerTimeline(selectedCustomer).length">
-              <h3>最近互动</h3>
-              <div v-for="step in customerTimeline(selectedCustomer)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
+            <DetailRow label="加入时间" :value="formatDate(selectedCustomer.joinedAt)" />
+            <DetailRow label="最近活跃" :value="formatDate(customerLatestAt(selectedCustomer))" />
+            <div class="record-timeline" v-if="memberTimeline(selectedCustomer).length">
+              <h3>最近记录</h3>
+              <div v-for="step in memberTimeline(selectedCustomer)" :key="`${step.title}-${formatDate(step.time)}`" :class="['timeline-step', step.tone]">
                 <span></span>
                 <strong>{{ step.title }}</strong>
                 <small>{{ formatDate(step.time) }}</small>
                 <p>{{ step.detail }}</p>
               </div>
             </div>
-            <div class="privacy-note">默认脱敏展示；删除个人数据会清空联系方式、地址、备注、订阅偏好和未使用优惠券。</div>
+            <div v-else class="privacy-note">暂无充值或消费记录。</div>
+            <div class="privacy-note">会员联系方式默认脱敏展示；资金数据仅供核对，本页不提供人工改余额操作。</div>
             <div class="action-row">
-              <button v-if="hasPermission('export.read')" class="secondary-action" type="button" @click="exportCustomerData(selectedCustomer)">导出该用户数据</button>
+              <button v-if="hasPermission('export.read')" class="secondary-action" type="button" @click="exportCustomerData(selectedCustomer)">导出会员数据</button>
               <button v-if="hasPermission('privacy.delete')" class="danger-action" type="button" @click="deleteCustomerData(selectedCustomer)">删除个人数据</button>
-              <div v-if="!hasPermission('export.read') && !hasPermission('privacy.delete')" class="permission-note">当前角色仅可查看用户画像。</div>
             </div>
             </aside>
           </div>
