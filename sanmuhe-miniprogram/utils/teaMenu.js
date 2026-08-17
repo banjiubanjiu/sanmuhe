@@ -240,7 +240,8 @@ function buildTeaOptions(item, teaGroups) {
         image: tea.image || meta.image || fallbackImage,
         subtitle,
         tags: tags.length ? tags : [category],
-        groupName
+        groupName,
+        price: Math.max(0, Number(tea.price) || 0)
       };
     }).filter(Boolean);
   }
