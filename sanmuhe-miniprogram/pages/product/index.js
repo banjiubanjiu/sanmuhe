@@ -146,7 +146,11 @@ function normalizeProduct(product) {
     hasMultiSpecs: specs.length > 1,
     specLayout: resolveSpecLayout(specs),
     taste,
-    tasteExpandable: taste.length > TASTE_CLAMP_CHARS
+    tasteExpandable: taste.length > TASTE_CLAMP_CHARS,
+    /** 多图：优先 images 数组，旧数据回退单图 */
+    images: Array.isArray(product.images) && product.images.length
+      ? product.images.filter(Boolean)
+      : (product.image ? [product.image] : [])
   });
 }
 

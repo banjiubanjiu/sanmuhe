@@ -433,6 +433,29 @@ function normalizePayload(collection, payload) {
     }
   }
 
+  // 商品后台只有一个主图入口；即使旧版后台仍提交旧 thumb，也以新主图为准。
+  if ((collection === "tea_products" || collection === "drinks") && data.image) {
+    data.thumb = data.image;
+  }
+
+  // 多图：images 数组（第一张即主图，由前端保证顺序；旧数据无 images 时回退单图）
+  if (Array.isArray(source.images)) {
+    const imageList = source.images
+      .map((item) => cleanText(item, IMAGE_REF_MAX))
+      .filter(Boolean)
+      .slice(0, 9);
+    imageList.forEach((item) => assertImageRef(item, "商品图片"));
+    if (imageList.length) {
+      data.images = imageList;
+      data.image = imageList[0];
+      if (collection === "tea_products" || collection === "drinks") {
+        data.thumb = imageList[0];
+      }
+    } else {
+      data.images = [];
+    }
+  }
+
   if (source.price !== undefined) {
     data.price = Math.max(0, Number(source.price) || 0);
   }

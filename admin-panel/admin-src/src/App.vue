@@ -545,6 +545,8 @@ const emptyCatalog = () => ({
   shelfStatus: "on",
   image: "",
   thumb: "",
+  /** 多图：数组，第一张即主图（image/thumb 与其同步） */
+  images: [],
   notes: "",
   taste: "",
   summary: "",
@@ -2876,8 +2878,12 @@ async function uploadFormImage(target, event) {
     const fileId = result.fileID || result.fileId || "";
     if (!fileId) throw new Error("上传成功但未返回文件 ID");
     if (target === "catalog") {
-      forms.catalog.image = fileId;
-      forms.catalog.thumb = fileId;
+      // 多图：追加到 images 数组，第一张保持为主图/缩略图
+      const list = Array.isArray(forms.catalog.images) ? forms.catalog.images.slice() : [];
+      if (!list.includes(fileId)) list.push(fileId);
+      forms.catalog.images = list;
+      forms.catalog.image = list[0] || "";
+      forms.catalog.thumb = list[0] || "";
     }
     if (target === "content") forms.content.image = fileId;
     if (target === "category") categoryForm.image = fileId;
@@ -2903,6 +2909,34 @@ async function uploadFormImage(target, event) {
 const catalogImageInput = ref(null);
 const catalogImageDragOver = ref(false);
 const catalogImagePreview = computed(() => displayImage(forms.catalog.image));
+const catalogImages = computed(() => {
+  const list = Array.isArray(forms.catalog.images) ? forms.catalog.images : [];
+  return list.length ? list : (forms.catalog.image ? [forms.catalog.image] : []);
+});
+
+function removeCatalogImage(index) {
+  const list = Array.isArray(forms.catalog.images) ? forms.catalog.images.slice() : [];
+  if (index < 0 || index >= list.length) return;
+  list.splice(index, 1);
+  forms.catalog.images = list;
+  forms.catalog.image = list[0] || "";
+  forms.catalog.thumb = list[0] || "";
+}
+
+function moveCatalogImage(index, dir) {
+  const list = Array.isArray(forms.catalog.images) ? forms.catalog.images.slice() : [];
+  const target = index + dir;
+  if (index < 0 || index >= list.length || target < 0 || target >= list.length) return;
+  const [item] = list.splice(index, 1);
+  list.splice(target, 0, item);
+  forms.catalog.images = list;
+  forms.catalog.image = list[0] || "";
+  forms.catalog.thumb = list[0] || "";
+}
+
+function catalogImageUrl(fileId) {
+  return displayImage(fileId);
+}
 
 function triggerCatalogImagePick() {
   catalogImageInput.value?.click();
@@ -3815,7 +3849,10 @@ function editCatalog(item) {
     categoryId: item.categoryId || "",
     groupName: item.groupName || "",
     subtitle: item.subtitle || "",
-    shelfStatus: deriveCatalogShelfStatus(item)
+    shelfStatus: deriveCatalogShelfStatus(item),
+    images: Array.isArray(item.images) && item.images.length
+      ? item.images.slice()
+      : (item.image ? [item.image] : [])
   });
   if (forms.catalog.image && !forms.catalog.thumb) {
     forms.catalog.thumb = forms.catalog.image;
@@ -3872,6 +3909,11 @@ async function saveCatalog() {
       forms.catalog.price = Math.max(0, Number(forms.catalog.price) || 0);
       forms.catalog.stock = 0;
       delete forms.catalog.teaGroups;
+    }
+    // 多图归一：第一张作为主图/缩略图（列表与旧页面继续读 image/thumb）
+    if (Array.isArray(forms.catalog.images) && forms.catalog.images.length) {
+      forms.catalog.image = forms.catalog.images[0];
+      forms.catalog.thumb = forms.catalog.images[0];
     }
     // 商品表单只有一个主图入口，保存时始终同步缩略图，避免商城列表继续使用旧图。
     if (forms.catalog.image) {
@@ -6637,36 +6679,49 @@ onBeforeUnmount(() => {
                     <p class="specs-editor-hint">合计可售库存：{{ forms.catalog.stock || 0 }}</p>
                   </div>
 
-                  <div class="wide image-dropzone-field">
+                                    <div class="wide image-dropzone-field">
                     <span>主图 <em class="req" aria-label="必填">*</em></span>
+                    <input
+                      ref="catalogImageInput"
+                      class="image-dropzone-input"
+                      accept="image/*"
+                      type="file"
+                      @change="uploadFormImage('catalog', $event)"
+                      @click.stop
+                      style="display:none"
+                    >
+                    <div v-if="catalogImages.length" class="catalog-gallery" aria-label="已上传图片（第一张为主图）">
+                      <div v-for="(img, idx) in catalogImages" :key="img" :class="['catalog-gallery-item', { 'is-main': idx === 0 }]">
+                        <img :src="catalogImageUrl(img)" :alt="idx === 0 ? '主图' : ('图片 ' + (idx + 1))">
+                        <em v-if="idx === 0" class="main-badge">主图</em>
+                        <div class="gallery-actions">
+                          <button type="button" title="左移/设为主图" :disabled="idx === 0" @click="moveCatalogImage(idx, -1)">◀</button>
+                          <button type="button" title="右移" :disabled="idx === catalogImages.length - 1" @click="moveCatalogImage(idx, 1)">▶</button>
+                          <button type="button" title="删除" class="gallery-remove" @click="removeCatalogImage(idx)">✕</button>
+                        </div>
+                      </div>
+                      <button type="button" class="catalog-gallery-add" aria-label="添加图片" @click="triggerCatalogImagePick">
+                        <Upload :size="22" :stroke-width="1.6" />
+                        <span>添加</span>
+                      </button>
+                    </div>
                     <div
+                      v-else
                       class="image-dropzone"
-                      :class="{ filled: !!catalogImagePreview, dragging: catalogImageDragOver }"
+                      :class="{ dragging: catalogImageDragOver }"
                       role="button"
                       tabindex="0"
-                      :aria-label="catalogImagePreview ? '更换主图' : '上传主图'"
+                      :aria-label="'上传' + '主图'"
                       @click="triggerCatalogImagePick"
                       @keydown.enter.prevent="triggerCatalogImagePick"
                       @dragover.prevent="catalogImageDragOver = true"
                       @dragleave.prevent="catalogImageDragOver = false"
                       @drop.prevent="onCatalogImageDrop"
                     >
-                      <input
-                        ref="catalogImageInput"
-                        class="image-dropzone-input"
-                        accept="image/*"
-                        type="file"
-                        @change="uploadFormImage('catalog', $event)"
-                        @click.stop
-                      >
-                      <template v-if="catalogImagePreview">
-                        <img :src="catalogImagePreview" alt="商品主图预览">
-                        <div class="image-dropzone-mask">更换图片</div>
-                      </template>
-                      <div v-else class="image-dropzone-empty">
+                      <div class="image-dropzone-empty">
                         <Upload :size="28" :stroke-width="1.6" />
                         <strong>点击上传主图</strong>
-                        <span>{{ uploadState.catalog || "或将图片拖到此处 · JPG / PNG · 建议 1:1" }}</span>
+                        <span>{{ uploadState.catalog || "第一张为主图，可多张 · JPG / PNG · 建议 1:1" }}</span>
                       </div>
                     </div>
                   </div>
@@ -6701,36 +6756,49 @@ onBeforeUnmount(() => {
                   </label>
                   <label class="wide"><span>副标题</span><input v-model="forms.catalog.subtitle" placeholder="点单卡片副文案，可空"></label>
 
-                  <div class="wide image-dropzone-field">
+                                    <div class="wide image-dropzone-field">
                     <span>茶品图 <em class="req" aria-label="必填">*</em></span>
+                    <input
+                      ref="catalogImageInput"
+                      class="image-dropzone-input"
+                      accept="image/*"
+                      type="file"
+                      @change="uploadFormImage('catalog', $event)"
+                      @click.stop
+                      style="display:none"
+                    >
+                    <div v-if="catalogImages.length" class="catalog-gallery" aria-label="已上传图片（第一张为主图）">
+                      <div v-for="(img, idx) in catalogImages" :key="img" :class="['catalog-gallery-item', { 'is-main': idx === 0 }]">
+                        <img :src="catalogImageUrl(img)" :alt="idx === 0 ? '主图' : ('图片 ' + (idx + 1))">
+                        <em v-if="idx === 0" class="main-badge">主图</em>
+                        <div class="gallery-actions">
+                          <button type="button" title="左移/设为主图" :disabled="idx === 0" @click="moveCatalogImage(idx, -1)">◀</button>
+                          <button type="button" title="右移" :disabled="idx === catalogImages.length - 1" @click="moveCatalogImage(idx, 1)">▶</button>
+                          <button type="button" title="删除" class="gallery-remove" @click="removeCatalogImage(idx)">✕</button>
+                        </div>
+                      </div>
+                      <button type="button" class="catalog-gallery-add" aria-label="添加图片" @click="triggerCatalogImagePick">
+                        <Upload :size="22" :stroke-width="1.6" />
+                        <span>添加</span>
+                      </button>
+                    </div>
                     <div
+                      v-else
                       class="image-dropzone"
-                      :class="{ filled: !!catalogImagePreview, dragging: catalogImageDragOver }"
+                      :class="{ dragging: catalogImageDragOver }"
                       role="button"
                       tabindex="0"
-                      :aria-label="catalogImagePreview ? '更换茶品图' : '上传茶品图'"
+                      :aria-label="'上传' + '茶品图'"
                       @click="triggerCatalogImagePick"
                       @keydown.enter.prevent="triggerCatalogImagePick"
                       @dragover.prevent="catalogImageDragOver = true"
                       @dragleave.prevent="catalogImageDragOver = false"
                       @drop.prevent="onCatalogImageDrop"
                     >
-                      <input
-                        ref="catalogImageInput"
-                        class="image-dropzone-input"
-                        accept="image/*"
-                        type="file"
-                        @change="uploadFormImage('catalog', $event)"
-                        @click.stop
-                      >
-                      <template v-if="catalogImagePreview">
-                        <img :src="catalogImagePreview" alt="茶品图预览">
-                        <div class="image-dropzone-mask">更换图片</div>
-                      </template>
-                      <div v-else class="image-dropzone-empty">
+                      <div class="image-dropzone-empty">
                         <Upload :size="28" :stroke-width="1.6" />
                         <strong>点击上传茶品图</strong>
-                        <span>{{ uploadState.catalog || "或将图片拖到此处 · 点单卡片用图" }}</span>
+                        <span>{{ uploadState.catalog || "第一张为主图，可多张 · 点单卡片用第一张" }}</span>
                       </div>
                     </div>
                   </div>
@@ -6778,36 +6846,49 @@ onBeforeUnmount(() => {
                     <input v-model="forms.catalog.time" type="time" step="60">
                   </label>
                   <label v-if="state.collection === 'events'"><span>地点</span><input v-model="forms.catalog.place" placeholder="活动地点"></label>
-                  <div class="wide image-dropzone-field">
+                                    <div class="wide image-dropzone-field">
                     <span>图片 <em class="req" aria-label="必填">*</em></span>
+                    <input
+                      ref="catalogImageInput"
+                      class="image-dropzone-input"
+                      accept="image/*"
+                      type="file"
+                      @change="uploadFormImage('catalog', $event)"
+                      @click.stop
+                      style="display:none"
+                    >
+                    <div v-if="catalogImages.length" class="catalog-gallery" aria-label="已上传图片（第一张为主图）">
+                      <div v-for="(img, idx) in catalogImages" :key="img" :class="['catalog-gallery-item', { 'is-main': idx === 0 }]">
+                        <img :src="catalogImageUrl(img)" :alt="idx === 0 ? '主图' : ('图片 ' + (idx + 1))">
+                        <em v-if="idx === 0" class="main-badge">主图</em>
+                        <div class="gallery-actions">
+                          <button type="button" title="左移/设为主图" :disabled="idx === 0" @click="moveCatalogImage(idx, -1)">◀</button>
+                          <button type="button" title="右移" :disabled="idx === catalogImages.length - 1" @click="moveCatalogImage(idx, 1)">▶</button>
+                          <button type="button" title="删除" class="gallery-remove" @click="removeCatalogImage(idx)">✕</button>
+                        </div>
+                      </div>
+                      <button type="button" class="catalog-gallery-add" aria-label="添加图片" @click="triggerCatalogImagePick">
+                        <Upload :size="22" :stroke-width="1.6" />
+                        <span>添加</span>
+                      </button>
+                    </div>
                     <div
+                      v-else
                       class="image-dropzone"
-                      :class="{ filled: !!catalogImagePreview, dragging: catalogImageDragOver }"
+                      :class="{ dragging: catalogImageDragOver }"
                       role="button"
                       tabindex="0"
-                      :aria-label="catalogImagePreview ? '更换图片' : '上传图片'"
+                      :aria-label="'上传' + '图片'"
                       @click="triggerCatalogImagePick"
                       @keydown.enter.prevent="triggerCatalogImagePick"
                       @dragover.prevent="catalogImageDragOver = true"
                       @dragleave.prevent="catalogImageDragOver = false"
                       @drop.prevent="onCatalogImageDrop"
                     >
-                      <input
-                        ref="catalogImageInput"
-                        class="image-dropzone-input"
-                        accept="image/*"
-                        type="file"
-                        @change="uploadFormImage('catalog', $event)"
-                        @click.stop
-                      >
-                      <template v-if="catalogImagePreview">
-                        <img :src="catalogImagePreview" alt="图片预览">
-                        <div class="image-dropzone-mask">更换图片</div>
-                      </template>
-                      <div v-else class="image-dropzone-empty">
+                      <div class="image-dropzone-empty">
                         <Upload :size="28" :stroke-width="1.6" />
                         <strong>点击上传图片</strong>
-                        <span>{{ uploadState.catalog || "或将图片拖到此处 · JPG / PNG" }}</span>
+                        <span>{{ uploadState.catalog || "第一张为主图，可多张 · JPG / PNG" }}</span>
                       </div>
                     </div>
                   </div>

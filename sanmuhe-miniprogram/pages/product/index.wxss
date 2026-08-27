@@ -402,3 +402,14 @@
   font-weight: 600;
   border: none;
 }
+
+/* 多图轮播 */
+.detail-swiper {
+  width: 100%;
+  height: 100%;
+}
+.detail-swiper swiper-item image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
