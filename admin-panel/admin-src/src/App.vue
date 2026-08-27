@@ -297,6 +297,8 @@ const state = reactive({
   wxShippingStatus: null,
   /** 桌码列表（listTableQrs） */
   tableQrs: [],
+  /** 朋友分享码（getShareQr） */
+  shareQr: null,
   /** 会员储值档位（membership_plans，后台可维护） */
   rechargePlans: [],
   rechargePlanEditing: false,
@@ -5476,8 +5478,7 @@ async function syncWxShippingJumpPath() {
 }
 
 /** 加载已生成的桌码（预览图经云函数合成桌号标签，避免 CDN 跨域/透明底问题） */
-async function loadTableQrs() {
-  try {
+async function loadTableQrs() {  try {
     const result = await callFunction("manageOperations", { action: "listTableQrs" });
     const qrs = (result && result.qrs) || [];
     state.tableQrs = qrs;
@@ -5609,6 +5610,48 @@ async function downloadTableQr(qr) {
     document.body.removeChild(link);
   } catch (error) {
     console.warn("[tableQr] download error:", error);
+    showToast((error && error.message) || "下载失败，可右键图片另存");
+  }
+}
+
+/** 朋友分享码：生成/刷新（scene=share → 首页） */
+async function loadShareQr(force = false) {
+  if (state.shareQr && !force) {
+    return;
+  }
+  await withLoading("生成分享码", async () => {
+    const result = await callFunction("manageOperations", { action: "getShareQr" });
+    if (!result || result.ok === false) {
+      throw new Error((result && result.message) || "分享码生成失败");
+    }
+    state.shareQr = result;
+  });
+}
+
+/** 下载分享码（走云函数 base64，绕开云存储 CORS） */
+async function downloadShareQr() {
+  const qr = state.shareQr;
+  if (!qr || !qr.fileID) {
+    showToast("分享码尚未生成");
+    return;
+  }
+  try {
+    const result = await callFunction("manageOperations", {
+      action: "downloadShareQrFile",
+      data: { fileID: qr.fileID }
+    });
+    if (!result || result.ok === false) {
+      throw new Error((result && result.message) || "下载失败");
+    }
+    const link = document.createElement("a");
+    link.href = `data:image/png;base64,${result.base64}`;
+    link.download = result.fileName || "禾煦朋友分享码.png";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.warn("[shareQr] download error:", error);
     showToast((error && error.message) || "下载失败，可右键图片另存");
   }
 }
@@ -8191,6 +8234,26 @@ onBeforeUnmount(() => {
                 <div class="settings-row-actions">
                   <button v-if="hasPermission('settings.write')" class="secondary-action" type="button" @click="syncWxShippingJumpPath">同步跳转路径到微信</button>
                   <button class="secondary-action" type="button" @click="refreshWxShippingStatus">刷新接入状态</button>
+                </div>
+              </div>
+              <div class="settings-subsection">
+                <h3>朋友分享码</h3>
+                <p class="settings-note">扫码直接进入小程序首页。从分享码进入时首页自动隐藏「堂饮茶单」入口（堂饮仅限到店扫桌码），茶叶购买 / 茶室预约 / 沙龙活动正常可用。生成后图片可右键另存，发群或打印。</p>
+                <div class="table-qr-grid">
+                  <div class="table-qr-item">
+                    <div class="table-qr-head">
+                      <span class="table-qr-no">首页分享码</span>
+                      <div class="table-qr-actions">
+                        <button v-if="state.shareQr && state.shareQr.fileID" class="mini-action" type="button" @click="downloadShareQr">下载</button>
+                      </div>
+                    </div>
+                    <img v-if="state.shareQr && state.shareQr.url" class="table-qr-img" :src="state.shareQr.url" alt="朋友分享小程序码" />
+                    <div v-else class="table-qr-empty">未生成</div>
+                  </div>
+                </div>
+                <div class="settings-row-actions">
+                  <button v-if="hasPermission('settings.write')" class="secondary-action" type="button" @click="loadShareQr(true)">{{ state.shareQr ? "重新生成" : "生成分享码" }}</button>
+                  <button class="secondary-action" type="button" @click="loadShareQr(false)">刷新</button>
                 </div>
               </div>
               <div class="settings-subsection">

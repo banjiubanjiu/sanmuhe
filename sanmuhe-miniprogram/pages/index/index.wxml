@@ -30,7 +30,14 @@
     <swiper-item wx:for="{{heroSlides}}" wx:key="id">
       <view class="hero-slide">
         <!-- 首屏轮播禁止懒加载，避免先空白再出图的一晃 -->
-        <image class="hero-image" src="{{item.image}}" mode="aspectFill" lazy-load="{{false}}"></image>
+        <view class="hero-image">
+          <progressive-image
+            src="{{item.image}}"
+            mode="aspectFill"
+            lazy-load="{{false}}"
+            aria-label="禾煦首页茶空间轮播图"
+          ></progressive-image>
+        </view>
       </view>
     </swiper-item>
   </swiper>
@@ -46,6 +53,7 @@
     <view
       wx:for="{{quickActions}}"
       wx:key="key"
+      wx:if="{{item.key !== 'drink' || !shareScene}}"
       class="quick-item"
       data-key="{{item.key}}"
       bindtap="tapQuickAction"
@@ -77,7 +85,14 @@
 
   <view wx:if="{{recommendTeas.length}}" class="recommend-grid">
     <view wx:for="{{recommendTeas}}" wx:key="id" class="recommend-card" data-id="{{item.id}}" bindtap="goProduct">
-      <image class="recommend-image" src="{{item.displayImage}}" mode="aspectFill" lazy-load="{{true}}"></image>
+      <view class="recommend-image">
+        <progressive-image
+          src="{{item.displayImage}}"
+          mode="aspectFill"
+          lazy-load="{{true}}"
+          aria-label="{{item.name}}茶叶图片"
+        ></progressive-image>
+      </view>
       <view class="recommend-body">
         <view class="recommend-tag">{{item.seasonTag}}</view>
         <view class="recommend-name">{{item.name}}</view>

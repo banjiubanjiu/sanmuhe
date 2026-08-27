@@ -651,6 +651,59 @@ async function wxGetUnlimited(cloud, tableNo) {
   });
 }
 
+/**
+ * 朋友分享小程序码：scene=share → pages/index/index（首页）。
+ * 从分享码进入时，前端首页隐藏「堂饮茶单」入口（堂饮仅限到店扫桌码）。
+ */
+async function wxGetShareQr(cloud) {
+  const accessToken = await resolveAccessToken(cloud);
+  if (!accessToken) {
+    return { ok: false, errmsg: "无法获取 access_token，请配置 WX_MP_APPSECRET" };
+  }
+  const https = require("https");
+  const payload = JSON.stringify({
+    scene: "share",
+    page: "pages/index/index",
+    width: 430,
+    is_hyaline: true,
+    line_color: { r: 23, g: 59, b: 42 }
+  });
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: "api.weixin.qq.com",
+        path: `/wxa/getwxacodeunlimit?access_token=${encodeURIComponent(accessToken)}`,
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) },
+        timeout: 15000
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          const buffer = Buffer.concat(chunks);
+          const text = buffer.toString("utf8").trim();
+          if (text.startsWith("{") && text.endsWith("}")) {
+            try {
+              const data = JSON.parse(text);
+              return resolve({ ok: false, errcode: data.errcode, errmsg: data.errmsg || `生成失败 ${data.errcode}` });
+            } catch (error) {
+              return resolve({ ok: false, errmsg: "生成失败(响应解析错误)" });
+            }
+          }
+          resolve({ ok: true, buffer });
+        });
+      }
+    );
+    req.on("error", (e) => resolve({ ok: false, errmsg: `网络错误: ${e.message}` }));
+    req.setTimeout(15000, () => {
+      req.destroy();
+      resolve({ ok: false, errmsg: "生成超时" });
+    });
+    req.end();
+  });
+}
+
 module.exports = {
   LOGISTICS,
   EXPRESS_COMPANY_MAP,
@@ -667,5 +720,6 @@ module.exports = {
   setMsgJumpPath,
   queryIsTradeManaged,
   queryConfirmationCompleted,
-  wxGetUnlimited
+  wxGetUnlimited,
+  wxGetShareQr
 };

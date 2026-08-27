@@ -13,7 +13,8 @@ const {
   setMsgJumpPath,
   queryIsTradeManaged,
   queryConfirmationCompleted,
-  wxGetUnlimited
+  wxGetUnlimited,
+  wxGetShareQr
 } = require("./wechatShipping");
 
 cloud.init({
@@ -312,6 +313,8 @@ const allowedActions = new Set([
   "generateTableQr",
   "listTableQrs",
   "downloadTableQrFile",
+  "getShareQr",
+  "downloadShareQrFile",
   "getSystemStatus",
   "listNotificationLogs",
   "sendTestNotice",
@@ -4667,6 +4670,60 @@ async function downloadTableQrFile(event) {
   };
 }
 
+/** 朋友分享码：scene=share → 首页；生成后固定覆盖上传到 mp-assets/share/share-qr.png */
+async function getShareQr(event, caller) {
+  const cloudPath = "mp-assets/share/share-qr.png";
+  const qr = await wxGetShareQr(cloud);
+  if (!qr.ok) {
+    return { ok: false, message: qr.errmsg || "分享码生成失败" };
+  }
+  let up;
+  try {
+    up = await cloud.uploadFile({ cloudPath, fileContent: qr.buffer });
+  } catch (error) {
+    return { ok: false, message: `分享码上传失败：${error.message || error}` };
+  }
+  const fileID = up.fileID || "";
+  let url = "";
+  if (fileID) {
+    try {
+      const urlRes = await cloud.getTempFileURL({ fileList: [fileID] });
+      url = (urlRes.fileList && urlRes.fileList[0] && urlRes.fileList[0].tempFileURL) || "";
+    } catch (error) {
+      url = "";
+    }
+  }
+  await writeAdminAuditLog(caller, "getShareQr", {
+    ok: Boolean(fileID),
+    message: url ? "分享码已生成" : "分享码已生成但取临时链接失败"
+  });
+  return { ok: Boolean(fileID), fileID, url, scene: "share" };
+}
+
+/** 下载分享码（base64，绕开云存储 CORS） */
+async function downloadShareQrFile(event) {
+  const fileID = cleanText(event.data && event.data.fileID, 500);
+  if (!fileID || fileID.indexOf("cloud://") !== 0) {
+    return { ok: false, message: "缺少有效的分享码文件" };
+  }
+  let result;
+  try {
+    result = await cloud.downloadFile({ fileID });
+  } catch (error) {
+    return { ok: false, message: "文件读取失败，请重新生成分享码" };
+  }
+  const buffer = result && result.fileContent;
+  if (!buffer) {
+    return { ok: false, message: "文件内容为空" };
+  }
+  return {
+    ok: true,
+    contentType: "image/png",
+    base64: Buffer.from(buffer).toString("base64"),
+    fileName: "禾煦朋友分享码.png"
+  };
+}
+
 exports.main = async (event = {}, context = {}) => {
   await hydrateEnv(cloud);
   if (event.action === "health") {
@@ -4865,6 +4922,12 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "downloadTableQrFile") {
       return await downloadTableQrFile(event);
+    }
+    if (action === "getShareQr") {
+      return await getShareQr(event, caller);
+    }
+    if (action === "downloadShareQrFile") {
+      return await downloadShareQrFile(event);
     }
     if (action === "getSystemStatus") {
       return await getSystemStatus(event);
