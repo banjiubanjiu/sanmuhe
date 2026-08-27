@@ -61,14 +61,14 @@
           aria-role="button"
           aria-label="查看{{item.name}}详情，价格{{item.displayPrice}}元{{item.priceSuffix}}"
         >
-          <image
-            class="goods-thumb"
-            src="{{item.thumb}}"
-            mode="aspectFill"
-            lazy-load="{{true}}"
-            aria-role="img"
-            aria-label="{{item.name}}茶叶图片"
-          ></image>
+          <view class="goods-thumb">
+            <progressive-image
+              src="{{item.thumb}}"
+              mode="aspectFill"
+              lazy-load="{{true}}"
+              aria-label="{{item.name}}茶叶图片"
+            ></progressive-image>
+          </view>
           <view class="goods-copy">
             <view class="goods-name">{{item.name}}</view>
             <view class="goods-tags">

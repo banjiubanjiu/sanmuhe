@@ -72,6 +72,9 @@ function verifySource() {
     "请选择商品",
     "image-dropzone",
     "点击上传主图",
+    'forms.catalog.image = list[0] || "";',
+    'forms.catalog.thumb = list[0] || "";',
+    "forms.catalog.thumb = forms.catalog.image;",
     "closeCatalogDrawer();"
   ], "App.vue source");
   assertExcludes(src, [

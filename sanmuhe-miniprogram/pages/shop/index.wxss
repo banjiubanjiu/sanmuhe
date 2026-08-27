@@ -191,6 +191,7 @@
   flex: 0 0 126rpx;
   width: 126rpx;
   height: 126rpx;
+  overflow: hidden;
   border-radius: 50%;
   background: var(--hx-paper);
 }

@@ -1,0 +1,75 @@
+:host {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.progressive-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #eee9df;
+}
+
+.image-placeholder,
+.image-content,
+.image-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.image-placeholder {
+  overflow: hidden;
+  opacity: 1;
+  background: #eee9df;
+  transition: opacity 180ms ease-out;
+}
+
+.placeholder-sheen {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -55%;
+  width: 42%;
+  background: linear-gradient(90deg, rgba(255, 253, 248, 0), rgba(255, 253, 248, 0.7), rgba(255, 253, 248, 0));
+  animation: image-sheen 1.4s ease-in-out infinite;
+}
+
+.image-content {
+  display: block;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.image-fallback {
+  padding: 28%;
+  opacity: 0.55;
+  background: #eee9df;
+  box-sizing: border-box;
+}
+
+.is-loaded .image-placeholder {
+  opacity: 0;
+}
+
+.is-loaded .image-content {
+  opacity: 1;
+}
+
+.is-loaded .placeholder-sheen,
+.is-failed .placeholder-sheen {
+  animation: none;
+}
+
+@keyframes image-sheen {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(370%);
+  }
+}

@@ -234,6 +234,7 @@
   width: 100%;
   height: 138rpx;
   display: block;
+  overflow: hidden;
   background: #ece8df;
 }
 

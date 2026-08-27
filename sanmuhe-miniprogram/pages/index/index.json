@@ -1,5 +1,8 @@
 {
   "navigationBarTitleText": "禾煦",
   "navigationStyle": "custom",
-  "disableScroll": true
+  "disableScroll": true,
+  "usingComponents": {
+    "progressive-image": "/components/progressive-image/index"
+  }
 }
