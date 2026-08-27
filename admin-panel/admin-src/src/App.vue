@@ -66,7 +66,7 @@ const PACKAGE_INFO = {
 };
 
 const SAVED_VIEWS_KEY = "hexu-admin-saved-views-v1";
-const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "reservations", "signups", "customers", "content", "audit", "notifications"]);
+const SAVED_VIEW_TABS = new Set(["catalog", "orders", "afterSales", "inventory", "reservations", "signups", "customers", "recharges", "content", "audit", "notifications"]);
 const ORDER_ALERT_POLL_MS = 5000;
 const ORDER_ALERT_SEEN_LIMIT = 200;
 const ANALYTICS_RANGE_OPTIONS = [
@@ -118,6 +118,7 @@ const navItems = [
   { key: "afterSales", label: "售后管理", icon: BadgeDollarSign },
   { key: "inventory", label: "库存流水", icon: Package },
   { key: "customers", label: "会员管理", icon: UserRound },
+  { key: "recharges", label: "充值记录", icon: BadgeDollarSign },
   { key: "catalog", label: "商品管理", icon: Package },
   { key: "content", label: "内容管理", icon: FileText },
   { key: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing },
@@ -130,7 +131,7 @@ const navItems = [
 
 const navGroups = [
   { label: "经营工作台", items: ["dashboard", "orders", "afterSales", "inventory"] },
-  { label: "门店服务", items: ["reservations", "signups", "customers"] },
+  { label: "门店服务", items: ["reservations", "signups", "customers", "recharges"] },
   { label: "内容与增长", items: ["catalog", "content", "analytics"] },
   { label: "系统治理", items: ["audit", "notifications", "system", "backups", "settings"] }
 ];
@@ -173,6 +174,7 @@ const pageTitles = {
   afterSales: ["售后管理", ""],
   inventory: ["库存流水", ""],
   customers: ["会员管理", ""],
+  recharges: ["充值记录", "会员储值流水（含微信支付与发货状态）"],
   catalog: ["商品管理", ""],
   content: ["内容管理", ""],
   analytics: ["数据统计", ""],
@@ -236,6 +238,7 @@ const state = reactive({
     reservation: false,
     signup: false,
     customer: false,
+    recharge: false,
     content: false,
     audit: false,
     notification: false,
@@ -282,6 +285,8 @@ const state = reactive({
   },
   signups: [],
   customers: [],
+  recharges: [],
+  rechargeSummary: null,
   customerSummary: { totalMembers: 0, totalBalance: 0, monthRecharge: 0, matchedMembers: 0 },
   contentItems: [],
   analytics: null,
@@ -304,6 +309,7 @@ const state = reactive({
     reservations: createPageState(),
     signups: createPageState(),
     customers: createPageState(),
+    recharges: createPageState(),
     audit: createPageState(),
     notifications: createPageState(),
     backups: createPageState()
@@ -317,6 +323,7 @@ const state = reactive({
   selectedReservationId: "",
   selectedSignupId: "",
   selectedCustomerId: "",
+  selectedRechargeId: "",
   selectedContentKey: "",
   reservationCalendarDate: new Date().toISOString().slice(0, 10),
   reservationWeekStart: (() => {
@@ -353,6 +360,8 @@ const filters = reactive({
   signupStatus: "",
   signupKeyword: "",
   customerKeyword: "",
+  rechargeStatus: "",
+  rechargeKeyword: "",
   auditKeyword: "",
   notificationKeyword: ""
 });
@@ -673,6 +682,7 @@ const selectedAuditLog = computed(() => state.auditLogs.find((item) => item._id 
 const selectedReservation = computed(() => state.reservations.find((item) => item._id === state.selectedReservationId) || null);
 const selectedSignup = computed(() => state.signups.find((item) => item._id === state.selectedSignupId) || null);
 const selectedCustomer = computed(() => state.customers.find((item) => item.id === state.selectedCustomerId) || null);
+const selectedRecharge = computed(() => state.recharges.find((item) => item._id === state.selectedRechargeId) || null);
 const selectedCustomerSignal = computed(() => customerSignal(selectedCustomer.value));
 
 function openDrawer(key) {
@@ -711,6 +721,23 @@ function selectSignup(record) {
 function selectCustomer(customer) {
   state.selectedCustomerId = customer?.id || "";
   openDrawer("customer");
+}
+
+function selectRecharge(row) {
+  state.selectedRechargeId = row?._id || "";
+  openDrawer("recharge");
+}
+
+function rechargeMemberLabel(row) {
+  if (row.memberName) {
+    return row.memberPhone ? `${row.memberName}（${maskPhone(row.memberPhone)}）` : row.memberName;
+  }
+  return maskOpenid(row._openid) || "访客";
+}
+
+function rechargeAmountYuan(row) {
+  const fen = Number(row?.payAmountFen ?? row?.principalFen ?? 0) || 0;
+  return fen / 100;
 }
 
 function selectAuditLog(log) {
@@ -1103,6 +1130,10 @@ const activeFilterLabels = computed(() => {
     add("关键词", filters.signupKeyword);
   }
   if (state.activeTab === "customers") add("关键词", filters.customerKeyword);
+  if (state.activeTab === "recharges") {
+    if (filters.rechargeStatus) add("状态", filters.rechargeStatus);
+    add("关键词", filters.rechargeKeyword);
+  }
   if (state.activeTab === "audit") add("关键词", filters.auditKeyword);
   if (state.activeTab === "notifications") add("关键词", filters.notificationKeyword);
   return items;
@@ -1124,6 +1155,7 @@ const hasClearableFilters = computed(() => {
   if (state.activeTab === "reservations") return !!(filters.reservationStatus || filters.reservationKeyword.trim());
   if (state.activeTab === "signups") return !!(filters.signupStatus || filters.signupKeyword.trim());
   if (state.activeTab === "customers") return !!filters.customerKeyword.trim();
+  if (state.activeTab === "recharges") return !!(filters.rechargeStatus || filters.rechargeKeyword.trim());
   if (state.activeTab === "audit") return !!filters.auditKeyword.trim();
   if (state.activeTab === "notifications") return !!filters.notificationKeyword.trim();
   return false;
@@ -3405,6 +3437,7 @@ async function loadActiveTab(forceRefresh = false) {
     reservations: loadReservations,
     signups: loadSignups,
     customers: loadCustomers,
+    recharges: loadRecharges,
     content: loadContent,
     analytics: loadAnalytics,
     audit: loadAuditLogs,
@@ -3840,8 +3873,8 @@ async function saveCatalog() {
       forms.catalog.stock = 0;
       delete forms.catalog.teaGroups;
     }
-    // 有主图时缩略图可自动沿用
-    if (forms.catalog.image && !String(forms.catalog.thumb || "").trim()) {
+    // 商品表单只有一个主图入口，保存时始终同步缩略图，避免商城列表继续使用旧图。
+    if (forms.catalog.image) {
       forms.catalog.thumb = forms.catalog.image;
     }
     if (!String(forms.catalog.image || "").trim()) {
@@ -4434,6 +4467,51 @@ async function loadCustomers() {
     setPageMeta("customers", result.page);
     state.selectedCustomerId = state.customers[0]?.id || "";
   });
+}
+
+async function loadRecharges() {
+  await withLoading("读取充值记录", async () => {
+    const result = await callFunction("manageOperations", {
+      action: "listRecharges",
+      status: filters.rechargeStatus,
+      keyword: filters.rechargeKeyword,
+      ...pagePayload("recharges")
+    });
+    state.recharges = result.recharges || [];
+    state.rechargeSummary = Object.assign({
+      totalCount: 0, paidCount: 0, totalRechargeFen: 0, monthRechargeFen: 0, wechatRechargeFen: 0, frozenPendingFen: 0
+    }, result.summary || {});
+    setPageMeta("recharges", result.page);
+  });
+}
+
+function rechargePayLabel(row) {
+  const txn = row.transactionId;
+  if (txn) return "微信支付";
+  if (row.payMode === "balance") return "余额";
+  if (row.payMode === "manual") return "后台录入";
+  return "—";
+}
+
+function rechargeStatusLabel(row) {
+  const s = String(row.status || "").toLowerCase();
+  const pay = String(row.payStatus || "");
+  if (pay === "paid") return { text: "已支付", tone: "good" };
+  if (pay === "refunded") return { text: "已退款", tone: "neutral" };
+  if (pay === "refunding") return { text: "退款中", tone: "warn" };
+  if (pay === "amount_mismatch" || pay === "exception") return { text: "异常", tone: "bad" };
+  if (s === "pending" || pay === "pending") return { text: "待支付", tone: "warn" };
+  if (s === "failed" || pay === "failed") return { text: "失败", tone: "bad" };
+  return { text: pay || s || "—", tone: "neutral" };
+}
+
+function rechargeShippingLabel(row) {
+  if (row.wxShippingSkip === true) return { text: "已忽略", tone: "neutral" };
+  if (row.wxShippingUploaded === true) return { text: "已同步", tone: "good" };
+  if (row.transactionId && row.payStatus === "paid") {
+    return { text: "同步失败", tone: "bad", error: row.wxShippingError || "未上传" };
+  }
+  return { text: "—", tone: "neutral" };
 }
 
 async function deleteCustomerData(customer) {
@@ -5432,7 +5510,7 @@ async function regenerateTableQr(tableNo) {
 
 /**
  * 把微信小程序码 + 桌号标签合成为一张可打印的 PNG（dataURL）。
- * 原码图是透明底纯码，叠加白底与「xx 号桌」文字后打印即用。
+ * 原码图是透明底纯码，叠加米纸底与「xx 号桌」文字后打印即用。
  */
 function composeTableQrImage(base64, tableNo) {
   return new Promise((resolve, reject) => {
@@ -5445,15 +5523,15 @@ function composeTableQrImage(base64, tableNo) {
         canvas.width = qrSize;
         canvas.height = qrSize + labelHeight;
         const ctx = canvas.getContext("2d");
-        // 白底，避免透明码图直接打印变成黑块
-        ctx.fillStyle = "#ffffff";
+        // 米纸底与后台卡片保持一致，透明码图打印时也有稳定底色。
+        ctx.fillStyle = "#f4ebdd";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, qrSize, qrSize);
         // 底部桌号标签，颜色与小程序码 line_color 一致（墨绿）
         ctx.fillStyle = "#173b2a";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.font = `bold ${Math.round(qrSize * 0.1)}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+        ctx.font = `600 ${Math.round(qrSize * 0.1)}px "Songti SC", "STSong", "Noto Serif CJK SC", serif`;
         ctx.fillText(`${tableNo} 号桌`, qrSize / 2, qrSize + labelHeight / 2);
         resolve(canvas.toDataURL("image/png"));
       } catch (error) {
@@ -5514,6 +5592,7 @@ function applyKeywordToTab(tab, keyword) {
   if (tab === "reservations") filters.reservationKeyword = keyword;
   if (tab === "signups") filters.signupKeyword = keyword;
   if (tab === "customers") filters.customerKeyword = keyword;
+  if (tab === "recharges") filters.rechargeKeyword = keyword;
   if (tab === "catalog") filters.catalog = keyword;
   if (tab === "audit") filters.auditKeyword = keyword;
   if (tab === "notifications") filters.notificationKeyword = keyword;
@@ -5622,6 +5701,7 @@ function snapshotActiveFilters(tab = state.activeTab) {
   if (tab === "reservations") return { date: state.reservationCalendarDate, status: filters.reservationStatus, keyword: filters.reservationKeyword.trim() };
   if (tab === "signups") return { status: filters.signupStatus, keyword: filters.signupKeyword.trim() };
   if (tab === "customers") return { keyword: filters.customerKeyword.trim() };
+  if (tab === "recharges") return { status: filters.rechargeStatus, keyword: filters.rechargeKeyword.trim() };
   if (tab === "content") return { type: state.contentType };
   if (tab === "audit") return { keyword: filters.auditKeyword.trim() };
   if (tab === "notifications") return { keyword: filters.notificationKeyword.trim() };
@@ -5689,6 +5769,10 @@ async function applySavedView(view) {
     filters.signupKeyword = snapshot.keyword || "";
   }
   if (view.tab === "customers") filters.customerKeyword = snapshot.keyword || "";
+  if (view.tab === "recharges") {
+    filters.rechargeStatus = snapshot.status || "";
+    filters.rechargeKeyword = snapshot.keyword || "";
+  }
   if (view.tab === "content") state.contentType = snapshot.type || "home_carousel";
   if (view.tab === "audit") filters.auditKeyword = snapshot.keyword || "";
   if (view.tab === "notifications") filters.notificationKeyword = snapshot.keyword || "";
@@ -5733,6 +5817,10 @@ function clearActiveFilters() {
     filters.signupKeyword = "";
   }
   if (state.activeTab === "customers") filters.customerKeyword = "";
+  if (state.activeTab === "recharges") {
+    filters.rechargeStatus = "";
+    filters.rechargeKeyword = "";
+  }
   if (state.activeTab === "content") state.contentType = "home_carousel";
   if (state.activeTab === "audit") filters.auditKeyword = "";
   if (state.activeTab === "notifications") filters.notificationKeyword = "";
@@ -7399,6 +7487,64 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-if="state.activeTab === 'recharges'" class="list-workspace">
+          <div class="member-overview" aria-label="充值概览">
+            <article><span>累计充值</span><strong>¥{{ money((state.rechargeSummary?.totalRechargeFen || 0) / 100) }}</strong><small>{{ state.rechargeSummary?.paidCount || 0 }} 笔已支付</small></article>
+            <article><span>本月充值</span><strong>¥{{ money((state.rechargeSummary?.monthRechargeFen || 0) / 100) }}</strong><small>仅统计已支付本金</small></article>
+            <article><span>微信支付充值</span><strong>¥{{ money((state.rechargeSummary?.wechatRechargeFen || 0) / 100) }}</strong><small>带微信支付单号的充值</small></article>
+            <article><span>潜在冻结</span><strong>¥{{ money((state.rechargeSummary?.frozenPendingFen || 0) / 100) }}</strong><small>微信已支付但发货未同步</small></article>
+          </div>
+          <article class="panel-card data-panel">
+            <div class="panel-toolbar">
+              <select v-model="filters.rechargeStatus" class="line-select" aria-label="充值状态" @change="resetPageAndLoad('recharges', loadRecharges)">
+                <option value="">全部状态</option>
+                <option value="paid">已支付</option>
+                <option value="pending">待支付</option>
+                <option value="refunded">已退款</option>
+                <option value="failed">失败</option>
+                <option value="exception">异常</option>
+              </select>
+              <input v-model="filters.rechargeKeyword" class="line-input" aria-label="搜索充值记录" placeholder="单号、方案或微信单号" @keydown.enter="resetPageAndLoad('recharges', loadRecharges)">
+            </div>
+            <div class="record-list">
+              <button v-for="row in state.recharges" :key="row._id" type="button" class="record-row" @click="selectRecharge(row)">
+                <strong><span>{{ row.planTitle || '充值' }}</span><em>¥{{ money(rechargeAmountYuan(row)) }}</em></strong>
+                <span class="record-meta">
+                  <span>{{ formatDate(row.paidAt || row.createdAt) }} · {{ rechargeMemberLabel(row) }} · {{ rechargePayLabel(row) }}</span>
+                  <i :class="['record-status', rechargeStatusLabel(row).tone]">{{ rechargeStatusLabel(row).text }}</i>
+                  <i v-if="row.transactionId && row.payStatus === 'paid'" :class="['record-status', rechargeShippingLabel(row).tone]">{{ rechargeShippingLabel(row).text }}</i>
+                </span>
+              </button>
+              <EmptyState v-if="state.recharges.length === 0" title="暂无充值记录" hint="会员在小程序充值后，记录会出现在这里，可用于核对微信支付与资金结算。" :action-label="emptyActionLabel('recharges')" @action="handleEmptyAction('recharges')" />
+            </div>
+            <div v-if="pageMetaFor('recharges').total > pageMetaFor('recharges').pageSize" class="pager">
+              <span>{{ pageRangeText('recharges') }}</span>
+              <button type="button" :disabled="pageMetaFor('recharges').page <= 1" @click="changePage('recharges', -1, loadRecharges)">上一页</button>
+              <button type="button" :disabled="pageMetaFor('recharges').page >= pageMetaFor('recharges').pageCount" @click="changePage('recharges', 1, loadRecharges)">下一页</button>
+            </div>
+          </article>
+          <div v-if="state.drawers.recharge && selectedRecharge" class="editor-drawer" role="dialog" aria-modal="true" aria-label="充值详情">
+            <div class="editor-drawer-mask" @click="closeDrawer('recharge')"></div>
+            <aside class="panel-card detail-panel drawer-panel">
+              <div class="panel-title"><h2>充值详情</h2><button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeDrawer('recharge')">×</button></div>
+              <DetailRow label="单号" :value="selectedRecharge.orderNo || '-'" />
+              <DetailRow label="会员" :value="rechargeMemberLabel(selectedRecharge)" />
+              <DetailRow label="方案" :value="selectedRecharge.planTitle || '-'" />
+              <DetailRow label="充值本金" :value="`¥${money((selectedRecharge.principalFen || 0) / 100)}`" />
+              <DetailRow label="赠送" :value="`¥${money((selectedRecharge.bonusFen || 0) / 100)}`" />
+              <DetailRow label="实付" :value="`¥${money(rechargeAmountYuan(selectedRecharge))}`" />
+              <DetailRow label="支付方式" :value="rechargePayLabel(selectedRecharge)" />
+              <DetailRow label="微信支付单号" :value="selectedRecharge.transactionId || '-'" />
+              <DetailRow label="支付时间" :value="formatDate(selectedRecharge.paidAt)" />
+              <DetailRow label="创建时间" :value="formatDate(selectedRecharge.createdAt)" />
+              <DetailRow label="状态" :value="rechargeStatusLabel(selectedRecharge).text" />
+              <DetailRow label="发货信息同步" :value="rechargeShippingLabel(selectedRecharge).text" />
+              <p v-if="selectedRecharge.wxShippingError && selectedRecharge.wxShippingUploaded !== true" class="privacy-note">同步失败原因：{{ selectedRecharge.wxShippingError }}</p>
+              <p v-if="selectedRecharge.transactionId && selectedRecharge.payStatus === 'paid' && selectedRecharge.wxShippingUploaded !== true && !selectedRecharge.wxShippingSkip" class="privacy-note">该笔为微信已支付但发货信息未同步：资金仍在微信侧结算周期外。系统看门狗每 10 分钟自动补传，无需手工处理。</p>
+            </aside>
+          </div>
+        </section>
+
         <section v-if="state.activeTab === 'content'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar">
@@ -7978,7 +8124,11 @@ onBeforeUnmount(() => {
                         <button v-if="hasPermission('settings.write')" class="mini-action" type="button" @click="regenerateTableQr(qr.tableNo)">重新生成</button>
                       </div>
                     </div>
-                    <img v-if="(qr.previewUrl || qr.url)" class="table-qr-img" :src="qr.previewUrl || qr.url" :alt="qr.tableNo + ' 号桌码'" />
+                    <img v-if="qr.previewUrl" class="table-qr-img" :src="qr.previewUrl" :alt="qr.tableNo + ' 号桌码'" />
+                    <div v-else-if="qr.url" class="table-qr-preview">
+                      <img :src="qr.url" :alt="qr.tableNo + ' 号桌小程序码'" />
+                      <strong>{{ qr.tableNo }} 号桌</strong>
+                    </div>
                     <div v-else class="table-qr-empty">未生成</div>
                   </div>
                 </div>

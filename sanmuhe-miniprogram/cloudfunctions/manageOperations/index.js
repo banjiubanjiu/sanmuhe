@@ -290,6 +290,7 @@ const allowedActions = new Set([
   "updateSignup",
   "checkInSignup",
   "listCustomers",
+  "listRecharges",
   "exportCustomerData",
   "deleteCustomerData",
   "listAuditLogs",
@@ -2689,6 +2690,80 @@ function summarizeMembers(members, wallets, recharges, ledger, orders) {
   }).sort((a, b) => recordTimeRank(b.latestAt) - recordTimeRank(a.latestAt) || b.totalSpend - a.totalSpend);
 }
 
+/**
+ * 充值记录列表（会员储值流水）。用于后台资金核对：
+ * 含微信支付单号 transactionId、支付状态、发货信息上传状态（wxShippingUploaded/Error），
+ * 可定位「已支付但资金未结算」的充值单（微信侧冻结）。
+ */
+async function listRecharges(event) {
+  const status = cleanText(event.status, 20);
+  const where = {};
+  if (status && status !== "all") {
+    where.status = status;
+  }
+  const result = await readCollectionPage("recharge_orders", {
+    where,
+    keyword: cleanText(event.keyword, 80),
+    keywordFields: ["orderNo", "rechargeNo", "planTitle", "transactionId"],
+    orderBy: "createdAt",
+    event
+  });
+
+  // 批量补全会员昵称/手机号
+  const memberIds = [...new Set((result.items || []).map((row) => row.memberId || "" ).filter(Boolean))];
+  const memberMap = {};
+  if (memberIds.length) {
+    try {
+      const memberRes = await db.collection("members").where({ _id: _.in(memberIds) }).limit(100).get();
+      (memberRes.data || []).forEach((member) => {
+        memberMap[member._id] = member;
+      });
+    } catch (error) {
+      // 会员信息缺失不阻断列表
+    }
+  }
+  const recharges = (result.items || []).map((row) => Object.assign({}, row, {
+    memberName: (memberMap[row.memberId] && (memberMap[row.memberId].nickName || memberMap[row.memberId].nickname)) || "",
+    memberPhone: (memberMap[row.memberId] && memberMap[row.memberId].phone) || ""
+  }));
+
+  return {
+    ok: true,
+    recharges,
+    page: result.page,
+    summary: await summarizeRecharges(status)
+  };
+}
+
+/** 充值汇总（按当前筛选状态）：总额/本月/微信支付/潜在冻结（微信支付且发货未上传） */
+async function summarizeRecharges(status) {
+  const where = {};
+  if (status && status !== "all") {
+    where.status = status;
+  }
+  let rows = [];
+  try {
+    const res = await db.collection("recharge_orders").where(where).limit(1000).get();
+    rows = res.data || [];
+  } catch (error) {
+    rows = [];
+  }
+  const paid = rows.filter((row) => row.payStatus === "paid");
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const pickAmount = (row) => Math.max(0, Number(row.payAmountFen ?? row.principalFen) || 0);
+  const sumFen = (list) => list.reduce((sum, row) => sum + pickAmount(row), 0);
+  return {
+    totalCount: rows.length,
+    paidCount: paid.length,
+    totalRechargeFen: sumFen(paid),
+    monthRechargeFen: sumFen(paid.filter((row) => recordTimeRank(rechargeRecordTime(row)) >= monthStart)),
+    wechatRechargeFen: sumFen(paid.filter((row) => row.transactionId)),
+    // 潜在冻结：微信支付、已支付、发货信息未成功上传且未标记跳过
+    frozenPendingFen: sumFen(paid.filter((row) => row.transactionId && row.wxShippingUploaded !== true && row.wxShippingSkip !== true))
+  };
+}
+
 async function listMembers(event) {
   const keyword = cleanText(event.keyword, 80).toLowerCase();
   const [members, wallets, recharges, ledger, orders] = await Promise.all([
@@ -4715,6 +4790,11 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "listCustomers") {
       const response = await listCustomers(event);
       await writeExportAuditLog(caller, event, action, "用户", response.page);
+      return response;
+    }
+    if (action === "listRecharges") {
+      const response = await listRecharges(event);
+      await writeExportAuditLog(caller, event, action, "充值记录", response.page);
       return response;
     }
     if (action === "deleteCustomerData") {
