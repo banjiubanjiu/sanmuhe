@@ -302,19 +302,12 @@ Page({
     searchOpen: false,
     searchResults: [],
     cartCount: 0,
-    cartTotal: 0,
-    /** 从「朋友分享码」进入（scene=share）：隐藏堂饮入口（堂饮仅限到店扫桌码） */
-    shareScene: false
+    cartTotal: 0
   },
 
-  onLoad(options) {
+  onLoad() {
     // 尽早点亮底部「首页」，避免自定义 tabBar 首屏 selected=-1
     syncTabBar(this);
-    // 分享码进入：options.scene === "share"（小程序码 scene 参数需解码）
-    const scene = decodeURIComponent((options && options.scene) || "");
-    if (scene === "share") {
-      this.setData({ shareScene: true });
-    }
     this.hydrateHomeFromCache();
   },
 
