@@ -1,6 +1,7 @@
 const http = require("http");
 const crypto = require("crypto");
 const cloud = require("wx-server-sdk");
+const { hydrateEnv } = require("./secrets");
 const {
   sendWeComOrderNotification,
   sendWeComRechargeNotification
@@ -19,7 +20,7 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 const DEFAULT_MEMBER_LEVELS = [
-  { tier: "雅客会员", minSpend: 0, discountRate: 0.98 },
+  { tier: "雅客会员", minSpend: 0, discountRate: 1 },
   { tier: "臻享会员", minSpend: 1600, discountRate: 0.95 },
   { tier: "山房会员", minSpend: 5000, discountRate: 0.92 }
 ];
@@ -337,7 +338,8 @@ function getLevelRules(settings = {}) {
     {
       tier: String(settings.levelOneName || DEFAULT_MEMBER_LEVELS[0].tier),
       minSpend: number(settings.levelOneMinSpend),
-      discountRate: Number(settings.levelOneDiscountRate || DEFAULT_MEMBER_LEVELS[0].discountRate)
+      // 支付后会员快照与下单规则保持一致：雅客会员按原价结算。
+      discountRate: 1
     },
     {
       tier: String(settings.levelTwoName || DEFAULT_MEMBER_LEVELS[1].tier),
@@ -653,6 +655,37 @@ async function handleRechargeSuccess(transaction, recharge) {
     throw new Error("充值支付金额不一致");
   }
   if (recharge.payStatus === "paid") {
+    // 主动查单可能先完成入账；回调仍需补传虚拟发货，避免资金长期停在待结算账户。
+    if (recharge.wxShippingUploaded !== true) {
+      try {
+        const transactionId = String(recharge.transactionId || transaction.transaction_id || "");
+        const wxShipping = await uploadVirtualShipping(
+          cloud,
+          Object.assign({}, recharge, { transactionId, _openid: recharge._openid }),
+          recharge.planTitle || "会员储值"
+        );
+        const wxFields = shippingResultFields(wxShipping);
+        const updateResult = await db.collection("recharge_orders").doc(recharge._id).update({
+          data: Object.assign({}, wxFields, {
+            wxShippingUploadedAt: wxFields.wxShippingUploaded ? db.serverDate() : recharge.wxShippingUploadedAt || null,
+            wxShippingLastAttemptAt: db.serverDate(),
+            updatedAt: db.serverDate()
+          })
+        });
+        if (dbUpdatedCount(updateResult) <= 0) {
+          throw new Error("充值发货状态写回失败");
+        }
+      } catch (error) {
+        await db.collection("recharge_orders").doc(recharge._id).update({
+          data: {
+            wxShippingUploaded: false,
+            wxShippingError: String((error && error.message) || error).slice(0, 300),
+            wxShippingLastAttemptAt: db.serverDate(),
+            updatedAt: db.serverDate()
+          }
+        });
+      }
+    }
     return;
   }
 
@@ -975,6 +1008,7 @@ async function processNotifyPayload(headers, rawBody) {
  * event.httpMethod / event.headers / event.body
  */
 exports.main = async (event = {}, context = {}) => {
+  await hydrateEnv(cloud);
   try {
     const method = String(event.httpMethod || event.requestContext && event.requestContext.httpMethod || "POST").toUpperCase();
     if (method === "GET") {

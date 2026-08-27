@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const { hydrateEnv } = require("./secrets");
 const crypto = require("crypto");
 const { buildAnalytics, normalizeRangeDays } = require("./analytics");
 const {
@@ -4053,7 +4054,8 @@ function normalizeSettings(data = {}) {
     memberPointRate: Math.max(0, Number(data.memberPointRate) || 1),
     levelOneName: cleanText(data.levelOneName, 20) || "雅客会员",
     levelOneMinSpend: Math.max(0, Number(data.levelOneMinSpend) || 0),
-    levelOneDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelOneDiscountRate) || 0.98)),
+    // 雅客会员没有折扣；读取或保存旧设置时统一归一为原价。
+    levelOneDiscountRate: 1,
     levelTwoName: cleanText(data.levelTwoName, 20) || "臻享会员",
     levelTwoMinSpend: Math.max(0, Number(data.levelTwoMinSpend) || 1600),
     levelTwoDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelTwoDiscountRate) || 0.95)),
@@ -4591,6 +4593,7 @@ async function downloadTableQrFile(event) {
 }
 
 exports.main = async (event = {}, context = {}) => {
+  await hydrateEnv(cloud);
   if (event.action === "health") {
     return { ok: true, name: "manageOperations" };
   }

@@ -13,6 +13,7 @@
  *   tcb fn trigger create shippingWatchdog --trigger-name shipping-watchdog --cron "0 0/10 * * * * *"（每 10 分钟）
  */
 const cloud = require("wx-server-sdk");
+const { hydrateEnv } = require("./secrets");
 const https = require("https");
 const {
   uploadVirtualShipping,
@@ -170,6 +171,7 @@ async function handleRow(col, row, report) {
 }
 
 exports.main = async () => {
+  await hydrateEnv(cloud);
   const report = { scanned: 0, fixed: 0, failed: 0, skipped: 0, alerts: [] };
 
   // 通道自检：先验证能否拿到 access_token（WX_MP_APPSECRET 是否被部署冲掉）
