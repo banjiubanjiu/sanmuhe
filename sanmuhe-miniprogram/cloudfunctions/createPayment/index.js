@@ -126,6 +126,27 @@ function numberField(value) {
   return Number(value) || 0;
 }
 
+function paymentError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function transactionValue(result) {
+  if (result && Object.prototype.hasOwnProperty.call(result, "result")) {
+    return result.result;
+  }
+  return result;
+}
+
+function normalizePayMode(value) {
+  const mode = cleanText(value, 20).toLowerCase();
+  if (mode === "wallet") {
+    return "balance";
+  }
+  return mode;
+}
+
 function isBalancePayMode(event = {}) {
   const mode = cleanText(event.payMode || event.paymentMode || event.checkoutMode, 20).toLowerCase();
   return mode === "balance" || mode === "wallet";
@@ -356,6 +377,62 @@ function createRefundOutNo(prefix) {
   return `${base}RF${Date.now()}${Math.floor(Math.random() * 900 + 100)}`.slice(0, 64);
 }
 
+function resolveReservationRefundFen(event, totalFee, alreadyRefundedFen) {
+  const maxRefundFen = Math.max(0, totalFee - alreadyRefundedFen);
+  if (maxRefundFen <= 0) {
+    return { refundFee: 0, maxRefundFen };
+  }
+
+  let refundFee = maxRefundFen;
+  if (event.refundAmount != null && event.refundAmount !== "") {
+    refundFee = Math.round(Number(event.refundAmount) * 100);
+  } else if (event.refundAmountFen != null && event.refundAmountFen !== "") {
+    refundFee = Math.round(Number(event.refundAmountFen));
+  }
+  if (!Number.isFinite(refundFee) || refundFee <= 0) {
+    throw paymentError("INVALID_REFUND_AMOUNT", "退款金额无效");
+  }
+  if (refundFee > maxRefundFen) {
+    throw paymentError(
+      "REFUND_AMOUNT_EXCEEDED",
+      `退款金额不能超过可退余额 ¥${(maxRefundFen / 100).toFixed(2)}`
+    );
+  }
+  return { refundFee, maxRefundFen };
+}
+
+function splitWalletRefund(principalPaidFen, bonusPaidFen, alreadyRefundedFen, refundFee) {
+  const principalPaid = Math.max(0, Math.round(numberField(principalPaidFen)));
+  const bonusPaid = Math.max(0, Math.round(numberField(bonusPaidFen)));
+  const totalPaid = principalPaid + bonusPaid;
+  if (alreadyRefundedFen + refundFee > totalPaid) {
+    throw paymentError("WALLET_REFUND_EXCEEDED", "余额退款超过原扣款金额，请人工核对");
+  }
+
+  const splitCumulative = (amountFen) => {
+    if (amountFen <= 0 || totalPaid <= 0) {
+      return { principalFen: 0, bonusFen: 0 };
+    }
+    let principalFen = Math.min(
+      principalPaid,
+      Math.round(amountFen * principalPaid / totalPaid)
+    );
+    let bonusFen = amountFen - principalFen;
+    if (bonusFen > bonusPaid) {
+      bonusFen = bonusPaid;
+      principalFen = amountFen - bonusFen;
+    }
+    return { principalFen, bonusFen };
+  };
+
+  const before = splitCumulative(alreadyRefundedFen);
+  const after = splitCumulative(alreadyRefundedFen + refundFee);
+  return {
+    principalFen: after.principalFen - before.principalFen,
+    bonusFen: after.bonusFen - before.bonusFen
+  };
+}
+
 async function loadReservationForRefund(reservationId, reservationNo) {
   if (reservationId) {
     try {
@@ -377,12 +454,158 @@ async function loadReservationForRefund(reservationId, reservationNo) {
   return null;
 }
 
+async function refundReservationBalance(event, row) {
+  await Promise.all([ensureCollection("wallet_accounts"), ensureCollection("wallet_ledger")]);
+
+  const result = await db.runTransaction(async (transaction) => {
+    const reservationResult = await transaction.collection("reservations").doc(row._id).get();
+    const current = reservationResult.data || {};
+    if (normalizePayMode(current.payMode) !== "balance") {
+      throw paymentError("PAYMENT_CHANNEL_CONFLICT", "该预约不是余额支付，不能退回会员余额");
+    }
+    if (current.payStatus !== "refunding") {
+      throw paymentError("REFUND_IN_PROGRESS", "退款处理中，请勿重复操作");
+    }
+
+    const totalFee = Math.round(numberField(current.total != null ? current.total : current.price) * 100);
+    const alreadyRefundedFen = Math.round(numberField(current.refundAmount) * 100);
+    const { refundFee } = resolveReservationRefundFen(event, totalFee, alreadyRefundedFen);
+    if (totalFee <= 0 || refundFee <= 0) {
+      await transaction.collection("reservations").doc(row._id).update({
+        data: {
+          payStatus: "refunded",
+          refundStatus: "SUCCESS",
+          refundAmount: Math.max(0, totalFee) / 100,
+          refundChannel: "balance",
+          refundedAt: db.serverDate(),
+          updatedAt: db.serverDate()
+        }
+      });
+      return {
+        ok: true,
+        alreadyRefunded: true,
+        reservationId: row._id,
+        reservationNo: current.reservationNo,
+        refundAmount: Math.max(0, totalFee) / 100,
+        zeroAmount: totalFee <= 0
+      };
+    }
+
+    const paymentLedgerId = `reservation_${current.reservationNo}`;
+    let paymentLedger;
+    try {
+      const ledgerResult = await transaction.collection("wallet_ledger").doc(paymentLedgerId).get();
+      paymentLedger = ledgerResult.data;
+    } catch (error) {
+      paymentLedger = null;
+    }
+    if (!paymentLedger || paymentLedger.status !== "posted" || paymentLedger.type !== "reservation_payment") {
+      throw paymentError("WALLET_LEDGER_MISSING", "未找到预约余额扣款流水，请人工核对");
+    }
+
+    const paidAmountFen = Math.abs(Math.round(numberField(paymentLedger.amountFen)));
+    if (paidAmountFen !== totalFee) {
+      throw paymentError("WALLET_LEDGER_MISMATCH", "预约金额与余额扣款流水不一致，请人工核对");
+    }
+    let principalPaidFen = Math.abs(Math.round(numberField(paymentLedger.principalFen)));
+    let bonusPaidFen = Math.abs(Math.round(numberField(paymentLedger.bonusFen)));
+    if (principalPaidFen + bonusPaidFen !== paidAmountFen) {
+      principalPaidFen = paidAmountFen;
+      bonusPaidFen = 0;
+    }
+    const refundSplit = splitWalletRefund(
+      principalPaidFen,
+      bonusPaidFen,
+      alreadyRefundedFen,
+      refundFee
+    );
+
+    const walletResult = await transaction.collection("wallet_accounts").doc(paymentLedger.walletId).get();
+    const wallet = walletResult.data || {};
+    // 退款是对既有负债的冲正：账户即使随后被停用，也必须能原路退回。
+    if (!wallet._openid || wallet._openid !== current._openid) {
+      throw paymentError("WALLET_ACCOUNT_MISMATCH", "余额账户归属不一致，请人工核对");
+    }
+
+    const balanceBeforeFen = Math.max(0, Math.round(numberField(wallet.balanceFen)));
+    const cumulativeFen = alreadyRefundedFen + refundFee;
+    const fullyRefunded = cumulativeFen >= totalFee;
+    const refundLedgerId = `reservation_refund_${crypto
+      .createHash("sha256")
+      .update(`${current.reservationNo}:${alreadyRefundedFen}:${refundFee}`)
+      .digest("hex")
+      .slice(0, 24)}`;
+
+    await transaction.collection("wallet_accounts").doc(paymentLedger.walletId).update({
+      data: {
+        balanceFen: _.inc(refundFee),
+        principalBalanceFen: _.inc(refundSplit.principalFen),
+        bonusBalanceFen: _.inc(refundSplit.bonusFen),
+        totalSpentFen: _.inc(-refundFee),
+        totalRefundedFen: _.inc(refundFee),
+        updatedAt: db.serverDate()
+      }
+    });
+    await transaction.collection("wallet_ledger").doc(refundLedgerId).set({
+      data: {
+        _openid: current._openid,
+        walletId: paymentLedger.walletId,
+        memberId: paymentLedger.memberId || "",
+        reservationId: row._id,
+        reservationNo: current.reservationNo,
+        relatedLedgerId: paymentLedgerId,
+        type: "reservation_refund",
+        amountFen: refundFee,
+        principalFen: refundSplit.principalFen,
+        bonusFen: refundSplit.bonusFen,
+        status: "posted",
+        balanceAfterFen: balanceBeforeFen + refundFee,
+        reason: cleanText(event.reason || current.cancellationReason || "预约退款", 80),
+        createdAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+    await transaction.collection("reservations").doc(row._id).update({
+      data: {
+        payStatus: fullyRefunded ? "refunded" : "partial_refunded",
+        refundStatus: "SUCCESS",
+        refundChannel: "balance",
+        refundAmount: cumulativeFen / 100,
+        lastRefundAmount: refundFee / 100,
+        refundPrincipalFen: _.inc(refundSplit.principalFen),
+        refundBonusFen: _.inc(refundSplit.bonusFen),
+        lastWalletRefundLedgerId: refundLedgerId,
+        refundedAt: fullyRefunded ? db.serverDate() : current.refundedAt || null,
+        refundLastAttemptAt: db.serverDate(),
+        refundError: _.remove(),
+        updatedAt: db.serverDate()
+      }
+    });
+
+    return {
+      ok: true,
+      reservationId: row._id,
+      reservationNo: current.reservationNo,
+      payStatus: fullyRefunded ? "refunded" : "partial_refunded",
+      refundStatus: "SUCCESS",
+      refundChannel: "balance",
+      refundAmount: cumulativeFen / 100,
+      lastRefundAmount: refundFee / 100,
+      partial: !fullyRefunded,
+      balanceAfterFen: balanceBeforeFen + refundFee,
+      refundLedgerId
+    };
+  });
+
+  return transactionValue(result);
+}
+
 /**
  * 茶室预约退款（用户取消 / 管理后台代退 / 售后部分或全额）
  * 要求 payStatus=refunding，业务状态为 已取消 / 已完成 / 异常待处理。
  * 支持 event.refundAmount（元）做部分退款；累计退款记在 refundAmount。
  */
-async function refundReservation(event, openid, config, source) {
+async function refundReservation(event, openid, source) {
   const reservationId = cleanText(event.reservationId || event.id, 80);
   const reservationNo = cleanText(event.reservationNo, 40);
   const row = await loadReservationForRefund(reservationId, reservationNo);
@@ -426,6 +649,43 @@ async function refundReservation(event, openid, config, source) {
     };
   }
 
+  // 历史微信预约尚未写 payMode，但已有微信 transactionId；余额支付上线后始终显式写 balance。
+  const payMode = normalizePayMode(row.payMode) || (row.transactionId ? "wechat" : "");
+  if (payMode === "balance") {
+    try {
+      return await refundReservationBalance(event, row);
+    } catch (error) {
+      return {
+        ok: false,
+        code: error && error.code ? error.code : "BALANCE_REFUND_FAILED",
+        message: (error && error.message) || "余额退款失败，请重试"
+      };
+    }
+  }
+  if (payMode !== "wechat") {
+    return {
+      ok: false,
+      code: "UNKNOWN_PAYMENT_CHANNEL",
+      message: "预约原支付渠道不明确，请人工核对后退款"
+    };
+  }
+
+  let config;
+  try {
+    config = getPayConfig();
+  } catch (error) {
+    return { ok: false, code: "PAY_CONFIG_ERROR", message: error.message || "微信支付配置不可用" };
+  }
+
+  const totalFee = Math.round(numberField(row.total != null ? row.total : row.price) * 100);
+  const alreadyRefundedFen = Math.round(numberField(row.refundAmount) * 100);
+  let refundFee;
+  try {
+    refundFee = resolveReservationRefundFen(event, totalFee, alreadyRefundedFen).refundFee;
+  } catch (error) {
+    return { ok: false, code: error.code || "INVALID_REFUND_AMOUNT", message: error.message };
+  }
+
   // 原子抢占（S2 修复）：payStatus refunding → refunding_pending 条件更新，
   // 并发第二个请求因状态已变 updated=0，杜绝累计退款超过实付的双退。
   const claim = await db.collection("reservations").where({
@@ -444,8 +704,6 @@ async function refundReservation(event, openid, config, source) {
 
   try {
 
-  const totalFee = Math.round(numberField(row.total != null ? row.total : row.price) * 100);
-  const alreadyRefundedFen = Math.round(numberField(row.refundAmount) * 100);
   const maxRefundFen = Math.max(0, totalFee - alreadyRefundedFen);
 
   if (totalFee <= 0 || maxRefundFen <= 0) {
@@ -464,34 +722,6 @@ async function refundReservation(event, openid, config, source) {
       refundAmount: totalFee / 100,
       zeroAmount: totalFee <= 0
     };
-  }
-
-  // 未指定金额 = 退剩余全部；指定金额 = 部分退（单位：元）
-  let refundFee = maxRefundFen;
-  if (event.refundAmount != null && event.refundAmount !== "") {
-    const requestedFen = Math.round(Number(event.refundAmount) * 100);
-    if (!Number.isFinite(requestedFen) || requestedFen <= 0) {
-      return { ok: false, message: "退款金额无效" };
-    }
-    if (requestedFen > maxRefundFen) {
-      return {
-        ok: false,
-        message: `退款金额不能超过可退余额 ¥${(maxRefundFen / 100).toFixed(2)}`
-      };
-    }
-    refundFee = requestedFen;
-  } else if (event.refundAmountFen != null && event.refundAmountFen !== "") {
-    const requestedFen = Math.round(Number(event.refundAmountFen));
-    if (!Number.isFinite(requestedFen) || requestedFen <= 0) {
-      return { ok: false, message: "退款金额无效" };
-    }
-    if (requestedFen > maxRefundFen) {
-      return {
-        ok: false,
-        message: `退款金额不能超过可退余额 ¥${(maxRefundFen / 100).toFixed(2)}`
-      };
-    }
-    refundFee = requestedFen;
   }
 
   // 每次退款使用新的 out_refund_no（支持多次部分退）
@@ -1006,26 +1236,67 @@ async function saveReservationPrepay(reservationId, openid, prepayId) {
     prepayId,
     prepayCreatedAt: db.serverDate(),
     payStatus: "pending",
+    payMode: "wechat",
     updatedAt: db.serverDate()
   };
   try {
     const byWhere = await db.collection("reservations").where({
       _id: reservationId,
       _openid: openid,
-      status: "待支付"
+      status: "待支付",
+      payStatus: _.in(["pending", "failed"]),
+      payMode: "wechat"
     }).update({ data: payload });
-    if (dbUpdatedCount(byWhere) > 0) {
-      return true;
-    }
-  } catch (error) {
-    // fall through
-  }
-  try {
-    await db.collection("reservations").doc(reservationId).update({ data: payload });
-    return true;
+    return dbUpdatedCount(byWhere) > 0;
   } catch (error) {
     return false;
   }
+}
+
+async function claimReservationWechatChannel(reservation, openid) {
+  const currentMode = normalizePayMode(reservation.payMode);
+  if (currentMode === "wechat") {
+    return reservation;
+  }
+  if (currentMode) {
+    throw paymentError("PAYMENT_CHANNEL_CONFLICT", "该预约已选择余额支付，不能再发起微信支付");
+  }
+
+  const unclaimedPredicates = [_.exists(false), "", null];
+  for (const payMode of unclaimedPredicates) {
+    const claim = await db.collection("reservations").where({
+      _id: reservation._id,
+      _openid: openid,
+      status: "待支付",
+      payStatus: _.in(["pending", "failed"]),
+      payMode
+    }).update({
+      data: {
+        payStatus: "pending",
+        payMode: "wechat",
+        paymentChannelClaimedAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+    if (dbUpdatedCount(claim) > 0) {
+      return Object.assign({}, reservation, { payStatus: "pending", payMode: "wechat" });
+    }
+  }
+
+  const latest = await findReservation(reservation._id, "", openid);
+  if (latest && normalizePayMode(latest.payMode) === "wechat" &&
+      latest.status === "待支付" && ["pending", "failed"].includes(latest.payStatus)) {
+    return latest;
+  }
+  if (latest && latest.payStatus === "paid") {
+    throw paymentError("ALREADY_PAID", "预约已支付");
+  }
+  throw paymentError(
+    "PAYMENT_CHANNEL_CONFLICT",
+    latest && normalizePayMode(latest.payMode) === "balance"
+      ? "该预约已选择余额支付，不能再发起微信支付"
+      : "预约支付状态已变化，请刷新后重试"
+  );
 }
 
 function buildReservationDescription(reservation) {
@@ -1037,7 +1308,7 @@ function buildReservationDescription(reservation) {
 async function createReservationPayment(event, openid, config) {
   const reservationId = cleanText(event.reservationId || event.id, 80);
   const reservationNo = cleanText(event.reservationNo, 40);
-  const reservation = await findReservation(reservationId, reservationNo, openid);
+  let reservation = await findReservation(reservationId, reservationNo, openid);
   if (!reservation) {
     return { ok: false, message: "预约不存在" };
   }
@@ -1065,6 +1336,16 @@ async function createReservationPayment(event, openid, config) {
   const totalFee = Math.round(numberField(reservation.total) * 100);
   if (totalFee <= 0) {
     return { ok: false, message: "预约金额无效" };
+  }
+
+  try {
+    reservation = await claimReservationWechatChannel(reservation, openid);
+  } catch (error) {
+    return {
+      ok: false,
+      code: error && error.code ? error.code : "PAYMENT_CHANNEL_CONFLICT",
+      message: (error && error.message) || "预约支付状态已变化，请刷新后重试"
+    };
   }
 
   // 已有预支付单：先查微信；SUCCESS 补标已付，NOTPAY 重签调起，CLOSED 重新下单
@@ -1205,56 +1486,110 @@ function splitWalletDebit(wallet, amountFen) {
   return { principalFen, bonusFen };
 }
 
-async function debitReservationWallet(openid, member, reservation) {
+async function settleReservationBalance(openid, member, reservationId) {
   if (!member) {
     throw new Error("请先开通会员再使用余额支付");
   }
   await Promise.all([ensureCollection("wallet_accounts"), ensureCollection("wallet_ledger")]);
   const result = await db.collection("wallet_accounts").where({ _openid: openid, status: "active" }).limit(1).get();
-  const wallet = result.data && result.data[0];
-  if (!wallet) {
+  const walletRef = result.data && result.data[0];
+  if (!walletRef || !walletRef._id) {
     throw new Error("未找到可用的会员余额账户");
   }
 
-  const amountFen = Math.max(0, Math.round(numberField(reservation.total) * 100));
-  const ledgerId = `reservation_${reservation.reservationNo}`;
-  const existingLedger = await db.collection("wallet_ledger").doc(ledgerId).get().catch(() => null);
-  if (existingLedger && existingLedger.data && existingLedger.data.status === "posted") {
-    return {
-      amountFen,
-      balanceAfterFen: numberField(existingLedger.data.balanceAfterFen),
-      idempotent: true
-    };
-  }
-
-  const balanceFen = Math.max(0, Math.round(numberField(wallet.balanceFen)));
-  const debit = splitWalletDebit(wallet, amountFen);
-  const claim = await db.collection("wallet_accounts").where({
-    _id: wallet._id,
-    _openid: openid,
-    status: "active",
-    balanceFen
-  }).update({
-    data: {
-      balanceFen: _.inc(-amountFen),
-      principalBalanceFen: _.inc(-debit.principalFen),
-      bonusBalanceFen: _.inc(-debit.bonusFen),
-      totalSpentFen: _.inc(amountFen),
-      processedOrderIds: _.push(reservation.reservationNo),
-      updatedAt: db.serverDate()
+  const transactionResult = await db.runTransaction(async (transaction) => {
+    const reservationResult = await transaction.collection("reservations").doc(reservationId).get();
+    const reservation = reservationResult.data || {};
+    if (reservation._openid !== openid) {
+      throw paymentError("RESERVATION_FORBIDDEN", "无权支付该预约");
     }
-  });
-  if (dbUpdatedCount(claim) <= 0) {
-    throw new Error("会员余额已发生变化，请重新确认支付");
-  }
+    const payMode = normalizePayMode(reservation.payMode);
+    if (reservation.payStatus === "paid") {
+      if (payMode !== "balance") {
+        throw paymentError("PAYMENT_CHANNEL_CONFLICT", "该预约已通过微信支付");
+      }
+      return {
+        amountFen: Math.max(0, Math.round(numberField(reservation.total) * 100)),
+        balanceAfterFen: numberField(reservation.walletPayment && reservation.walletPayment.balanceAfterFen),
+        reservation,
+        alreadyPaid: true
+      };
+    }
+    if (reservation.status !== "待支付" || !["pending", "failed", "confirming"].includes(reservation.payStatus)) {
+      throw paymentError(
+        "RESERVATION_NOT_PAYABLE",
+        `预约支付状态不可用（${reservation.status || "未知"}/${reservation.payStatus || "未知"}）`
+      );
+    }
+    if (payMode && payMode !== "balance") {
+      throw paymentError("PAYMENT_CHANNEL_CONFLICT", "该预约已选择微信支付，不能再使用余额支付");
+    }
+    if (isExpired(reservation)) {
+      throw paymentError("RESERVATION_EXPIRED", "预约已超时，请重新预约");
+    }
 
-  try {
-    await db.collection("wallet_ledger").doc(ledgerId).set({
+    const amountFen = Math.max(0, Math.round(numberField(reservation.total) * 100));
+    if (amountFen <= 0) {
+      throw paymentError("INVALID_RESERVATION_AMOUNT", "预约金额无效");
+    }
+    const ledgerId = `reservation_${reservation.reservationNo}`;
+    let existingLedger;
+    try {
+      const existingResult = await transaction.collection("wallet_ledger").doc(ledgerId).get();
+      existingLedger = existingResult.data;
+    } catch (error) {
+      existingLedger = null;
+    }
+    if (existingLedger && existingLedger.status === "posted") {
+      if (existingLedger.type !== "reservation_payment" ||
+          Math.abs(Math.round(numberField(existingLedger.amountFen))) !== amountFen) {
+        throw paymentError("WALLET_LEDGER_MISMATCH", "余额流水与预约金额不一致，请人工核对");
+      }
+      await transaction.collection("reservations").doc(reservationId).update({
+        data: {
+          status: "已确认",
+          payStatus: "paid",
+          payMode: "balance",
+          paidAt: reservation.paidAt || db.serverDate(),
+          walletPayment: {
+            amountFen,
+            balanceAfterFen: numberField(existingLedger.balanceAfterFen)
+          },
+          updatedAt: db.serverDate()
+        }
+      });
+      return {
+        amountFen,
+        balanceAfterFen: numberField(existingLedger.balanceAfterFen),
+        reservation,
+        idempotent: true
+      };
+    }
+
+    const walletResult = await transaction.collection("wallet_accounts").doc(walletRef._id).get();
+    const wallet = walletResult.data || {};
+    if (wallet._openid !== openid || wallet.status !== "active") {
+      throw paymentError("WALLET_ACCOUNT_UNAVAILABLE", "会员余额账户不可用");
+    }
+    const balanceFen = Math.max(0, Math.round(numberField(wallet.balanceFen)));
+    const debit = splitWalletDebit(wallet, amountFen);
+
+    await transaction.collection("wallet_accounts").doc(walletRef._id).update({
+      data: {
+        balanceFen: _.inc(-amountFen),
+        principalBalanceFen: _.inc(-debit.principalFen),
+        bonusBalanceFen: _.inc(-debit.bonusFen),
+        totalSpentFen: _.inc(amountFen),
+        processedOrderIds: _.push(reservation.reservationNo),
+        updatedAt: db.serverDate()
+      }
+    });
+    await transaction.collection("wallet_ledger").doc(ledgerId).set({
       data: {
         _openid: openid,
-        walletId: wallet._id,
+        walletId: walletRef._id,
         memberId: member._id || "",
-        reservationId: reservation._id,
+        reservationId,
         reservationNo: reservation.reservationNo,
         type: "reservation_payment",
         amountFen: -amountFen,
@@ -1266,19 +1601,29 @@ async function debitReservationWallet(openid, member, reservation) {
         updatedAt: db.serverDate()
       }
     });
-  } catch (error) {
-    await db.collection("wallet_accounts").doc(wallet._id).update({
+    await transaction.collection("reservations").doc(reservationId).update({
       data: {
-        balanceFen: _.inc(amountFen),
-        principalBalanceFen: _.inc(debit.principalFen),
-        bonusBalanceFen: _.inc(debit.bonusFen),
-        totalSpentFen: _.inc(-amountFen),
+        status: "已确认",
+        payStatus: "paid",
+        payMode: "balance",
+        paymentChannelClaimedAt: reservation.paymentChannelClaimedAt || db.serverDate(),
+        paidAt: db.serverDate(),
+        walletPayment: {
+          amountFen,
+          balanceAfterFen: balanceFen - amountFen
+        },
         updatedAt: db.serverDate()
       }
-    }).catch(() => null);
-    throw new Error(error.message || "余额流水写入失败，请重试");
-  }
-  return { amountFen, balanceAfterFen: balanceFen - amountFen };
+    });
+
+    return {
+      amountFen,
+      balanceAfterFen: balanceFen - amountFen,
+      reservation
+    };
+  });
+
+  return transactionValue(transactionResult);
 }
 
 async function notifyReservationPaid(reservation) {
@@ -1299,97 +1644,50 @@ async function createReservationBalancePayment(event, openid) {
     cleanText(event.reservationNo, 40),
     openid
   );
-  if (!reservation) return { ok: false, message: "预约不存在" };
+  if (!reservation) {
+    return { ok: false, message: "预约不存在" };
+  }
   if (reservation.payStatus === "paid") {
-    return { ok: true, reservationId: reservation._id, orderNo: reservation.reservationNo, total: numberField(reservation.total), payMode: "balance", payStatus: "paid", alreadyPaid: true };
+    if (normalizePayMode(reservation.payMode) !== "balance") {
+      return { ok: false, code: "ALREADY_PAID", message: "该预约已通过微信支付" };
+    }
+    return {
+      ok: true,
+      reservationId: reservation._id,
+      orderNo: reservation.reservationNo,
+      total: numberField(reservation.total),
+      payMode: "balance",
+      payStatus: "paid",
+      alreadyPaid: true,
+      balanceAfterFen: numberField(reservation.walletPayment && reservation.walletPayment.balanceAfterFen)
+    };
   }
   if (isExpired(reservation)) {
-    await db.collection("reservations").where({
-      _id: reservation._id,
-      _openid: openid,
-      status: "待支付",
-      payStatus: "pending"
-    }).update({
-      data: {
-        status: "已取消",
-        payStatus: "expired",
-        cancellationReason: "支付超时",
-        updatedAt: db.serverDate()
-      }
-    }).catch(() => null);
     return { ok: false, message: "预约已超时，请重新预约" };
   }
-  // 已调起过微信预支付时不切换支付渠道，避免用户在两个设备并行付款。
-  if (reservation.prepayId) {
-    return { ok: false, message: "该预约已有微信支付正在处理，请使用微信完成支付" };
-  }
   const member = await findActiveMember(openid);
-  if (!member) return { ok: false, message: "请先开通会员再使用余额支付" };
-
-  const paidPatch = {
-    status: "已确认",
-    payStatus: "paid",
-    payMode: "balance",
-    paidAt: db.serverDate(),
-    updatedAt: db.serverDate()
-  };
-  const paymentClaim = await db.collection("reservations").where({
-    _id: reservation._id,
-    _openid: openid,
-    status: "待支付",
-    payStatus: "pending"
-  }).update({
-    data: { payStatus: "confirming", payMode: "balance", updatedAt: db.serverDate() }
-  });
-
-  if (dbUpdatedCount(paymentClaim) <= 0) {
-    const latest = await findReservation(reservation._id, "", openid);
-    if (latest && latest.payStatus === "paid") {
-      return { ok: true, reservationId: latest._id, orderNo: latest.reservationNo, total: numberField(latest.total), payMode: latest.payMode || "balance", payStatus: "paid", alreadyPaid: true };
-    }
-    // 云函数在扣款后、写预约状态前中断时，下一次请求依据已落账流水补齐确认，
-    // 不会再次扣款，也不会让预约永远停在 confirming。
-    if (latest && latest.payStatus === "confirming" && latest.payMode === "balance") {
-      const ledger = await db.collection("wallet_ledger").doc(`reservation_${latest.reservationNo}`).get().catch(() => null);
-      if (ledger && ledger.data && ledger.data.status === "posted") {
-        await db.collection("reservations").doc(latest._id).update({
-          data: Object.assign({}, paidPatch, {
-            walletPayment: {
-              amountFen: Math.abs(numberField(ledger.data.amountFen)),
-              balanceAfterFen: numberField(ledger.data.balanceAfterFen)
-            }
-          })
-        });
-        await notifyReservationPaid(Object.assign({}, latest, paidPatch));
-        return { ok: true, reservationId: latest._id, orderNo: latest.reservationNo, total: numberField(latest.total), payMode: "balance", payStatus: "paid", alreadyPaid: true, balanceAfterFen: numberField(ledger.data.balanceAfterFen) };
-      }
-    }
-    return { ok: false, message: "预约支付正在处理中，请稍后刷新" };
+  if (!member) {
+    return { ok: false, message: "请先开通会员再使用余额支付" };
   }
 
   let walletPayment;
   try {
-    walletPayment = await debitReservationWallet(openid, member, reservation);
+    walletPayment = await settleReservationBalance(openid, member, reservation._id);
   } catch (error) {
-    await db.collection("reservations").where({
-      _id: reservation._id,
-      _openid: openid,
-      status: "待支付",
-      payStatus: "confirming",
-      payMode: "balance"
-    }).update({ data: { payStatus: "pending", payMode: _.remove(), updatedAt: db.serverDate() } }).catch(() => null);
-    return { ok: false, message: error.message || "余额支付失败，请重试" };
+    return {
+      ok: false,
+      code: error && error.code ? error.code : "BALANCE_PAYMENT_FAILED",
+      message: (error && error.message) || "余额支付失败，请重试"
+    };
   }
 
-  await db.collection("reservations").doc(reservation._id).update({
-    data: Object.assign({}, paidPatch, {
-      walletPayment: {
-        amountFen: walletPayment.amountFen,
-        balanceAfterFen: walletPayment.balanceAfterFen
-      }
-    })
-  });
-  await notifyReservationPaid(Object.assign({}, reservation, paidPatch));
+  if (!walletPayment.alreadyPaid) {
+    await notifyReservationPaid(Object.assign({}, walletPayment.reservation || reservation, {
+      status: "已确认",
+      payStatus: "paid",
+      payMode: "balance"
+    }));
+  }
   return {
     ok: true,
     reservationId: reservation._id,
@@ -1397,6 +1695,7 @@ async function createReservationBalancePayment(event, openid) {
     total: numberField(reservation.total),
     payMode: "balance",
     payStatus: "paid",
+    alreadyPaid: Boolean(walletPayment.alreadyPaid || walletPayment.idempotent),
     balanceAfterFen: walletPayment.balanceAfterFen
   };
 }
@@ -1798,8 +2097,7 @@ exports.main = async (event = {}) => {
       return await createRechargePayment(event, OPENID, config);
     }
     if (reservationRefundRequest) {
-      const config = getPayConfig();
-      return await refundReservation(event, OPENID, config, SOURCE);
+      return await refundReservation(event, OPENID, SOURCE);
     }
     if (reservationRequest) {
       if (isBalancePayMode(event)) {

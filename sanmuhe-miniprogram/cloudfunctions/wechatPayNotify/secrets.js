@@ -5,7 +5,7 @@
  * 历史上因此冲掉过 WX_MP_APPSECRET / 支付私钥，导致发货信息上传失败、资金冻结。
  * 本模块把密钥权威源放到云数据库集合 app_secrets（文档 _id=live），
  * 函数冷启动时把密钥注入 process.env —— 密钥不再依赖函数 env，
- * 任何部署方式都无法冲掉。env 已有值时保持原样（零回归），缺失时自动补。
+ * 任何部署方式都无法冲掉。数据库中的受管字段会覆盖旧 env，确保轮换立即生效。
  *
  * 用法（在 exports.main 最前面）：
  *   const { hydrateEnv } = require("./secrets");
@@ -17,13 +17,21 @@
  * 换密钥：同时更新 .secrets/wechat-pay.env 与数据库 app_secrets/live。
  */
 const CACHE_TTL = 10 * 60 * 1000;
+const MANAGED_SECRET_KEYS = new Set([
+  "REAL_PAYMENT_ENABLED", "WECHAT_PAY_APPID", "WECHAT_PAY_MCH_ID",
+  "WECHAT_PAY_CERT_SERIAL_NO", "WECHAT_PAY_API_V3_KEY", "WECHAT_PAY_PRIVATE_KEY",
+  "WECHAT_PAY_PLATFORM_PUBLIC_KEY", "WECHAT_PAY_PLATFORM_CERTIFICATE",
+  "WECHAT_PAY_PUBLIC_KEY_ID", "WECHAT_PAY_NOTIFY_URL", "WX_MP_APPID",
+  "WX_MP_APPSECRET", "WECOM_ORDER_WEBHOOK", "WECOM_RESERVATION_WEBHOOK",
+  "WECOM_MENTIONED_MOBILES"
+]);
 
 let cache = null;
 let cacheAt = 0;
 
 function apply(data) {
   for (const [key, value] of Object.entries(data || {})) {
-    if (typeof value === "string" && value && !process.env[key]) {
+    if (MANAGED_SECRET_KEYS.has(key) && typeof value === "string" && value) {
       process.env[key] = value;
     }
   }

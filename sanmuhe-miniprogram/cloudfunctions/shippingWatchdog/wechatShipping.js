@@ -81,26 +81,32 @@ function cleanText(value, maxLength) {
 
 /**
  * 内存缓存 access_token（有效 7200s，这里 100 分钟提前刷新）。
- * 自换 token：WX_MP_APPID + WX_MP_APPSECRET 直调 /cgi-bin/token，绕开 CloudBase 云调用。
+ * 自换 token：WX_MP_APPID + WX_MP_APPSECRET 直调 /cgi-bin/stable_token，避免多实例刷新互相失效。
  */
 let __wxTokenCache = "";
 let __wxTokenCacheAt = 0;
+const INVALID_ACCESS_TOKEN_CODES = new Set([40014, 42001]);
 
-async function fetchWxTokenWithSecret() {
+function clearAccessTokenCache() {
+  __wxTokenCache = "";
+  __wxTokenCacheAt = 0;
+}
+
+async function fetchWxTokenWithSecret({ forceRefresh = false } = {}) {
   const appid = cleanText(process.env.WX_MP_APPID || process.env.WECHAT_PAY_APPID, 64);
   const secret = cleanText(process.env.WX_MP_APPSECRET, 128);
   if (!appid || !secret) {
     return "";
   }
   const now = Date.now();
-  if (__wxTokenCache && __wxTokenCacheAt && now - __wxTokenCacheAt < 100 * 60 * 1000) {
+  if (!forceRefresh && __wxTokenCache && __wxTokenCacheAt && now - __wxTokenCacheAt < 100 * 60 * 1000) {
     return __wxTokenCache;
   }
   const https = require("https");
-  const path = `/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`;
+  const body = JSON.stringify({ grant_type: "client_credential", appid, secret, force_refresh: forceRefresh });
   const token = await new Promise((resolve, reject) => {
-    const req = https.get(
-      { hostname: "api.weixin.qq.com", path, timeout: 8000 },
+    const req = https.request(
+      { hostname: "api.weixin.qq.com", path: "/cgi-bin/stable_token", method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
       (res) => {
         let raw = "";
         res.on("data", (chunk) => {
@@ -123,26 +129,25 @@ async function fetchWxTokenWithSecret() {
       }
     );
     req.on("error", reject);
-    req.on("timeout", () => reject(new Error("gettoken 超时")));
+    req.setTimeout(8000, () => req.destroy(new Error("gettoken 超时")));
+    req.end(body);
   });
   return token;
 }
 
-async function resolveAccessToken(cloud) {
+async function resolveAccessToken(cloud, options = {}) {
   try {
-    const token = await fetchWxTokenWithSecret();
+    const token = await fetchWxTokenWithSecret(options);
     if (token) {
       return token;
     }
   } catch (error) {
     // 自换失败不阻断
   }
-  const wxContext = typeof cloud.getWXContext === "function" ? cloud.getWXContext() : {};
-  if (wxContext.ACCESS_TOKEN) {
-    return wxContext.ACCESS_TOKEN;
-  }
-  if (process.env.WX_ACCESS_TOKEN) {
-    return process.env.WX_ACCESS_TOKEN;
+  if (!options.forceRefresh) {
+    const wxContext = typeof cloud.getWXContext === "function" ? cloud.getWXContext() : {};
+    if (wxContext.ACCESS_TOKEN) return wxContext.ACCESS_TOKEN;
+    if (process.env.WX_ACCESS_TOKEN) return process.env.WX_ACCESS_TOKEN;
   }
   if (cloud.openapi && cloud.openapi.auth && typeof cloud.openapi.auth.getAccessToken === "function") {
     try {
@@ -261,54 +266,53 @@ function shouldSkipUpload(record, { force = false } = {}) {
  * @param {object} cloud wx-server-sdk cloud 实例
  * @param {object} payload 接口 body（snake_case）
  */
-async function callUploadShippingInfo(cloud, payload) {
-  const errors = [];
-
-  // 唯一路径：HTTPS + 自换 access_token（WX_MP_APPSECRET）或云开发注入
-  try {
-    const accessToken = await resolveAccessToken(cloud);
-
-    if (!accessToken) {
-      throw new Error("无法获取 access_token，请配置 WX_MP_APPSECRET 或确认云函数已开通 openapi 权限");
-    }
-
-    const https = require("https");
-    const body = JSON.stringify(payload);
-    const result = await new Promise((resolve, reject) => {
-      const req = https.request(
-        {
-          hostname: "api.weixin.qq.com",
-          path: `/wxa/sec/order/upload_shipping_info?access_token=${encodeURIComponent(accessToken)}`,
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(body)
-          }
-        },
-        (res) => {
-          let raw = "";
-          res.on("data", (chunk) => {
-            raw += chunk;
-          });
-          res.on("end", () => {
-            try {
-              resolve(JSON.parse(raw || "{}"));
-            } catch (parseError) {
-              reject(new Error(`微信发货接口返回非 JSON: ${raw.slice(0, 200)}`));
-            }
-          });
+async function postUploadShippingInfo(accessToken, payload) {
+  const https = require("https");
+  const body = JSON.stringify(payload);
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: "api.weixin.qq.com",
+        path: `/wxa/sec/order/upload_shipping_info?access_token=${encodeURIComponent(accessToken)}`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body)
         }
-      );
-      req.on("error", reject);
-      req.write(body);
-      req.end();
-    });
+      },
+      (res) => {
+        let raw = "";
+        res.on("data", (chunk) => { raw += chunk; });
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(raw || "{}"));
+          } catch (parseError) {
+            reject(new Error(`微信发货接口返回非 JSON: ${raw.slice(0, 200)}`));
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.setTimeout(10000, () => req.destroy(new Error("微信发货接口请求超时")));
+    req.end(body);
+  });
+}
+
+async function callUploadShippingInfo(cloud, payload) {
+  try {
+    let accessToken = await resolveAccessToken(cloud);
+    if (!accessToken) throw new Error("无法获取 access_token，请配置 WX_MP_APPSECRET 或确认云函数已开通 openapi 权限");
+    let result = await postUploadShippingInfo(accessToken, payload);
+    if (INVALID_ACCESS_TOKEN_CODES.has(Number(result && result.errcode))) {
+      clearAccessTokenCache();
+      accessToken = await resolveAccessToken(cloud, { forceRefresh: true });
+      if (!accessToken) throw new Error("access_token 失效且刷新失败");
+      result = await postUploadShippingInfo(accessToken, payload);
+    }
     return result;
   } catch (error) {
-    errors.push(`https: ${error.message || error}`);
+    throw new Error(`微信发货信息上传失败: ${error.message || error}`);
   }
-
-  throw new Error(`微信发货信息上传失败: ${errors.join(" | ") || "未知错误"}`);
 }
 
 function normalizeUploadResult(result) {

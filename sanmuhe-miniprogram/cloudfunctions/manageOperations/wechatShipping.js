@@ -177,26 +177,32 @@ function shouldSkipUpload(record, { force = false } = {}) {
 
 /**
  * 内存缓存 access_token（有效 7200s，这里 100 分钟提前刷新）。
- * 自换 token：WX_MP_APPID + WX_MP_APPSECRET 直调 /cgi-bin/token，绕开 CloudBase 云调用。
+ * 自换 token：WX_MP_APPID + WX_MP_APPSECRET 直调 /cgi-bin/stable_token，避免多实例刷新互相失效。
  */
 let __wxTokenCache = "";
 let __wxTokenCacheAt = 0;
+const INVALID_ACCESS_TOKEN_CODES = new Set([40014, 42001]);
 
-async function fetchWxTokenWithSecret() {
+function clearAccessTokenCache() {
+  __wxTokenCache = "";
+  __wxTokenCacheAt = 0;
+}
+
+async function fetchWxTokenWithSecret({ forceRefresh = false } = {}) {
   const appid = cleanText(process.env.WX_MP_APPID || process.env.WECHAT_PAY_APPID, 64);
   const secret = cleanText(process.env.WX_MP_APPSECRET, 128);
   if (!appid || !secret) {
     return "";
   }
   const now = Date.now();
-  if (__wxTokenCache && __wxTokenCacheAt && now - __wxTokenCacheAt < 100 * 60 * 1000) {
+  if (!forceRefresh && __wxTokenCache && __wxTokenCacheAt && now - __wxTokenCacheAt < 100 * 60 * 1000) {
     return __wxTokenCache;
   }
   const https = require("https");
-  const path = `/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`;
+  const body = JSON.stringify({ grant_type: "client_credential", appid, secret, force_refresh: forceRefresh });
   const token = await new Promise((resolve, reject) => {
-    const req = https.get(
-      { hostname: "api.weixin.qq.com", path, timeout: 8000 },
+    const req = https.request(
+      { hostname: "api.weixin.qq.com", path: "/cgi-bin/stable_token", method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
       (res) => {
         let raw = "";
         res.on("data", (chunk) => {
@@ -219,7 +225,8 @@ async function fetchWxTokenWithSecret() {
       }
     );
     req.on("error", reject);
-    req.on("timeout", () => reject(new Error("gettoken 超时")));
+    req.setTimeout(8000, () => req.destroy(new Error("gettoken 超时")));
+    req.end(body);
   });
   return token;
 }
@@ -227,21 +234,19 @@ async function fetchWxTokenWithSecret() {
 /**
  * 解析 access_token：优先自换（可控），兜底云开发注入 / openapi auth。
  */
-async function resolveAccessToken(cloud) {
+async function resolveAccessToken(cloud, options = {}) {
   try {
-    const token = await fetchWxTokenWithSecret();
+    const token = await fetchWxTokenWithSecret(options);
     if (token) {
       return token;
     }
   } catch (error) {
     // 自换失败不阻断，继续尝试云开发注入
   }
-  const wxContext = typeof cloud.getWXContext === "function" ? cloud.getWXContext() : {};
-  if (wxContext.ACCESS_TOKEN) {
-    return wxContext.ACCESS_TOKEN;
-  }
-  if (process.env.WX_ACCESS_TOKEN) {
-    return process.env.WX_ACCESS_TOKEN;
+  if (!options.forceRefresh) {
+    const wxContext = typeof cloud.getWXContext === "function" ? cloud.getWXContext() : {};
+    if (wxContext.ACCESS_TOKEN) return wxContext.ACCESS_TOKEN;
+    if (process.env.WX_ACCESS_TOKEN) return process.env.WX_ACCESS_TOKEN;
   }
   if (cloud.openapi && cloud.openapi.auth && typeof cloud.openapi.auth.getAccessToken === "function") {
     try {
@@ -263,15 +268,9 @@ async function resolveAccessToken(cloud) {
  * @param {object} payload 接口 body
  */
 async function httpsPostWxaSecOrder(cloud, apiPath, payload) {
-  const accessToken = await resolveAccessToken(cloud);
-
-  if (!accessToken) {
-    throw new Error("无法获取 access_token，请配置 WX_MP_APPSECRET 或确认云函数已开通 openapi 权限");
-  }
-
   const https = require("https");
   const body = JSON.stringify(payload);
-  return new Promise((resolve, reject) => {
+  const requestOnce = (accessToken) => new Promise((resolve, reject) => {
     const req = https.request(
       {
         hostname: "api.weixin.qq.com",
@@ -297,9 +296,22 @@ async function httpsPostWxaSecOrder(cloud, apiPath, payload) {
       }
     );
     req.on("error", reject);
-    req.write(body);
-    req.end();
+    req.setTimeout(10000, () => req.destroy(new Error("微信发货接口请求超时")));
+    req.end(body);
   });
+
+  let accessToken = await resolveAccessToken(cloud);
+  if (!accessToken) {
+    throw new Error("无法获取 access_token，请配置 WX_MP_APPSECRET 或确认云函数已开通 openapi 权限");
+  }
+  let result = await requestOnce(accessToken);
+  if (INVALID_ACCESS_TOKEN_CODES.has(Number(result && result.errcode))) {
+    clearAccessTokenCache();
+    accessToken = await resolveAccessToken(cloud, { forceRefresh: true });
+    if (!accessToken) throw new Error("access_token 失效且刷新失败");
+    result = await requestOnce(accessToken);
+  }
+  return result;
 }
 
 /** HTTPS GET 直调「发货信息管理」查询接口（is_trade_managed 等）。 */

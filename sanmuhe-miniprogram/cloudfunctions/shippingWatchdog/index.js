@@ -26,23 +26,25 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 
-/** 每轮最多处理的单数（30s 超时保护） */
-const RUN_LIMIT = 30;
+/** 每轮最多处理的单数（30s 超时保护）；四类游标各取 7 条，避免单集合独占。 */
+const RUN_LIMIT = 28;
+const SOURCE_PAGE_SIZE = 7;
 /** 同一单连续失败达到该次数时告警一次 */
 const ALERT_EVERY = 3;
 /** 通道故障（token 拿不到）的最小告警间隔（毫秒） */
 const TOKEN_ALERT_MIN_GAP = 30 * 60 * 1000;
 
-const WECOM_WEBHOOK = process.env.WECOM_ORDER_WEBHOOK || "";
-
 function sendWecom(text) {
-  if (!WECOM_WEBHOOK) {
+  // hydrateEnv 在 main 运行后才注入密钥，因此必须在发送时读取。
+  const webhook = String(process.env.WECOM_ORDER_WEBHOOK || "").trim();
+  if (!webhook) {
     return Promise.resolve(false);
   }
   return new Promise((resolve) => {
     try {
-      const url = new URL(WECOM_WEBHOOK);
-      if (url.protocol !== "https:" || url.hostname !== "qyapi.weixin.qq.com") {
+      const url = new URL(webhook);
+      if (url.protocol !== "https:" || url.hostname !== "qyapi.weixin.qq.com" ||
+          url.pathname !== "/cgi-bin/webhook/send" || !url.searchParams.get("key")) {
         resolve(false);
         return;
       }
@@ -61,11 +63,21 @@ function sendWecom(text) {
           }
         },
         (res) => {
-          res.resume();
-          res.on("end", () => resolve(res.statusCode === 200));
+          let raw = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk) => { raw += chunk; });
+          res.on("end", () => {
+            try {
+              const data = JSON.parse(raw || "{}");
+              resolve(res.statusCode >= 200 && res.statusCode < 300 && Number(data.errcode) === 0);
+            } catch (error) {
+              resolve(false);
+            }
+          });
         }
       );
       req.on("error", () => resolve(false));
+      req.setTimeout(5000, () => req.destroy(new Error("企业微信告警请求超时")));
       req.end(body);
     } catch (error) {
       resolve(false);
@@ -99,22 +111,80 @@ async function updateUploadResult(col, docId, result, failCountDelta = 0) {
   });
 }
 
-/** 查询某集合中「已微信支付、有交易号、但发货信息未上传成功」的单 */
-async function scanCollection(col) {
-  try {
-    const rows = await db
-      .collection(col)
-      .where({
-        transactionId: _.exists(true).and(_.neq("")),
-        payStatus: "paid",
-        wxShippingUploaded: _.neq(true)
-      })
-      .limit(RUN_LIMIT)
-      .get();
-    return rows.data || [];
-  } catch (error) {
-    return [];
+function commonPendingShippingQuery() {
+  return {
+    transactionId: _.exists(true).and(_.neq("")),
+    payStatus: "paid",
+    wxShippingUploaded: _.neq(true),
+    wxShippingSkip: _.neq(true)
+  };
+}
+
+const SCAN_SOURCES = [
+  { key: "recharge_orders", col: "recharge_orders", query: commonPendingShippingQuery },
+  { key: "reservations", col: "reservations", query: commonPendingShippingQuery },
+  {
+    key: "orders_pickup",
+    col: "orders",
+    query: () => Object.assign(commonPendingShippingQuery(), {
+      deliveryMethod: _.in(["pickup", "onsite"])
+    })
+  },
+  {
+    key: "orders_shipping",
+    col: "orders",
+    query: () => Object.assign(commonPendingShippingQuery(), {
+      deliveryMethod: "shipping",
+      status: "已发货",
+      trackingNo: _.exists(true).and(_.neq(""))
+    })
   }
+];
+
+async function ensureStateCollection() {
+  try {
+    await db.createCollection("watchdog_state");
+  } catch (error) {
+    // 集合已存在是正常情况；真正的读写故障会在后续操作中上报。
+  }
+}
+
+async function loadScanCursors() {
+  try {
+    const result = await db.collection("watchdog_state").doc("scan_cursor").get();
+    return result.data && result.data.cursors ? result.data.cursors : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+async function saveScanCursors(cursors) {
+  await db.collection("watchdog_state").doc("scan_cursor").set({
+    data: { cursors, updatedAt: timestamp() }
+  });
+}
+
+async function querySource(source, cursor) {
+  const runQuery = (afterId) => {
+    const query = source.query();
+    if (afterId) query._id = _.gt(afterId);
+    return db.collection(source.col)
+      .where(query)
+      .orderBy("_id", "asc")
+      .limit(SOURCE_PAGE_SIZE)
+      .get();
+  };
+
+  let result = await runQuery(cursor);
+  let rows = result.data || [];
+  if (cursor && rows.length === 0) {
+    result = await runQuery("");
+    rows = result.data || [];
+  }
+  const nextCursor = rows.length === SOURCE_PAGE_SIZE
+    ? String(rows[rows.length - 1]._id || "")
+    : "";
+  return { rows, nextCursor };
 }
 
 async function handleRow(col, row, report) {
@@ -172,7 +242,17 @@ async function handleRow(col, row, report) {
 
 exports.main = async () => {
   await hydrateEnv(cloud);
-  const report = { scanned: 0, fixed: 0, failed: 0, skipped: 0, alerts: [] };
+  await ensureStateCollection();
+  const report = {
+    processed: 0,
+    scanned: 0,
+    fixed: 0,
+    failed: 0,
+    skipped: 0,
+    queryFailures: 0,
+    alertDelivered: null,
+    alerts: []
+  };
 
   // 通道自检：先验证能否拿到 access_token（WX_MP_APPSECRET 是否被部署冲掉）
   let tokenOk = false;
@@ -199,39 +279,71 @@ exports.main = async () => {
       shouldAlert = true;
     }
     if (shouldAlert) {
-      await sendWecom(
+      const delivered = await sendWecom(
         "发货信息上传通道故障：无法获取 access_token（WX_MP_APPSECRET 可能被部署冲掉）。资金结算将延迟，请检查云函数环境变量并立即修复。"
       );
-      try {
-        await db.collection("watchdog_state").doc("token_alert").set({
-          data: { at: timestamp() }
-        });
-      } catch (error) {
-        // ignore
+      report.alertDelivered = delivered;
+      // 只有告警真正送达才记录抑制时间；无效 webhook 不能吞掉后续重试。
+      if (delivered) {
+        try {
+          await db.collection("watchdog_state").doc("token_alert").set({
+            data: { at: timestamp() }
+          });
+        } catch (error) {
+          report.failed += 1;
+          report.alerts.push(`记录 token 告警状态失败：${String(error.message || error).slice(0, 160)}`);
+        }
       }
     }
     return { ok: false, reason: "token_unavailable", report };
   }
 
-  for (const col of ["recharge_orders", "reservations", "orders"]) {
-    const rows = await scanCollection(col);
+  const cursors = await loadScanCursors();
+  for (const source of SCAN_SOURCES) {
+    if (report.processed >= RUN_LIMIT) break;
+    let page;
+    try {
+      page = await querySource(source, cursors[source.key] || "");
+    } catch (error) {
+      report.queryFailures += 1;
+      report.failed += 1;
+      report.alerts.push(
+        `扫描 ${source.key} 失败：${String((error && error.message) || error).slice(0, 200)}`
+      );
+      continue;
+    }
+
+    const rows = page.rows;
     for (const row of rows) {
-      if (report.scanned + report.failed + report.skipped >= RUN_LIMIT) {
-        break;
-      }
+      if (report.processed >= RUN_LIMIT) break;
+      report.processed += 1;
       try {
-        await handleRow(col, row, report);
+        await handleRow(source.col, row, report);
       } catch (error) {
         report.failed += 1;
-        report.alerts.push(`单号 ${row.orderNo || row._id}（${col}）处理异常：${String((error && error.message) || error).slice(0, 200)}`);
+        report.alerts.push(`单号 ${row.orderNo || row._id}（${source.key}）处理异常：${String((error && error.message) || error).slice(0, 200)}`);
       }
     }
+    cursors[source.key] = page.nextCursor;
+  }
+
+  try {
+    await saveScanCursors(cursors);
+  } catch (error) {
+    report.failed += 1;
+    report.alerts.push(`保存扫描游标失败：${String((error && error.message) || error).slice(0, 160)}`);
   }
 
   // 有失败告警（每单最多一次/每 3 次失败）
   if (report.alerts.length > 0) {
-    await sendWecom(report.alerts.slice(0, 5).join("\n"));
+    report.alertDelivered = await sendWecom(report.alerts.slice(0, 5).join("\n"));
+    if (!report.alertDelivered) {
+      report.alertDeliveryFailed = true;
+    }
   }
 
-  return { ok: report.failed === 0, report };
+  return {
+    ok: report.failed === 0 && report.queryFailures === 0 && !report.alertDeliveryFailed,
+    report
+  };
 };

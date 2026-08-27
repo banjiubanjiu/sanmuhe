@@ -13,7 +13,7 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -59,22 +59,17 @@ const doc = {
   WX_MP_APPID: env.WX_MP_APPID || env.WECHAT_PAY_APPID || "",
   WX_MP_APPSECRET: env.WX_MP_APPSECRET || "",
   WECOM_ORDER_WEBHOOK: env.WECOM_ORDER_WEBHOOK || "",
+  WECOM_RESERVATION_WEBHOOK: env.WECOM_RESERVATION_WEBHOOK || "",
   WECOM_MENTIONED_MOBILES: env.WECOM_MENTIONED_MOBILES || ""
 };
 
-const missing = Object.entries(doc)
-  .filter(([, v]) => !v && !["WECHAT_PAY_PLATFORM_CERTIFICATE", "WECOM_MENTIONED_MOBILES"].includes(undefined) && !v)
-  .map(([k]) => k);
-if (doc.WECHAT_PAY_PLATFORM_CERTIFICATE) delete doc.WECHAT_PAY_PLATFORM_CERTIFICATE;
-if (!doc.WECOM_MENTIONED_MOBILES) delete doc.WECOM_MENTIONED_MOBILES;
-
-const set = Object.entries(doc).filter(([, v]) => v);
 if (!doc.WECHAT_PAY_PLATFORM_PUBLIC_KEY && !doc.WECHAT_PAY_PLATFORM_CERTIFICATE) {
   console.error("缺少平台公钥/证书，无法写入");
   process.exit(1);
 }
+const set = Object.fromEntries(Object.entries(doc).filter(([, value]) => value));
 
-// upsert: 用 UPDATE 全量覆盖（若文档不存在则用 insert）
+// Mongo UPDATE 的 upsert=true 同时覆盖已有 live 文档和首次创建场景。
 const command = JSON.stringify([{
   TableName: "app_secrets",
   CommandType: "UPDATE",
@@ -82,21 +77,17 @@ const command = JSON.stringify([{
     update: "app_secrets",
     updates: [{
       q: { _id: "live" },
-      u: { $set: Object.fromEntries(set.map(([k, v]) => [k, v])) }
+      u: { $set: set, $setOnInsert: { _id: "live" } },
+      upsert: true,
+      multi: false
     }]
   })
 }]);
 
-try {
-  execSync(`tcb db nosql execute --command '${command.replace(/'/g, "'\\''")}' --json -e ${ENV_ID}`, { stdio: "inherit" });
-  console.log(`\n✅ app_secrets/live 已同步（${set.length} 个字段）：`, set.map(([k]) => k).join(", "));
-} catch (error) {
-  console.error("更新失败，尝试插入（首次创建）...");
-  const ins = JSON.stringify([{
-    TableName: "app_secrets",
-    CommandType: "INSERT",
-    Command: JSON.stringify({ insert: "app_secrets", documents: [{ _id: "live", ...Object.fromEntries(set) }] })
-  }]);
-  execSync(`tcb db nosql execute --command '${ins.replace(/'/g, "'\\''")}' --json -e ${ENV_ID}`, { stdio: "inherit" });
-  console.log(`✅ app_secrets/live 已插入（${set.length} 个字段）`);
-}
+execFileSync(
+  "tcb",
+  ["db", "nosql", "execute", "--command", command, "--json", "-e", ENV_ID],
+  { stdio: "inherit" }
+);
+const fieldNames = Object.keys(set);
+console.log(`\n✅ app_secrets/live 已同步（${fieldNames.length} 个字段）：`, fieldNames.join(", "));

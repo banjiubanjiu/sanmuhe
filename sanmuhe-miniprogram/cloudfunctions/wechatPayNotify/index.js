@@ -158,6 +158,11 @@ function dbUpdatedCount(result) {
   return 0;
 }
 
+function normalizePayMode(value) {
+  const mode = String(value || "").trim().toLowerCase();
+  return mode === "wallet" ? "balance" : mode;
+}
+
 async function findOrder(outTradeNo) {
   const result = await db.collection("orders").where({ orderNo: outTradeNo }).limit(1).get();
   const row = result.data && result.data[0] ? result.data[0] : null;
@@ -535,11 +540,26 @@ async function handleReservationSuccess(transaction, reservation) {
     });
     throw new Error("预约支付金额不一致");
   }
+  const reservationPayMode = normalizePayMode(reservation.payMode);
+  if (reservation.payStatus === "paid" && reservationPayMode === "balance") {
+    await db.collection("reservations").doc(reservation._id).update({
+      data: {
+        payStatus: "paid_exception",
+        status: "异常待处理",
+        transactionId: transaction.transaction_id || "",
+        paymentError: "余额已扣款后又收到微信支付成功通知，需人工原路处理重复付款",
+        paymentRaw: transaction,
+        updatedAt: db.serverDate()
+      }
+    });
+    return;
+  }
   if (reservation.payStatus === "paid") {
     return;
   }
 
-  if (reservation.payStatus !== "pending" || reservation.status !== "待支付") {
+  if ((reservationPayMode && reservationPayMode !== "wechat") ||
+      reservation.payStatus !== "pending" || reservation.status !== "待支付") {
     await db.collection("reservations").doc(reservation._id).update({
       data: {
         payStatus: "paid_exception",
@@ -552,21 +572,58 @@ async function handleReservationSuccess(transaction, reservation) {
     return;
   }
 
-  const claim = await db.collection("reservations").where({
+  let claim = await db.collection("reservations").where({
     _id: reservation._id,
     payStatus: "pending",
-    status: "待支付"
+    status: "待支付",
+    payMode: "wechat"
   }).update({
     data: {
       payStatus: "confirming",
+      payMode: "wechat",
       updatedAt: db.serverDate()
     }
   });
 
+  // 兼容 payMode 上线前已创建的预约；新单在下单前已经原子写入 wechat。
+  if (dbUpdatedCount(claim) <= 0 && !reservationPayMode) {
+    for (const payMode of [_.exists(false), "", null]) {
+      claim = await db.collection("reservations").where({
+        _id: reservation._id,
+        payStatus: "pending",
+        status: "待支付",
+        payMode
+      }).update({
+        data: {
+          payStatus: "confirming",
+          payMode: "wechat",
+          paymentChannelClaimedAt: db.serverDate(),
+          updatedAt: db.serverDate()
+        }
+      });
+      if (dbUpdatedCount(claim) > 0) break;
+    }
+  }
+
   if (dbUpdatedCount(claim) <= 0) {
     const latest = await db.collection("reservations").doc(reservation._id).get();
     const latestData = latest.data || {};
-    if (latestData.payStatus === "paid" || latestData.payStatus === "confirming") {
+    const latestPayMode = normalizePayMode(latestData.payMode);
+    if ((latestData.payStatus === "paid" || latestData.payStatus === "confirming") &&
+        latestPayMode === "wechat") {
+      return;
+    }
+    if (latestPayMode === "balance") {
+      await db.collection("reservations").doc(reservation._id).update({
+        data: {
+          payStatus: "paid_exception",
+          status: "异常待处理",
+          transactionId: transaction.transaction_id || "",
+          paymentError: "余额支付渠道已占用但微信仍支付成功，需人工原路处理重复付款",
+          paymentRaw: transaction,
+          updatedAt: db.serverDate()
+        }
+      });
       return;
     }
     throw new Error("预约支付确认抢占失败，等待微信重试通知");
@@ -575,6 +632,7 @@ async function handleReservationSuccess(transaction, reservation) {
   const paidReservationPatch = {
     status: "已确认",
     payStatus: "paid",
+    payMode: "wechat",
     transactionId: transaction.transaction_id || "",
     tradeType: transaction.trade_type || "JSAPI",
     paidAt: transaction.success_time ? new Date(transaction.success_time) : db.serverDate(),
