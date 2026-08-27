@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "openapi": [
+      "wxa.sec.order.uploadShippingInfo",
+      "wxa.sec.order.isTradeManaged"
+    ]
+  }
+}

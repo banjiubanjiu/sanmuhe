@@ -5,6 +5,8 @@
 - 经营后台（管理面板 Web）: `https://cloudbase-d2gq023qn50e9d82f-1458290161.tcloudbaseapp.com/`（注意域名带 `-1458290161` 后缀，缺后缀会 418）
 - CloudBase 控制台: `https://console.cloud.tencent.com/tcb/env/index?envId=cloudbase-d2gq023qn50e9d82f`
 - envId: `cloudbase-d2gq023qn50e9d82f`；完整环境信息、静态托管部署命令见 `docs/环境与链接.md`
+- 微信支付接入角色：普通商户直连（商户自行申请商户号并收款），排查及文档检索默认使用 APIv3 普通商户路径。
+- 支付资金结算受微信「交易类小程序」担保管控（发货信息录入后才进结算周期，快递 T+10 / 自提·虚拟 T+2）。发货上传自愈与部署纪律见 `docs/支付资金冻结防护.md`；禁用仓库 cloudbaserc 对支付函数裸 `tcb fn deploy --force`（会冲掉 WX_MP_APPSECRET 导致资金冻结）。
 - 后台构建: `cd sanmuhe-miniprogram && npm run admin:build`，产物在 `admin-panel/admin/`，部署用 `tcb hosting deploy ../admin-panel/admin / --env-id cloudbase-d2gq023qn50e9d82f`
 
 ## Cloud-First Assets And Data
