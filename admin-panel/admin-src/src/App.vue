@@ -2778,7 +2778,9 @@ function sanitizeFileName(name) {
   return String(name || "image").replace(/[^\w.-]/g, "_");
 }
 
-const IMAGE_UPLOAD_TARGET_BYTES = 420 * 1024;
+const IMAGE_UPLOAD_TARGET_BYTES = 250 * 1024;
+/** 压不下来的大图（截图等）二次兜底：直接按质量阶梯缩到目标内 */
+const IMAGE_UPLOAD_FALLBACK_EDGES = [900, 750, 600];
 const IMAGE_UPLOAD_QUALITY_STEPS = [0.82, 0.74, 0.66, 0.58];
 
 function formatUploadSize(bytes) {
@@ -2829,7 +2831,7 @@ async function optimizeUploadImage(file, target) {
     throw new Error("无法读取图片尺寸，请更换图片后重试");
   }
 
-  const maxEdge = target === "content" ? 1600 : 1200;
+  const maxEdge = target === "content" ? 1200 : 900;
   const initialScale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
   let bestBlob = null;
 
@@ -2847,6 +2849,25 @@ async function optimizeUploadImage(file, target) {
     context.drawImage(image, 0, 0, width, height);
     bestBlob = await canvasToJpegBlob(canvas, IMAGE_UPLOAD_QUALITY_STEPS[index]);
     if (bestBlob.size <= IMAGE_UPLOAD_TARGET_BYTES) break;
+  }
+
+  // 截图类内容复杂：按质量阶梯仍超限时，缩小尺寸兜底（保证上传的图 < 目标体积）
+  if (bestBlob && bestBlob.size > IMAGE_UPLOAD_TARGET_BYTES) {
+    for (const edge of IMAGE_UPLOAD_FALLBACK_EDGES) {
+      const scale = Math.min(1, edge / Math.max(sourceWidth, sourceHeight));
+      const width = Math.max(1, Math.round(sourceWidth * scale));
+      const height = Math.max(1, Math.round(sourceHeight * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) break;
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      bestBlob = await canvasToJpegBlob(canvas, 0.72);
+      if (bestBlob.size <= IMAGE_UPLOAD_TARGET_BYTES) break;
+    }
   }
 
   if (!bestBlob || bestBlob.size >= file.size) {

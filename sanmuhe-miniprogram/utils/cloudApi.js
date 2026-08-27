@@ -9,6 +9,8 @@ const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v2";
 const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 /** 首屏与弱网回退可展示的缓存上限；云端数据会在后台立即刷新。 */
 const CATALOG_CACHE_MAX_STALE_MS = 60 * 60 * 1000;
+/** 30 秒内的缓存直接返回（切 tab 秒开，不触发云函数/冷启动） */
+const CATALOG_STALE_RETURN_MS = 30 * 1000;
 let catalogInFlight = null;
 
 function isCacheFresh(cachedAt) {
@@ -213,28 +215,45 @@ function callCloud(name, data) {
   }).then((res) => res.result || {});
 }
 
-function getCatalog() {
-  if (!catalogInFlight) {
-    catalogInFlight = callCloud("getCatalog")
-      .then((result) => {
-        const catalog = withCatalogMeta(enrichCatalog(result.catalog || {}), "cloud");
-        writeCatalogCache(catalog);
-        writeEventsCache(catalog.events);
-        return catalog;
-      })
-      .catch(() => {
-        // stale-if-error：首屏已展示的近期缓存不能因刷新失败被空货架覆盖。
-        const cachedCatalog = getCachedCatalog();
-        if (cachedCatalog) {
-          return cachedCatalog;
-        }
-        return withCatalogMeta(emptyCatalog(), "error");
-      });
-    catalogInFlight.finally(() => {
-      catalogInFlight = null;
+function fetchCatalogFromCloud() {
+  catalogInFlight = callCloud("getCatalog")
+    .then((result) => {
+      const catalog = withCatalogMeta(enrichCatalog(result.catalog || {}), "cloud");
+      writeCatalogCache(catalog);
+      writeEventsCache(catalog.events);
+      return catalog;
+    })
+    .catch(() => {
+      // stale-if-error：首屏已展示的近期缓存不能因刷新失败被空货架覆盖。
+      const cachedCatalog = getCachedCatalog();
+      if (cachedCatalog) {
+        return cachedCatalog;
+      }
+      return withCatalogMeta(emptyCatalog(), "error");
     });
-  }
+  catalogInFlight.finally(() => {
+    catalogInFlight = null;
+  });
   return catalogInFlight;
+}
+
+function getCatalog() {
+  if (catalogInFlight) {
+    return catalogInFlight;
+  }
+  const raw = readCatalogCache();
+  const cacheAge = raw && raw.cachedAt ? Date.now() - raw.cachedAt : Infinity;
+  if (raw && cacheAge <= CATALOG_STALE_RETURN_MS) {
+    // 30 秒内：直接用缓存，不发请求（底部菜单切换秒开）
+    return Promise.resolve(withCatalogMeta(enrichCatalog(raw), "cache"));
+  }
+  if (raw && cacheAge <= CATALOG_CACHE_TTL_MS) {
+    // 30 秒 ~ 10 分钟：先返回缓存，后台静默刷新，不阻塞 UI
+    const snapshot = withCatalogMeta(enrichCatalog(raw), "cache");
+    fetchCatalogFromCloud().catch(() => {});
+    return Promise.resolve(snapshot);
+  }
+  return fetchCatalogFromCloud();
 }
 
 /** 为首屏提供最近一次货架快照，随后由 getCatalog 在后台刷新。 */
