@@ -712,6 +712,7 @@ async function wxGetShareQr(cloud) {
       req.destroy();
       resolve({ ok: false, errmsg: "生成超时" });
     });
+    req.write(payload);
     req.end();
   });
 }
