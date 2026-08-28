@@ -196,6 +196,21 @@
       "handler": "index.main",
       "timeout": 30,
       "envVariables": {}
+    },
+    {
+      "name": "keepWarm",
+      "runtime": "Nodejs16.13",
+      "handler": "index.main",
+      "timeout": 30,
+      "memorySize": 128,
+      "triggers": [
+        {
+          "name": "keepWarmTimer",
+          "type": "timer",
+          "config": "0 */1 * * * * *"
+        }
+      ],
+      "envVariables": {}
     }
   ]
 }
