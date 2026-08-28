@@ -439,7 +439,9 @@ async function getCaller(context = {}) {
     )
   };
 
-  const auth = getAuthObject();
+  // 身份已由请求上下文提供（后台登录/小程序 openid）时，不再加载 24MB 的
+  // @cloudbase/js-sdk（冷启动提速）；仅当完全无身份时才走 SDK 兜底。
+  const auth = caller.uid || caller.openid || caller.username ? null : getAuthObject();
   if (!auth) {
     return caller;
   }
