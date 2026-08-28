@@ -60,3 +60,11 @@ VERSION="1.08" DESC="变更摘要" node ../scripts/upload-trial-miniprogram.mjs
 ## DevTools compile
 
 - After mini program UI/code changes, **compile/refresh via `wechat-devtools-cli` yourself** (`cache --clean compile` + `open --project`). Do not habitually ask the user to recompile. Details: `sanmuhe-miniprogram/AGENTS.md` → **Compile yourself**.
+
+## E2E 验证（功能改动必须自测，别让用户反复试）
+
+- 验证小程序功能用 **miniprogram-automator 驱动微信开发者工具**做真实 E2E，不要只靠用户反馈。
+- 前置：`wechat-devtools-cli auto --project sanmuhe-miniprogram --port 9420 --trust-project`（或直接让 automator.launch 自带启动；需先退出已占用端口的 IDE：`wechat-devtools-cli quit` + `pkill -9 -f wechat-web-devtools`）。
+- 脚本：`sanmuhe-miniprogram/node_modules` 装 `miniprogram-automator`；示例 `scripts/e2e-giftbox.js`（连 9420 → reLaunch 商城 → 切礼盒分类 → 进详情选茶 → 断言价格 → 加购）。
+- 注意：`automator.launch({ cliPath: '/home/colin/.local/bin/wechat-devtools-cli', port: 9420 })`；商城首屏只渲染 6 个商品（分页），断言“全部”列表时不要只看首屏；礼盒在「礼盒」分类下验证。
+- 关键结论（2026-08-28 已验）：礼盒分类显示 3 款、自选器存在、红茶+大红袍=¥198、加购成功。
