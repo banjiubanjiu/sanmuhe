@@ -4354,6 +4354,52 @@ tr.selected td:first-child {
   backdrop-filter: blur(3px);
 }
 
+/* ===== 礼盒管理 ===== */
+.giftbox-row .row-actions {
+  margin-left: auto;
+}
+
+.giftbox-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.giftbox-switch input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.giftbox-pool-editor {
+  display: block;
+}
+
+.giftbox-pool-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr 1.6fr 0.8fr auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.giftbox-pool-row input {
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: var(--admin-paper);
+  color: var(--admin-text);
+  font-size: 13px;
+}
+
+.line-item-detail {
+  display: block;
+  margin-top: 3px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+}
+
 .action-dialog {
   width: min(100%, 460px);
   border: 1px solid rgba(72, 68, 56, 0.2);

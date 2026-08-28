@@ -265,6 +265,135 @@
   justify-content: space-between;
 }
 
+/* ===== 自选礼盒 ===== */
+.giftbox-section {
+  display: block;
+}
+
+.giftbox-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx 16rpx;
+}
+
+.giftbox-head .h2 {
+  flex-shrink: 0;
+}
+
+.giftbox-rule {
+  color: var(--hx-muted, #7c7264);
+  font-size: 22rpx;
+}
+
+.giftbox-fee {
+  color: var(--hx-action);
+  font-weight: 600;
+}
+
+.giftbox-picked {
+  margin-left: auto;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  background: var(--hx-sidebar, #f4ebdd);
+  color: #7c7264;
+  font-size: 22rpx;
+}
+
+.giftbox-picked.done {
+  background: var(--hx-action, #2e5942);
+  color: #fff;
+}
+
+.giftbox-note {
+  margin-top: 12rpx;
+  padding: 14rpx 18rpx;
+  border-radius: 10rpx;
+  background: #fdf3e0;
+  color: #8a5a2a;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
+.giftbox-pool {
+  margin-top: 18rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.giftbox-tea {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 14rpx;
+  border: 1rpx solid var(--hx-line, #e4dcc9);
+  border-radius: 14rpx;
+  background: #fffdf7;
+}
+
+.giftbox-tea.active {
+  border-color: var(--hx-action, #2e5942);
+  background: #f0f6ef;
+}
+
+.giftbox-tea-img {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 10rpx;
+  flex-shrink: 0;
+  background: var(--hx-sidebar, #f4ebdd);
+}
+
+.giftbox-tea-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.giftbox-tea-name {
+  color: var(--hx-text, #2b2b23);
+  font-size: 26rpx;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.giftbox-tea-price {
+  margin-top: 6rpx;
+  color: var(--hx-muted, #7c7264);
+  font-size: 22rpx;
+}
+
+.giftbox-stepper {
+  display: grid;
+  grid-template-columns: 46rpx 46rpx 46rpx;
+  height: 48rpx;
+  overflow: hidden;
+  border: 1rpx solid var(--hx-line, #e4dcc9);
+  border-radius: 8rpx;
+  flex-shrink: 0;
+}
+
+.giftbox-stepper text,
+.giftbox-step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hx-text, #2b2b23);
+  font-size: 26rpx;
+}
+
+.giftbox-step-btn {
+  border-right: 1rpx solid var(--hx-line, #e4dcc9);
+}
+
+.giftbox-step-btn.plus {
+  border-right: 0;
+  color: var(--hx-action, #2e5942);
+  font-weight: 700;
+}
+
 .qty-stepper {
   display: grid;
   grid-template-columns: 58rpx 112rpx 58rpx;

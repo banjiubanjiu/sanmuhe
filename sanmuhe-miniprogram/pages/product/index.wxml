@@ -77,9 +77,52 @@
       </scroll-view>
     </view>
 
-    <view wx:if="{{!product.hasMultiSpecs}}" class="section single-spec">
+    <view wx:if="{{!product.hasMultiSpecs && !giftBox}}" class="section single-spec">
       <view class="h2">规格</view>
       <view class="single-spec-pill">{{product.specs[0].chipTitle || selectedSpecDisplay}}</view>
+    </view>
+
+    <!-- 自选礼盒：茶池选择器 -->
+    <view wx:if="{{giftBox}}" class="section giftbox-section">
+      <view class="giftbox-head">
+        <view class="h2">自选搭配</view>
+        <view class="giftbox-rule">
+          {{giftBox.mode === 'double' ? '选 ' + giftBox.minTypes + ' 款，每款 ' + giftBox.brewsPerType + ' 泡' : '选 1 款 × ' + giftBox.brewsPerType + ' 泡'}}
+          <text wx:if="{{giftBox.boxFeeFen > 0}}" class="giftbox-fee">＋包装费 ¥{{giftBox.boxFeeFen / 100}}</text>
+        </view>
+        <view class="giftbox-picked {{giftBox.filled ? 'done' : ''}}">已选 {{giftBox.totalPicked}}/{{giftBox.minTypes}}</view>
+      </view>
+      <view wx:if="{{giftBox.note}}" class="giftbox-note">※ {{giftBox.note}}</view>
+      <view class="giftbox-pool">
+        <view
+          wx:for="{{giftBox.pool}}"
+          wx:key="teaId"
+          class="giftbox-tea {{item.picked > 0 ? 'active' : ''}}"
+        >
+          <image class="giftbox-tea-img" src="{{item.image}}" mode="aspectFill" lazy-load="{{true}}"></image>
+          <view class="giftbox-tea-copy">
+            <view class="giftbox-tea-name">{{item.name}}</view>
+            <view class="giftbox-tea-price">
+              {{giftBox.wholeBox ? '整盒 ¥' + (item.priceFen / 100) : '¥' + (item.priceFen / 100) + ' / 泡'}}
+            </view>
+          </view>
+          <view class="giftbox-stepper">
+            <view
+              class="giftbox-step-btn"
+              data-tea-id="{{item.teaId}}"
+              data-delta="-1"
+              bindtap="toggleGiftTea"
+            >−</view>
+            <text>{{item.picked}}</text>
+            <view
+              class="giftbox-step-btn plus"
+              data-tea-id="{{item.teaId}}"
+              data-delta="1"
+              bindtap="toggleGiftTea"
+            >+</view>
+          </view>
+        </view>
+      </view>
     </view>
 
     <view class="section qty-section">

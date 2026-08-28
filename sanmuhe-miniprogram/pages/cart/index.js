@@ -81,6 +81,17 @@ function formatFen(fen) {
 function getOptionText(item) {
   const source = item || {};
   const options = source.options || {};
+  if (source.type === "giftbox") {
+    const selection = Array.isArray(options.giftSelection) ? options.giftSelection : [];
+    const brewMap = {};
+    selection.forEach((sel) => {
+      const count = Math.max(1, Number(sel.count) || 1);
+      const brews = Math.max(1, Number(sel.brews) || 1);
+      brewMap[sel.name] = (brewMap[sel.name] || 0) + brews * count;
+    });
+    const parts = Object.keys(brewMap).map((name) => `${name} ${brewMap[name]}泡`);
+    return parts.length ? `自选：${parts.join("、")}` : "自选礼盒";
+  }
   if (source.type === "drink") {
     return [options.teaChoice || "茶品待选", options.unit || "道", options.table ? `桌号 ${options.table}` : ""]
       .filter(Boolean)

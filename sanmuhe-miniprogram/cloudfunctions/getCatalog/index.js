@@ -138,6 +138,22 @@ async function getProductCategories() {
   }
 }
 
+async function getGiftBoxPlans() {
+  await ensureCollection("gift_box_plans");
+  try {
+    const result = await db.collection("gift_box_plans")
+      .where({ visible: true })
+      .orderBy("sort", "asc")
+      .limit(50)
+      .get();
+    return (result.data || [])
+      .filter((item) => item.removed !== true)
+      .sort((a, b) => Number(a.sort || 9999) - Number(b.sort || 9999));
+  } catch (error) {
+    return [];
+  }
+}
+
 function isLegacyDrinkTier(item) {
   return !!(item && Array.isArray(item.teaGroups) && item.teaGroups.length && !item.categoryId);
 }
@@ -243,14 +259,15 @@ exports.main = async (event = {}) => {
     return { ok: true, name: "getCatalog" };
   }
 
-  const [cloudDrinks, cloudTeaProducts, cloudRooms, cloudEvents, contentBlocks, storeSettings, productCategories] = await Promise.all([
+  const [cloudDrinks, cloudTeaProducts, cloudRooms, cloudEvents, contentBlocks, storeSettings, productCategories, giftBoxes] = await Promise.all([
     getCollectionData("drinks"),
     getCollectionData("tea_products"),
     getCollectionData("rooms"),
     getCollectionData("events"),
     getContentBlocks(),
     getStoreSettings(),
-    getProductCategories()
+    getProductCategories(),
+    getGiftBoxPlans()
   ]);
 
   return {
@@ -262,6 +279,7 @@ exports.main = async (event = {}) => {
       rooms: cloudRooms,
       events: cloudEvents,
       productCategories,
+      giftBoxes,
       content: {
         homeSlides: contentBlocks.filter((item) => item.type === "home_carousel"),
         blocks: contentBlocks

@@ -302,6 +302,9 @@ const allowedActions = new Set([
   "listInventoryLogs",
   "adjustInventory",
   "adjustMemberBalance",
+  "listGiftBoxPlans",
+  "saveGiftBoxPlan",
+  "removeGiftBoxPlan",
   "listAfterSales",
   "updateAfterSale",
   "getAnalytics",
@@ -3770,6 +3773,165 @@ async function listAfterSales(event) {
   return { ok: true, orders: paged.items, page: paged.page };
 }
 
+/** 自选礼盒配置列表（后台商品管理 → 礼盒） */
+async function listGiftBoxPlans() {
+  await ensureCollection("gift_box_plans");
+  const rows = await readCollection("gift_box_plans", { orderBy: "sort", order: "asc", limit: 100 });
+  return {
+    ok: true,
+    plans: (rows || []).map((plan) => ({
+      _id: plan._id,
+      id: plan.id,
+      name: plan.name || "",
+      description: plan.description || "",
+      images: Array.isArray(plan.images) ? plan.images : (plan.image ? [plan.image] : []),
+      image: plan.image || (plan.images && plan.images[0]) || "",
+      category: plan.category || "礼盒",
+      priceMode: plan.priceMode || "per_brew",
+      boxFeeFen: Math.max(0, Number(plan.boxFeeFen) || 0),
+      selection: plan.selection || {},
+      stock: Math.max(0, Number(plan.stock) || 0),
+      lockedStock: Math.max(0, Number(plan.lockedStock) || 0),
+      soldStock: Math.max(0, Number(plan.soldStock) || 0),
+      pool: Array.isArray(plan.pool) ? plan.pool : [],
+      visible: plan.visible !== false,
+      sort: Number(plan.sort) || 0,
+      removed: plan.removed === true,
+      createdAt: plan.createdAt || null,
+      updatedAt: plan.updatedAt || null
+    }))
+  };
+}
+
+/** 保存自选礼盒配置（新建/编辑） */
+async function saveGiftBoxPlan(event, caller) {
+  const data = event.data && typeof event.data === "object" ? event.data : event;
+  const id = cleanText(data.id || data.planId, 40);
+  const name = cleanText(data.name, 60);
+  const description = cleanText(data.description, 1000);
+  const priceMode = data.priceMode === "whole_box" ? "whole_box" : "per_brew";
+  const boxFeeFen = Math.max(0, Math.round(Number(data.boxFeeFen) || 0));
+  const selection = data.selection && typeof data.selection === "object" ? data.selection : {};
+  const pool = Array.isArray(data.pool) ? data.pool : [];
+  const stock = Math.max(0, Math.round(Number(data.stock) || 0));
+  const visible = data.visible !== false;
+  const sort = Math.max(0, Number(data.sort) || 0);
+  const images = Array.isArray(data.images) ? data.images.map((v) => cleanText(v, 500)).filter(Boolean) : [];
+
+  if (!name) {
+    return { ok: false, message: "请填写礼盒名称" };
+  }
+  const mode = selection.mode === "double" ? "double" : "single";
+  const minTypes = Math.max(1, Math.min(9, Number(selection.minTypes) || (mode === "double" ? 2 : 1)));
+  const maxTypes = Math.max(minTypes, Math.min(9, Number(selection.maxTypes) || minTypes));
+  const brewsPerType = Math.max(1, Math.min(99, Number(selection.brewsPerType) || 1));
+  const allowDuplicate = selection.allowDuplicate === true;
+  const note = cleanText(selection.note, 200);
+  if (!pool.length) {
+    return { ok: false, message: "请至少添加一款可选茶品" };
+  }
+  for (const tea of pool) {
+    if (!cleanText(tea.teaId, 40)) {
+      return { ok: false, message: "茶池条目缺少 teaId" };
+    }
+    if (Math.round(Number(tea.priceFen) || 0) <= 0) {
+      return { ok: false, message: `茶池「${cleanText(tea.name, 20)}」价格需大于 0` };
+    }
+  }
+
+  await ensureCollection("gift_box_plans");
+  const normalized = {
+    id,
+    name,
+    description,
+    images,
+    image: images[0] || "",
+    category: cleanText(data.category, 20) || "礼盒",
+    priceMode,
+    boxFeeFen,
+    selection: {
+      mode,
+      minTypes,
+      maxTypes,
+      brewsPerType,
+      allowDuplicate,
+      note
+    },
+    stock,
+    lockedStock: 0,
+    soldStock: 0,
+    pool: pool.map((tea) => ({
+      teaId: cleanText(tea.teaId, 40),
+      name: cleanText(tea.name, 60),
+      image: cleanText(tea.image, 500),
+      priceFen: Math.max(0, Math.round(Number(tea.priceFen) || 0)),
+      stock: Math.max(0, Number(tea.stock) || 0)
+    })),
+    visible,
+    sort,
+    removed: false,
+    updatedAt: db.serverDate()
+  };
+
+  let planId = "";
+  if (id) {
+    const existing = await db.collection("gift_box_plans").where({ id }).limit(1).get().catch(() => null);
+    const row = existing && existing.data && existing.data[0];
+    if (row) {
+      planId = row._id;
+      // 保存时保留已锁定/已售库存，避免覆盖丢失
+      normalized.lockedStock = Math.max(0, Number(row.lockedStock) || 0);
+      normalized.soldStock = Math.max(0, Number(row.soldStock) || 0);
+      await db.collection("gift_box_plans").doc(row._id).update({ data: normalized });
+    }
+  }
+  if (!planId) {
+    const addResult = await db.collection("gift_box_plans").add({
+      data: Object.assign({}, normalized, {
+        id: id || `giftbox-${Date.now().toString(36)}`,
+        createdAt: db.serverDate()
+      })
+    });
+    planId = addResult._id;
+  }
+
+  await writeAdminAuditLog(caller, "saveGiftBoxPlan", {
+    id: normalized.id,
+    name,
+    priceMode,
+    poolCount: pool.length,
+    visible
+  });
+  return { ok: true, planId, id: normalized.id };
+}
+
+/** 删除自选礼盒配置（软删） */
+async function removeGiftBoxPlan(event, caller) {
+  const id = cleanText(event.id || (event.data && event.data.id), 40);
+  const reason = cleanText(event.reason || event.auditReason || (event.data && event.data.reason), 200);
+  if (!id) {
+    return { ok: false, message: "缺少礼盒 ID" };
+  }
+  if (!reason) {
+    return { ok: false, message: "删除礼盒需填写原因" };
+  }
+  await ensureCollection("gift_box_plans");
+  const existing = await db.collection("gift_box_plans").where({ id }).limit(1).get().catch(() => null);
+  const row = existing && existing.data && existing.data[0];
+  if (!row) {
+    return { ok: false, message: "礼盒不存在" };
+  }
+  await db.collection("gift_box_plans").doc(row._id).update({
+    data: { removed: true, updatedAt: db.serverDate() }
+  });
+  await writeAdminAuditLog(caller, "removeGiftBoxPlan", {
+    id,
+    name: cleanText(row.name, 60),
+    reason
+  });
+  return { ok: true };
+}
+
 async function updateAfterSale(event, caller) {
   const order = await getOrder(event);
   if (!order) {
@@ -5135,6 +5297,15 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "adjustMemberBalance") {
       return await adjustMemberBalance(event, caller);
+    }
+    if (action === "listGiftBoxPlans") {
+      return await listGiftBoxPlans();
+    }
+    if (action === "saveGiftBoxPlan") {
+      return await saveGiftBoxPlan(event, caller);
+    }
+    if (action === "removeGiftBoxPlan") {
+      return await removeGiftBoxPlan(event, caller);
     }
     if (action === "listAfterSales") {
       const response = await listAfterSales(event);

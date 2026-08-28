@@ -190,9 +190,97 @@ function buildViewState(product, selectedSpecLabel, favored) {
   }, buildContactMeta(product));
 }
 
+/** 自选礼盒视图状态：茶池 + 已选槽位 + 实时价格 */
+function buildGiftBoxViewState(plan, favored) {
+  const selection = plan.selection || {};
+  const mode = selection.mode === "double" ? "double" : "single";
+  const minTypes = Math.max(1, Number(selection.minTypes) || (mode === "double" ? 2 : 1));
+  const maxTypes = Math.max(minTypes, Number(selection.maxTypes) || minTypes);
+  const brewsPerType = Math.max(1, Number(selection.brewsPerType) || 1);
+  const wholeBox = plan.priceMode === "whole_box";
+  const boxFeeFen = wholeBox ? 0 : Math.max(0, Number(plan.boxFeeFen) || 0);
+  const pool = (Array.isArray(plan.pool) ? plan.pool : []).map((tea) => ({
+    teaId: tea.teaId,
+    name: tea.name,
+    image: tea.image || "",
+    priceFen: Math.max(0, Number(tea.priceFen) || 0),
+    picked: 0
+  }));
+  const images = Array.isArray(plan.images) && plan.images.length
+    ? plan.images.filter(Boolean)
+    : (plan.image ? [plan.image] : []);
+  const prices = pool.map((t) => t.priceFen).filter((p) => p > 0);
+  const minPriceFen = wholeBox
+    ? (prices.length ? Math.min(...prices) : 0)
+    : (prices.length ? Math.min(...prices) : 0) * brewsPerType * minTypes + boxFeeFen;
+  const availableStock = Math.max(0, (Number(plan.stock) || 0) - (Number(plan.lockedStock) || 0) - (Number(plan.soldStock) || 0));
+  const giftBox = {
+    id: plan.id,
+    name: plan.name,
+    description: plan.description || "",
+    images,
+    image: images[0] || plan.image || "",
+    priceMode: plan.priceMode,
+    wholeBox,
+    boxFeeFen,
+    mode,
+    minTypes,
+    maxTypes,
+    brewsPerType,
+    allowDuplicate: selection.allowDuplicate === true,
+    note: selection.note || "",
+    availableStock,
+    pool,
+    totalFen: minPriceFen,
+    totalPicked: 0,
+    filled: false
+  };
+  return Object.assign({
+    product: Object.assign({}, plan, {
+      images,
+      image: images[0] || plan.image || "",
+      sold: plan.soldStock || 0,
+      origin: "自选搭配",
+      taste: plan.description || "",
+      tasteExpandable: false
+    }),
+    giftBox,
+    selectedSpec: "",
+    selectedSpecDisplay: "",
+    priceUnit: "盒",
+    displayPrice: minPriceFen / 100,
+    selectedSoldOut: availableStock <= 0,
+    selectedStockHint: availableStock <= 0 ? "礼盒已售罄" : "",
+    favored: !!favored,
+    tasteExpanded: false
+  }, buildContactMeta(plan));
+}
+
+/** 重算礼盒：总价 / 已选槽位数 / 是否满足最少款数 */
+function recomputeGiftBox(giftBox) {
+  const totalPicked = giftBox.pool.reduce((sum, tea) => sum + tea.picked, 0);
+  let totalFen = 0;
+  giftBox.pool.forEach((tea) => {
+    if (tea.picked > 0) {
+      totalFen += giftBox.wholeBox
+        ? tea.priceFen * tea.picked
+        : tea.priceFen * giftBox.brewsPerType * tea.picked;
+    }
+  });
+  if (!giftBox.wholeBox) {
+    totalFen += giftBox.boxFeeFen;
+  }
+  return {
+    totalFen,
+    totalPicked,
+    filled: totalPicked >= giftBox.minTypes && totalPicked <= giftBox.maxTypes
+  };
+}
+
 Page({
   data: {
     product: null,
+    giftBox: null,
     catalogLoading: true,
     catalogError: false,
     selectedSpec: "",
@@ -226,12 +314,24 @@ Page({
         const selectedSpec = findSpec(normalized.specs, this.data.selectedSpec) || normalized.specs[0];
         this.setData(Object.assign({
           catalogLoading: false,
-          catalogError: false
+          catalogError: false,
+          giftBox: null
         }, buildViewState(normalized, selectedSpec.label, isFavorite(normalized.id))));
+        return;
+      }
+      // 自选礼盒
+      const giftPlans = Array.isArray(catalog.giftBoxes) ? catalog.giftBoxes : [];
+      const nextPlan = giftPlans.find((item) => item.id === productId);
+      if (nextPlan) {
+        this.setData(Object.assign({
+          catalogLoading: false,
+          catalogError: false
+        }, buildGiftBoxViewState(nextPlan, isFavorite(nextPlan.id))));
         return;
       }
       this.setData({
         product: null,
+        giftBox: null,
         catalogLoading: false,
         catalogError: catalog.source === "error"
       });
@@ -267,7 +367,86 @@ Page({
     this.setData({ quantity: Math.max(1, Math.min(99, next)) });
   },
 
+  /** 礼盒自选：茶池 +/- 槽位 */
+  toggleGiftTea(event) {
+    const giftBox = this.data.giftBox;
+    if (!giftBox) {
+      return;
+    }
+    const teaId = event.currentTarget.dataset.teaId;
+    const delta = Number(event.currentTarget.dataset.delta) || 0;
+    const pool = giftBox.pool.map((tea) => Object.assign({}, tea));
+    const tea = pool.find((item) => item.teaId === teaId);
+    if (!tea) {
+      return;
+    }
+    const totalPicked = pool.reduce((sum, item) => sum + item.picked, 0);
+    if (delta > 0) {
+      if (totalPicked >= giftBox.maxTypes) {
+        wx.showToast({ title: `最多选 ${giftBox.maxTypes} 款`, icon: "none" });
+        return;
+      }
+      if (!giftBox.allowDuplicate && tea.picked >= 1) {
+        wx.showToast({ title: "同一茶品只可选一次", icon: "none" });
+        return;
+      }
+      tea.picked += 1;
+    } else {
+      tea.picked = Math.max(0, tea.picked - 1);
+    }
+    const calc = recomputeGiftBox(Object.assign({}, giftBox, { pool }));
+    this.setData({
+      "giftBox.pool": pool,
+      "giftBox.totalFen": calc.totalFen,
+      "giftBox.totalPicked": calc.totalPicked,
+      "giftBox.filled": calc.filled,
+      displayPrice: calc.totalFen / 100
+    });
+  },
+
+  /** 礼盒加购：校验已选满 → 携带自选明细 */
+  addGiftBoxToCart() {
+    const giftBox = this.data.giftBox;
+    if (!giftBox) {
+      return;
+    }
+    if (giftBox.availableStock <= 0) {
+      wx.showToast({ title: "礼盒已售罄", icon: "none" });
+      return;
+    }
+    if (!giftBox.filled) {
+      wx.showToast({ title: `请选择 ${giftBox.minTypes} 款茶品`, icon: "none" });
+      return;
+    }
+    const picked = giftBox.pool.filter((tea) => tea.picked > 0);
+    const giftSelection = picked.map((tea) => ({
+      teaId: tea.teaId,
+      name: tea.name,
+      brews: giftBox.brewsPerType,
+      count: tea.picked,
+      priceFen: tea.priceFen
+    }));
+    addToCart({
+      id: giftBox.id,
+      type: "giftbox",
+      name: giftBox.name,
+      price: giftBox.totalFen / 100,
+      image: giftBox.image,
+      category: "礼盒",
+      quantity: this.data.quantity,
+      options: {
+        unit: "盒",
+        giftSelection
+      }
+    });
+    wx.showToast({ title: "已加入" });
+  },
+
   addProduct() {
+    if (this.data.giftBox) {
+      this.addGiftBoxToCart();
+      return;
+    }
     const { product, selectedSpec, quantity, displayPrice, selectedSoldOut } = this.data;
     if (!product) {
       return;

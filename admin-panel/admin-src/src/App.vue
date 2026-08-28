@@ -120,6 +120,7 @@ const navItems = [
   { key: "customers", label: "会员管理", icon: UserRound },
   { key: "recharges", label: "充值记录", icon: BadgeDollarSign },
   { key: "catalog", label: "商品管理", icon: Package },
+  { key: "giftboxes", label: "礼盒管理", icon: Package },
   { key: "content", label: "内容管理", icon: FileText },
   { key: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing },
   { key: "audit", label: "审计日志", icon: FileText },
@@ -132,7 +133,7 @@ const navItems = [
 const navGroups = [
   { label: "经营工作台", items: ["dashboard", "orders", "afterSales", "inventory"] },
   { label: "门店服务", items: ["reservations", "signups", "customers", "recharges"] },
-  { label: "内容与增长", items: ["catalog", "content", "analytics"] },
+  { label: "内容与增长", items: ["catalog", "giftboxes", "content", "analytics"] },
   { label: "系统治理", items: ["audit", "notifications", "system", "backups", "settings"] }
 ];
 
@@ -176,6 +177,7 @@ const pageTitles = {
   customers: ["会员管理", ""],
   recharges: ["充值记录", "会员储值流水（含微信支付与发货状态）"],
   catalog: ["商品管理", ""],
+  giftboxes: ["礼盒管理", "自选礼盒配置（单选/双拼/三拼，按泡或整盒计价）"],
   content: ["内容管理", ""],
   analytics: ["数据统计", ""],
   audit: ["审计日志", ""],
@@ -195,6 +197,7 @@ const moduleProfiles = {
   inventory: { group: "经营", subject: "库存", countLabel: "条", note: "" },
   customers: { group: "门店", subject: "会员", countLabel: "位", note: "" },
   catalog: { group: "商品", subject: "资料", countLabel: "条", note: "" },
+  giftboxes: { group: "商品", subject: "礼盒", countLabel: "款", note: "" },
   content: { group: "内容", subject: "内容", countLabel: "条", note: "" },
   analytics: { group: "数据", subject: "统计", countLabel: "项", note: "" },
   audit: { group: "系统", subject: "审计", countLabel: "条", note: "" },
@@ -287,6 +290,8 @@ const state = reactive({
   customers: [],
   recharges: [],
   rechargeSummary: null,
+  giftBoxPlans: [],
+  giftBoxEditorOpen: false,
   customerSummary: { totalMembers: 0, totalBalance: 0, monthRecharge: 0, matchedMembers: 0 },
   contentItems: [],
   analytics: null,
@@ -405,6 +410,158 @@ function orderQueueHint() {
 }
 
 const loginForm = reactive({ username: "", password: "" });
+
+const emptyGiftBoxForm = () => ({
+  id: "",
+  name: "",
+  description: "",
+  image: "",
+  category: "礼盒",
+  priceMode: "per_brew",
+  boxFeeYuan: "18",
+  selectionMode: "double",
+  minTypes: 2,
+  maxTypes: 2,
+  brewsPerType: 6,
+  allowDuplicate: true,
+  note: "",
+  stock: 100,
+  visible: true,
+  sort: 10,
+  pool: []
+});
+
+const giftBoxForm = reactive(emptyGiftBoxForm());
+
+async function loadGiftBoxPlans() {
+  await withLoading("读取礼盒", async () => {
+    const result = await callFunction("manageOperations", { action: "listGiftBoxPlans" });
+    state.giftBoxPlans = result.plans || [];
+  });
+}
+
+function openGiftBoxEditor(plan) {
+  if (plan) {
+    const selection = plan.selection || {};
+    Object.assign(giftBoxForm, {
+      id: plan.id || "",
+      name: plan.name || "",
+      description: plan.description || "",
+      image: plan.image || (plan.images && plan.images[0]) || "",
+      category: plan.category || "礼盒",
+      priceMode: plan.priceMode || "per_brew",
+      boxFeeYuan: plan.boxFeeFen ? String(plan.boxFeeFen / 100) : "0",
+      selectionMode: selection.mode || "double",
+      minTypes: Number(selection.minTypes) || (selection.mode === "double" ? 2 : 1),
+      maxTypes: Number(selection.maxTypes) || (selection.mode === "double" ? 2 : 1),
+      brewsPerType: Number(selection.brewsPerType) || 6,
+      allowDuplicate: selection.allowDuplicate === true,
+      note: selection.note || "",
+      stock: Number(plan.stock) || 0,
+      visible: plan.visible !== false,
+      sort: Number(plan.sort) || 10,
+      pool: (plan.pool || []).map((t) => ({
+        teaId: t.teaId || "",
+        name: t.name || "",
+        image: t.image || "",
+        priceYuan: t.priceFen ? String(t.priceFen / 100) : "",
+        stock: Number(t.stock) || 0
+      }))
+    });
+  } else {
+    Object.assign(giftBoxForm, emptyGiftBoxForm());
+  }
+  state.giftBoxEditorOpen = true;
+}
+
+function closeGiftBoxEditor() {
+  state.giftBoxEditorOpen = false;
+}
+
+function addGiftPoolRow() {
+  giftBoxForm.pool.push({ teaId: "", name: "", image: "", priceYuan: "", stock: 0 });
+}
+
+function removeGiftPoolRow(index) {
+  giftBoxForm.pool.splice(index, 1);
+}
+
+function giftBoxSelectionLabel(plan) {
+  const s = plan.selection || {};
+  if (s.mode === "double") {
+    return `选 ${s.minTypes || 2} 款 × 各 ${s.brewsPerType || 6} 泡`;
+  }
+  return `选 1 款 × ${s.brewsPerType || 6} 泡`;
+}
+
+function giftBoxPriceModeLabel(plan) {
+  return plan.priceMode === "whole_box" ? "整盒价" : `按泡计价${plan.boxFeeFen ? ` +包装¥${(plan.boxFeeFen / 100).toFixed(0)}` : ""}`;
+}
+
+async function saveGiftBoxPlanForm() {
+  const name = giftBoxForm.name.trim();
+  if (!name) {
+    showToast("请填写礼盒名称");
+    return;
+  }
+  const pool = giftBoxForm.pool.map((t) => ({
+    teaId: String(t.teaId || "").trim(),
+    name: String(t.name || "").trim(),
+    image: String(t.image || "").trim(),
+    priceFen: Math.round((Number(t.priceYuan) || 0) * 100),
+    stock: Math.max(0, Number(t.stock) || 0)
+  }));
+  if (!pool.length || pool.some((t) => !t.name || t.priceFen <= 0)) {
+    showToast("茶池至少一款，且每款需有名称与价格");
+    return;
+  }
+  await withLoading("保存礼盒", async () => {
+    await callFunction("manageOperations", {
+      action: "saveGiftBoxPlan",
+      data: {
+        id: giftBoxForm.id,
+        name,
+        description: giftBoxForm.description,
+        images: [giftBoxForm.image].filter(Boolean),
+        image: giftBoxForm.image,
+        category: giftBoxForm.category || "礼盒",
+        priceMode: giftBoxForm.priceMode,
+        boxFeeFen: Math.round((Number(giftBoxForm.boxFeeYuan) || 0) * 100),
+        selection: {
+          mode: giftBoxForm.selectionMode,
+          minTypes: Math.max(1, Number(giftBoxForm.minTypes) || 1),
+          maxTypes: Math.max(1, Number(giftBoxForm.maxTypes) || 1),
+          brewsPerType: Math.max(1, Number(giftBoxForm.brewsPerType) || 1),
+          allowDuplicate: giftBoxForm.allowDuplicate,
+          note: giftBoxForm.note
+        },
+        stock: Math.max(0, Number(giftBoxForm.stock) || 0),
+        visible: giftBoxForm.visible,
+        sort: Math.max(0, Number(giftBoxForm.sort) || 0),
+        pool
+      }
+    });
+    showToast("礼盒已保存");
+    state.giftBoxEditorOpen = false;
+    await loadGiftBoxPlans();
+  });
+}
+
+async function removeGiftBoxPlanItem(plan) {
+  const reason = await promptActionReason(`删除礼盒「${plan.name}」`);
+  if (!reason) {
+    return;
+  }
+  await withLoading("删除礼盒", async () => {
+    await callFunction("manageOperations", {
+      action: "removeGiftBoxPlan",
+      id: plan.id,
+      reason
+    });
+    showToast("礼盒已删除");
+    await loadGiftBoxPlans();
+  });
+}
 const uploadState = reactive({ catalog: "", content: "", category: "", room: "" });
 const orderForm = reactive({
   trackingCompany: "SF",
@@ -1971,6 +2128,22 @@ function orderFulfillmentLabel(order = {}) {
   return "—";
 }
 
+/** 订单行项目：礼盒自选明细（同款合并泡数） */
+function orderItemGiftDetail(item = {}) {
+  const options = item.options || {};
+  if (item.type !== "giftbox" || !Array.isArray(options.giftSelection)) {
+    return "";
+  }
+  const brewMap = {};
+  options.giftSelection.forEach((sel) => {
+    const count = Math.max(1, Number(sel.count) || 1);
+    const brews = Math.max(1, Number(sel.brews) || 1);
+    brewMap[sel.name] = (brewMap[sel.name] || 0) + brews * count;
+  });
+  const parts = Object.keys(brewMap).map((name) => `${name} ${brewMap[name]}泡`);
+  return parts.length ? `自选：${parts.join("、")}` : "";
+}
+
 function isPhone(value) {
   const text = String(value || "").trim();
   return !text || /^1\d{10}$/.test(text) || /^[\d\s\-+()]{6,24}$/.test(text);
@@ -3513,6 +3686,7 @@ async function loadActiveTab(forceRefresh = false) {
     recharges: loadRecharges,
     content: loadContent,
     analytics: loadAnalytics,
+    giftboxes: loadGiftBoxPlans,
     audit: loadAuditLogs,
     notifications: loadNotificationLogs,
     system: loadSystemStatus,
@@ -7137,6 +7311,88 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-if="state.activeTab === 'giftboxes'" class="list-workspace">
+          <article class="panel-card data-panel">
+            <div class="panel-toolbar">
+              <h2>自选礼盒</h2>
+              <button v-if="hasPermission('catalog.write')" class="primary-action small" type="button" @click="openGiftBoxEditor(null)">新建礼盒</button>
+            </div>
+            <div class="record-list">
+              <div v-for="plan in state.giftBoxPlans" :key="plan.id" class="record-row giftbox-row">
+                <strong>
+                  <span>{{ plan.name }}</span>
+                  <em>{{ plan.visible ? '上架中' : '已下架' }}</em>
+                </strong>
+                <span class="record-meta">
+                  <span>{{ giftBoxSelectionLabel(plan) }} · {{ giftBoxPriceModeLabel(plan) }} · 茶池 {{ plan.pool.length }} 款 · 库存 {{ plan.stock }}</span>
+                  <i :class="['record-status', plan.removed ? 'error' : (plan.visible ? 'good' : 'neutral')]">{{ plan.removed ? '已删除' : (plan.visible ? '可售' : '停用') }}</i>
+                </span>
+                <div class="row-actions">
+                  <button class="ghost-button small" type="button" @click="openGiftBoxEditor(plan)">编辑</button>
+                  <button class="ghost-button small danger-text" type="button" @click="removeGiftBoxPlanItem(plan)">删除</button>
+                </div>
+              </div>
+              <EmptyState v-if="state.giftBoxPlans.length === 0" title="暂无自选礼盒" hint="新建礼盒：配置自选规则（单选/双拼）、茶池与计价方式，保存后即在小程序「礼盒」分类展示。" />
+            </div>
+          </article>
+
+          <!-- 礼盒编辑抽屉 -->
+          <div v-if="state.giftBoxEditorOpen" class="editor-drawer" role="dialog" aria-modal="true" aria-label="礼盒编辑">
+            <div class="editor-drawer-mask" @click="closeGiftBoxEditor"></div>
+            <aside class="panel-card detail-panel drawer-panel">
+              <div class="panel-title">
+                <h2>{{ giftBoxForm.id ? '编辑礼盒' : '新建礼盒' }}</h2>
+                <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeGiftBoxEditor">×</button>
+              </div>
+              <div class="settings-fields">
+                <label class="wide"><span>礼盒名称 <em class="req">*</em></span><input v-model="giftBoxForm.name" placeholder="如：秋拾双茗礼盒"></label>
+                <label class="wide"><span>分类</span><input v-model="giftBoxForm.category" placeholder="礼盒"></label>
+                <label class="wide"><span>主图地址（可选）</span><input v-model="giftBoxForm.image" placeholder="https:// 或 cloud:// 图片地址"></label>
+                <label class="wide"><span>描述（可选）</span><textarea v-model="giftBoxForm.description" rows="2" placeholder="礼盒卖点文案"></textarea></label>
+                <label class="wide"><span>计价模式</span>
+                  <select v-model="giftBoxForm.priceMode">
+                    <option value="per_brew">按泡计价（每款价 × 泡数 + 包装费）</option>
+                    <option value="whole_box">整盒价（每款一个礼盒价）</option>
+                  </select>
+                </label>
+                <label v-if="giftBoxForm.priceMode === 'per_brew'" class="wide"><span>包装费（元）</span><input v-model="giftBoxForm.boxFeeYuan" type="number" min="0" step="0.01"></label>
+                <label class="wide"><span>选择模式</span>
+                  <select v-model="giftBoxForm.selectionMode">
+                    <option value="single">单选（选 1 款）</option>
+                    <option value="double">双拼（选 2 款）</option>
+                  </select>
+                </label>
+                <label class="wide"><span>最少选择款数</span><input v-model.number="giftBoxForm.minTypes" type="number" min="1" max="9"></label>
+                <label class="wide"><span>最多选择款数</span><input v-model.number="giftBoxForm.maxTypes" type="number" min="1" max="9"></label>
+                <label class="wide"><span>每款泡数</span><input v-model.number="giftBoxForm.brewsPerType" type="number" min="1" max="99"></label>
+                <label class="wide giftbox-switch"><span>允许重复选择同款</span><input type="checkbox" v-model="giftBoxForm.allowDuplicate"></label>
+                <label class="wide"><span>提示文案（可选，如：三拼请咨询客服下单）</span><input v-model="giftBoxForm.note"></label>
+                <label class="wide"><span>礼盒库存</span><input v-model.number="giftBoxForm.stock" type="number" min="0"></label>
+                <label class="wide giftbox-switch"><span>上架</span><input type="checkbox" v-model="giftBoxForm.visible"></label>
+                <label class="wide"><span>排序（小的在前）</span><input v-model.number="giftBoxForm.sort" type="number" min="0"></label>
+              </div>
+              <div class="settings-section giftbox-pool-editor">
+                <div class="settings-row-actions">
+                  <h3>可选茶池（礼盒专用，与茶叶商品独立维护）</h3>
+                  <button class="secondary-action small" type="button" @click="addGiftPoolRow">+ 添加茶品</button>
+                </div>
+                <p class="settings-note">{{ giftBoxForm.priceMode === 'whole_box' ? '每款填「整盒价」' : '每款填「每泡价」' }}；顾客在小程序按规则自选，价格由服务端按此单价重算。</p>
+                <div v-for="(row, index) in giftBoxForm.pool" :key="index" class="giftbox-pool-row">
+                  <input v-model="row.name" placeholder="茶名（如：红茶）">
+                  <input v-model="row.priceYuan" type="number" min="0" step="0.01" :placeholder="giftBoxForm.priceMode === 'whole_box' ? '整盒价(元)' : '每泡价(元)'">
+                  <input v-model="row.image" placeholder="图片地址">
+                  <input v-model.number="row.stock" type="number" min="0" placeholder="库存">
+                  <button class="ghost-button small danger-text" type="button" @click="removeGiftPoolRow(index)">×</button>
+                </div>
+              </div>
+              <div class="action-row">
+                <button class="secondary-action" type="button" @click="closeGiftBoxEditor">取消</button>
+                <button class="primary-action" type="button" @click="saveGiftBoxPlanForm">保存礼盒</button>
+              </div>
+            </aside>
+          </div>
+        </section>
+
         <section v-if="state.activeTab === 'orders'" class="list-workspace">
           <article class="panel-card data-panel">
             <div class="panel-toolbar order-biz-toolbar">
@@ -7217,7 +7473,10 @@ onBeforeUnmount(() => {
             <DetailRow label="创建时间" :value="formatDate(selectedOrder.createdAt)" />
             <div class="line-items" v-if="selectedOrder.items?.length">
               <div v-for="item in selectedOrder.items" :key="item.id || item.name" class="line-item">
-                <span>{{ item.name || item.id || "商品" }}</span>
+                <span>
+                  {{ item.name || item.id || "商品" }}
+                  <em v-if="orderItemGiftDetail(item)" class="line-item-detail">{{ orderItemGiftDetail(item) }}</em>
+                </span>
                 <strong>x{{ item.quantity || 1 }}</strong>
               </div>
             </div>

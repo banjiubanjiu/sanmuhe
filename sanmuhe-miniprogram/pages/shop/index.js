@@ -6,6 +6,8 @@ const { syncTabBar } = require("../../utils/tabbar");
 const DEFAULT_CATEGORY_ORDER = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单丛"];
 const TARGET_CATEGORY_KEY = "sanmuhe_shop_category";
 const RETAIL_MODE = "retail";
+const INITIAL_PRODUCT_BATCH_SIZE = 6;
+const PRODUCT_BATCH_SIZE = 4;
 
 /** 列表直加：取唯一规格；无 specs 时回退商品默认 unit/price */
 function resolveDefaultSpec(product) {
@@ -76,8 +78,50 @@ function normalizeTeaProducts(products) {
   });
 }
 
+/** 自选礼盒 → 商城商品条目（礼盒分类展示，带「自选」角标） */
+function normalizeGiftBoxes(plans) {
+  return (Array.isArray(plans) ? plans : []).map((plan) => {
+    const selection = plan.selection || {};
+    const mode = selection.mode === "double" ? "double" : "single";
+    const minTypes = Math.max(1, Number(selection.minTypes) || (mode === "double" ? 2 : 1));
+    const brewsPerType = Math.max(1, Number(selection.brewsPerType) || 1);
+    const wholeBox = plan.priceMode === "whole_box";
+    const boxFeeFen = wholeBox ? 0 : Math.max(0, Number(plan.boxFeeFen) || 0);
+    const pool = Array.isArray(plan.pool) ? plan.pool : [];
+    const prices = pool.map((t) => Math.max(0, Number(t.priceFen) || 0)).filter((p) => p > 0);
+    // 展示价：整盒 → 最低整盒价；按泡 → 最低组合价（单价×泡数×最少款数+包装费）
+    const minPriceFen = wholeBox
+      ? (prices.length ? Math.min(...prices) : 0)
+      : (prices.length ? Math.min(...prices) : 0) * brewsPerType * minTypes + boxFeeFen;
+    const stock = Math.max(0, Number(plan.stock) || 0);
+    const locked = Math.max(0, Number(plan.lockedStock) || 0);
+    const sold = Math.max(0, Number(plan.soldStock) || 0);
+    const availableStock = Math.max(0, stock - locked - sold);
+    const isSoldOut = availableStock <= 0;
+    const image = plan.image || (plan.images && plan.images[0]) || "";
+    return Object.assign({}, plan, {
+      productType: "giftbox",
+      isGiftBox: true,
+      category: plan.category || "礼盒",
+      unit: "盒",
+      thumb: image,
+      image,
+      availableStock,
+      isSoldOut,
+      displayPrice: minPriceFen / 100,
+      priceSuffix: "起",
+      actionKind: isSoldOut ? "soldout" : "giftbox",
+      actionText: isSoldOut ? "售罄" : "自选",
+      actionLabel: isSoldOut ? "已售罄" : "自选搭配",
+      actionAriaLabel: `选择${plan.name}的搭配`
+    });
+  });
+}
+
 function buildProducts(catalog = {}) {
-  return normalizeTeaProducts(Array.isArray(catalog.teaProducts) ? catalog.teaProducts : []);
+  const teas = normalizeTeaProducts(Array.isArray(catalog.teaProducts) ? catalog.teaProducts : []);
+  const giftBoxes = normalizeGiftBoxes(catalog.giftBoxes);
+  return teas.concat(giftBoxes);
 }
 
 /**
@@ -122,6 +166,7 @@ Page({
     keyword: "",
     products: [],
     filteredProducts: [],
+    visibleProducts: [],
     catalogLoading: true,
     catalogError: false,
     refreshing: false,
@@ -200,15 +245,16 @@ Page({
       catalogLoading: false,
       catalogError: catalog.source === "error"
     }, () => {
-      this.applyFilters();
+      this.applyFilters({ preserveVisible: true });
       this.finishCatalogRefresh(fromRefresh);
     });
   },
 
-  applyFilters() {
+  applyFilters(options = {}) {
+    const { activeCategory, products, visibleProducts } = this.data;
     const keyword = String(this.data.keyword || "").trim().toLowerCase();
-    const filteredProducts = this.data.products.filter((item) => {
-      const categoryMatched = this.data.activeCategory === "全部" || item.category === this.data.activeCategory;
+    const filteredProducts = products.filter((item) => {
+      const categoryMatched = activeCategory === "全部" || item.category === activeCategory;
       const keywordMatched = !keyword || [
         item.name,
         item.category,
@@ -218,7 +264,23 @@ Page({
       ].join(" ").toLowerCase().indexOf(keyword) >= 0;
       return categoryMatched && keywordMatched;
     });
-    this.setData({ filteredProducts });
+    const visibleLimit = options.preserveVisible
+      ? Math.max(INITIAL_PRODUCT_BATCH_SIZE, visibleProducts.length)
+      : INITIAL_PRODUCT_BATCH_SIZE;
+    this.setData({
+      filteredProducts,
+      visibleProducts: filteredProducts.slice(0, visibleLimit)
+    });
+  },
+
+  loadMoreProducts() {
+    const { filteredProducts, visibleProducts } = this.data;
+    if (visibleProducts.length >= filteredProducts.length) {
+      return;
+    }
+    this.setData({
+      visibleProducts: filteredProducts.slice(0, visibleProducts.length + PRODUCT_BATCH_SIZE)
+    });
   },
 
   changeCategory(event) {
@@ -282,6 +344,11 @@ Page({
     }
     if (product.isSoldOut) {
       wx.showToast({ title: "这款茶暂时售罄", icon: "none" });
+      return;
+    }
+    // 自选礼盒：必须进详情页自选搭配
+    if (product.productType === "giftbox") {
+      this.openProductDetail(product.id);
       return;
     }
     // 多规格：必须先选规格（进详情；半屏可后续再做）

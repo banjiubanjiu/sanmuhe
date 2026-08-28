@@ -16,9 +16,9 @@ const SHIPPING_PAY_MODE = String(process.env.SHIPPING_PAY_MODE || "collect").toL
   ? "prepaid"
   : "collect";
 const DEFAULT_MEMBER_LEVELS = [
-  { tier: "雅客会员", minSpend: 0, discountRate: 0.98 },
-  { tier: "臻享会员", minSpend: 1600, discountRate: 0.95 },
-  { tier: "山房会员", minSpend: 5000, discountRate: 0.92 }
+  { tier: "雅客会员", minSpend: 0, discountRate: 1 },
+  { tier: "臻享会员", minSpend: 1600, discountRate: 1 },
+  { tier: "山房会员", minSpend: 5000, discountRate: 1 }
 ];
 
 // 旧版按克重倍率计价；新目录优先使用商品 specs 固定价
@@ -103,6 +103,85 @@ function getTrustedTeaChoices(trusted) {
     }, [])
     .map((item) => cleanText(item, 40))
     .filter(Boolean);
+}
+
+/**
+ * 礼盒自选校验与计价（服务端重算，防篡改）。
+ * - per_brew：每款价 × 每款泡数 求和 + 包装费（如秋拾：红茶10+白茶10 = (10+10)*6+18）
+ * - whole_box：整盒价求和（单选，如纳福 218/308… / 拾茗 98/158…）
+ * - 校验：所选都在池内、数量符合 minTypes~maxTypes、是否允许重复
+ */
+function sanitizeGiftBox(plan, item, quantity) {
+  if (!plan || typeof plan !== "object") {
+    throw new Error("礼盒配置不存在或已下架");
+  }
+  const selection = plan.selection || {};
+  const mode = plan.priceMode === "whole_box" ? "whole_box" : "per_brew";
+  const minTypes = Math.max(1, Number(selection.minTypes) || (selection.mode === "double" ? 2 : 1));
+  const maxTypes = Math.max(minTypes, Number(selection.maxTypes) || minTypes);
+  const brewsPerType = Math.max(1, Number(selection.brewsPerType) || 1);
+  const allowDuplicate = selection.allowDuplicate === true;
+  const pool = Array.isArray(plan.pool) ? plan.pool : [];
+
+  const requested = Array.isArray(item.options && item.options.giftSelection)
+    ? item.options.giftSelection
+    : (Array.isArray(item.giftSelection) ? item.giftSelection : []);
+  // 客户端按 count 折叠同款（如大红袍×2）；服务端展开为多槽位再校验计价
+  const expanded = [];
+  for (const sel of requested) {
+    const teaId = cleanText(sel && sel.teaId, 40);
+    const count = Math.max(1, Math.min(9, Number(sel && sel.count) || 1));
+    for (let i = 0; i < count; i += 1) {
+      expanded.push(teaId);
+    }
+  }
+  if (expanded.length < minTypes || expanded.length > maxTypes) {
+    throw new Error(`礼盒需选择 ${minTypes}${maxTypes > minTypes ? `~${maxTypes}` : ""} 款茶品`);
+  }
+
+  const poolById = new Map();
+  pool.forEach((tea) => {
+    if (tea && tea.teaId) {
+      poolById.set(tea.teaId, tea);
+    }
+  });
+
+  const seen = new Set();
+  const selectionOut = [];
+  let contentFen = 0;
+  for (const teaId of expanded) {
+    const tea = poolById.get(teaId);
+    if (!tea) {
+      throw new Error("所选茶品已调整，请重新选择");
+    }
+    if (!allowDuplicate && seen.has(teaId)) {
+      throw new Error("同一茶品不可重复选择");
+    }
+    seen.add(teaId);
+    const priceFen = Math.max(0, Math.round(Number(tea.priceFen) || 0));
+    selectionOut.push({
+      teaId,
+      name: cleanText(tea.name, 60),
+      image: cleanText(tea.image, 500),
+      brews: brewsPerType,
+      priceFen,
+      subTotalFen: mode === "whole_box" ? priceFen : priceFen * brewsPerType
+    });
+    contentFen += mode === "whole_box" ? priceFen : priceFen * brewsPerType;
+  }
+  const boxFeeFen = mode === "per_brew" ? Math.max(0, Math.round(Number(plan.boxFeeFen) || 0)) : 0;
+  const totalFen = contentFen + boxFeeFen;
+  if (totalFen <= 0) {
+    throw new Error("礼盒价格异常，请重新选择");
+  }
+
+  return {
+    price: totalFen / 100,
+    selection: selectionOut,
+    contentFen,
+    boxFeeFen,
+    totalFen
+  };
 }
 
 function sanitizeOptions(type, options, trusted) {
@@ -332,6 +411,34 @@ async function findTrustedDrinkTier(id) {
 }
 
 async function findTrustedItem(type, id) {
+  if (type === "giftbox") {
+    await ensureCollection("gift_box_plans");
+    try {
+      const result = await db.collection("gift_box_plans").where({ id }).limit(1).get();
+      const item = result.data && result.data[0];
+      if (item && item.visible !== false && item.removed !== true) {
+        return {
+          collection: "gift_box_plans",
+          docId: item._id,
+          id: item.id,
+          name: cleanText(item.name, 80),
+          price: 0,
+          unit: "盒",
+          notes: "",
+          teaGroups: [],
+          specs: [],
+          image: cleanText(item.thumb || item.image || (item.images && item.images[0]), 500),
+          stock: item.stock,
+          lockedStock: item.lockedStock,
+          soldStock: item.soldStock,
+          giftBox: item
+        };
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
   if (type === "drink") {
     const fromTier = await findTrustedDrinkTier(id);
     if (fromTier) {
@@ -339,8 +446,7 @@ async function findTrustedItem(type, id) {
     }
   }
 
-  const collection = type === "tea" ? "tea_products" : "drinks";
-  await ensureCollection(collection);
+  const collection = type === "tea" ? "tea_products" : "drinks";  await ensureCollection(collection);
 
   try {
     const result = await db.collection(collection).where({ id }).limit(1).get();
@@ -383,7 +489,7 @@ async function sanitizeItems(items) {
   const inventoryLocks = [];
 
   for (const item of items.slice(0, 30)) {
-    const type = item.type === "tea" ? "tea" : "drink";
+    const type = item.type === "giftbox" ? "giftbox" : (item.type === "tea" ? "tea" : "drink");
     const id = cleanText(item.id, 40);
     const trusted = await findTrustedItem(type, id);
     if (!trusted) {
@@ -391,6 +497,38 @@ async function sanitizeItems(items) {
     }
 
     const quantity = Math.max(1, Math.min(99, Number(item.quantity) || 1));
+
+    if (type === "giftbox") {
+      const giftBox = sanitizeGiftBox(trusted.giftBox, item, quantity);
+      subtotal += giftBox.lineTotal;
+      const cleanGiftItem = {
+        id,
+        type: "giftbox",
+        name: trusted.name,
+        price: giftBox.price,
+        quantity,
+        lineTotal: giftBox.lineTotal,
+        options: {
+          giftSelection: giftBox.selection,
+          unit: "盒"
+        }
+      };
+      if (trusted.image) {
+        cleanGiftItem.image = trusted.image;
+      }
+      inventoryLocks.push({
+        collection: "gift_box_plans",
+        docId: trusted.docId,
+        id,
+        name: trusted.name,
+        quantity,
+        specLabel: "",
+        mode: "product"
+      });
+      cleanItems.push(cleanGiftItem);
+      continue;
+    }
+
     const options = sanitizeOptions(type, item.options, trusted);
     const price = getTrustedPrice(type, trusted, options);
     const lineTotal = price * quantity;

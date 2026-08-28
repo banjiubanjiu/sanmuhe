@@ -48,6 +48,16 @@ function formatDate(value, fallback = "") {
 
 function optionText(item = {}, opts = {}) {
   const options = item.options || {};
+  if (item.type === "giftbox" && Array.isArray(options.giftSelection)) {
+    const brewMap = {};
+    options.giftSelection.forEach((sel) => {
+      const count = Math.max(1, Number(sel.count) || 1);
+      const brews = Math.max(1, Number(sel.brews) || 1);
+      brewMap[sel.name] = (brewMap[sel.name] || 0) + brews * count;
+    });
+    const parts = Object.keys(brewMap).map((name) => `${name} ${brewMap[name]}泡`);
+    return parts.length ? `自选：${parts.join("、")}` : "自选礼盒";
+  }
   const parts = [options.teaChoice, options.unit];
   if (!opts.hideTable && options.table) {
     parts.push(`桌号 ${options.table}`);
