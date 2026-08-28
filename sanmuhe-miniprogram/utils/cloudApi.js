@@ -3,7 +3,7 @@ const { localImage } = require("../config/assets");
 const { isEventListVisible } = require("./eventStatus");
 
 // v2 清理旧版将 cloud:// 改写为未配置 CDN 域名的图片缓存。
-const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v2";
+const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v3";
 const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v2";
 /** 失败回落只用近期成功快照，避免刚下架的货长期留在本地 */
 const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -29,6 +29,7 @@ function emptyCatalog() {
     rooms: [],
     events: [],
     productCategories: [],
+    giftBoxes: [],
     content: {
       homeSlides: []
     },
@@ -44,6 +45,7 @@ function withCatalogMeta(catalog, source) {
     rooms: Array.isArray(next.rooms) ? next.rooms : [],
     events: Array.isArray(next.events) ? next.events : [],
     productCategories: Array.isArray(next.productCategories) ? next.productCategories : [],
+    giftBoxes: Array.isArray(next.giftBoxes) ? next.giftBoxes : [],
     content: next.content || { homeSlides: [] },
     settings: next.settings || null,
     fromCloud: source === "cloud",
@@ -61,6 +63,7 @@ function writeCatalogCache(catalog) {
       rooms: catalog.rooms || [],
       events: catalog.events || [],
       productCategories: catalog.productCategories || [],
+      giftBoxes: Array.isArray(catalog.giftBoxes) ? catalog.giftBoxes : [],
       content: catalog.content || { homeSlides: [] },
       settings: catalog.settings || null,
       cachedAt: Date.now()
@@ -82,6 +85,7 @@ function readCatalogCache() {
       rooms: Array.isArray(cached.rooms) ? cached.rooms : [],
       events: Array.isArray(cached.events) ? cached.events : [],
       productCategories: Array.isArray(cached.productCategories) ? cached.productCategories : [],
+      giftBoxes: Array.isArray(cached.giftBoxes) ? cached.giftBoxes : [],
       content: cached.content || { homeSlides: [] },
       settings: cached.settings || null,
       cachedAt: Number(cached.cachedAt) || 0
@@ -194,6 +198,7 @@ function enrichCatalog(catalog) {
     rooms: normalizeCatalogList(source, "rooms", rooms),
     events: visibleEvents(normalizeCatalogList(source, "events", events)),
     productCategories: Array.isArray(source.productCategories) ? source.productCategories : [],
+    giftBoxes: Array.isArray(source.giftBoxes) ? source.giftBoxes : [],
     content: source.content || { homeSlides: [] },
     settings: source.settings || null
   };
