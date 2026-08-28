@@ -480,6 +480,7 @@ const actionDialog = reactive({
   choices: [],
   amount: "",
   amountLabel: "退款金额（元）",
+  direction: "debit",
   showAmountWhen: "",
   maxAmount: 0,
   inputLabel: "",
@@ -2090,6 +2091,7 @@ function openActionDialog(options) {
     choice: choices[0]?.value || options.defaultChoice || "",
     choices,
     amount: options.defaultAmount != null ? String(options.defaultAmount) : "",
+    direction: options.direction || "debit",
     amountLabel: options.amountLabel || "退款金额（元）",
     showAmountWhen: options.showAmountWhen || "partial",
     maxAmount: Number(options.maxAmount) || 0,
@@ -2164,6 +2166,20 @@ function submitActionDialog() {
     closeActionDialog({ choice: actionDialog.choice, reason, amount });
     return;
   }
+  if (actionDialog.mode === "balance_adjust") {
+    const amount = Number(actionDialog.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      actionDialog.error = "请填写有效的调整金额";
+      return;
+    }
+    const reason = actionDialog.reason.trim();
+    if (!reason) {
+      actionDialog.error = "请填写操作原因（如：礼盒 398 元，非目录商品）";
+      return;
+    }
+    closeActionDialog({ direction: actionDialog.direction, amount, reason });
+    return;
+  }
   closeActionDialog(true);
 }
 
@@ -2172,7 +2188,7 @@ function cancelActionDialog() {
     closeActionDialog("");
     return;
   }
-  if (actionDialog.mode === "choice_reason") {
+  if (actionDialog.mode === "choice_reason" || actionDialog.mode === "balance_adjust") {
     closeActionDialog(null);
     return;
   }
@@ -4597,6 +4613,38 @@ async function deleteCustomerData(customer) {
     const counts = result.counts || {};
     const total = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
     showToast(total ? `已处理 ${total} 条相关数据` : "未找到可处理的数据");
+    await loadCustomers();
+  });
+}
+
+/** 会员余额调整：非目录商品柜台扣款（如礼盒）或补偿/赠送；走审计原因。 */
+async function adjustMemberBalance() {
+  const customer = selectedCustomer.value;
+  if (!customer) {
+    showToast("请先选择会员");
+    return;
+  }
+  const result = await openActionDialog({
+    mode: "balance_adjust",
+    title: "会员余额调整",
+    message: `${customerDisplayName(customer)} 当前余额 ¥${money(customer.balance)}（本金 ¥${money(customer.principalBalance)} · 赠送 ¥${money(customer.bonusBalance)}）。非目录商品（如礼盒）可在此直接扣减余额；扣款流水进入该会员余额明细并写入审计日志。`,
+    confirmText: "确认调整",
+    danger: true
+  });
+  if (!result) {
+    return;
+  }
+  await withLoading("调整余额", async () => {
+    await callFunction("manageOperations", {
+      action: "adjustMemberBalance",
+      memberId: customer.memberId || "",
+      openid: customer.openid || "",
+      amountYuan: result.amount,
+      direction: result.direction,
+      reason: result.reason,
+      requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    });
+    showToast(result.direction === "debit" ? "余额已扣减" : "余额已增加");
     await loadCustomers();
   });
 }
@@ -7623,8 +7671,9 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div v-else class="privacy-note">暂无充值或消费记录。</div>
-            <div class="privacy-note">会员联系方式默认脱敏展示；资金数据仅供核对，本页不提供人工改余额操作。</div>
+            <div class="privacy-note">会员联系方式默认脱敏展示。扣减 / 增加余额会写入会员余额明细与审计日志，支持对账。</div>
             <div class="action-row">
+              <button v-if="hasPermission('customers.write')" class="primary-action" type="button" @click="adjustMemberBalance">余额调整</button>
               <button v-if="hasPermission('export.read')" class="secondary-action" type="button" @click="exportCustomerData(selectedCustomer)">导出会员数据</button>
               <button v-if="hasPermission('privacy.delete')" class="danger-action" type="button" @click="deleteCustomerData(selectedCustomer)">删除个人数据</button>
             </div>
@@ -8339,7 +8388,7 @@ onBeforeUnmount(() => {
 
       <div v-if="actionDialog.open" class="action-dialog-backdrop" @click.self="cancelActionDialog">
         <form class="action-dialog" role="dialog" aria-modal="true" :aria-label="actionDialog.title" @submit.prevent="submitActionDialog" @keydown.esc.prevent="cancelActionDialog">
-          <span class="dialog-kicker">{{ actionDialog.mode === "reason" || actionDialog.mode === "choice_reason" ? "Audit Required" : "Risk Control" }}</span>
+          <span class="dialog-kicker">{{ actionDialog.mode === "reason" || actionDialog.mode === "choice_reason" || actionDialog.mode === "balance_adjust" ? "Audit Required" : "Risk Control" }}</span>
           <h2>{{ actionDialog.title }}</h2>
           <p>{{ actionDialog.message }}</p>
           <div v-if="actionDialog.expected" class="confirm-target">
@@ -8360,7 +8409,18 @@ onBeforeUnmount(() => {
             <span>{{ actionDialog.amountLabel || "退款金额（元）" }}</span>
             <input v-model="actionDialog.amount" type="number" min="0.01" step="0.01" :max="actionDialog.maxAmount || undefined" placeholder="请输入退款金额">
           </label>
-          <label v-if="actionDialog.mode === 'reason' || actionDialog.mode === 'choice_reason'" class="wide">
+          <label v-if="actionDialog.mode === 'balance_adjust'" class="wide">
+            <span>调整方向</span>
+            <select v-model="actionDialog.direction">
+              <option value="debit">扣减（顾客消费，如礼盒）</option>
+              <option value="credit">增加（补偿 / 赠送）</option>
+            </select>
+          </label>
+          <label v-if="actionDialog.mode === 'balance_adjust'" class="wide">
+            <span>金额（元）</span>
+            <input v-model="actionDialog.amount" type="number" min="0.01" step="0.01" placeholder="请输入调整金额">
+          </label>
+          <label v-if="actionDialog.mode === 'reason' || actionDialog.mode === 'choice_reason' || actionDialog.mode === 'balance_adjust'" class="wide">
             <span>操作原因</span>
             <textarea v-model="actionDialog.reason" rows="4" placeholder="写清楚业务原因，后续会进入审计日志"></textarea>
           </label>

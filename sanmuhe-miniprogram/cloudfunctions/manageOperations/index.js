@@ -176,6 +176,10 @@ function number(value) {
   return Math.max(0, Number(value) || 0);
 }
 
+function money(value) {
+  return (Math.max(0, Number(value) || 0) / 100).toFixed(2);
+}
+
 /** 门店后台履约需要完整手机号（自提核销等），不再脱敏 */
 function maskPhone(value) {
   return cleanText(value, 40);
@@ -297,6 +301,7 @@ const allowedActions = new Set([
   "listAuditLogs",
   "listInventoryLogs",
   "adjustInventory",
+  "adjustMemberBalance",
   "listAfterSales",
   "updateAfterSale",
   "getAnalytics",
@@ -3480,6 +3485,211 @@ async function adjustInventory(event, caller) {
   return { ok: true, beforeStock: before.stock, afterStock };
 }
 
+/**
+ * 会员余额手动调整（如礼盒等非目录商品柜台扣款）。
+ * direction: debit=扣减（默认）/ credit=增加（补偿/赠送）。
+ * 与小程序余额支付同一口径：赠送金优先按比例拆分、CAS 防并发、幂等流水。
+ */
+async function adjustMemberBalance(event, caller) {
+  const data = event.data && typeof event.data === "object" ? event.data : {};
+  const memberId = cleanText(data.memberId || event.memberId, 64);
+  const openid = cleanText(data.openid || event.openid, 64);
+  const amountYuan = Number(data.amountYuan != null ? data.amountYuan : event.amountYuan);
+  const direction = cleanText(data.direction || event.direction, 10) === "credit" ? "credit" : "debit";
+  const reason = cleanText(data.reason || event.reason || event.auditReason, 200);
+  const requestId = cleanText(data.requestId || event.requestId, 64);
+
+  if (!memberId) {
+    return { ok: false, message: "缺少会员 ID" };
+  }
+  if (!Number.isFinite(amountYuan) || amountYuan <= 0 || amountYuan > 1000000) {
+    return { ok: false, message: "请输入有效的调整金额（0.01 ~ 1,000,000）" };
+  }
+  if (!reason) {
+    return { ok: false, message: "余额调整需填写原因（如：礼盒 398 元，非目录商品）" };
+  }
+  if (!requestId) {
+    return { ok: false, message: "缺少操作凭证（requestId），请重试" };
+  }
+
+  await Promise.all([ensureCollection("wallet_accounts"), ensureCollection("wallet_ledger")]);
+
+  let member = null;
+  if (memberId) {
+    const memberResult = await db.collection("members").doc(memberId).get().catch(() => null);
+    member = memberResult && memberResult.data;
+  }
+  if (!member && openid) {
+    const mres = await db.collection("members").where({ _openid: openid }).limit(1).get().catch(() => null);
+    member = mres && mres.data && mres.data[0];
+  }
+  if (!member || member.status !== "active") {
+    return { ok: false, message: "会员不存在或已停用" };
+  }
+
+  let wallet = null;
+  if (member._openid) {
+    const wres = await db.collection("wallet_accounts")
+      .where({ _openid: member._openid, status: "active" })
+      .limit(1)
+      .get();
+    wallet = wres.data && wres.data[0];
+  }
+  if (!wallet && member.walletId) {
+    const wres = await db.collection("wallet_accounts").doc(member.walletId).get().catch(() => null);
+    wallet = wres && wres.data;
+  }
+  if (!wallet) {
+    return { ok: false, message: "未找到该会员的余额账户（可能尚未开通会员钱包）" };
+  }
+
+  const amountFen = Math.round(amountYuan * 100);
+  const walletId = wallet._id;
+  const ledgerId = `manual_${requestId}`;
+
+  // 幂等：同一 requestId 已处理则直接返回，避免重复扣款
+  const existing = await db.collection("wallet_ledger").doc(ledgerId).get().catch(() => null);
+  if (existing && existing.data && existing.data.status === "posted") {
+    return {
+      ok: true,
+      idempotent: true,
+      balanceFen: number(existing.data.balanceAfterFen),
+      balance: money(number(existing.data.balanceAfterFen))
+    };
+  }
+
+  const currentBalanceFen = number(wallet.balanceFen);
+  const principalNow = number(wallet.principalBalanceFen);
+  const bonusNow = number(wallet.bonusBalanceFen);
+  let principalFen = 0;
+  let bonusFen = 0;
+  let balanceAfterFen = 0;
+
+  if (direction === "debit") {
+    const debit = splitWalletDebit({ principalBalanceFen: principalNow, bonusBalanceFen: bonusNow }, amountFen);
+    principalFen = -debit.principalFen;
+    bonusFen = -debit.bonusFen;
+    balanceAfterFen = currentBalanceFen - amountFen;
+  } else {
+    // 手动增加默认计入赠送金
+    bonusFen = amountFen;
+    balanceAfterFen = currentBalanceFen + amountFen;
+  }
+
+  // CAS 更新：余额未变化才允许扣减，防并发双花
+  const claim = await db.collection("wallet_accounts").where({
+    _id: walletId,
+    status: "active",
+    balanceFen: currentBalanceFen
+  }).update({
+    data: direction === "debit"
+      ? {
+        balanceFen: _.inc(-amountFen),
+        principalBalanceFen: _.inc(principalFen),
+        bonusBalanceFen: _.inc(bonusFen),
+        totalSpentFen: _.inc(amountFen),
+        updatedAt: db.serverDate()
+      }
+      : {
+        balanceFen: _.inc(amountFen),
+        bonusBalanceFen: _.inc(amountFen),
+        totalBonusFen: _.inc(amountFen),
+        updatedAt: db.serverDate()
+      }
+  });
+  if (!claim || !claim.stats || number(claim.stats.updated) <= 0) {
+    return { ok: false, message: "会员余额已发生变化，请刷新后重试" };
+  }
+
+  try {
+    await db.collection("wallet_ledger").doc(ledgerId).set({
+      data: {
+        _openid: member._openid || "",
+        walletId,
+        memberId,
+        type: "balance_adjustment",
+        direction,
+        amountFen: direction === "debit" ? -amountFen : amountFen,
+        principalFen,
+        bonusFen,
+        status: "posted",
+        balanceAfterFen,
+        reason,
+        adminUid: caller.uid || "",
+        adminName: caller.username || "",
+        requestId,
+        createdAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+    });
+  } catch (ledgerError) {
+    // 流水写入失败则回滚余额，避免只扣钱不落账
+    try {
+      await db.collection("wallet_accounts").doc(walletId).update({
+        data: direction === "debit"
+          ? {
+            balanceFen: _.inc(amountFen),
+            principalBalanceFen: _.inc(-principalFen),
+            bonusBalanceFen: _.inc(-bonusFen),
+            totalSpentFen: _.inc(-amountFen),
+            updatedAt: db.serverDate()
+          }
+          : {
+            balanceFen: _.inc(-amountFen),
+            bonusBalanceFen: _.inc(-amountFen),
+            totalBonusFen: _.inc(-amountFen),
+            updatedAt: db.serverDate()
+          }
+      });
+    } catch (rollbackError) {
+      // 保留原始错误
+    }
+    return { ok: false, message: "流水写入失败，已回滚，请重试" };
+  }
+
+  await writeAdminAuditLog(caller, "adjustMemberBalance", {
+    memberId,
+    memberName: cleanText(member.name || member.nickName || member.nickname, 40),
+    phone: cleanText(member.phone, 20),
+    direction,
+    amountYuan,
+    reason,
+    balanceAfterFen,
+    requestId
+  });
+
+  return {
+    ok: true,
+    balanceFen: balanceAfterFen,
+    balance: money(balanceAfterFen),
+    requestId
+  };
+}
+
+/** 余额扣减拆分：赠送金优先，按比例分摊（与小程序余额支付同一口径）。 */
+function splitWalletDebit(wallet, amountFen) {
+  const principal = Math.max(0, number(wallet.principalBalanceFen));
+  const bonus = Math.max(0, number(wallet.bonusBalanceFen));
+  const balance = principal + bonus;
+  if (balance < amountFen) {
+    throw new Error("会员余额不足，无法扣减");
+  }
+  if (!amountFen || !balance) {
+    return { principalFen: 0, bonusFen: 0 };
+  }
+  let principalFen = Math.round(amountFen * principal / balance);
+  let bonusFen = amountFen - principalFen;
+  if (principalFen > principal) {
+    principalFen = principal;
+    bonusFen = amountFen - principalFen;
+  }
+  if (bonusFen > bonus) {
+    bonusFen = bonus;
+    principalFen = amountFen - bonusFen;
+  }
+  return { principalFen, bonusFen };
+}
+
 async function listAfterSales(event) {
   const status = cleanText(event.status, 30);
   const keyword = cleanText(event.keyword, 80);
@@ -4132,14 +4342,13 @@ function normalizeSettings(data = {}) {
     memberPointRate: Math.max(0, Number(data.memberPointRate) || 1),
     levelOneName: cleanText(data.levelOneName, 20) || "雅客会员",
     levelOneMinSpend: Math.max(0, Number(data.levelOneMinSpend) || 0),
-    // 雅客会员没有折扣；读取或保存旧设置时统一归一为原价。
-    levelOneDiscountRate: 1,
+    levelOneDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelOneDiscountRate) || 1)),
     levelTwoName: cleanText(data.levelTwoName, 20) || "臻享会员",
     levelTwoMinSpend: Math.max(0, Number(data.levelTwoMinSpend) || 1600),
-    levelTwoDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelTwoDiscountRate) || 0.95)),
+    levelTwoDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelTwoDiscountRate) || 1)),
     levelThreeName: cleanText(data.levelThreeName, 20) || "山房会员",
     levelThreeMinSpend: Math.max(0, Number(data.levelThreeMinSpend) || 5000),
-    levelThreeDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelThreeDiscountRate) || 0.92)),
+    levelThreeDiscountRate: Math.min(1, Math.max(0.01, Number(data.levelThreeDiscountRate) || 1)),
     orderPaidTemplateId: cleanText(data.orderPaidTemplateId, 80),
     orderPaidPage: cleanText(data.orderPaidPage, 120) || "pages/profile/index",
     orderShippedTemplateId: cleanText(data.orderShippedTemplateId, 80),
@@ -4872,6 +5081,9 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "adjustInventory") {
       return await adjustInventory(event, caller);
+    }
+    if (action === "adjustMemberBalance") {
+      return await adjustMemberBalance(event, caller);
     }
     if (action === "listAfterSales") {
       const response = await listAfterSales(event);
