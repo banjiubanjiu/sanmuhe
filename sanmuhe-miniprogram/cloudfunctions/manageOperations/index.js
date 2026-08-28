@@ -549,6 +549,29 @@ async function ensureCollection(name) {
   }
 }
 
+/**
+ * 只读接口的进程内短缓存：切页/轮询免重复全量查询。
+ * 秒级 TTL 不影响数据新鲜度（后台操作仍是实时读取）。
+ */
+const __adminCache = new Map();
+
+function adminCache(key, ttlMs, loader) {
+  const hit = __adminCache.get(key);
+  const now = Date.now();
+  if (hit && now - hit.at < ttlMs) {
+    return hit.value;
+  }
+  const valuePromise = Promise.resolve().then(loader);
+  __adminCache.set(key, { at: now, value: valuePromise });
+  valuePromise.catch(() => {
+    // 失败不缓存，允许下次重试
+    if (__adminCache.get(key) && __adminCache.get(key).value === valuePromise) {
+      __adminCache.delete(key);
+    }
+  });
+  return valuePromise;
+}
+
 async function readCollection(collection, options = {}) {
   await ensureCollection(collection);
   let query = db.collection(collection);
@@ -557,6 +580,9 @@ async function readCollection(collection, options = {}) {
   }
   if (options.orderBy) {
     query = query.orderBy(options.orderBy, options.order || "desc");
+  }
+  if (options.field) {
+    query = query.field(options.field);
   }
   const result = await query.limit(options.limit || 100).get();
   return result.data || [];
@@ -2298,32 +2324,34 @@ async function checkInSignup(event, caller) {
 }
 
 async function getSummary() {
-  await Promise.all([
-    ensureCollection("orders"),
-    ensureCollection("reservations"),
-    ensureCollection("event_signups")
-  ]);
+  return adminCache("summary", 2000, async () => {
+    await Promise.all([
+      ensureCollection("orders"),
+      ensureCollection("reservations"),
+      ensureCollection("event_signups")
+    ]);
 
-  const [pendingPay, pendingConfirm, toShip, toPickup, reservations, signups] = await Promise.all([
-    db.collection("orders").where({ status: "待支付" }).count(),
-    db.collection("orders").where({ status: "待确认" }).count(),
-    db.collection("orders").where({ status: "待发货" }).count(),
-    db.collection("orders").where({ status: "待自提" }).count(),
-    db.collection("reservations").where({ status: "待支付" }).count(),
-    db.collection("event_signups").where({ status: "待确认" }).count()
-  ]);
+    const [pendingPay, pendingConfirm, toShip, toPickup, reservations, signups] = await Promise.all([
+      db.collection("orders").where({ status: "待支付" }).count(),
+      db.collection("orders").where({ status: "待确认" }).count(),
+      db.collection("orders").where({ status: "待发货" }).count(),
+      db.collection("orders").where({ status: "待自提" }).count(),
+      db.collection("reservations").where({ status: "待支付" }).count(),
+      db.collection("event_signups").where({ status: "待确认" }).count()
+    ]);
 
-  return {
-    ok: true,
-    summary: {
-      pendingPay: pendingPay.total,
-      pendingConfirm: pendingConfirm.total,
-      toShip: toShip.total,
-      toPickup: toPickup.total,
-      pendingReservations: reservations.total,
-      pendingSignups: signups.total
-    }
-  };
+    return {
+      ok: true,
+      summary: {
+        pendingPay: pendingPay.total,
+        pendingConfirm: pendingConfirm.total,
+        toShip: toShip.total,
+        toPickup: toPickup.total,
+        pendingReservations: reservations.total,
+        pendingSignups: signups.total
+      }
+    };
+  });
 }
 
 function summarizeOrders(orders) {
@@ -2490,41 +2518,59 @@ function buildRoomBoard(rooms, reservations) {
 }
 
 async function getDashboard() {
-  const [orders, reservations, signups, events, rooms] = await Promise.all([
-    readCollection("orders", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT }),
-    readCollection("reservations", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT }),
-    readCollection("event_signups", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT }),
-    readCollection("events", { orderBy: "sort", order: "asc", limit: 50 }),
-    readCollection("rooms", { orderBy: "sort", order: "asc", limit: 50 })
-  ]);
-  const orderSummary = summarizeOrders(orders);
-  const today = todayKey();
-  const customers = summarizeCustomers(orders, reservations, signups);
+  return adminCache("dashboard", 4000, async () => {
+    // 字段裁剪：首页只需要汇总/近况字段，避免整条订单（含 items 大字段）全量回传
+    const ORDER_PROJECTION = {
+      _openid: true, orderNo: true, status: true, payStatus: true, total: true,
+      createdAt: true, updatedAt: true, paidAt: true, payAt: true, paymentAt: true,
+      completedAt: true, shippedAt: true, afterSaleUpdatedAt: true, afterSaleStatus: true,
+      consignee: true, name: true, phone: true, mobile: true, contactName: true
+    };
+    const RESERVATION_PROJECTION = {
+      _openid: true, name: true, customerName: true, phone: true, mobile: true,
+      day: true, date: true, time: true, roomId: true, room: true, roomName: true,
+      status: true, people: true, count: true, createdAt: true, updatedAt: true, paidAt: true
+    };
+    const SIGNUP_PROJECTION = {
+      _openid: true, eventTitle: true, title: true, name: true, customerName: true,
+      phone: true, mobile: true, status: true, people: true, count: true, createdAt: true
+    };
+    const [orders, reservations, signups, events, rooms] = await Promise.all([
+      readCollection("orders", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT, field: ORDER_PROJECTION }),
+      readCollection("reservations", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT, field: RESERVATION_PROJECTION }),
+      readCollection("event_signups", { orderBy: "createdAt", limit: DASHBOARD_READ_LIMIT, field: SIGNUP_PROJECTION }),
+      readCollection("events", { orderBy: "sort", order: "asc", limit: 50 }),
+      readCollection("rooms", { orderBy: "sort", order: "asc", limit: 50 })
+    ]);
+    const orderSummary = summarizeOrders(orders);
+    const today = todayKey();
+    const customers = summarizeCustomers(orders, reservations, signups);
 
-  return {
-    ok: true,
-    dashboard: {
-      summary: Object.assign({}, orderSummary, {
-        todayReservations: reservations.filter((item) => item.day === today && item.status !== "已取消").length,
-        todaySignups: signups.filter((item) => dateKey(item.createdAt) === today && item.status !== "已取消").length,
-        newCustomers: customers.filter((item) => dateKey(item.lastSeenAt) === today).length,
-        pendingReservations: reservations.filter((item) => item.status === "待支付" || item.status === "待确认").length,
-        pendingSignups: signups.filter((item) => item.status === "待确认").length
-      }),
-      roomBoard: buildRoomBoard(rooms, reservations),
-      recentReservations: reservations.slice(0, 6),
-      recentSignups: signups.slice(0, 6),
-      recentOrders: orders.slice(0, 6),
-      events: events.slice(0, 5).filter((item) => item.deleted !== true && item.visible !== false),
-      dataScope: {
-        limit: DASHBOARD_READ_LIMIT,
-        ordersRead: orders.length,
-        reservationsRead: reservations.length,
-        signupsRead: signups.length,
-        limited: orders.length >= DASHBOARD_READ_LIMIT || reservations.length >= DASHBOARD_READ_LIMIT || signups.length >= DASHBOARD_READ_LIMIT
+    return {
+      ok: true,
+      dashboard: {
+        summary: Object.assign({}, orderSummary, {
+          todayReservations: reservations.filter((item) => item.day === today && item.status !== "已取消").length,
+          todaySignups: signups.filter((item) => dateKey(item.createdAt) === today && item.status !== "已取消").length,
+          newCustomers: customers.filter((item) => dateKey(item.lastSeenAt) === today).length,
+          pendingReservations: reservations.filter((item) => item.status === "待支付" || item.status === "待确认").length,
+          pendingSignups: signups.filter((item) => item.status === "待确认").length
+        }),
+        roomBoard: buildRoomBoard(rooms, reservations),
+        recentReservations: reservations.slice(0, 6),
+        recentSignups: signups.slice(0, 6),
+        recentOrders: orders.slice(0, 6),
+        events: events.slice(0, 5).filter((item) => item.deleted !== true && item.visible !== false),
+        dataScope: {
+          limit: DASHBOARD_READ_LIMIT,
+          ordersRead: orders.length,
+          reservationsRead: reservations.length,
+          signupsRead: signups.length,
+          limited: orders.length >= DASHBOARD_READ_LIMIT || reservations.length >= DASHBOARD_READ_LIMIT || signups.length >= DASHBOARD_READ_LIMIT
+        }
       }
-    }
-  };
+    };
+  });
 }
 
 function recordTimeRank(value) {
@@ -2773,45 +2819,48 @@ async function summarizeRecharges(status) {
 }
 
 async function listMembers(event) {
-  const keyword = cleanText(event.keyword, 80).toLowerCase();
-  const [members, wallets, recharges, ledger, orders] = await Promise.all([
-    readCollection("members", { limit: 1000 }),
-    readCollection("wallet_accounts", { limit: 1000 }),
-    readCollection("recharge_orders", { orderBy: "createdAt", limit: 1000 }),
-    readCollection("wallet_ledger", { orderBy: "createdAt", limit: 1000 }),
-    readCollection("orders", { orderBy: "createdAt", limit: 1000 })
-  ]);
-  const allMembers = summarizeMembers(members, wallets, recharges, ledger, orders);
-  const filtered = allMembers.filter((member) => {
-    if (!keyword) return true;
-    return [member.name, member.phone, member.cardNo, member.levelName, member.openid]
-      .join(" ")
-      .toLowerCase()
-      .includes(keyword);
+  const pageKey = `${cleanText(event.keyword, 80)||""}:${Number(event.page)||1}:${Number(event.pageSize)||20}`;
+  return adminCache(`members:${pageKey}`, 3000, async () => {
+    const keyword = cleanText(event.keyword, 80).toLowerCase();
+    const [members, wallets, recharges, ledger, orders] = await Promise.all([
+      readCollection("members", { limit: 1000 }),
+      readCollection("wallet_accounts", { limit: 1000 }),
+      readCollection("recharge_orders", { orderBy: "createdAt", limit: 1000 }),
+      readCollection("wallet_ledger", { orderBy: "createdAt", limit: 1000 }),
+      readCollection("orders", { orderBy: "createdAt", limit: 1000 })
+    ]);
+    const allMembers = summarizeMembers(members, wallets, recharges, ledger, orders);
+    const filtered = allMembers.filter((member) => {
+      if (!keyword) return true;
+      return [member.name, member.phone, member.cardNo, member.levelName, member.openid]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+    const currentMonth = todayKey().slice(0, 7);
+    const memberOpenids = new Set(allMembers.map((item) => item.openid).filter(Boolean));
+    const memberIds = new Set(allMembers.map((item) => item.memberId).filter(Boolean));
+    const monthRecharge = (recharges || []).filter((row) => {
+      const belongsToMember = memberOpenids.has(row._openid) || memberIds.has(row.memberId);
+      return belongsToMember && row.payStatus === "paid" && dateKey(row.paidAt || row.updatedAt).slice(0, 7) === currentMonth;
+    }).reduce((sum, row) => sum + number(row.principalFen), 0) / 100;
+    const paged = paginateArray(filtered, event);
+    return {
+      ok: true,
+      customers: paged.items,
+      page: paged.page,
+      summary: {
+        totalMembers: allMembers.length,
+        totalBalance: allMembers.reduce((sum, member) => sum + number(member.balance), 0),
+        monthRecharge,
+        matchedMembers: filtered.length
+      },
+      scope: {
+        limit: 1000,
+        limited: [members, wallets, recharges, ledger, orders].some((rows) => rows.length >= 1000)
+      }
+    };
   });
-  const currentMonth = todayKey().slice(0, 7);
-  const memberOpenids = new Set(allMembers.map((item) => item.openid).filter(Boolean));
-  const memberIds = new Set(allMembers.map((item) => item.memberId).filter(Boolean));
-  const monthRecharge = (recharges || []).filter((row) => {
-    const belongsToMember = memberOpenids.has(row._openid) || memberIds.has(row.memberId);
-    return belongsToMember && row.payStatus === "paid" && dateKey(row.paidAt || row.updatedAt).slice(0, 7) === currentMonth;
-  }).reduce((sum, row) => sum + number(row.principalFen), 0) / 100;
-  const paged = paginateArray(filtered, event);
-  return {
-    ok: true,
-    customers: paged.items,
-    page: paged.page,
-    summary: {
-      totalMembers: allMembers.length,
-      totalBalance: allMembers.reduce((sum, member) => sum + number(member.balance), 0),
-      monthRecharge,
-      matchedMembers: filtered.length
-    },
-    scope: {
-      limit: 1000,
-      limited: [members, wallets, recharges, ledger, orders].some((rows) => rows.length >= 1000)
-    }
-  };
 }
 
 async function listCustomers(event) {
