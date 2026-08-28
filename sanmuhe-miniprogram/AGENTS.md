@@ -1,5 +1,9 @@
 # Sanmuhe Mini Program Rules
 
+## 版本号（以仓库根 AGENTS.md「小程序版本号管理」为准）
+
+当前版本 **`1.08`**；上传用 `VERSION="1.08" DESC="..." node ../scripts/upload-trial-miniprogram.mjs`（在 `sanmuhe-miniprogram/` 执行）。版本号以用户指定为准，勿自行改用日期号；上传后更新根 AGENTS.md 的「当前版本」段。
+
 ## 环境链接（找后台/控制台先看这里）
 
 - 经营后台: `https://cloudbase-d2gq023qn50e9d82f-1458290161.tcloudbaseapp.com/`（域名带 `-1458290161` 后缀）
