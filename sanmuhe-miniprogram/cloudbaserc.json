@@ -189,6 +189,13 @@
         "REAL_PAYMENT_ENABLED": "true",
         "MEMBER_TEST_STRICT": "true"
       }
+    },
+    {
+      "name": "backgroundPrefetch",
+      "runtime": "Nodejs16.13",
+      "handler": "index.main",
+      "timeout": 30,
+      "envVariables": {}
     }
   ]
 }

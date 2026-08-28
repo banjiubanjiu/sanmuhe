@@ -1,6 +1,6 @@
 const cloudConfig = require("./config/cloud");
 const tableUtil = require("./utils/table");
-const { prefetchCatalog } = require("./utils/cloudApi");
+const { prefetchCatalog, applyBackgroundPrefetch } = require("./utils/cloudApi");
 
 function applyTableFromOptions(options) {
   const table = tableUtil.parseTableFromLaunch(options || {});
@@ -9,6 +9,31 @@ function applyTableFromOptions(options) {
   }
   tableUtil.setTableNo(table);
   return table;
+}
+
+function initBackgroundPrefetch() {
+  if (!wx.getBackgroundFetchData) {
+    return;
+  }
+  const apply = (res) => {
+    if (res && res.fetchedData != null) {
+      applyBackgroundPrefetch(res.fetchedData);
+    }
+  };
+  try {
+    // 可选：标记预拉取请求，便于后台/服务端识别（本场景为全局数据，token 仅用于标识）
+    if (wx.setBackgroundFetchToken) {
+      wx.setBackgroundFetchToken({ token: "sanmuhe-prefetch-v1" });
+    }
+    // 启动即读：微信后台预拉取缓存的数据直接写本地缓存，首页秒开
+    wx.getBackgroundFetchData({ fetchType: "pre", success: apply });
+    // 首次打开时预拉取可能在启动后才完成：监听事件实时写入
+    if (wx.onBackgroundFetchData) {
+      wx.onBackgroundFetchData(apply);
+    }
+  } catch (error) {
+    // 基础库不支持或未开启时静默降级，不影响正常启动
+  }
 }
 
 function shouldOpenOrderPage(options) {
@@ -45,6 +70,8 @@ App({
   },
 
   onLaunch(options) {
+    // 微信「数据预拉取」：读取后台预拉取的目录数据 → 本地缓存，首页秒开
+    initBackgroundPrefetch();
     if (cloudConfig.useCloud && cloudConfig.envId && wx.cloud) {
       wx.cloud.init({
         env: cloudConfig.envId,

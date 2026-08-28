@@ -269,6 +269,35 @@ function prefetchCatalog() {
   return getCatalog();
 }
 
+/**
+ * 微信「数据预拉取」接入：把微信后台预拉取到的首页目录数据写入本地缓存，
+ * 首页启动时 getCachedCatalog 直接命中，秒开无需等云函数。
+ * @param {object|string} payload wx.getBackgroundFetchData 的 fetchedData
+ * @returns {boolean} 是否成功写入
+ */
+function applyBackgroundPrefetch(payload) {
+  try {
+    let data = payload;
+    if (typeof payload === "string" && payload.trim()) {
+      data = JSON.parse(payload);
+    }
+    if (!data || typeof data !== "object") {
+      return false;
+    }
+    // 兼容两种返回结构：{catalog:{...}} 或 {prefetch:{...}}
+    const catalog = (data.catalog && typeof data.catalog === "object" ? data.catalog : null)
+      || (data.prefetch && typeof data.prefetch === "object" ? data.prefetch : null)
+      || null;
+    if (!catalog || typeof catalog !== "object") {
+      return false;
+    }
+    writeCatalogCache(catalog);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 function listEvents() {
   return callCloud("listEvents")
     .then((result) => {
@@ -545,6 +574,7 @@ function saveSubscription(subscriptions, templates) {
 
 module.exports = {
   activateMember,
+  applyBackgroundPrefetch,
   createEvent,
   createOrder,
   createPayment,

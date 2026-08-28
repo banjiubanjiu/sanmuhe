@@ -1,5 +1,5 @@
 const { homeSlides } = require("../../data/catalog");
-const { resolveCloudImage } = require("../../config/assets");
+const { localImage, resolveCloudImage } = require("../../config/assets");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
@@ -118,15 +118,15 @@ function getSlideImageKey(image) {
   return fileName.toLowerCase();
 }
 
-const PACKAGE_SLIDE_IMAGE_BY_KEY = (homeSlides || []).reduce((map, item) => {
+const FALLBACK_SLIDE_IMAGE_BY_KEY = (homeSlides || []).reduce((map, item) => {
   if (item && item.key && item.image) {
     map[item.key] = item.image;
   }
   return map;
 }, {});
 
-const PACKAGE_IMAGE_BY_ASSET = Object.keys(PACKAGE_SLIDE_IMAGE_BY_KEY).reduce((map, key) => {
-  const image = PACKAGE_SLIDE_IMAGE_BY_KEY[key];
+const FALLBACK_IMAGE_BY_ASSET = Object.keys(FALLBACK_SLIDE_IMAGE_BY_KEY).reduce((map, key) => {
+  const image = FALLBACK_SLIDE_IMAGE_BY_KEY[key];
   const assetPath = getSlideImageKey(image);
   if (assetPath) {
     map[assetPath] = image;
@@ -135,40 +135,40 @@ const PACKAGE_IMAGE_BY_ASSET = Object.keys(PACKAGE_SLIDE_IMAGE_BY_KEY).reduce((m
 }, {});
 
 /**
- * 轮播图：与包内资源同源时优先包内路径（避免重载闪烁）；
- * 后台新上传的云图片保留 cloud:// fileID，避免真机合法域名拦截。
+ * 轮播图统一使用云存储 fileID；后台新上传的图片保留原始地址，
+ * 默认轮播图按槽位回退到各自的云端素材，避免错误复用同一张图。
  */
 function resolveSlideImage(image, key) {
   const remote = String(image || "").trim();
-  const packageByKey = key ? PACKAGE_SLIDE_IMAGE_BY_KEY[key] : "";
+  const fallbackByKey = key ? FALLBACK_SLIDE_IMAGE_BY_KEY[key] : "";
   if (!remote) {
-    return packageByKey || "";
+    return fallbackByKey || "";
   }
-  // 已是本地包内路径
+  // 历史本地路径映射为对应的 CloudBase 业务素材
   if (remote.indexOf("/assets/") === 0) {
-    return remote;
+    return localImage(remote);
   }
   const remoteKey = getSlideImageKey(remote);
-  if (packageByKey && getSlideImageKey(packageByKey) === remoteKey) {
-    return packageByKey;
+  if (fallbackByKey && getSlideImageKey(fallbackByKey) === remoteKey) {
+    return fallbackByKey;
   }
-  if (PACKAGE_IMAGE_BY_ASSET[remoteKey]) {
-    return PACKAGE_IMAGE_BY_ASSET[remoteKey];
+  if (FALLBACK_IMAGE_BY_ASSET[remoteKey]) {
+    return FALLBACK_IMAGE_BY_ASSET[remoteKey];
   }
-  // 仅文件名与包内资源一致时也视为同源（cloud:// 与 CDN）
-  if (packageByKey) {
-    const packageFile = String(getSlideImageKey(packageByKey).split("/").pop() || "").toLowerCase();
-    if (packageFile && packageFile === remoteKey) {
-      return packageByKey;
+  // 仅文件名与默认素材一致时也使用对应的云端回退图
+  if (fallbackByKey) {
+    const fallbackFile = String(getSlideImageKey(fallbackByKey).split("/").pop() || "").toLowerCase();
+    if (fallbackFile && fallbackFile === remoteKey) {
+      return fallbackByKey;
     }
   }
   // 常见轮播文件名回落
   if (remoteKey && /^home-carousel-[123]\.(jpe?g|png|webp)$/i.test(remoteKey)) {
-    return `/assets/images/${remoteKey.replace(/\.png$/i, ".jpg")}`;
+    return localImage(`/assets/images/${remoteKey.replace(/\.png$/i, ".jpg")}`);
   }
   // 云路径保留 fileID，展示后台真实上传的图；网络地址原样
   if (remote.indexOf("cloud://") === 0) {
-    return resolveCloudImage(remote, packageByKey || "/assets/images/home-carousel-1.jpg");
+    return resolveCloudImage(remote, fallbackByKey);
   }
   return remote;
 }
@@ -176,7 +176,7 @@ function resolveSlideImage(image, key) {
 function buildHomeSlides(contentSlides, fallbackSlides) {
   const slides = Array.isArray(contentSlides) ? contentSlides : [];
   const normalized = slides
-    .filter((item) => item && item.visible !== false && (item.image || PACKAGE_SLIDE_IMAGE_BY_KEY[item.key]))
+    .filter((item) => item && item.visible !== false && (item.image || FALLBACK_SLIDE_IMAGE_BY_KEY[item.key]))
     .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
     .map((item, index) => {
       const id = item.key || item.id || `content-slide-${index}`;
@@ -229,8 +229,39 @@ function writeCachedHomeSlides(slides) {
   }
 }
 
-/** 包内兜底轮播：任何路径失败时保证首屏有图，避免白屏 */
-const PACKAGE_FALLBACK_HERO_SLIDES = [
+/** 逐张 CloudBase 兜底轮播：避免失败时把所有轮播替换成同一张包内图片。 */
+const CLOUD_FALLBACK_HERO_SLIDES = [
+  {
+    id: "home-carousel-1",
+    image: localImage("assets/images/home-carousel-1.jpg"),
+    titleTop: "",
+    titleBottom: "",
+    descTop: "",
+    descBottom: "",
+    seal: "茶"
+  },
+  {
+    id: "home-carousel-2",
+    image: localImage("assets/images/home-carousel-2.jpg"),
+    titleTop: "",
+    titleBottom: "",
+    descTop: "",
+    descBottom: "",
+    seal: "茶"
+  },
+  {
+    id: "home-carousel-3",
+    image: localImage("assets/images/home-carousel-3.jpg"),
+    titleTop: "",
+    titleBottom: "",
+    descTop: "",
+    descBottom: "",
+    seal: "茶"
+  }
+];
+
+/** 首屏直出：包内本地图（秒开，不依赖网络），云端数据到达后会被真实轮播替换。 */
+const LOCAL_FIRST_HERO_SLIDES = [
   {
     id: "home-carousel-1",
     image: "/assets/images/home-carousel-1.jpg",
@@ -272,11 +303,11 @@ function getInitialHeroSlides() {
         return resolved;
       }
     }
-    const fromPackage = buildHomeSlides(homeSlides, PACKAGE_FALLBACK_HERO_SLIDES);
-    return fromPackage && fromPackage.length ? fromPackage : PACKAGE_FALLBACK_HERO_SLIDES;
+    // 无缓存时首屏直出包内本地图（秒开），云端数据到达后 applyCatalog 会替换为真实轮播图。
+    return LOCAL_FIRST_HERO_SLIDES;
   } catch (error) {
     console.warn("[home] getInitialHeroSlides failed", error);
-    return PACKAGE_FALLBACK_HERO_SLIDES;
+    return LOCAL_FIRST_HERO_SLIDES;
   }
 }
 
@@ -359,12 +390,12 @@ Page({
   applyCatalog(catalogResult) {
     const homeCatalog = normalizeCatalog(catalogResult || {}, null);
     const content = (catalogResult && catalogResult.content) || {};
-    // 云端与包内同源时 resolve 为包内路径，src 不变则 swiper 不重载
+    // 后台图与 CloudBase 默认图同源时保持同一 fileID，避免 swiper 无谓重载。
     let nextHeroSlides = buildHomeSlides(content.homeSlides, this.data.heroSlides);
     if (!nextHeroSlides || !nextHeroSlides.length) {
       nextHeroSlides = this.data.heroSlides && this.data.heroSlides.length
         ? this.data.heroSlides
-        : PACKAGE_FALLBACK_HERO_SLIDES;
+        : CLOUD_FALLBACK_HERO_SLIDES;
     }
     const nextData = {
       homeCatalog,
