@@ -8259,7 +8259,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="settings-subsection">
                 <h3>朋友分享码</h3>
-                <p class="settings-note">扫码直接进入小程序首页。从分享码进入时首页自动隐藏「堂饮茶单」入口（堂饮仅限到店扫桌码），茶叶购买 / 茶室预约 / 沙龙活动正常可用。生成后图片可右键另存，发群或打印。</p>
+                <p class="settings-note">扫码直接进入小程序首页，茶叶购买 / 茶室预约 / 沙龙活动 / 堂饮茶单均正常可用（堂饮仅限到店扫桌码）。生成后图片可右键另存，发群或打印。</p>
                 <div class="table-qr-grid">
                   <div class="table-qr-item">
                     <div class="table-qr-head">
