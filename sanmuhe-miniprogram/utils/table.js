@@ -1,5 +1,11 @@
 const TABLE_KEY = "sanmuhe_table_no";
 
+/**
+ * 保留场景值：这些不是桌号。
+ * 分享码 scene=share 扫进首页时，若被当作桌号，app.js 会 reLaunch 跳去点单页。
+ */
+const RESERVED_TABLE_VALUES = new Set(["share"]);
+
 function decodeMaybe(value) {
   let text = String(value == null ? "" : value).trim();
   if (!text) {
@@ -23,10 +29,14 @@ function decodeMaybe(value) {
 }
 
 function normalizeTable(value) {
-  return decodeMaybe(value)
+  const normalized = decodeMaybe(value)
     .replace(/^桌号\s*/i, "")
     .replace(/^桌\s*/i, "")
     .slice(0, 20);
+  if (RESERVED_TABLE_VALUES.has(normalized.toLowerCase())) {
+    return "";
+  }
+  return normalized;
 }
 
 /**
