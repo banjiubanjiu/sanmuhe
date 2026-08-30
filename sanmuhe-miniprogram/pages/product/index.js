@@ -1,5 +1,6 @@
 const { addToCart } = require("../../utils/cart");
-const { getCatalog } = require("../../utils/cloudApi");
+const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
+const { preloadImages, toThumbnailUrl } = require("../../utils/imagePerformance");
 const { isFavorite, toggleFavorite } = require("../../utils/favorites");
 
 // 旧版按克重倍率计价（无 specs 时回退）
@@ -138,6 +139,9 @@ function normalizeProduct(product) {
   const availableStock = hasSpecStock
     ? specs.reduce((sum, spec) => sum + (spec.availableStock === "" ? 0 : Number(spec.availableStock) || 0), 0)
     : product.availableStock;
+  const images = Array.isArray(product.images) && product.images.length
+    ? product.images.filter(Boolean)
+    : (product.image ? [product.image] : []);
   return Object.assign({}, product, {
     sold: product.soldStock || product.sold || 0,
     availableStock,
@@ -147,10 +151,10 @@ function normalizeProduct(product) {
     specLayout: resolveSpecLayout(specs),
     taste,
     tasteExpandable: taste.length > TASTE_CLAMP_CHARS,
-    /** 多图：优先 images 数组，旧数据回退单图 */
-    images: Array.isArray(product.images) && product.images.length
-      ? product.images.filter(Boolean)
-      : (product.image ? [product.image] : [])
+    /** 多图：详情保留原图，同时提供已在列表预热的小图作即时预览。 */
+    images,
+    imageSlides: images.map((src) => ({ src, previewSrc: toThumbnailUrl(src, 480) })),
+    previewImage: toThumbnailUrl(product.thumb || images[0] || product.image, 480)
   });
 }
 
@@ -235,10 +239,13 @@ function buildGiftBoxViewState(plan, favored) {
     totalPicked: 0,
     filled: false
   };
+  const imageSlides = images.map((src) => ({ src, previewSrc: toThumbnailUrl(src, 480) }));
   return Object.assign({
     product: Object.assign({}, plan, {
       images,
+      imageSlides,
       image: images[0] || plan.image || "",
+      previewImage: toThumbnailUrl(plan.thumb || images[0] || plan.image, 480),
       sold: plan.soldStock || 0,
       origin: "",
       taste: plan.description || "",
@@ -300,40 +307,66 @@ Page({
 
   onLoad(options) {
     this.productId = options && options.id;
+    const cachedCatalog = getCachedCatalog();
+    if (cachedCatalog) {
+      this.applyProductCatalog(cachedCatalog);
+    }
     this.loadProduct();
   },
 
-  loadProduct() {
+  applyProductCatalog(catalog) {
     const productId = this.productId;
-    this.setData({ catalogLoading: true, catalogError: false });
+    const products = Array.isArray(catalog && catalog.teaProducts) ? catalog.teaProducts : [];
+    const nextProduct = products.find((item) => item.id === productId);
+    if (nextProduct) {
+      const normalized = normalizeProduct(nextProduct);
+      const selectedSpec = findSpec(normalized.specs, this.data.selectedSpec) || normalized.specs[0];
+      preloadImages([normalized.previewImage], { limit: 1 });
+      this.setData(Object.assign({
+        catalogLoading: false,
+        catalogError: false,
+        giftBox: null
+      }, buildViewState(normalized, selectedSpec.label, isFavorite(normalized.id))));
+      return true;
+    }
+    // 自选礼盒
+    const giftPlans = Array.isArray(catalog && catalog.giftBoxes) ? catalog.giftBoxes : [];
+    const nextPlan = giftPlans.find((item) => item.id === productId);
+    if (nextPlan) {
+      const viewState = buildGiftBoxViewState(nextPlan, isFavorite(nextPlan.id));
+      preloadImages([viewState.product.previewImage], { limit: 1 });
+      this.setData(Object.assign({
+        catalogLoading: false,
+        catalogError: false
+      }, viewState));
+      return true;
+    }
+    return false;
+  },
+
+  loadProduct() {
+    if (!this.data.product) {
+      this.setData({ catalogLoading: true, catalogError: false });
+    }
     getCatalog().then((catalog) => {
-      const products = Array.isArray(catalog.teaProducts) ? catalog.teaProducts : [];
-      const nextProduct = products.find((item) => item.id === productId);
-      if (nextProduct) {
-        const normalized = normalizeProduct(nextProduct);
-        const selectedSpec = findSpec(normalized.specs, this.data.selectedSpec) || normalized.specs[0];
-        this.setData(Object.assign({
-          catalogLoading: false,
-          catalogError: false,
-          giftBox: null
-        }, buildViewState(normalized, selectedSpec.label, isFavorite(normalized.id))));
+      if (this.applyProductCatalog(catalog)) {
         return;
       }
-      // 自选礼盒
-      const giftPlans = Array.isArray(catalog.giftBoxes) ? catalog.giftBoxes : [];
-      const nextPlan = giftPlans.find((item) => item.id === productId);
-      if (nextPlan) {
-        this.setData(Object.assign({
-          catalogLoading: false,
-          catalogError: false
-        }, buildGiftBoxViewState(nextPlan, isFavorite(nextPlan.id))));
+      // 弱网刷新失败时保留已显示的缓存内容，不让详情页重新闪空。
+      if (this.data.product && catalog && catalog.source === "error") {
+        this.setData({ catalogLoading: false });
         return;
       }
       this.setData({
         product: null,
         giftBox: null,
         catalogLoading: false,
-        catalogError: catalog.source === "error"
+        catalogError: !!(catalog && catalog.source === "error")
+      });
+    }).catch(() => {
+      this.setData({
+        catalogLoading: false,
+        catalogError: !this.data.product
       });
     });
   },

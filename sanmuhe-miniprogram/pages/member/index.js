@@ -9,6 +9,7 @@ const {
 } = require("../../utils/cloudApi");
 const { withPrivacy } = require("../../utils/privacy");
 const { buildMemberPageBootstrap, writeMemberSnapshot } = require("../../utils/memberSnapshot");
+const { toThumbnailUrl } = require("../../utils/imagePerformance");
 
 const MEMBER_PRIVACY_PURPOSE = "开通会员需要使用你的微信绑定手机号，用于识别会员账户、储值入账与会员服务联系。";
 const MEMBER_AGREEMENT_VERSION = "member-wallet-privacy-v2";
@@ -91,7 +92,7 @@ function pickRecommendations(products) {
     .filter(Boolean);
   const extra = list.filter((item) => preferred.every((picked) => picked.id !== item.id));
   return preferred.concat(extra).slice(0, 2).map((item) => Object.assign({}, item, {
-    displayImage: item.thumb || item.image,
+    displayImage: toThumbnailUrl(item.thumb || item.image),
     memberNote: item.id === "tea-001" ? "鲜爽甘醇  春日之味" : "雅致茶礼  送礼佳选"
   }));
 }

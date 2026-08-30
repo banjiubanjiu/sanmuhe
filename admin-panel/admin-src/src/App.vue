@@ -3127,9 +3127,6 @@ async function optimizeUploadImage(file, target) {
   if (!type.startsWith("image/") || type === "image/gif" || type === "image/svg+xml") {
     return file;
   }
-  if (file.size <= IMAGE_UPLOAD_TARGET_BYTES) {
-    return file;
-  }
 
   const image = await loadUploadImage(file);
   const sourceWidth = image.naturalWidth || image.width;
@@ -3139,6 +3136,10 @@ async function optimizeUploadImage(file, target) {
   }
 
   const maxEdge = target === "content" ? 1200 : 900;
+  // 文件体积小不代表解码成本低；尺寸超标时仍要缩小像素边长。
+  if (file.size <= IMAGE_UPLOAD_TARGET_BYTES && Math.max(sourceWidth, sourceHeight) <= maxEdge) {
+    return file;
+  }
   const initialScale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
   let bestBlob = null;
 

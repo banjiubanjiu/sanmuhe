@@ -35,6 +35,7 @@
             src="{{item.image}}"
             mode="aspectFill"
             lazy-load="{{false}}"
+            webp="{{true}}"
             aria-label="禾煦首页茶空间轮播图"
           ></progressive-image>
         </view>
@@ -89,6 +90,7 @@
           src="{{item.displayImage}}"
           mode="aspectFill"
           lazy-load="{{true}}"
+          webp="{{true}}"
           aria-label="{{item.name}}茶叶图片"
         ></progressive-image>
       </view>

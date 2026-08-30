@@ -16,11 +16,24 @@
       interval="4000"
       duration="300"
     >
-      <swiper-item wx:for="{{product.images}}" wx:key="*this">
-        <image src="{{item}}" mode="aspectFill" lazy-load="{{true}}"></image>
+      <swiper-item wx:for="{{product.imageSlides}}" wx:key="src">
+        <progressive-image
+          src="{{item.src}}"
+          preview-src="{{item.previewSrc}}"
+          mode="aspectFill"
+          lazy-load="{{index > 0}}"
+          aria-label="{{product.name}}商品图片"
+        ></progressive-image>
       </swiper-item>
     </swiper>
-    <image wx:else src="{{product.image}}" mode="aspectFill"></image>
+    <progressive-image
+      wx:else
+      src="{{product.image}}"
+      preview-src="{{product.previewImage}}"
+      mode="aspectFill"
+      lazy-load="{{false}}"
+      aria-label="{{product.name}}商品图片"
+    ></progressive-image>
   </view>
 
   <view class="section detail-copy">

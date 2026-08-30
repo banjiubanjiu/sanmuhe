@@ -32,7 +32,8 @@
   background: #ece8df;
 }
 
-.detail-hero image {
+.detail-hero image,
+.detail-hero progressive-image {
   width: 100%;
   height: 100%;
   display: block;
@@ -529,7 +530,8 @@
   width: 100%;
   height: 100%;
 }
-.detail-swiper swiper-item image {
+.detail-swiper swiper-item image,
+.detail-swiper swiper-item progressive-image {
   width: 100%;
   height: 100%;
   display: block;

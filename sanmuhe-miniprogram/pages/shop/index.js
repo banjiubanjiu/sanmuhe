@@ -1,5 +1,6 @@
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
+const { preloadImages, toThumbnailUrl } = require("../../utils/imagePerformance");
 const { syncTabBar } = require("../../utils/tabbar");
 
 /** 无云端类别时的兜底顺序（与 seed product_categories 对齐） */
@@ -61,7 +62,7 @@ function normalizeTeaProducts(products) {
 
     return Object.assign({}, item, {
       productType: "tea",
-      thumb: item.thumb || item.image,
+      thumb: toThumbnailUrl(item.thumb || item.image),
       sold: item.soldStock || item.sold || 0,
       availableStock,
       hasMultipleSpecs,
@@ -104,7 +105,7 @@ function normalizeGiftBoxes(plans) {
       isGiftBox: true,
       category: plan.category || "礼盒",
       unit: "盒",
-      thumb: image,
+      thumb: toThumbnailUrl(image),
       image,
       availableStock,
       isSoldOut,
@@ -268,9 +269,11 @@ Page({
     const visibleLimit = options.preserveVisible
       ? Math.max(INITIAL_PRODUCT_BATCH_SIZE, visibleProducts.length)
       : INITIAL_PRODUCT_BATCH_SIZE;
+    const nextVisibleProducts = filteredProducts.slice(0, visibleLimit);
+    preloadImages(nextVisibleProducts.map((item) => item.thumb), { limit: INITIAL_PRODUCT_BATCH_SIZE });
     this.setData({
       filteredProducts,
-      visibleProducts: filteredProducts.slice(0, visibleLimit)
+      visibleProducts: nextVisibleProducts
     });
   },
 

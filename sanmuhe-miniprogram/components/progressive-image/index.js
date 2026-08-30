@@ -1,5 +1,3 @@
-const loadedImageSources = new Set();
-
 Component({
   properties: {
     src: {
@@ -8,7 +6,8 @@ Component({
       observer(value) {
         const source = String(value || "");
         this.setData({
-          loaded: !!source && loadedImageSources.has(source),
+          // 只以当前 image 的 bindload 为准，不能把“曾加载过”误当成已经绘制。
+          loaded: false,
           failed: !source
         });
       }
@@ -29,6 +28,10 @@ Component({
       type: String,
       value: ""
     },
+    previewSrc: {
+      type: String,
+      value: ""
+    },
     fallbackSrc: {
       type: String,
       value: "/assets/icons/leaf-active.png"
@@ -42,19 +45,11 @@ Component({
 
   methods: {
     handleLoad(event) {
-      const source = String(this.data.src || "");
-      if (source) {
-        loadedImageSources.add(source);
-      }
       this.setData({ loaded: true, failed: false });
       this.triggerEvent("load", event.detail || {});
     },
 
     handleError(event) {
-      const source = String(this.data.src || "");
-      if (source) {
-        loadedImageSources.delete(source);
-      }
       this.setData({ loaded: false, failed: true });
       this.triggerEvent("error", event.detail || {});
     }

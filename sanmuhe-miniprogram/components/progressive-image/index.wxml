@@ -3,6 +3,14 @@
     <view class="placeholder-sheen"></view>
   </view>
   <image
+    wx:if="{{previewSrc}}"
+    class="image-preview"
+    src="{{previewSrc}}"
+    mode="{{mode}}"
+    webp="{{true}}"
+    aria-hidden="{{true}}"
+  ></image>
+  <image
     wx:if="{{src && !failed}}"
     class="image-content"
     src="{{src}}"
@@ -15,7 +23,7 @@
     aria-label="{{ariaLabel}}"
   ></image>
   <image
-    wx:elif="{{fallbackSrc}}"
+    wx:elif="{{fallbackSrc && !previewSrc}}"
     class="image-fallback"
     src="{{fallbackSrc}}"
     mode="aspectFit"

@@ -13,6 +13,7 @@
 }
 
 .image-placeholder,
+.image-preview,
 .image-content,
 .image-fallback {
   position: absolute;
@@ -22,10 +23,15 @@
 }
 
 .image-placeholder {
+  z-index: 0;
   overflow: hidden;
   opacity: 1;
   background: #eee9df;
-  transition: opacity 180ms ease-out;
+}
+
+.image-preview {
+  z-index: 1;
+  display: block;
 }
 
 .placeholder-sheen {
@@ -39,12 +45,13 @@
 }
 
 .image-content {
+  z-index: 2;
   display: block;
   opacity: 0;
-  transition: opacity 180ms ease-out;
 }
 
 .image-fallback {
+  z-index: 3;
   padding: 28%;
   opacity: 0.55;
   background: #eee9df;
@@ -57,6 +64,10 @@
 
 .is-loaded .image-content {
   opacity: 1;
+}
+
+.is-loaded .image-preview {
+  opacity: 0;
 }
 
 .is-loaded .placeholder-sheen,

@@ -2,6 +2,7 @@ const { drinks } = require("../../data/catalog");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { normalizeMenuItems } = require("../../utils/teaMenu");
+const { preloadImages, toThumbnailUrl } = require("../../utils/imagePerformance");
 const { syncTabBar } = require("../../utils/tabbar");
 const tableUtil = require("../../utils/table");
 
@@ -25,9 +26,18 @@ function decorateTeaOptions(items) {
   return (items || []).map((item) => Object.assign({}, item, {
     heroImage: ORDER_HERO_IMAGE_BY_DRINK_ID[item.id] || item.image,
     teaOptions: (item.teaOptions || []).map((tea) => Object.assign({}, tea, {
-      categoryChars: String(tea.category || "茶品").split("")
+      categoryChars: String(tea.category || "茶品").split(""),
+      image: toThumbnailUrl(tea.image)
     }))
   }));
+}
+
+function preloadDrinkImages(drink) {
+  if (!drink) {
+    return;
+  }
+  const sources = (drink.teaOptions || []).map((tea) => tea.image);
+  preloadImages(sources, { limit: 8 });
 }
 
 function bindTable(raw) {
@@ -206,6 +216,7 @@ Page({
     const menuItems = decorateTeaOptions(normalizeMenuItems(source || []));
     const preferredId = this.data.requestedDrinkId || this.data.activeDrinkId;
     const activeDrink = pickDefaultDrink(menuItems, preferredId);
+    preloadDrinkImages(activeDrink);
     this.setData({
       menuItems,
       activeDrink,
@@ -267,6 +278,7 @@ Page({
     if (!activeDrink) {
       return;
     }
+    preloadDrinkImages(activeDrink);
     this.setData({
       activeDrink,
       activeDrinkId: activeDrink.id,

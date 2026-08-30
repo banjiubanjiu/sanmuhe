@@ -2,6 +2,7 @@ const { homeSlides } = require("../../data/catalog");
 const { localImage, resolveCloudImage } = require("../../config/assets");
 const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
+const { preloadCatalogThumbnails, toThumbnailUrl } = require("../../utils/imagePerformance");
 const { syncTabBar } = require("../../utils/tabbar");
 
 const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
@@ -73,7 +74,7 @@ function buildSearchResults(query, catalog) {
       label: group.label,
       title: item.name || item.title,
       meta: group.getMeta(item),
-      image: resolveCloudImage(item.thumb || item.image)
+      image: toThumbnailUrl(resolveCloudImage(item.thumb || item.image))
     }));
     return result.concat(matched);
   }, []).slice(0, 8);
@@ -95,7 +96,7 @@ function buildSeasonRecommendations(products) {
   const picked = ids.map((id) => source.find((item) => item.id === id)).filter(Boolean);
   const fallback = source.filter((item) => picked.every((pickedItem) => pickedItem.id !== item.id)).slice(0, 3 - picked.length);
   return picked.concat(fallback).slice(0, 3).map((item) => Object.assign({}, item, {
-    displayImage: resolveCloudImage(item.thumb || item.image),
+    displayImage: toThumbnailUrl(resolveCloudImage(item.thumb || item.image)),
     seasonTag: tags[item.id] || item.category || "精选",
     shortNote: notes[item.id] || item.taste || "甄选好茶"
   }));
@@ -411,6 +412,7 @@ Page({
       nextData.heroSlides = nextHeroSlides;
     }
     writeCachedHomeSlides(nextHeroSlides);
+    preloadCatalogThumbnails(catalogResult, { limit: 12 });
     this.setData(nextData);
   },
 

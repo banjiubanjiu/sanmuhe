@@ -81,7 +81,8 @@
             class="tea-thumb"
             src="{{tea.image}}"
             mode="aspectFill"
-            lazy-load="{{true}}"
+            lazy-load="{{index >= 6}}"
+            webp="{{true}}"
             aria-role="img"
             aria-label="{{tea.name}}茶叶图片"
           ></image>

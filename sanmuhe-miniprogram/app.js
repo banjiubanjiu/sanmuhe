@@ -1,6 +1,7 @@
 const cloudConfig = require("./config/cloud");
 const tableUtil = require("./utils/table");
-const { prefetchCatalog, applyBackgroundPrefetch } = require("./utils/cloudApi");
+const { prefetchCatalog, applyBackgroundPrefetch, getCachedCatalog } = require("./utils/cloudApi");
+const { preloadCatalogThumbnails } = require("./utils/imagePerformance");
 
 function applyTableFromOptions(options) {
   const table = tableUtil.parseTableFromLaunch(options || {});
@@ -17,7 +18,10 @@ function initBackgroundPrefetch() {
   }
   const apply = (res) => {
     if (res && res.fetchedData != null) {
-      applyBackgroundPrefetch(res.fetchedData);
+      const applied = applyBackgroundPrefetch(res.fetchedData);
+      if (applied) {
+        preloadCatalogThumbnails(getCachedCatalog(), { limit: 12 });
+      }
     }
   };
   try {
@@ -106,7 +110,9 @@ App({
       this.globalData.cloudReady = true;
       this.globalData.cloudEnv = cloudConfig.envId;
       // 预热聚合目录；各页面复用同一个请求，减少首屏等待和重复云函数调用。
-      prefetchCatalog();
+      prefetchCatalog()
+        .then((catalog) => preloadCatalogThumbnails(catalog, { limit: 12 }))
+        .catch(() => {});
     } else if (cloudConfig.useCloud && !cloudConfig.envId) {
       console.warn("禾煦云开发未配置 envId，当前仅展示本地基础资料。");
     } else if (cloudConfig.useCloud && !wx.cloud) {

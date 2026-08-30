@@ -34,13 +34,13 @@ componentConfig.methods.handleLoad.call(firstImage, { detail: { width: 800, heig
 assert.strictEqual(firstImage.data.loaded, true, "图片加载成功后应立即显示");
 
 const recreatedImage = createInstance("cloud://catalog/tea-a.jpg");
-assert.strictEqual(recreatedImage.data.loaded, true, "组件重建后不应重播已加载图片的占位动画");
+assert.strictEqual(recreatedImage.data.loaded, false, "组件重建后仍须等待当前 image 真正触发 load");
 
 const differentImage = createInstance("cloud://catalog/tea-b.jpg");
 assert.strictEqual(differentImage.data.loaded, false, "不同图片首次出现时仍应正常等待加载");
 
 componentConfig.methods.handleError.call(recreatedImage, { detail: { errMsg: "load failed" } });
 const imageAfterFailure = createInstance("cloud://catalog/tea-a.jpg");
-assert.strictEqual(imageAfterFailure.data.loaded, false, "加载失败后应清除已加载记录");
+assert.strictEqual(imageAfterFailure.data.loaded, false, "加载失败后仍应显示占位状态");
 
 console.log("progressive image cache regression: ok");
