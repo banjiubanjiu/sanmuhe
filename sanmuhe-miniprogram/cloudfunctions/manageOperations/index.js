@@ -3779,7 +3779,7 @@ async function listGiftBoxPlans() {
   const rows = await readCollection("gift_box_plans", { orderBy: "sort", order: "asc", limit: 100 });
   return {
     ok: true,
-    plans: (rows || []).map((plan) => ({
+    plans: (rows || []).filter((plan) => plan.removed !== true).map((plan) => ({
       _id: plan._id,
       id: plan.id,
       name: plan.name || "",
@@ -3863,9 +3863,7 @@ async function saveGiftBoxPlan(event, caller) {
     pool: pool.map((tea) => ({
       teaId: cleanText(tea.teaId, 40),
       name: cleanText(tea.name, 60),
-      image: cleanText(tea.image, 500),
-      priceFen: Math.max(0, Math.round(Number(tea.priceFen) || 0)),
-      stock: Math.max(0, Number(tea.stock) || 0)
+      priceFen: Math.max(0, Math.round(Number(tea.priceFen) || 0))
     })),
     visible,
     sort,

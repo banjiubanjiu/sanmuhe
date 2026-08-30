@@ -36,6 +36,31 @@ function initBackgroundPrefetch() {
   }
 }
 
+function initUpdateManager() {
+  if (!wx.getUpdateManager) {
+    return;
+  }
+  const updateManager = wx.getUpdateManager();
+  updateManager.onUpdateReady(() => {
+    wx.showModal({
+      title: "版本更新",
+      content: "新版本已准备好，点击确定重新启动。",
+      showCancel: false,
+      success: (result) => {
+        if (result.confirm) {
+          updateManager.applyUpdate();
+        }
+      }
+    });
+  });
+  updateManager.onUpdateFailed(() => {
+    wx.showToast({
+      title: "更新暂未完成，请稍后重新打开",
+      icon: "none"
+    });
+  });
+}
+
 function shouldOpenOrderPage(options) {
   const path = String((options && options.path) || "").replace(/^\//, "");
   // Already landing on order page — page onLoad will bind table.
@@ -70,6 +95,7 @@ App({
   },
 
   onLaunch(options) {
+    initUpdateManager();
     // 微信「数据预拉取」：读取后台预拉取的目录数据 → 本地缓存，首页秒开
     initBackgroundPrefetch();
     if (cloudConfig.useCloud && cloudConfig.envId && wx.cloud) {

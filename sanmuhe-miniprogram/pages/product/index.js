@@ -240,7 +240,7 @@ function buildGiftBoxViewState(plan, favored) {
       images,
       image: images[0] || plan.image || "",
       sold: plan.soldStock || 0,
-      origin: "自选搭配",
+      origin: "",
       taste: plan.description || "",
       tasteExpandable: false
     }),

@@ -119,8 +119,7 @@ const navItems = [
   { key: "inventory", label: "库存流水", icon: Package },
   { key: "customers", label: "会员管理", icon: UserRound },
   { key: "recharges", label: "充值记录", icon: BadgeDollarSign },
-  { key: "catalog", label: "商品管理", icon: Package },
-  { key: "giftboxes", label: "礼盒管理", icon: Package },
+  { key: "catalog", label: "商品中心", icon: Package },
   { key: "content", label: "内容管理", icon: FileText },
   { key: "analytics", label: "数据统计", icon: ChartNoAxesColumnIncreasing },
   { key: "audit", label: "审计日志", icon: FileText },
@@ -133,7 +132,7 @@ const navItems = [
 const navGroups = [
   { label: "经营工作台", items: ["dashboard", "orders", "afterSales", "inventory"] },
   { label: "门店服务", items: ["reservations", "signups", "customers", "recharges"] },
-  { label: "内容与增长", items: ["catalog", "giftboxes", "content", "analytics"] },
+  { label: "内容与增长", items: ["catalog", "content", "analytics"] },
   { label: "系统治理", items: ["audit", "notifications", "system", "backups", "settings"] }
 ];
 
@@ -143,7 +142,7 @@ const navItemMap = navItems.reduce((map, item) => {
 }, {});
 
 const collectionTabs = [
-  { key: "tea_products", label: "茶叶", listTitle: "茶叶列表", entityLabel: "茶叶" },
+  { key: "tea_products", label: "商城商品", listTitle: "商品列表", entityLabel: "普通商品" },
   { key: "drinks", label: "堂饮茶单", listTitle: "档位下茶品", entityLabel: "茶品" },
   { key: "events", label: "活动", listTitle: "活动列表", entityLabel: "活动" }
 ];
@@ -157,7 +156,7 @@ const quickActions = [
   { tab: "reservations", label: "茶室预约", icon: CalendarCheck },
   { tab: "signups", label: "活动报名", icon: TicketPercent },
   { tab: "orders", label: "订单管理", icon: ClipboardList },
-  { tab: "catalog", label: "商品资料", icon: Package },
+  { tab: "catalog", label: "商品中心", icon: Package },
   { tab: "content", label: "运营内容", icon: PenLine },
   { tab: "customers", label: "会员管理", icon: Users }
 ];
@@ -176,8 +175,7 @@ const pageTitles = {
   inventory: ["库存流水", ""],
   customers: ["会员管理", ""],
   recharges: ["充值记录", "会员储值流水（含微信支付与发货状态）"],
-  catalog: ["商品管理", ""],
-  giftboxes: ["礼盒管理", "自选礼盒配置（单选/双拼/三拼，按泡或整盒计价）"],
+  catalog: ["商品中心", "普通商品、固定礼盒与自选礼盒统一管理"],
   content: ["内容管理", ""],
   analytics: ["数据统计", ""],
   audit: ["审计日志", ""],
@@ -196,8 +194,7 @@ const moduleProfiles = {
   afterSales: { group: "经营", subject: "售后", countLabel: "笔", note: "" },
   inventory: { group: "经营", subject: "库存", countLabel: "条", note: "" },
   customers: { group: "门店", subject: "会员", countLabel: "位", note: "" },
-  catalog: { group: "商品", subject: "资料", countLabel: "条", note: "" },
-  giftboxes: { group: "商品", subject: "礼盒", countLabel: "款", note: "" },
+  catalog: { group: "商品", subject: "商品", countLabel: "款", note: "" },
   content: { group: "内容", subject: "内容", countLabel: "条", note: "" },
   analytics: { group: "数据", subject: "统计", countLabel: "项", note: "" },
   audit: { group: "系统", subject: "审计", countLabel: "条", note: "" },
@@ -214,7 +211,7 @@ const riskPolicyByTab = {
   reservations: "取消预约需记录业务原因",
   signups: "取消报名需记录业务原因",
   customers: "导出/删除会员个人数据需原因",
-  catalog: "价格库存状态变更需原因",
+  catalog: "商品价格、库存与上架状态变更需原因",
   content: "内容停用会影响小程序展示",
   audit: "导出审计记录需操作原因",
   notifications: "测试通知会写入投递日志",
@@ -354,6 +351,7 @@ const filters = reactive({
   catalogShelf: "",
   catalogCategory: "",
   catalogFlag: "",
+  catalogProductType: "",
   orderBizType: "",
   /** todo=店员待办队列（默认）；all=可查全部/单状态 */
   orderQueue: "todo",
@@ -433,14 +431,17 @@ const emptyGiftBoxForm = () => ({
 
 const giftBoxForm = reactive(emptyGiftBoxForm());
 
+async function fetchGiftBoxPlans() {
+  const result = await callFunction("manageOperations", { action: "listGiftBoxPlans" });
+  state.giftBoxPlans = result.plans || [];
+}
+
 async function loadGiftBoxPlans() {
-  await withLoading("读取礼盒", async () => {
-    const result = await callFunction("manageOperations", { action: "listGiftBoxPlans" });
-    state.giftBoxPlans = result.plans || [];
-  });
+  await withLoading("读取礼盒", fetchGiftBoxPlans);
 }
 
 function openGiftBoxEditor(plan) {
+  state.catalogDrawerOpen = false;
   if (plan) {
     const selection = plan.selection || {};
     Object.assign(giftBoxForm, {
@@ -463,9 +464,7 @@ function openGiftBoxEditor(plan) {
       pool: (plan.pool || []).map((t) => ({
         teaId: t.teaId || "",
         name: t.name || "",
-        image: t.image || "",
-        priceYuan: t.priceFen ? String(t.priceFen / 100) : "",
-        stock: Number(t.stock) || 0
+        priceYuan: t.priceFen ? String(t.priceFen / 100) : ""
       }))
     });
   } else {
@@ -479,7 +478,7 @@ function closeGiftBoxEditor() {
 }
 
 function addGiftPoolRow() {
-  giftBoxForm.pool.push({ teaId: "", name: "", image: "", priceYuan: "", stock: 0 });
+  giftBoxForm.pool.push({ teaId: "", name: "", priceYuan: "" });
 }
 
 function removeGiftPoolRow(index) {
@@ -504,12 +503,11 @@ async function saveGiftBoxPlanForm() {
     showToast("请填写礼盒名称");
     return;
   }
-  const pool = giftBoxForm.pool.map((t) => ({
-    teaId: String(t.teaId || "").trim(),
+  const generatedTeaIdPrefix = `gift-tea-${Date.now().toString(36)}`;
+  const pool = giftBoxForm.pool.map((t, index) => ({
+    teaId: String(t.teaId || `${generatedTeaIdPrefix}-${index + 1}`).trim(),
     name: String(t.name || "").trim(),
-    image: String(t.image || "").trim(),
-    priceFen: Math.round((Number(t.priceYuan) || 0) * 100),
-    stock: Math.max(0, Number(t.stock) || 0)
+    priceFen: Math.round((Number(t.priceYuan) || 0) * 100)
   }));
   if (!pool.length || pool.some((t) => !t.name || t.priceFen <= 0)) {
     showToast("茶池至少一款，且每款需有名称与价格");
@@ -690,6 +688,8 @@ const emptyCatalog = () => ({
   name: "",
   title: "",
   category: "",
+  /** simple | fixed_giftbox；自选礼盒单独来自 gift_box_plans */
+  productType: "simple",
   price: 0,
   unit: "",
   stock: 0,
@@ -756,6 +756,33 @@ const CATALOG_FLAG_OPTIONS = [
   { value: "low_stock", label: "低库存" },
   { value: "no_image", label: "缺图片" }
 ];
+
+const CATALOG_PRODUCT_TYPE_OPTIONS = [
+  { value: "", label: "全部类型" },
+  { value: "simple", label: "普通商品" },
+  { value: "fixed_giftbox", label: "固定礼盒" },
+  { value: "configurable_giftbox", label: "自选礼盒" }
+];
+
+function isGiftBoxCatalogRow(item) {
+  return item?.__catalogSource === "giftbox";
+}
+
+function catalogProductType(item) {
+  if (isGiftBoxCatalogRow(item)) return "configurable_giftbox";
+  if (item?.productType === "fixed_giftbox") return "fixed_giftbox";
+  if (item?.productType === "simple") return "simple";
+  // 兼容旧数据：历史上没有 productType，礼盒仅通过 category 标记。
+  return String(item?.category || "").trim() === "礼盒" ? "fixed_giftbox" : "simple";
+}
+
+function catalogProductTypeLabel(item) {
+  return CATALOG_PRODUCT_TYPE_OPTIONS.find((option) => option.value === catalogProductType(item))?.label || "普通商品";
+}
+
+function catalogRowKey(item) {
+  return `${isGiftBoxCatalogRow(item) ? "giftbox" : "product"}:${item?.id || item?._id || "unknown"}`;
+}
 
 /** 下拉中的「自定义」哨兵值，不落库 */
 const SELECT_CUSTOM_VALUE = "__custom__";
@@ -917,7 +944,10 @@ const activeCollectionTab = computed(() => {
   return collectionTabs.find((item) => item.key === state.collection) || collectionTabs[0];
 });
 const catalogListTitle = computed(() => activeCollectionTab.value?.listTitle || "资料列表");
-const catalogEntityLabel = computed(() => activeCollectionTab.value?.entityLabel || "资料");
+const catalogEntityLabel = computed(() => {
+  if (isTeaProductsCollection() && forms.catalog.productType === "fixed_giftbox") return "固定礼盒";
+  return activeCollectionTab.value?.entityLabel || "资料";
+});
 const accessBlocked = computed(() => !!state.adminProfileError);
 const accessBlockTitle = computed(() => "无法验证管理员身份");
 const accessBlockHint = computed(() => `${state.adminProfileError || "管理员身份验证失败"}。后台不会继续读取经营数据，请退出后重新登录或检查管理员白名单。`);
@@ -1644,6 +1674,13 @@ const managedCategoriesWithCount = computed(() =>
     const name = String(cat.name || "").trim();
     let rows = state.catalogItems || [];
     if (isDrinksCollection()) rows = rows.filter(isDrinkTeaRow);
+    if (isTeaProductsCollection()) {
+      rows = rows.concat(
+        (state.giftBoxPlans || [])
+          .filter((plan) => plan.removed !== true)
+          .map((plan) => Object.assign({}, plan, { __catalogSource: "giftbox" }))
+      );
+    }
     const productCount = rows.filter(
       (item) => !isCatalogRemoved(item) && String(item.category || "").trim() === name
     ).length;
@@ -1675,6 +1712,12 @@ const catalogCategoryOptions = computed(() => {
     const cat = String(item?.category || "").trim();
     if (cat) set.add(cat);
   });
+  if (isTeaProductsCollection()) {
+    (state.giftBoxPlans || []).filter((plan) => plan.removed !== true).forEach((plan) => {
+      const cat = String(plan?.category || "").trim();
+      if (cat) set.add(cat);
+    });
+  }
   return Array.from(set);
 });
 
@@ -1825,13 +1868,29 @@ function onCatalogDateIsoChange() {
 
 const filteredCatalog = computed(() => {
   let rows = state.catalogItems || [];
+  // 商城商品统一目录：普通/固定礼盒来自 tea_products，自选礼盒来自 gift_box_plans。
+  if (isTeaProductsCollection()) {
+    rows = rows
+      .map((item) => Object.assign({}, item, { __catalogSource: "product" }))
+      .concat(
+        (state.giftBoxPlans || [])
+          .filter((plan) => plan.removed !== true)
+          .map((plan) => Object.assign({}, plan, { __catalogSource: "giftbox" }))
+      );
+  }
   // 堂饮：列表只展示「档位下的茶品」，不展示旧档位文档 / 测试 SKU
   if (isDrinksCollection()) {
     rows = rows.filter(isDrinkTeaRow);
   }
   const keyword = filters.catalog.trim().toLowerCase();
   if (keyword) {
-    rows = rows.filter((item) => textOf(item, ["id", "name", "title", "category", "groupName", "status"]).includes(keyword));
+    rows = rows.filter((item) => {
+      const baseText = textOf(item, ["id", "name", "title", "category", "groupName", "status"]);
+      return baseText.includes(keyword) || catalogProductTypeLabel(item).toLowerCase().includes(keyword);
+    });
+  }
+  if (isTeaProductsCollection() && filters.catalogProductType) {
+    rows = rows.filter((item) => catalogProductType(item) === filters.catalogProductType);
   }
   if (filters.catalogShelf === "on") {
     rows = rows.filter((item) => !isCatalogOffShelf(item) && !isCatalogRemoved(item));
@@ -1852,6 +1911,17 @@ const filteredCatalog = computed(() => {
   } else if (filters.catalogFlag === "no_image") {
     rows = rows.filter((item) => !item.image && !item.thumb);
   }
+  // 商城：按业务排序，排序相同时普通商品在前、自选礼盒在后。
+  if (isTeaProductsCollection()) {
+    rows = rows.slice().sort((a, b) => {
+      const sortDiff = (Number(a.sort) || 9999) - (Number(b.sort) || 9999);
+      if (sortDiff) return sortDiff;
+      const typeRank = { simple: 0, fixed_giftbox: 1, configurable_giftbox: 2 };
+      const typeDiff = (typeRank[catalogProductType(a)] ?? 9) - (typeRank[catalogProductType(b)] ?? 9);
+      if (typeDiff) return typeDiff;
+      return String(a.name || "").localeCompare(String(b.name || ""), "zh-CN");
+    });
+  }
   // 堂饮：按档位 sort + 茶品 sort 排，方便对照点单左侧
   if (isDrinksCollection()) {
     const tierSort = new Map(
@@ -1870,8 +1940,10 @@ const filteredCatalog = computed(() => {
   return rows;
 });
 
+const batchSelectableCatalogRows = computed(() => filteredCatalog.value.filter((item) => !isGiftBoxCatalogRow(item)));
+
 const allFilteredCatalogSelected = computed(() => {
-  const rows = filteredCatalog.value;
+  const rows = batchSelectableCatalogRows.value;
   if (!rows.length) return false;
   return rows.every((item) => state.selectedCatalogIds.includes(item.id));
 });
@@ -2602,12 +2674,12 @@ const catalogTableCols = computed(() => {
       stockMode: "quota"
     };
   }
-  // 默认茶叶
+  // 商城商品（普通商品、固定礼盒、自选礼盒共用）
   return {
-    name: "茶叶",
+    name: "商品",
     category: "分类",
     price: "价格",
-    meta: "规格",
+    meta: "规格/配置",
     stock: "库存",
     stockMode: "stock"
   };
@@ -2640,8 +2712,21 @@ function displayCatalogCategory(item) {
   return item.category || "-";
 }
 
+function giftBoxCatalogPrice(item) {
+  const prices = (item?.pool || []).map((tea) => Math.max(0, Number(tea.priceFen) || 0)).filter((price) => price > 0);
+  if (!prices.length) return "-";
+  const minPriceFen = Math.min(...prices);
+  if (item.priceMode === "whole_box") return `¥${money(minPriceFen / 100)} 起`;
+  const selection = item.selection || {};
+  const minTypes = Math.max(1, Number(selection.minTypes) || 1);
+  const brewsPerType = Math.max(1, Number(selection.brewsPerType) || 1);
+  const totalFen = minPriceFen * minTypes * brewsPerType + Math.max(0, Number(item.boxFeeFen) || 0);
+  return `¥${money(totalFen / 100)} 起`;
+}
+
 function displayCatalogPrice(item) {
   if (!item) return "-";
+  if (isGiftBoxCatalogRow(item)) return giftBoxCatalogPrice(item);
   if (isDrinksCollection()) {
     // 茶品有独立价则显示独立价；否则显示档位价
     const own = Number(item.price) || 0;
@@ -2660,6 +2745,9 @@ function displayCatalogPrice(item) {
 
 function displayCatalogMeta(item) {
   if (!item) return "-";
+  if (isGiftBoxCatalogRow(item)) {
+    return `${giftBoxSelectionLabel(item)} · 茶池 ${(item.pool || []).length} 款`;
+  }
   if (isDrinksCollection()) {
     return [item.groupName, item.subtitle].filter(Boolean).join(" · ") || "-";
   }
@@ -2668,6 +2756,36 @@ function displayCatalogMeta(item) {
   }
   if (Array.isArray(item.specs) && item.specs.length) return `${item.specs.length} 个`;
   return item.unit || "-";
+}
+
+function editProductCenterRow(item) {
+  if (isGiftBoxCatalogRow(item)) {
+    openGiftBoxEditor(item);
+    return;
+  }
+  editCatalog(item);
+}
+
+function isProductCenterRowSelected(item) {
+  if (isGiftBoxCatalogRow(item)) return state.giftBoxEditorOpen && giftBoxForm.id === item.id;
+  return state.catalogDrawerOpen && state.selectedCatalogId === item.id;
+}
+
+function productCenterStatusLabel(item) {
+  if (isGiftBoxCatalogRow(item)) {
+    if (item.removed === true) return "已删除";
+    return item.visible === false ? "已下架" : "上架";
+  }
+  return catalogStatusLabel(item);
+}
+
+function productCenterStatusTone(item) {
+  if (isGiftBoxCatalogRow(item)) return item.removed === true || item.visible === false ? "neutral" : "good";
+  return isCatalogRemoved(item) || isCatalogOffShelf(item) || deriveCatalogShelfStatus(item) === "draft" ? "neutral" : "good";
+}
+
+function removeProductCenterRow(item) {
+  return isGiftBoxCatalogRow(item) ? removeGiftBoxPlanItem(item) : removeCatalog(item);
 }
 
 function catalogComparableValue(field, item = {}) {
@@ -2701,7 +2819,7 @@ function toggleSelectAllFilteredCatalog(checked) {
     state.selectedCatalogIds = [];
     return;
   }
-  state.selectedCatalogIds = filteredCatalog.value.map((item) => item.id).filter(Boolean);
+  state.selectedCatalogIds = batchSelectableCatalogRows.value.map((item) => item.id).filter(Boolean);
 }
 
 function clearCatalogSelection() {
@@ -3645,11 +3763,12 @@ async function switchTab(tab) {
   }
   state.activeTab = tab;
   closeNav();
-  // 离开商品管理时清空列表态，避免切回瞬间残留旧集合数据
+  // 离开商品中心时清空列表态，避免切回瞬间残留旧集合数据
   if (tab !== "catalog") {
     state.catalogItems = [];
     state.selectedCatalogId = "";
     state.selectedCatalogIds = [];
+    state.giftBoxEditorOpen = false;
   }
   await loadActiveTab();
 }
@@ -3686,7 +3805,6 @@ async function loadActiveTab(forceRefresh = false) {
     recharges: loadRecharges,
     content: loadContent,
     analytics: loadAnalytics,
-    giftboxes: loadGiftBoxPlans,
     audit: loadAuditLogs,
     notifications: loadNotificationLogs,
     system: loadSystemStatus,
@@ -3856,8 +3974,11 @@ async function toggleManagedCategory(item) {
 
 async function removeManagedCategory(item) {
   if (!item || !item.id) return;
-  const used = (state.catalogItems || []).some(
-    (row) => String(row.category || "").trim() === String(item.name || "").trim()
+  const categoryRows = isTeaProductsCollection()
+    ? (state.catalogItems || []).concat(state.giftBoxPlans || [])
+    : (state.catalogItems || []);
+  const used = categoryRows.some(
+    (row) => row.removed !== true && String(row.category || "").trim() === String(item.name || "").trim()
   );
   if (used) {
     showToast(`「${item.name}」下仍有商品，请先改商品类别后再删除`);
@@ -3965,6 +4086,13 @@ async function loadCatalog(options = {}) {
       supportsProductShelf() ? loadProductCategories() : Promise.resolve()
     ]);
     state.catalogItems = result.items || [];
+    // 礼盒是统一目录的增强数据源；失败时普通商品仍须立即可管理。
+    if (isTeaProductsCollection(collection)) {
+      fetchGiftBoxPlans().catch((error) => {
+        state.giftBoxPlans = [];
+        showToast(error.message || "自选礼盒加载失败，普通商品已正常显示");
+      });
+    }
     catalogCache[collection] = { items: state.catalogItems, at: Date.now() };
     // 抽屉打开时：同步表单到最新数据；关闭时只维护列表高亮，不强行打开编辑
     const preferredId = state.selectedCatalogId || forms.catalog.id;
@@ -3986,14 +4114,16 @@ async function loadCatalog(options = {}) {
 }
 
 function selectCollection(key) {
-  // 商品管理只切茶叶/堂饮/活动；茶室已并入设置管理
+  // 商品中心切商城商品/堂饮/活动；茶室已并入设置管理
   state.collection = key;
   state.selectedCatalogId = "";
   state.catalogDrawerOpen = false;
+  state.giftBoxEditorOpen = false;
   state.selectedCatalogIds = [];
   filters.catalogShelf = "";
   filters.catalogCategory = "";
   filters.catalogFlag = "";
+  filters.catalogProductType = "";
   loadCatalog();
 }
 
@@ -4002,7 +4132,15 @@ function closeCatalogDrawer() {
   closeYearPicker();
 }
 
+function resetFixedGiftBox() {
+  resetCatalog();
+  forms.catalog.productType = "fixed_giftbox";
+  forms.catalog.category = "礼盒";
+  syncCatalogCategoryChoice();
+}
+
 function resetCatalog() {
+  state.giftBoxEditorOpen = false;
   const nextId = isDrinksCollection()
     ? `drink-item-${Date.now()}`
     : `${state.collection}-${Date.now()}`;
@@ -4040,6 +4178,7 @@ function resetCatalog() {
 }
 
 function editCatalog(item) {
+  state.giftBoxEditorOpen = false;
   if (!item) {
     resetCatalog();
     return;
@@ -4048,6 +4187,7 @@ function editCatalog(item) {
   state.catalogDrawerOpen = true;
   const specs = normalizeCatalogSpecs(item.specs);
   Object.assign(forms.catalog, emptyCatalog(), item, {
+    productType: isTeaProductsCollection() ? catalogProductType(item) : "simple",
     specs: isTeaProductsCollection()
       ? (specs.length
         ? specs
@@ -4097,6 +4237,9 @@ async function saveCatalog() {
       applyCatalogShelfStatus(forms.catalog.shelfStatus || "on");
     }
     if (isTeaProductsCollection()) {
+      if (!["simple", "fixed_giftbox"].includes(forms.catalog.productType)) {
+        throw new Error("商品类型不正确");
+      }
       const specs = normalizeCatalogSpecs(forms.catalog.specs);
       if (!specs.length) throw new Error("请至少填写 1 个销售规格");
       for (const spec of specs) {
@@ -4155,6 +4298,7 @@ async function saveCatalog() {
   const action = existing ? "update" : "create";
   const payload = { ...forms.catalog };
   delete payload.shelfStatus;
+  if (!isTeaProductsCollection()) delete payload.productType;
   if (isTeaProductsCollection()) {
     payload.specs = normalizeCatalogSpecs(payload.specs);
     delete payload.teaGroups;
@@ -6704,7 +6848,15 @@ onBeforeUnmount(() => {
                 </button>
               </div>
               <div class="catalog-filters">
-                <input v-model="filters.catalog" class="line-input" aria-label="筛选商品资料" placeholder="名称 / ID">
+                <input v-model="filters.catalog" class="line-input" aria-label="筛选商品" placeholder="名称 / ID / 类型">
+                <select
+                  v-if="isTeaProductsCollection()"
+                  v-model="filters.catalogProductType"
+                  class="line-input catalog-select"
+                  aria-label="商品类型"
+                >
+                  <option v-for="opt in CATALOG_PRODUCT_TYPE_OPTIONS" :key="opt.value || 'all-types'" :value="opt.value">{{ opt.label }}</option>
+                </select>
                 <select v-model="filters.catalogShelf" class="line-input catalog-select" aria-label="上架状态">
                   <option value="">全部状态</option>
                   <option v-for="opt in CATALOG_SHELF_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -6739,7 +6891,7 @@ onBeforeUnmount(() => {
                 @click="setCatalogCategoryFilter('')"
               >全部</button>
               <button
-                v-for="cat in managedCategoryNames"
+                v-for="cat in catalogCategoryOptions"
                 :key="`chip-${cat}`"
                 type="button"
                 role="tab"
@@ -6755,7 +6907,10 @@ onBeforeUnmount(() => {
               >{{ isDrinksCollection() ? "配置档位" : "配置分类" }}</button>
             </div>
             <div class="list-header">
-              <h2>{{ catalogListTitle }}</h2>
+              <div>
+                <h2>{{ catalogListTitle }}</h2>
+                <p v-if="isTeaProductsCollection()" class="product-center-hint">统一目录，按商品类型进入对应配置；分类决定小程序展示位置。</p>
+              </div>
               <div class="list-header-actions">
                 <template v-if="hasPermission('catalog.write') && state.selectedCatalogIds.length">
                   <span class="batch-count">已选 {{ state.selectedCatalogIds.length }}</span>
@@ -6763,14 +6918,17 @@ onBeforeUnmount(() => {
                   <button class="ghost-button small" type="button" @click="batchCatalogShelf('on')">批量上架</button>
                   <button class="ghost-button small" type="button" @click="clearCatalogSelection">取消选择</button>
                 </template>
+                <template v-if="hasPermission('catalog.write') && isTeaProductsCollection()">
+                  <button class="secondary-action small" type="button" @click="resetCatalog">新建普通商品</button>
+                  <button class="secondary-action small" type="button" @click="resetFixedGiftBox">新建固定礼盒</button>
+                  <button class="primary-action small" type="button" @click="openGiftBoxEditor(null)">新建自选礼盒</button>
+                </template>
                 <button
-                  v-if="hasPermission('catalog.write')"
+                  v-else-if="hasPermission('catalog.write')"
                   class="primary-action small"
                   type="button"
                   @click="resetCatalog"
-                >
-                  新建
-                </button>
+                >新建</button>
               </div>
             </div>
             <div class="table-wrap">
@@ -6782,13 +6940,14 @@ onBeforeUnmount(() => {
                       <input
                         type="checkbox"
                         :checked="allFilteredCatalogSelected"
-                        :disabled="!filteredCatalog.length"
-                        aria-label="全选当前列表"
+                        :disabled="!batchSelectableCatalogRows.length"
+                        aria-label="全选当前可批量操作的商品"
                         @change="toggleSelectAllFilteredCatalog($event.target.checked)"
                         @click.stop
                       >
                     </th>
                     <th scope="col">{{ catalogTableCols.name }}</th>
+                    <th v-if="isTeaProductsCollection()" scope="col">商品类型</th>
                     <th scope="col">{{ catalogTableCols.category }}</th>
                     <th scope="col">{{ catalogTableCols.price }}</th>
                     <th scope="col">{{ catalogTableCols.meta }}</th>
@@ -6800,46 +6959,49 @@ onBeforeUnmount(() => {
                 <tbody>
                   <tr
                     v-for="item in filteredCatalog"
-                    :key="item.id"
-                    :class="['interactive-row', { selected: state.catalogDrawerOpen && state.selectedCatalogId === item.id }]"
+                    :key="catalogRowKey(item)"
+                    :class="['interactive-row', { selected: isProductCenterRowSelected(item) }]"
                     role="button"
                     tabindex="0"
-                    :aria-selected="state.catalogDrawerOpen && state.selectedCatalogId === item.id"
-                    :aria-label="`编辑资料：${displayName(item)}`"
-                    @click="editCatalog(item)"
-                    @keydown.enter.prevent="editCatalog(item)"
-                    @keydown.space.prevent="editCatalog(item)"
+                    :aria-selected="isProductCenterRowSelected(item)"
+                    :aria-label="`编辑商品：${displayName(item)}`"
+                    @click="editProductCenterRow(item)"
+                    @keydown.enter.prevent="editProductCenterRow(item)"
+                    @keydown.space.prevent="editProductCenterRow(item)"
                   >
                     <td class="col-check" @click.stop>
                       <input
+                        v-if="!isGiftBoxCatalogRow(item)"
                         type="checkbox"
                         :checked="state.selectedCatalogIds.includes(item.id)"
                         :aria-label="`选择 ${displayName(item)}`"
                         @change="toggleCatalogRowSelect(item.id, $event.target.checked)"
                       >
+                      <span v-else class="catalog-no-batch" title="自选礼盒请单独编辑">—</span>
                     </td>
                     <td><strong>{{ displayName(item) }}</strong><small>{{ item.id }}</small></td>
+                    <td v-if="isTeaProductsCollection()"><span :class="['product-type-pill', catalogProductType(item)]">{{ catalogProductTypeLabel(item) }}</span></td>
                     <td>{{ displayCatalogCategory(item) }}</td>
                     <td>{{ displayCatalogPrice(item) }}</td>
                     <td>{{ displayCatalogMeta(item) }}</td>
                     <td>{{ displayInventory(item) }}</td>
                     <td>
-                      <span
-                        :class="[
-                          'status-pill',
-                          isCatalogRemoved(item) || isCatalogOffShelf(item) || deriveCatalogShelfStatus(item) === 'draft' ? 'neutral' : 'good'
-                        ]"
-                      >{{ catalogStatusLabel(item) }}</span>
+                      <span :class="['status-pill', productCenterStatusTone(item)]">{{ productCenterStatusLabel(item) }}</span>
                     </td>
                     <td>
                       <div class="row-actions" @click.stop>
-                        <button v-if="hasPermission('catalog.write')" class="ghost-button small" type="button" @click="editCatalog(item)">编辑</button>
-                        <button v-if="hasPermission('catalog.write')" class="ghost-button small" type="button" @click="toggleCatalog(item)">{{ isCatalogOffShelf(item) ? "恢复" : "下架" }}</button>
+                        <button v-if="hasPermission('catalog.write')" class="ghost-button small" type="button" @click="editProductCenterRow(item)">编辑</button>
                         <button
-                          v-if="hasPermission('catalog.write') && isCatalogOffShelf(item)"
+                          v-if="hasPermission('catalog.write') && !isGiftBoxCatalogRow(item)"
+                          class="ghost-button small"
+                          type="button"
+                          @click="toggleCatalog(item)"
+                        >{{ isCatalogOffShelf(item) ? "恢复" : "下架" }}</button>
+                        <button
+                          v-if="hasPermission('catalog.write') && (isGiftBoxCatalogRow(item) || isCatalogOffShelf(item))"
                           class="ghost-button small danger-text"
                           type="button"
-                          @click="removeCatalog(item)"
+                          @click="removeProductCenterRow(item)"
                         >删除</button>
                       </div>
                     </td>
@@ -6871,6 +7033,10 @@ onBeforeUnmount(() => {
 
                 <!-- ===== 商城茶叶 ===== -->
                 <template v-if="isTeaProductsCollection()">
+                  <label>
+                    <span>商品类型</span>
+                    <input :value="forms.catalog.productType === 'fixed_giftbox' ? '固定礼盒' : '普通商品'" readonly>
+                  </label>
                   <label>
                     <span>名称 <em class="req" aria-label="必填">*</em></span>
                     <input v-model="forms.catalog.name" required placeholder="例如：有机红茶">
@@ -7311,37 +7477,13 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-if="state.activeTab === 'giftboxes'" class="list-workspace">
-          <article class="panel-card data-panel">
-            <div class="panel-toolbar">
-              <h2>自选礼盒</h2>
-              <button v-if="hasPermission('catalog.write')" class="primary-action small" type="button" @click="openGiftBoxEditor(null)">新建礼盒</button>
-            </div>
-            <div class="record-list">
-              <div v-for="plan in state.giftBoxPlans" :key="plan.id" class="record-row giftbox-row">
-                <strong>
-                  <span>{{ plan.name }}</span>
-                  <em>{{ plan.visible ? '上架中' : '已下架' }}</em>
-                </strong>
-                <span class="record-meta">
-                  <span>{{ giftBoxSelectionLabel(plan) }} · {{ giftBoxPriceModeLabel(plan) }} · 茶池 {{ plan.pool.length }} 款 · 库存 {{ plan.stock }}</span>
-                  <i :class="['record-status', plan.removed ? 'error' : (plan.visible ? 'good' : 'neutral')]">{{ plan.removed ? '已删除' : (plan.visible ? '可售' : '停用') }}</i>
-                </span>
-                <div class="row-actions">
-                  <button class="ghost-button small" type="button" @click="openGiftBoxEditor(plan)">编辑</button>
-                  <button class="ghost-button small danger-text" type="button" @click="removeGiftBoxPlanItem(plan)">删除</button>
-                </div>
-              </div>
-              <EmptyState v-if="state.giftBoxPlans.length === 0" title="暂无自选礼盒" hint="新建礼盒：配置自选规则（单选/双拼）、茶池与计价方式，保存后即在小程序「礼盒」分类展示。" />
-            </div>
-          </article>
-
-          <!-- 礼盒编辑抽屉 -->
+        <template v-if="state.activeTab === 'catalog'">
+          <!-- 自选礼盒作为商品类型，在统一商品列表中进入此配置抽屉 -->
           <div v-if="state.giftBoxEditorOpen" class="editor-drawer" role="dialog" aria-modal="true" aria-label="礼盒编辑">
             <div class="editor-drawer-mask" @click="closeGiftBoxEditor"></div>
             <aside class="panel-card detail-panel drawer-panel">
               <div class="panel-title">
-                <h2>{{ giftBoxForm.id ? '编辑礼盒' : '新建礼盒' }}</h2>
+                <h2>{{ giftBoxForm.id ? '编辑自选礼盒' : '新建自选礼盒' }}</h2>
                 <button class="ghost-button icon-action" type="button" aria-label="关闭" @click="closeGiftBoxEditor">×</button>
               </div>
               <div class="settings-fields">
@@ -7373,15 +7515,13 @@ onBeforeUnmount(() => {
               </div>
               <div class="settings-section giftbox-pool-editor">
                 <div class="settings-row-actions">
-                  <h3>可选茶池（礼盒专用，与茶叶商品独立维护）</h3>
+                  <h3>可选茶池（礼盒组件）</h3>
                   <button class="secondary-action small" type="button" @click="addGiftPoolRow">+ 添加茶品</button>
                 </div>
-                <p class="settings-note">{{ giftBoxForm.priceMode === 'whole_box' ? '每款填「整盒价」' : '每款填「每泡价」' }}；顾客在小程序按规则自选，价格由服务端按此单价重算。</p>
+                <p class="settings-note">这些茶品是礼盒组成选项，不会在商品列表中重复上架。每项只需填写茶名和{{ giftBoxForm.priceMode === 'whole_box' ? '整盒价' : '每泡价' }}；库存统一按礼盒管理，价格由服务端重算。</p>
                 <div v-for="(row, index) in giftBoxForm.pool" :key="index" class="giftbox-pool-row">
                   <input v-model="row.name" placeholder="茶名（如：红茶）">
                   <input v-model="row.priceYuan" type="number" min="0" step="0.01" :placeholder="giftBoxForm.priceMode === 'whole_box' ? '整盒价(元)' : '每泡价(元)'">
-                  <input v-model="row.image" placeholder="图片地址">
-                  <input v-model.number="row.stock" type="number" min="0" placeholder="库存">
                   <button class="ghost-button small danger-text" type="button" @click="removeGiftPoolRow(index)">×</button>
                 </div>
               </div>
@@ -7391,7 +7531,7 @@ onBeforeUnmount(() => {
               </div>
             </aside>
           </div>
-        </section>
+        </template>
 
         <section v-if="state.activeTab === 'orders'" class="list-workspace">
           <article class="panel-card data-panel">
@@ -7639,7 +7779,7 @@ onBeforeUnmount(() => {
                   >{{ item.name }}（库存 {{ item.stock ?? "-" }} · {{ item.id }}）</option>
                 </select>
               </label>
-              <p v-if="inventoryProductOptions.length === 0" class="field-inline-hint wide">暂无该类型商品，请先在商品管理中创建。</p>
+              <p v-if="inventoryProductOptions.length === 0" class="field-inline-hint wide">暂无该类型商品，请先在商品中心创建。</p>
               <label><span>调整数量</span><input v-model.number="inventoryForm.delta" type="number" required placeholder="正数增加，负数减少"></label>
               <label class="wide"><span>原因</span><textarea v-model="inventoryForm.note" rows="4" placeholder="盘点、损耗、补货等"></textarea></label>
               <div class="drawer-actions wide">

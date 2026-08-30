@@ -575,7 +575,7 @@ Page(withPrivacy({
   showAllLevels() {
     wx.showModal({
       title: "会员等级",
-      content: `${this.data.level.current}：购茶自动享会员折扣。再消费 ¥${this.data.level.spendMore} 可升级为 ${this.data.level.next}。`,
+      content: `当前为${this.data.level.current}。再消费 ¥${this.data.level.spendMore} 可升级为 ${this.data.level.next}。`,
       showCancel: false
     });
   },

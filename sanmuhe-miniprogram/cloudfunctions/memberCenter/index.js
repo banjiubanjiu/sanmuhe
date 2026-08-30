@@ -10,9 +10,9 @@ const _ = db.command;
 const MEMBER_AGREEMENT_VERSION = "member-wallet-privacy-v2";
 
 const defaultLevels = [
-  { tier: "雅客会员", minSpend: 0, discountRate: 0.98, pointsTarget: 1600 },
-  { tier: "臻享会员", minSpend: 1600, discountRate: 0.95, pointsTarget: 5000 },
-  { tier: "山房会员", minSpend: 5000, discountRate: 0.92, pointsTarget: 12000 }
+  { tier: "雅客会员", minSpend: 0, discountRate: 1, pointsTarget: 1600 },
+  { tier: "臻享会员", minSpend: 1600, discountRate: 1, pointsTarget: 5000 },
+  { tier: "山房会员", minSpend: 5000, discountRate: 1, pointsTarget: 12000 }
 ];
 
 /** 门店公示储值权益（金额单位：分）。正式环境不含联调测试档。 */

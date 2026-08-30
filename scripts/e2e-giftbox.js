@@ -5,6 +5,7 @@ const automator = require("miniprogram-automator");
     cliPath: "/home/colin/.local/bin/wechat-devtools-cli",
     port: 9420
   });
+  await miniProgram.evaluate(() => { wx.clearStorageSync(); return true; });
   const shop = await miniProgram.reLaunch("/pages/shop/index");
   await shop.waitFor(3000);
 
@@ -25,11 +26,16 @@ const automator = require("miniprogram-automator");
     if (n && (await n.text()).includes("秋拾")) { await main.tap(); clicked = true; break; }
   }
   console.log("点击秋拾:", clicked ? "✅" : "❌");
+  if (!clicked) throw new Error("礼盒分类中未找到秋拾");
   await shop.waitFor(2500);
   const prod = await miniProgram.currentPage();
   console.log("详情页路径:", prod.path);
   const hasSel = await prod.$(".giftbox-section");
   console.log("自选器存在:", !!hasSel ? "✅" : "❌");
+  if (!hasSel) throw new Error("秋拾详情缺少自选器");
+  const thumbnails = await prod.$$(".giftbox-tea-img");
+  console.log("茶品缩略图已移除:", thumbnails.length === 0 ? "✅" : "❌");
+  if (thumbnails.length) throw new Error("自选搭配仍显示茶品缩略图");
 
   const teas = await prod.$$(".giftbox-tea");
   const idx = [];
@@ -39,16 +45,23 @@ const automator = require("miniprogram-automator");
   }
   console.log("茶池:", idx.join(" | "));
   const tapPlus = async (name) => {
-    const i = idx.indexOf(name);
-    if (i < 0) return console.log("  没找到:", name);
-    await (await teas[i].$(".giftbox-step-btn.plus")).tap();
-    await prod.waitFor(300);
+    const currentTeas = await prod.$$(".giftbox-tea");
+    for (const tea of currentTeas) {
+      const nameEl = await tea.$(".giftbox-tea-name");
+      if (nameEl && (await nameEl.text()).trim() === name) {
+        await (await tea.$(".giftbox-step-btn.plus")).tap();
+        await prod.waitFor(300);
+        return;
+      }
+    }
+    throw new Error(`茶池中未找到：${name}`);
   };
   await tapPlus("红茶");
   await tapPlus("大红袍");
   const price = await prod.$(".detail-price .price");
   const priceText = price ? (await price.text()).trim() : "?";
   console.log("红茶+大红袍 价格:", priceText, priceText === "¥198" ? "✅" : "❌");
+  if (priceText !== "¥198") throw new Error(`秋拾计价异常：${priceText}`);
 
   await (await prod.$(".cart-action")).tap();
   await prod.waitFor(500);
@@ -58,6 +71,7 @@ const automator = require("miniprogram-automator");
   const cartTexts = [];
   for (const c of cartNames) cartTexts.push((await c.text()).trim());
   console.log("购物车:", cartTexts.join(" | "));
+  if (!cartTexts.some((name) => name.includes("秋拾"))) throw new Error("秋拾未加入购物车");
   const opt = await cart.$(".cart-option");
   if (opt) console.log("自选明细:", (await opt.text()).trim());
 

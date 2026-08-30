@@ -178,7 +178,8 @@ Page({
   onLoad() {
     const systemInfo = wx.getSystemInfoSync();
     this.setData({ statusBarHeight: systemInfo.statusBarHeight || 20 });
-    const cachedCatalog = getCachedCatalog();
+    // 首页预拉取只有少量精选条目；商城首屏只能使用完整目录缓存。
+    const cachedCatalog = getCachedCatalog({ fullOnly: true });
     if (cachedCatalog) {
       this.applyCatalog(cachedCatalog, false);
     }

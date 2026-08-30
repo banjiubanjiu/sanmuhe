@@ -2,8 +2,8 @@ const { drinks, teaProducts, rooms, events } = require("../data/catalog");
 const { localImage } = require("../config/assets");
 const { isEventListVisible } = require("./eventStatus");
 
-// v2 清理旧版将 cloud:// 改写为未配置 CDN 域名的图片缓存。
-const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v3";
+// v4 清理旧版把首页精简预拉取误当完整商城目录写入的污染缓存。
+const CATALOG_CACHE_KEY = "sanmuhe_catalog_cache_v4";
 const EVENTS_CACHE_KEY = "sanmuhe_events_cache_v2";
 /** 失败回落只用近期成功快照，避免刚下架的货长期留在本地 */
 const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -50,12 +50,13 @@ function withCatalogMeta(catalog, source) {
     settings: next.settings || null,
     fromCloud: source === "cloud",
     fromCache: source === "cache",
+    isPartial: next.isPartial === true,
     source,
     catalogError: source === "error"
   };
 }
 
-function writeCatalogCache(catalog) {
+function writeCatalogCache(catalog, options = {}) {
   try {
     wx.setStorageSync(CATALOG_CACHE_KEY, {
       drinks: catalog.drinks || [],
@@ -66,6 +67,7 @@ function writeCatalogCache(catalog) {
       giftBoxes: Array.isArray(catalog.giftBoxes) ? catalog.giftBoxes : [],
       content: catalog.content || { homeSlides: [] },
       settings: catalog.settings || null,
+      isPartial: options.isPartial === true,
       cachedAt: Date.now()
     });
   } catch (error) {
@@ -88,6 +90,7 @@ function readCatalogCache() {
       giftBoxes: Array.isArray(cached.giftBoxes) ? cached.giftBoxes : [],
       content: cached.content || { homeSlides: [] },
       settings: cached.settings || null,
+      isPartial: cached.isPartial === true,
       cachedAt: Number(cached.cachedAt) || 0
     };
   } catch (error) {
@@ -200,7 +203,8 @@ function enrichCatalog(catalog) {
     productCategories: Array.isArray(source.productCategories) ? source.productCategories : [],
     giftBoxes: Array.isArray(source.giftBoxes) ? source.giftBoxes : [],
     content: source.content || { homeSlides: [] },
-    settings: source.settings || null
+    settings: source.settings || null,
+    isPartial: source.isPartial === true
   };
 }
 
@@ -248,6 +252,10 @@ function getCatalog() {
   }
   const raw = readCatalogCache();
   const cacheAge = raw && raw.cachedAt ? Date.now() - raw.cachedAt : Infinity;
+  if (raw && raw.isPartial) {
+    // 首页数据预拉取只含少量精选条目，绝不能当作完整商城目录返回。
+    return fetchCatalogFromCloud();
+  }
   if (raw && cacheAge <= CATALOG_STALE_RETURN_MS) {
     // 30 秒内：直接用缓存，不发请求（底部菜单切换秒开）
     return Promise.resolve(withCatalogMeta(enrichCatalog(raw), "cache"));
@@ -262,9 +270,12 @@ function getCatalog() {
 }
 
 /** 为首屏提供最近一次货架快照，随后由 getCatalog 在后台刷新。 */
-function getCachedCatalog() {
+function getCachedCatalog(options = {}) {
   const cached = readCatalogCache();
   if (!cached || !cached.cachedAt || Date.now() - cached.cachedAt > CATALOG_CACHE_MAX_STALE_MS) {
+    return null;
+  }
+  if (options.fullOnly === true && cached.isPartial) {
     return null;
   }
   return withCatalogMeta(enrichCatalog(cached), "cache");
@@ -296,7 +307,12 @@ function applyBackgroundPrefetch(payload) {
     if (!catalog || typeof catalog !== "object") {
       return false;
     }
-    writeCatalogCache(catalog);
+    const current = readCatalogCache();
+    // 预拉取是首页精简快照。晚到的回调不能覆盖已经成功拉到的全量目录。
+    if (current && !current.isPartial) {
+      return true;
+    }
+    writeCatalogCache(catalog, { isPartial: true });
     return true;
   } catch (error) {
     return false;

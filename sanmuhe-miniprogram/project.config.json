@@ -31,6 +31,18 @@
         "value": "assets/images/.orig-backup"
       },
       {
+        "type": "file",
+        "value": "assets/images/home-carousel-1.jpg"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/home-carousel-2.jpg"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/home-carousel-3.jpg"
+      },
+      {
         "type": "glob",
         "value": "admin/**/*"
       },

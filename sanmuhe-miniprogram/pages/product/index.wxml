@@ -28,7 +28,11 @@
       <view class="detail-title">{{product.name}}</view>
       <view class="green-tag">{{product.category}}</view>
     </view>
-    <view class="muted detail-meta">产地：{{product.origin}}<text wx:if="{{product.year}}"> ｜ 年份：{{product.year}}</text></view>
+    <view wx:if="{{product.origin || product.year}}" class="muted detail-meta">
+      <text wx:if="{{product.origin}}">产地：{{product.origin}}</text>
+      <text wx:if="{{product.origin && product.year}}"> ｜ </text>
+      <text wx:if="{{product.year}}">年份：{{product.year}}</text>
+    </view>
 
     <view wx:if="{{product.taste}}" class="taste-block">
       <view class="muted paragraph {{tasteExpanded || !product.tasteExpandable ? '' : 'is-clamped'}}">{{product.taste}}</view>
@@ -99,7 +103,6 @@
           wx:key="teaId"
           class="giftbox-tea {{item.picked > 0 ? 'active' : ''}}"
         >
-          <image class="giftbox-tea-img" src="{{item.image}}" mode="aspectFill" lazy-load="{{true}}"></image>
           <view class="giftbox-tea-copy">
             <view class="giftbox-tea-name">{{item.name}}</view>
             <view class="giftbox-tea-price">

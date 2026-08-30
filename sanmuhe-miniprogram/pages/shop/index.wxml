@@ -49,11 +49,13 @@
       refresher-triggered="{{refreshing}}"
       refresher-default-style="black"
       bindrefresherrefresh="onPullRefresh"
+      lower-threshold="240"
+      bindscrolltolower="loadMoreProducts"
     >
       <view class="result-summary">
         {{keyword ? '全部茶品的搜索结果' : activeCategory}} · {{filteredProducts.length}} 款
       </view>
-      <view wx:for="{{filteredProducts}}" wx:key="id" class="goods-item">
+      <view wx:for="{{visibleProducts}}" wx:key="id" class="goods-item">
         <view
           class="goods-main"
           data-id="{{item.id}}"
@@ -71,7 +73,7 @@
           </view>
           <view class="goods-copy">
             <view class="goods-name">{{item.name}}</view>
-            <view class="goods-tags">
+            <view wx:if="{{item.origin}}" class="goods-tags">
               <text>{{item.origin}}</text>
             </view>
             <view class="goods-bottom">

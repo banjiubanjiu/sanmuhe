@@ -21,8 +21,8 @@ const db = cloud.database();
 const _ = db.command;
 const DEFAULT_MEMBER_LEVELS = [
   { tier: "雅客会员", minSpend: 0, discountRate: 1 },
-  { tier: "臻享会员", minSpend: 1600, discountRate: 0.95 },
-  { tier: "山房会员", minSpend: 5000, discountRate: 0.92 }
+  { tier: "臻享会员", minSpend: 1600, discountRate: 1 },
+  { tier: "山房会员", minSpend: 5000, discountRate: 1 }
 ];
 
 async function ensureCollection(name) {
@@ -343,8 +343,7 @@ function getLevelRules(settings = {}) {
     {
       tier: String(settings.levelOneName || DEFAULT_MEMBER_LEVELS[0].tier),
       minSpend: number(settings.levelOneMinSpend),
-      // 支付后会员快照与下单规则保持一致：雅客会员按原价结算。
-      discountRate: 1
+      discountRate: Number(settings.levelOneDiscountRate || DEFAULT_MEMBER_LEVELS[0].discountRate)
     },
     {
       tier: String(settings.levelTwoName || DEFAULT_MEMBER_LEVELS[1].tier),

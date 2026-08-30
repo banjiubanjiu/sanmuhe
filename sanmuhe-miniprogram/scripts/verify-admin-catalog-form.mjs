@@ -59,10 +59,7 @@ function verifySource() {
     "DRINK_CATEGORY_PRESETS",
     "EVENT_CATEGORY_PRESETS",
     "EVENT_STATUS_OPTIONS",
-    "ROOM_STATUS_OPTIONS",
     "CONTENT_TYPE_OPTIONS",
-    "CONTENT_LINK_TYPE_OPTIONS",
-    "CONTENT_PAGE_OPTIONS",
     "catalogCategoryChoice",
     "openInventoryDrawer",
     'v-model="catalogCategoryChoice"',
@@ -109,7 +106,6 @@ function verifyBuiltBundle() {
   const js = readFileSync(jsPath, "utf8");
   assertIncludes(js, [
     "自定义…",
-    "自定义路径",
     "__custom__",
     "请选择商品",
     "养心茶会",

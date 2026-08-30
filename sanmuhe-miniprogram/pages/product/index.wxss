@@ -337,14 +337,6 @@
   background: #f0f6ef;
 }
 
-.giftbox-tea-img {
-  width: 84rpx;
-  height: 84rpx;
-  border-radius: 10rpx;
-  flex-shrink: 0;
-  background: var(--hx-sidebar, #f4ebdd);
-}
-
 .giftbox-tea-copy {
   min-width: 0;
   flex: 1;

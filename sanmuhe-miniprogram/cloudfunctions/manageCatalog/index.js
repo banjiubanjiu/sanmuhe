@@ -17,6 +17,7 @@ const allowedCollections = {
 };
 
 const PRODUCT_CATEGORY_CHANNELS = new Set(["tea_products", "drinks"]);
+const TEA_PRODUCT_TYPES = new Set(["simple", "fixed_giftbox"]);
 const IMAGE_FIELDS = new Set(["image", "thumb", "detailImage"]);
 /** cloud:// fileID 前缀约 80 字，后台上传路径常超过 120 */
 const IMAGE_REF_MAX = 500;
@@ -432,6 +433,10 @@ function normalizePayload(collection, payload) {
       data[field] = cleanText(source[field], max);
     }
   }
+  // productType 是零售商品类型，不得写入堂饮、活动等集合。
+  if (collection === "tea_products" && source.productType !== undefined) {
+    data.productType = cleanText(source.productType, 40);
+  }
 
   // 商品后台只有一个主图入口；即使旧版后台仍提交旧 thumb，也以新主图为准。
   if ((collection === "tea_products" || collection === "drinks") && data.image) {
@@ -583,6 +588,13 @@ function validateCatalogPayload(collection, payload, source = {}, options = {}) 
       assertImageRef(payload[field], field === "detailImage" ? "详情图片" : "图片地址");
     }
   });
+
+  if (collection === "tea_products" && source.productType !== undefined) {
+    const productType = cleanText(payload.productType, 40);
+    if (!TEA_PRODUCT_TYPES.has(productType)) {
+      invalidInput("商品类型须为普通商品或固定礼盒");
+    }
+  }
 
   if (collection === "product_categories") {
     const channel = cleanText(payload.channel || existing.channel, 40);

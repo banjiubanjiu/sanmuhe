@@ -1,12 +1,15 @@
+const loadedImageSources = new Set();
+
 Component({
   properties: {
     src: {
       type: String,
       value: "",
       observer(value) {
+        const source = String(value || "");
         this.setData({
-          loaded: false,
-          failed: !value
+          loaded: !!source && loadedImageSources.has(source),
+          failed: !source
         });
       }
     },
@@ -39,11 +42,19 @@ Component({
 
   methods: {
     handleLoad(event) {
+      const source = String(this.data.src || "");
+      if (source) {
+        loadedImageSources.add(source);
+      }
       this.setData({ loaded: true, failed: false });
       this.triggerEvent("load", event.detail || {});
     },
 
     handleError(event) {
+      const source = String(this.data.src || "");
+      if (source) {
+        loadedImageSources.delete(source);
+      }
       this.setData({ loaded: false, failed: true });
       this.triggerEvent("error", event.detail || {});
     }
