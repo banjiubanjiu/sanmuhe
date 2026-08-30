@@ -2,6 +2,7 @@ const { events: localEvents } = require("../../data/catalog");
 const { listEvents } = require("../../utils/cloudApi");
 const { decorateEventStatus } = require("../../utils/eventStatus");
 const { localImage } = require("../../config/assets");
+const { buildShareMessage } = require("../../utils/share");
 
 const detailImages = {
   "event-001": "/assets/images/event-detail-content-1.jpg",
@@ -104,11 +105,12 @@ Page({
 
   onShareAppMessage() {
     const event = this.data.event || {};
-    return {
+    const eventId = event.id || this.eventId || "event-001";
+    return buildShareMessage({
       title: event.title || "禾煦茶事活动",
-      path: `/pages/event-detail/index?id=${event.id || this.eventId || "event-001"}`,
+      path: `/pages/event-detail/index?id=${encodeURIComponent(eventId)}`,
       imageUrl: event.image || event.detailImage || ""
-    };
+    });
   },
 
   goBack() {

@@ -1,6 +1,7 @@
 const app = getApp({ allowDefault: true });
 const { getCatalog } = require("../../utils/cloudApi");
 const { getStore } = require("../../data/store");
+const { buildShareMessage } = require("../../utils/share");
 
 const STORE = getStore();
 const fallbackContact = {
@@ -100,6 +101,15 @@ Page({
           })
         });
       }
+    });
+  },
+
+  onShareAppMessage() {
+    const contact = this.data.contact || {};
+    return buildShareMessage({
+      title: contact.store ? `${contact.store}｜欢迎来坐坐` : "禾煦书茶空间",
+      path: "/pages/contact/index",
+      imageUrl: contact.heroImage || ""
     });
   },
 

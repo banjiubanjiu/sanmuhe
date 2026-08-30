@@ -4,6 +4,7 @@ const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { normalizeMenuItems } = require("../../utils/teaMenu");
 const { preloadImages, toThumbnailUrl } = require("../../utils/imagePerformance");
 const { syncTabBar } = require("../../utils/tabbar");
+const { buildShareMessage } = require("../../utils/share");
 const tableUtil = require("../../utils/table");
 
 const DINEIN_CART_MODE = "dinein";
@@ -179,6 +180,13 @@ Page({
         this.setData({ requestedDrinkId: "" });
       });
     }
+  },
+
+  onShareAppMessage() {
+    return buildShareMessage({
+      title: "来禾煦，点一席好茶",
+      path: "/pages/order/index"
+    });
   },
 
   onPullRefresh() {

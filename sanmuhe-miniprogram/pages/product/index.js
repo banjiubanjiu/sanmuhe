@@ -2,6 +2,7 @@ const { addToCart } = require("../../utils/cart");
 const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { preloadImages, toThumbnailUrl } = require("../../utils/imagePerformance");
 const { isFavorite, toggleFavorite } = require("../../utils/favorites");
+const { buildShareMessage } = require("../../utils/share");
 
 // 旧版按克重倍率计价（无 specs 时回退）
 const legacySpecMultipliers = {
@@ -312,6 +313,19 @@ Page({
       this.applyProductCatalog(cachedCatalog);
     }
     this.loadProduct();
+  },
+
+  onShareAppMessage() {
+    const product = this.data.product || {};
+    const productId = product.id || this.productId || "";
+    const images = Array.isArray(product.images) ? product.images : [];
+    return buildShareMessage({
+      title: product.name ? `${product.name}｜禾煦甄选` : "禾煦甄选好茶",
+      path: productId
+        ? `/pages/product/index?id=${encodeURIComponent(productId)}`
+        : "/pages/shop/index",
+      imageUrl: product.image || images[0] || product.previewImage || ""
+    });
   },
 
   applyProductCatalog(catalog) {

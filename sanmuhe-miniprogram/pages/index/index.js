@@ -4,6 +4,7 @@ const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { preloadCatalogThumbnails, toThumbnailUrl } = require("../../utils/imagePerformance");
 const { syncTabBar } = require("../../utils/tabbar");
+const { buildShareMessage } = require("../../utils/share");
 
 const ORDER_DRINK_KEY = "sanmuhe_order_drink_id";
 
@@ -351,6 +352,12 @@ Page({
     syncTabBar(this);
     this.refreshCart();
     this.loadHomeData();
+  },
+
+  onShareAppMessage() {
+    return buildShareMessage({
+      title: "禾煦书茶空间｜一盏茶，一方自在"
+    });
   },
 
   onPullRefresh() {

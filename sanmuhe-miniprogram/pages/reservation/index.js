@@ -10,6 +10,7 @@ const {
 const { createReservation, payReservation, getCatalog, listReservedSlots, resolvePhoneNumber } = require("../../utils/cloudApi");
 const { getBookingDays } = require("../../utils/date");
 const { withPrivacy } = require("../../utils/privacy");
+const { buildShareMessage } = require("../../utils/share");
 
 const CONTACT_KEY = "sanmuhe_contact";
 const LOCAL_FALLBACK_STORE = getStore();
@@ -298,6 +299,15 @@ Page(withPrivacy({
     });
     this.loadCatalog();
     this.loadReservedSlots(selectedDay);
+  },
+
+  onShareAppMessage() {
+    const room = this.data.selectedRoom || {};
+    return buildShareMessage({
+      title: "禾煦茶室｜预约一段清静茶时",
+      path: "/pages/reservation/index",
+      imageUrl: room.image || ""
+    });
   },
 
   refreshCells(startTime, endTime, reservedSlots) {

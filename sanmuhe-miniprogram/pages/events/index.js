@@ -2,6 +2,7 @@ const { listEvents } = require("../../utils/cloudApi");
 const { syncTabBar } = require("../../utils/tabbar");
 const { decorateEventStatus, isEventListVisible } = require("../../utils/eventStatus");
 const { localImage } = require("../../config/assets");
+const { buildShareMessage } = require("../../utils/share");
 
 const categories = ["全部", "养心茶会", "学茶", "时令茶会"];
 
@@ -166,6 +167,15 @@ Page({
         console.warn("[events] listEvents failed", error);
         this.setData({ eventLoading: false });
       });
+  },
+
+  onShareAppMessage() {
+    const featured = this.data.events && this.data.events[0];
+    return buildShareMessage({
+      title: "禾煦茶事雅集｜以茶会友",
+      path: "/pages/events/index",
+      imageUrl: (featured && featured.image) || ""
+    });
   },
 
   applyEvents(allEvents) {

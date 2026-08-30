@@ -2,6 +2,7 @@ const { addToCart, getCart, getTotal } = require("../../utils/cart");
 const { getCatalog, getCachedCatalog } = require("../../utils/cloudApi");
 const { preloadImages, toThumbnailUrl } = require("../../utils/imagePerformance");
 const { syncTabBar } = require("../../utils/tabbar");
+const { buildShareMessage } = require("../../utils/share");
 
 /** 无云端类别时的兜底顺序（与 seed product_categories 对齐） */
 const DEFAULT_CATEGORY_ORDER = ["全部", "红茶", "白茶", "岩茶", "普洱茶", "单丛"];
@@ -190,6 +191,13 @@ Page({
     syncTabBar(this);
     this.refreshCart();
     this.loadCatalog();
+  },
+
+  onShareAppMessage() {
+    return buildShareMessage({
+      title: "禾煦甄选好茶",
+      path: "/pages/shop/index"
+    });
   },
 
   refreshCart() {
